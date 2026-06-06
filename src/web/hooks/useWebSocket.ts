@@ -1,31 +1,83 @@
 import { useEffect, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useConversationStore } from "../stores/conversationStore";
+import { queryKeys } from "../queries/keys";
+import type { WsServerMessage, MessageDto } from "../types";
 
-interface WebSocketMessage {
-  type: string;
-  [key: string]: unknown;
+/** 创建占位 MessageDto——用于 WebSocket message_started 和乐观发送 */
+export function createPlaceholderMessage(
+  conversationId: string,
+  opts: { id: number; role: MessageDto["role"]; from_role?: string | null; client_id?: string | null; status?: MessageDto["status"]; content?: string }
+): MessageDto {
+  return {
+    id: opts.id,
+    conversation_id: conversationId,
+    client_id: opts.client_id ?? null,
+    from_role: opts.from_role ?? null,
+    to_roles: [],
+    role: opts.role,
+    quoted_message_id: null,
+    context_cutoff_at: "",
+    runtime: null,
+    status: opts.status ?? "streaming",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    content: opts.content,
+    events: [],
+    quoted_message: null,
+  };
 }
 
-/** 处理 WebSocket 消息，更新 store */
-function handleMessage(msg: WebSocketMessage, updateMessage: (id: number, updates: Record<string, unknown>) => void) {
-  if (msg.type === "agent_event") {
-    const event = msg.event as { type: string; [key: string]: unknown };
-    if (event.type === "message_event_appended") {
-      updateMessage(event.message_id as number, { content: (event.content as string) || "" });
-    } else if (event.type === "message_status_changed") {
-      updateMessage(event.message_id as number, { status: event.status as string });
-    }
+/** 处理 WebSocket 消息，更新 TanStack Query 缓存 */
+function handleMessage(
+  msg: WsServerMessage,
+  conversationId: string,
+  queryClient: ReturnType<typeof useQueryClient>,
+) {
+  if (msg.type !== "agent_event") return;
+  const { event } = msg;
+
+  if (event.type === "message_started") {
+    queryClient.setQueryData(
+      queryKeys.conversations.messages(conversationId),
+      (old: MessageDto[] | undefined) => {
+        // 去重：相同 message_id 已存在则跳过
+        if (old?.some((m) => m.id === event.message_id)) return old;
+        return [...(old ?? []), createPlaceholderMessage(conversationId, {
+          id: event.message_id,
+          role: event.role,
+          from_role: event.role_name,
+          client_id: event.client_id,
+          status: event.status,
+        })];
+      },
+    );
+  } else if (event.type === "message_event_appended") {
+    queryClient.setQueryData(
+      queryKeys.conversations.messages(conversationId),
+      (old: MessageDto[] | undefined) => old?.map((m) =>
+        m.id === event.message_id
+          ? { ...m, events: [...(m.events ?? []), event.event] }
+          : m
+      ),
+    );
+  } else if (event.type === "message_status_changed") {
+    queryClient.setQueryData(
+      queryKeys.conversations.messages(conversationId),
+      (old: MessageDto[] | undefined) => old?.map((m) =>
+        m.id === event.message_id ? { ...m, status: event.status } : m
+      ),
+    );
   }
 }
 
 interface WsHandlers {
   mounted: () => boolean;
   onOpen: () => void;
-  onMessage: (msg: WebSocketMessage) => void;
+  onMessage: (msg: WsServerMessage) => void;
   onClose: () => void;
 }
 
-/** 创建 WebSocket 连接并设置事件处理器 */
 function createWsConnection(url: string, handlers: WsHandlers): WebSocket {
   const ws = new WebSocket(url);
   ws.onopen = () => { if (handlers.mounted()) handlers.onOpen(); };
@@ -43,7 +95,8 @@ export function useWebSocket(conversationId: string | null) {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectDelay = useRef(1000);
-  const { setWsStatus, updateMessage } = useConversationStore();
+  const queryClient = useQueryClient();
+  const { setWsStatus } = useConversationStore();
 
   useEffect(() => {
     if (!conversationId) return;
@@ -58,9 +111,10 @@ export function useWebSocket(conversationId: string | null) {
         {
           mounted: () => mounted,
           onOpen: () => { setWsStatus("connected"); reconnectDelay.current = 1000; },
-          onMessage: (msg) => handleMessage(msg, updateMessage),
+          onMessage: (msg) => handleMessage(msg, conversationId, queryClient),
           onClose: () => {
             setWsStatus("disconnected");
+            console.log(`[WebSocket] 连接关闭，${reconnectDelay.current}ms 后重连`);
             reconnectTimer.current = setTimeout(() => {
               reconnectDelay.current = Math.min(reconnectDelay.current * 2, 30000);
               connect();

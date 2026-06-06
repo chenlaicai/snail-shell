@@ -6,7 +6,7 @@
  */
 
 import { useNavigate } from "react-router-dom";
-import { api } from "../services/api";
+import { api } from "../services/api-client";
 import { showToast } from "../components/Toast";
 
 export function HomePage() {
@@ -14,7 +14,7 @@ export function HomePage() {
 
   async function handleEnterWorkspace() {
     try {
-      const workspaces = await api("GET", "/workspaces");
+      const workspaces = await api("GET /api/workspaces");
       if (workspaces.length > 0) {
         navigate(`/ws/${workspaces[0].id}`);
       } else {
@@ -26,8 +26,8 @@ export function HomePage() {
   }
 
   return (
-    <div className="task-board-panel view-pane is-active" data-view-pane="workspaces">
-      <div className="task-board" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <div className="flex flex-col h-full min-h-0" data-view-pane="workspaces">
+      <div className="flex flex-col flex-1 overflow-hidden min-w-0 items-center justify-center">
         <div style={{ textAlign: "center", maxWidth: 480 }}>
           <div style={{ fontSize: 48, marginBottom: "var(--space-lg)" }}>🐌</div>
           <h1 style={{ fontSize: "var(--font-size-xl)", marginBottom: "var(--space-md)" }}>

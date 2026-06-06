@@ -5,30 +5,20 @@
  */
 
 import { useEffect, useState } from "react";
-import { api } from "../services/api";
+import { api } from "../services/api-client";
 import { showToast } from "../components/Toast";
 import { Button } from "@/components/ui/button";
-
-interface LobbySession {
-  id: string;
-  channel: string;
-  status: string;
-  created_at: string;
-  last_activity?: string;
-}
-
-interface SessionMessage {
-  id: string;
-  role: string;
-  content: string;
-  created_at: string;
-}
+import { Dialog } from "../components/ui/dialog";
+import type { LobbySessionDto, LobbyMessageDto } from "../types";
 
 export function Lobby() {
-  const [sessions, setSessions] = useState<LobbySession[]>([]);
+  const [sessions, setSessions] = useState<LobbySessionDto[]>([]);
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
-  const [sessionMessages, setSessionMessages] = useState<SessionMessage[]>([]);
+  const [sessionMessages, setSessionMessages] = useState<LobbyMessageDto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmTarget, setConfirmTarget] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<"reset" | "delete">("delete");
 
   useEffect(() => {
     loadSessions();
@@ -37,7 +27,7 @@ export function Lobby() {
   async function loadSessions() {
     setLoading(true);
     try {
-      const data = await api("GET", "/lobby/sessions");
+      const data = await api("GET /api/lobby/sessions");
       setSessions(data);
     } catch (err: unknown) {
       showToast(`加载会话失败：${err instanceof Error ? err.message : String(err)}`, true);
@@ -48,7 +38,7 @@ export function Lobby() {
   async function selectSession(sessionId: string) {
     setSelectedSession(sessionId);
     try {
-      const data = await api("GET", `/lobby/sessions/${sessionId}`);
+      const data = await api("GET /api/lobby/sessions/:sessionId", { params: { sessionId } });
       setSessionMessages(data.messages || []);
     } catch (err: unknown) {
       showToast(`加载消息失败：${err instanceof Error ? err.message : String(err)}`, true);
@@ -56,41 +46,50 @@ export function Lobby() {
     }
   }
 
-  async function handleReset(sessionId: string) {
-    if (!confirm("确定重置此会话？")) return;
-    try {
-      await api("POST", `/lobby/sessions/${sessionId}/reset`);
-      showToast("会话已重置");
-      setSessionMessages([]);
-    } catch (err: unknown) {
-      showToast(`重置失败：${err instanceof Error ? err.message : String(err)}`, true);
-    }
+  function openConfirm(sessionId: string, action: "reset" | "delete") {
+    setConfirmTarget(sessionId);
+    setConfirmAction(action);
+    setConfirmOpen(true);
   }
 
-  async function handleDelete(sessionId: string) {
-    if (!confirm("确定删除此会话？")) return;
-    try {
-      await api("DELETE", `/lobby/sessions/${sessionId}`);
-      showToast("会话已删除");
-      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
-      if (selectedSession === sessionId) {
-        setSelectedSession(null);
+  async function handleConfirmAction() {
+    if (!confirmTarget) return;
+    const sessionId = confirmTarget;
+    const action = confirmAction;
+    setConfirmOpen(false);
+    setConfirmTarget(null);
+    if (action === "reset") {
+      try {
+        await api("POST /api/lobby/sessions/:sessionId/reset", { params: { sessionId } });
+        showToast("会话已重置");
         setSessionMessages([]);
+      } catch (err: unknown) {
+        showToast(`重置失败：${err instanceof Error ? err.message : String(err)}`, true);
       }
-    } catch (err: unknown) {
-      showToast(`删除失败：${err instanceof Error ? err.message : String(err)}`, true);
+    } else {
+      try {
+        await api("DELETE /api/lobby/sessions/:sessionId", { params: { sessionId } });
+        showToast("会话已删除");
+        setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+        if (selectedSession === sessionId) {
+          setSelectedSession(null);
+          setSessionMessages([]);
+        }
+      } catch (err: unknown) {
+        showToast(`删除失败：${err instanceof Error ? err.message : String(err)}`, true);
+      }
     }
   }
 
-  if (loading) return <div className="task-board-empty">加载中...</div>;
+  if (loading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
 
   return (
-    <div className="task-board-panel view-pane is-active" data-view-pane="lobby">
-      <div className="task-board">
-        <div className="board-header">
-          <div className="board-title-area">
-            <span className="board-title">IM 大厅</span>
-            <span className="board-subtitle">{sessions.length} 个会话</span>
+    <div className="flex flex-col h-full min-h-0" data-view-pane="lobby">
+      <div className="flex flex-col flex-1 overflow-hidden min-w-0">
+        <div className="flex items-center gap-4 p-3 px-6 border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0">
+          <div className="flex items-baseline gap-2 flex-1 min-w-0">
+            <span className="text-sm font-semibold text-[var(--color-text-primary)]">IM 大厅</span>
+            <span className="text-[11px] text-[var(--color-text-grey)]">{sessions.length} 个会话</span>
           </div>
         </div>
 
@@ -107,9 +106,9 @@ export function Lobby() {
                   onClick={() => selectSession(s.id)}
                   style={{ cursor: "pointer", padding: "8px", borderRadius: 6, marginBottom: 4 }}
                 >
-                  <div style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>{s.channel}</div>
+                  <div style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>{s.channel_type}</div>
                   <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-grey)" }}>
-                    {s.status} · {new Date(s.created_at).toLocaleString()}
+                    {s.navigation_level} · {new Date(s.created_at).toLocaleString()}
                   </div>
                 </div>
               ))
@@ -123,8 +122,8 @@ export function Lobby() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-lg)" }}>
                   <h2 style={{ margin: 0, fontSize: "var(--font-size-md)" }}>会话消息</h2>
                   <div style={{ display: "flex", gap: "var(--space-sm)" }}>
-                    <Button variant="outline" size="sm" onClick={() => handleReset(selectedSession)}>重置</Button>
-                    <Button variant="destructive" size="sm" onClick={() => handleDelete(selectedSession)}>删除</Button>
+                    <Button variant="outline" size="sm" onClick={() => openConfirm(selectedSession, "reset")}>重置</Button>
+                    <Button variant="destructive" size="sm" onClick={() => openConfirm(selectedSession, "delete")}>删除</Button>
                   </div>
                 </div>
                 {sessionMessages.length === 0 ? (
@@ -132,10 +131,14 @@ export function Lobby() {
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
                     {sessionMessages.map((msg) => (
-                      <div key={msg.id} className={`msg msg-${msg.role}`}>
-                        <div className="msg-header">
-                          <div className="role">{msg.role}</div>
-                          <div className="timestamp">{new Date(msg.created_at).toLocaleTimeString()}</div>
+                      <div key={msg.id} className={`msg max-w-[var(--message-max-width)] px-[14px] py-[var(--space-md)] rounded-[14px] leading-[1.6] whitespace-pre-wrap min-w-0 [overflow-wrap:break-word] ${
+                        msg.direction === "in"
+                          ? "self-start bg-[var(--color-assistant-msg-bg)] border border-[var(--color-border-muted)] rounded-bl-[var(--space-2xs)]"
+                          : "self-end bg-[var(--color-user-msg-bg)] border border-[var(--color-border-muted)] rounded-br-[var(--space-2xs)]"
+                      }`}>
+                        <div className="flex items-center justify-between gap-[var(--space-md)] mb-[var(--space-2xs)]">
+                          <div className="text-[var(--font-size-xs)] text-[var(--color-text-blue-muted)] uppercase tracking-[0.08em]">{msg.direction}</div>
+                          <div className="shrink-0 text-[var(--font-size-xs)] text-[var(--color-text-muted)] [font-variant-numeric:tabular-nums]">{new Date(msg.created_at).toLocaleTimeString()}</div>
                         </div>
                         <div className="msg-content">{msg.content}</div>
                       </div>
@@ -149,6 +152,13 @@ export function Lobby() {
           </div>
         </div>
       </div>
+      <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)} title="确认操作">
+        <p>{confirmAction === "reset" ? "确定重置此会话？" : "确定删除此会话？"}</p>
+        <div style={{ display: "flex", gap: "var(--space-sm, 8px)", justifyContent: "flex-end" }}>
+          <Button variant="outline" onClick={() => setConfirmOpen(false)}>取消</Button>
+          <Button variant="destructive" onClick={handleConfirmAction}>确定</Button>
+        </div>
+      </Dialog>
     </div>
   );
 }

@@ -5,27 +5,17 @@
  */
 
 import { useEffect, useState } from "react";
-import { api } from "../services/api";
+import { api } from "../services/api-client";
 import { showToast } from "../components/Toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-
-interface EvolutionItem {
-  id: string;
-  title: string;
-  type: string;
-  status: string;
-  content?: string;
-  workspace_id?: string;
-  created_at: string;
-  updated_at?: string;
-}
+import type { EvolutionItemDto } from "../types";
 
 export function EvolutionCenter() {
-  const [items, setItems] = useState<EvolutionItem[]>([]);
-  const [selectedItem, setSelectedItem] = useState<EvolutionItem | null>(null);
+  const [items, setItems] = useState<EvolutionItemDto[]>([]);
+  const [selectedItem, setSelectedItem] = useState<EvolutionItemDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<"list" | "detail" | "create">("list");
 
@@ -41,7 +31,7 @@ export function EvolutionCenter() {
   async function loadItems() {
     setLoading(true);
     try {
-      const data = await api("GET", "/evolution/items?limit=100");
+      const data = await api("GET /api/evolution/items", { query: { limit: 100 } });
       setItems(data);
     } catch (err: unknown) {
       showToast(`加载演进项失败：${err instanceof Error ? err.message : String(err)}`, true);
@@ -51,7 +41,7 @@ export function EvolutionCenter() {
 
   async function selectItem(itemId: string) {
     try {
-      const data = await api("GET", `/evolution/items/${itemId}`);
+      const data = await api("GET /api/evolution/items/:itemId", { params: { itemId } });
       setSelectedItem(data);
       setMode("detail");
     } catch (err: unknown) {
@@ -65,10 +55,12 @@ export function EvolutionCenter() {
       return;
     }
     try {
-      await api("POST", "/evolution/items", {
-        title: formTitle.trim(),
-        content: formContent.trim(),
-        type: formType,
+      await api("POST /api/evolution/items", {
+        body: {
+          title: formTitle.trim(),
+          content: formContent.trim(),
+          type: formType,
+        },
       });
       showToast("演进项已创建");
       setMode("list");
@@ -80,17 +72,17 @@ export function EvolutionCenter() {
     }
   }
 
-  if (loading) return <div className="task-board-empty">加载中...</div>;
+  if (loading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
 
   return (
-    <div className="task-board-panel view-pane is-active" data-view-pane="evolution">
-      <div className="task-board">
-        <div className="board-header">
-          <div className="board-title-area">
-            <span className="board-title">Evolution Center</span>
-            <span className="board-subtitle">{items.length} 项</span>
+    <div className="flex flex-col h-full min-h-0" data-view-pane="evolution">
+      <div className="flex flex-col flex-1 overflow-hidden min-w-0">
+        <div className="flex items-center gap-4 p-3 px-6 border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0">
+          <div className="flex items-baseline gap-2 flex-1 min-w-0">
+            <span className="text-sm font-semibold text-[var(--color-text-primary)]">Evolution Center</span>
+            <span className="text-[11px] text-[var(--color-text-grey)]">{items.length} 项</span>
           </div>
-          <div className="board-actions">
+          <div className="flex gap-1.5">
             <Button size="sm" onClick={() => { setMode("create"); setFormTitle(""); setFormContent(""); }}>+ 新增</Button>
           </div>
         </div>
@@ -110,8 +102,9 @@ export function EvolutionCenter() {
                 >
                   <div style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>{item.title}</div>
                   <div style={{ display: "flex", gap: "var(--space-xs)", marginTop: 4 }}>
-                    <Badge variant="outline">{item.type}</Badge>
-                    <Badge variant={item.status === "governed" ? "default" : "secondary"}>{item.status}</Badge>
+                    {item.tags?.slice(0, 2).map((tag: string) => (
+                      <Badge key={tag} variant="outline">{tag}</Badge>
+                    ))}
                   </div>
                 </div>
               ))
@@ -153,8 +146,9 @@ export function EvolutionCenter() {
                 <div style={{ marginBottom: "var(--space-lg)" }}>
                   <h2 style={{ margin: 0 }}>{selectedItem.title}</h2>
                   <div style={{ display: "flex", gap: "var(--space-xs)", marginTop: "var(--space-sm)" }}>
-                    <Badge variant="outline">{selectedItem.type}</Badge>
-                    <Badge variant={selectedItem.status === "governed" ? "default" : "secondary"}>{selectedItem.status}</Badge>
+                    {selectedItem.tags?.map((tag: string) => (
+                      <Badge key={tag} variant="outline">{tag}</Badge>
+                    ))}
                   </div>
                   <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-grey)", marginTop: 4 }}>
                     创建于 {new Date(selectedItem.created_at).toLocaleString()}

@@ -1,55 +1,21 @@
 import { useEffect, useState } from "react";
 import { useConversationStore } from "../stores/conversationStore";
-import { api } from "../services/api";
+import { api } from "../services/api-client";
 import { showToast } from "./Toast";
-
-interface Workspace {
-  id: string;
-  name: string;
-  kind?: string;
-  boss_pending_count?: number;
-}
-
-interface Issue {
-  id: string;
-  title: string;
-  closed_at?: string | null;
-}
-
-interface Participant {
-  name: string;
-  roleDef?: {
-    name: string;
-    description?: string;
-    snail_template_id?: string;
-  } | null;
-  isPrimary: boolean;
-}
-
-interface RoleDefinition {
-  name: string;
-  description?: string;
-  snail_template_id?: string;
-  is_primary?: boolean;
-}
-
-interface Template {
-  id: string;
-  name: string;
-}
+import type { WorkspaceSummaryDto, IssueDto, SnailDenTemplateDto, Participant, RoleDefinition } from "../types";
 
 export function ContextPanel({
   workspace,
   issue,
 }: {
-  workspace: Workspace | null;
-  issue: Issue | null;
+  workspace: WorkspaceSummaryDto | null;
+  issue: IssueDto | null;
 }) {
   const { currentStage, currentConversation, wsStatus } = useConversationStore();
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [outputArtifacts, setOutputArtifacts] = useState<Record<string, string>>({});
   const [inputArtifacts, setInputArtifacts] = useState<Record<string, string>>({});
-  const [templates, setTemplates] = useState<Template[]>([]);
+  const [templates, setTemplates] = useState<SnailDenTemplateDto[]>([]);
   const [newArtifactKey, setNewArtifactKey] = useState("");
   const [newArtifactValue, setNewArtifactValue] = useState("");
 
@@ -61,7 +27,7 @@ export function ContextPanel({
       setInputArtifacts({});
       return;
     }
-    api("GET", `/stages/${currentStage.id}`)
+    api("GET /api/stages/:stageId", { params: { stageId: currentStage.id } })
       .then((data) => {
         const roleDefs = data.role_definitions || [];
         const convRoles = currentConversation?.participating_roles || [];
@@ -87,7 +53,7 @@ export function ContextPanel({
 
   // 加载可用模板
   useEffect(() => {
-    api("GET", "/snail-den")
+    api("GET /api/snail-den")
       .then(setTemplates)
       .catch(() => {});
   }, []);
@@ -97,7 +63,7 @@ export function ContextPanel({
     if (!currentStage || !newArtifactKey.trim() || !newArtifactValue.trim()) return;
     const updated = { ...outputArtifacts, [newArtifactKey.trim()]: newArtifactValue.trim() };
     try {
-      await api("PATCH", `/stages/${currentStage.id}`, { output_artifacts: updated });
+      await api("PATCH /api/stages/:stageId", { params: { stageId: currentStage.id }, body: { output_artifacts: updated } });
       setOutputArtifacts(updated);
       setNewArtifactKey("");
       setNewArtifactValue("");
@@ -113,7 +79,7 @@ export function ContextPanel({
     const updated = { ...outputArtifacts };
     delete updated[key];
     try {
-      await api("PATCH", `/stages/${currentStage.id}`, { output_artifacts: updated });
+      await api("PATCH /api/stages/:stageId", { params: { stageId: currentStage.id }, body: { output_artifacts: updated } });
       setOutputArtifacts(updated);
       showToast("已移除输出产物");
     } catch (err: unknown) {
@@ -125,10 +91,9 @@ export function ContextPanel({
   async function handleTemplateChange(roleName: string, templateId: string) {
     if (!issue || !currentStage) return;
     try {
-      await api("PATCH", `/issues/${issue.id}/role-snail`, {
-        stage_id: currentStage.id,
-        role_name: roleName,
-        snail_template_id: templateId,
+      await api("PATCH /api/issues/:issueId/role-snail", {
+        params: { issueId: issue.id },
+        body: { stage_id: currentStage.id, role_name: roleName, snail_template_id: templateId },
       });
       showToast(`已切换 ${roleName} 的模板`);
     } catch (err: unknown) {

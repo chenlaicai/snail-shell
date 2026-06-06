@@ -5,46 +5,25 @@
  */
 
 import { useEffect, useState } from "react";
-import { api } from "../services/api";
+import { api } from "../services/api-client";
 import { showToast } from "../components/Toast";
 import { Button } from "@/components/ui/button";
+import { Dialog } from "../components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-
-interface SopStageDefinition {
-  key: string;
-  title: string;
-  sequence: number;
-  input_description?: string;
-  output_description?: string;
-  roles: Array<{
-    key: string;
-    name: string;
-    description: string;
-    is_primary: boolean;
-    handbook: string;
-  }>;
-}
-
-interface Sop {
-  id: string;
-  name: string;
-  description?: string;
-  source: "platform" | "workspace";
-  source_ref?: string;
-  key: string;
-  stage_definitions?: SopStageDefinition[];
-}
+import type { SopDto, SopDetailDto } from "../types";
 
 type Mode = "list" | "detail" | "create" | "edit";
 
 export function SopCenter() {
-  const [sops, setSops] = useState<Sop[]>([]);
+  const [sops, setSops] = useState<SopDto[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [detail, setDetail] = useState<Sop | null>(null);
+  const [detail, setDetail] = useState<SopDetailDto | null>(null);
   const [mode, setMode] = useState<Mode>("list");
   const [loading, setLoading] = useState(true);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmTarget, setConfirmTarget] = useState<string | null>(null);
 
   // 表单状态
   const [formName, setFormName] = useState("");
@@ -59,7 +38,7 @@ export function SopCenter() {
   async function loadSops() {
     setLoading(true);
     try {
-      const data = await api("GET", "/sops");
+      const data = await api("GET /api/sops");
       setSops(data);
     } catch (err: unknown) {
       showToast(`加载 SOP 列表失败：${err instanceof Error ? err.message : String(err)}`, true);
@@ -72,7 +51,7 @@ export function SopCenter() {
     setSelectedId(sopId);
     setMode("detail");
     try {
-      const data = await api("GET", `/sops/${encodeURIComponent(sopId)}`);
+      const data = await api("GET /api/sops/:sopId", { params: { sopId } });
       setDetail(data);
     } catch (err: unknown) {
       showToast(`加载 SOP 详情失败：${err instanceof Error ? err.message : String(err)}`, true);
@@ -87,10 +66,12 @@ export function SopCenter() {
       return;
     }
     try {
-      await api("POST", "/sops", {
-        name: formName.trim(),
-        description: formDescription.trim(),
-        key: formKey.trim(),
+      await api("POST /api/sops", {
+        body: {
+          name: formName.trim(),
+          description: formDescription.trim(),
+          key: formKey.trim(),
+        },
       });
       showToast("SOP 已创建");
       setMode("list");
@@ -105,9 +86,12 @@ export function SopCenter() {
   async function handleEdit() {
     if (!detail || !formName.trim()) return;
     try {
-      await api("PATCH", `/sops/${encodeURIComponent(detail.id)}`, {
-        name: formName.trim(),
-        description: formDescription.trim(),
+      await api("PATCH /api/sops/:sopId", {
+        params: { sopId: detail.id },
+        body: {
+          name: formName.trim(),
+          description: formDescription.trim(),
+        },
       });
       showToast("SOP 已更新");
       setMode("detail");
@@ -118,10 +102,18 @@ export function SopCenter() {
   }
 
   // 删除 SOP
-  async function handleDelete(sopId: string) {
-    if (!confirm("确定删除此 SOP？")) return;
+  function confirmDelete(sopId: string) {
+    setConfirmTarget(sopId);
+    setConfirmOpen(true);
+  }
+
+  async function handleConfirmDelete() {
+    if (!confirmTarget) return;
+    const sopId = confirmTarget;
+    setConfirmOpen(false);
+    setConfirmTarget(null);
     try {
-      await api("DELETE", `/sops/${encodeURIComponent(sopId)}`);
+      await api("DELETE /api/sops/:sopId", { params: { sopId } });
       showToast("SOP 已删除");
       setSops((prev) => prev.filter((s) => s.id !== sopId));
       if (selectedId === sopId) {
@@ -156,17 +148,17 @@ export function SopCenter() {
     setFormKey("");
   }
 
-  if (loading) return <div className="task-board-empty">加载中...</div>;
+  if (loading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
 
   return (
-    <div className="task-board-panel view-pane is-active" data-view-pane="sops">
-      <div className="task-board">
-        <div className="board-header">
-          <div className="board-title-area">
-            <span className="board-title">SOP Center</span>
-            <span className="board-subtitle">{sops.length} 个流程</span>
+    <div className="flex flex-col h-full min-h-0" data-view-pane="sops">
+      <div className="flex flex-col flex-1 overflow-hidden min-w-0">
+        <div className="flex items-center gap-4 p-3 px-6 border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0">
+          <div className="flex items-baseline gap-2 flex-1 min-w-0">
+            <span className="text-sm font-semibold text-[var(--color-text-primary)]">SOP Center</span>
+            <span className="text-[11px] text-[var(--color-text-grey)]">{sops.length} 个流程</span>
           </div>
-          <div className="board-actions">
+          <div className="flex gap-1.5">
             <Button size="sm" onClick={startCreate}>+ 新 SOP</Button>
           </div>
         </div>
@@ -235,7 +227,7 @@ export function SopCenter() {
                   </div>
                   <div style={{ display: "flex", gap: "var(--space-sm)" }}>
                     <Button variant="outline" size="sm" onClick={startEdit}>编辑</Button>
-                    <Button variant="destructive" size="sm" onClick={() => handleDelete(detail.id)}>删除</Button>
+                    <Button variant="destructive" size="sm" onClick={() => confirmDelete(detail.id)}>删除</Button>
                   </div>
                 </div>
                 {detail.description && (
@@ -245,10 +237,10 @@ export function SopCenter() {
                 {detail.stage_definitions && detail.stage_definitions.length > 0 ? (
                   <div style={{ display: "grid", gap: "var(--space-md)" }}>
                     {detail.stage_definitions.map((stage) => (
-                      <div key={stage.key} className="task-card">
-                        <div className="task-body">
-                          <div className="task-top-row">
-                            <span className="task-title">{stage.title}</span>
+                      <div key={stage.key} className="flex gap-2.5 py-3 px-3.5 bg-[var(--color-bg-surface)] border border-[var(--color-border-muted)] rounded-[var(--radius-sm)] mb-1.5 cursor-pointer transition-all duration-150 relative hover:border-[var(--color-border-default)] hover:bg-[var(--color-bg-active)]">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <span className="text-[13px] font-semibold text-[var(--color-text-primary)] flex-1 whitespace-nowrap overflow-hidden text-ellipsis">{stage.title}</span>
                             <Badge variant="outline">#{stage.sequence}</Badge>
                           </div>
                           <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-grey)", marginTop: 4 }}>
@@ -279,6 +271,13 @@ export function SopCenter() {
           </div>
         </div>
       </div>
+      <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)} title="确认删除">
+        <p>确定删除此 SOP？</p>
+        <div style={{ display: "flex", gap: "var(--space-sm, 8px)", justifyContent: "flex-end" }}>
+          <Button variant="outline" onClick={() => setConfirmOpen(false)}>取消</Button>
+          <Button variant="destructive" onClick={handleConfirmDelete}>确定</Button>
+        </div>
+      </Dialog>
     </div>
   );
 }

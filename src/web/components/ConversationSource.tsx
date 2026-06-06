@@ -5,25 +5,21 @@
  */
 
 import { useEffect, useState } from "react";
-import { api } from "../services/api";
-
-interface ConversationSource {
-  id: string;
-  title: string;
-}
+import { api } from "../services/api-client";
+import type { ConversationSource } from "../types";
 
 export function ConversationSource({ conversationId }: { conversationId: string | null }) {
   const [sources, setSources] = useState<ConversationSource[]>([]);
 
   useEffect(() => {
     if (!conversationId) { setSources([]); return; }
-    api("GET", `/conversations/${conversationId}`)
+    api("GET /api/conversations/:conversationId", { params: { conversationId } })
       .then((data) => {
         const sourceIds = data.from_conversation_ids || [];
         if (sourceIds.length === 0) { setSources([]); return; }
         // 加载来源 conversation 信息
         Promise.all(sourceIds.map((id: string) =>
-          api("GET", `/conversations/${id}`).catch(() => null)
+          api("GET /api/conversations/:conversationId", { params: { conversationId: id } }).catch(() => null)
         )).then((results) => {
           setSources(results.filter(Boolean).map((c: Record<string, unknown>) => ({
             id: c.id,

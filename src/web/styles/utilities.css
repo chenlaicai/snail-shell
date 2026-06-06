@@ -1,8 +1,0 @@
-.workspace-pill {
-  font-size: var(--font-size-base);
-  color: var(--color-text-secondary);
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border-default);
-  padding: var(--space-xs) var(--space-md);
-  border-radius: var(--radius-full);
-}

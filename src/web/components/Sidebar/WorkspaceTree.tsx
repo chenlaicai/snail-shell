@@ -1,20 +1,15 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { api } from "../../services/api";
-
-interface Workspace {
-  id: string;
-  name: string;
-  boss_pending_count: number;
-}
+import { api } from "../../services/api-client";
+import type { WorkspaceSummaryDto } from "../../types";
 
 export function WorkspaceTree() {
   const navigate = useNavigate();
   const { workspaceId } = useParams();
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [workspaces, setWorkspaces] = useState<WorkspaceSummaryDto[]>([]);
 
   useEffect(() => {
-    api("GET", "/workspaces").then(setWorkspaces).catch(() => {});
+    api("GET /api/workspaces").then(setWorkspaces).catch(() => {});
   }, []);
 
   if (workspaces.length === 0) {

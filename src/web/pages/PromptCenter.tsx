@@ -5,26 +5,20 @@
  */
 
 import { useEffect, useState } from "react";
-import { api } from "../services/api";
+import { api } from "../services/api-client";
 import { showToast } from "../components/Toast";
 import { Input } from "@/components/ui/input";
-
-interface Prompt {
-  id: string;
-  title: string;
-  filePath?: string;
-  content?: string;
-}
+import type { PromptDto } from "../types";
 
 export function PromptCenter() {
-  const [prompts, setPrompts] = useState<Prompt[]>([]);
+  const [prompts, setPrompts] = useState<PromptDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedContent, setSelectedContent] = useState("");
 
   useEffect(() => {
-    api("GET", "/meta/prompts")
+    api("GET /api/meta/prompts")
       .then(setPrompts)
       .catch((err) => showToast(`加载 Prompt 失败：${err.message}`, true))
       .finally(() => setLoading(false));
@@ -44,7 +38,7 @@ export function PromptCenter() {
     } else {
       // 如果内容未加载，尝试从 API 获取
       try {
-        const data = await api("GET", `/meta/prompts/${encodeURIComponent(id)}`);
+        const data = await api("GET /api/meta/prompts/:promptId", { params: { promptId: id } });
         setSelectedContent(data.content || "无内容");
       } catch {
         setSelectedContent("无法加载内容");
@@ -52,15 +46,15 @@ export function PromptCenter() {
     }
   }
 
-  if (loading) return <div className="task-board-empty">加载中...</div>;
+  if (loading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
 
   return (
-    <div className="task-board-panel view-pane is-active" data-view-pane="prompts">
-      <div className="task-board">
-        <div className="board-header">
-          <div className="board-title-area">
-            <span className="board-title">Prompt Center</span>
-            <span className="board-subtitle">{prompts.length} 个</span>
+    <div className="flex flex-col h-full min-h-0" data-view-pane="prompts">
+      <div className="flex flex-col flex-1 overflow-hidden min-w-0">
+        <div className="flex items-center gap-4 p-3 px-6 border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0">
+          <div className="flex items-baseline gap-2 flex-1 min-w-0">
+            <span className="text-sm font-semibold text-[var(--color-text-primary)]">Prompt Center</span>
+            <span className="text-[11px] text-[var(--color-text-grey)]">{prompts.length} 个</span>
           </div>
         </div>
         <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>

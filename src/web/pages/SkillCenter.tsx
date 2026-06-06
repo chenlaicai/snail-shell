@@ -5,26 +5,20 @@
  */
 
 import { useEffect, useState } from "react";
-import { api } from "../services/api";
+import { api } from "../services/api-client";
 import { showToast } from "../components/Toast";
 import { Input } from "@/components/ui/input";
-
-interface Skill {
-  name: string;
-  description?: string;
-  path: string;
-  content?: string;
-}
+import type { SkillDto } from "../types";
 
 export function SkillCenter() {
-  const [skills, setSkills] = useState<Skill[]>([]);
+  const [skills, setSkills] = useState<SkillDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
+  const [selectedSkill, setSelectedSkill] = useState<SkillDto | null>(null);
 
   useEffect(() => {
-    api("GET", "/meta/skills")
+    api("GET /api/meta/skills")
       .then(setSkills)
       .catch((err) => showToast(`加载 Skill 失败：${err.message}`, true))
       .finally(() => setLoading(false));
@@ -40,15 +34,15 @@ export function SkillCenter() {
     setSelectedSkill(skill || null);
   }
 
-  if (loading) return <div className="task-board-empty">加载中...</div>;
+  if (loading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
 
   return (
-    <div className="task-board-panel view-pane is-active" data-view-pane="skills">
-      <div className="task-board">
-        <div className="board-header">
-          <div className="board-title-area">
-            <span className="board-title">Skill Center</span>
-            <span className="board-subtitle">{skills.length} 个</span>
+    <div className="flex flex-col h-full min-h-0" data-view-pane="skills">
+      <div className="flex flex-col flex-1 overflow-hidden min-w-0">
+        <div className="flex items-center gap-4 p-3 px-6 border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0">
+          <div className="flex items-baseline gap-2 flex-1 min-w-0">
+            <span className="text-sm font-semibold text-[var(--color-text-primary)]">Skill Center</span>
+            <span className="text-[11px] text-[var(--color-text-grey)]">{skills.length} 个</span>
           </div>
         </div>
         <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
@@ -85,7 +79,7 @@ export function SkillCenter() {
                   <p style={{ color: "var(--color-text-secondary)", marginBottom: "var(--space-lg)" }}>{selectedSkill.description}</p>
                 )}
                 <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-grey)" }}>
-                  路径：{selectedSkill.path}
+                  路径：{selectedSkill.filePath}
                 </div>
               </div>
             ) : (

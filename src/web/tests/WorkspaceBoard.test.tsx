@@ -3,11 +3,11 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { WorkspaceBoard } from "../pages/WorkspaceBoard";
 
-vi.mock("../services/api", () => ({
+vi.mock("../services/api-client", () => ({
   api: vi.fn(),
 }));
 
-import { api } from "../services/api";
+import { api } from "../services/api-client";
 const mockApi = vi.mocked(api);
 
 function renderAt(path: string) {
@@ -72,7 +72,8 @@ describe("WorkspaceBoard", () => {
       expect(screen.getByText("Click me")).toBeInTheDocument();
     });
     // Navigation is tested via the MemoryRouter - the card is clickable
-    const card = screen.getByText("Click me").closest(".task-card");
-    expect(card).toBeInTheDocument();
+    const title = screen.getByText("Click me");
+    expect(title).toBeInTheDocument();
+    expect(title.closest("[data-testid='task-card']")).toBeInTheDocument();
   });
 });

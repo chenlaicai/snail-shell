@@ -1,19 +1,13 @@
 import { useEffect, useState } from "react";
-import { api } from "../services/api";
-
-interface BossMention {
-  message_id: string;
-  from_role?: string;
-  created_at?: string;
-  preview?: string;
-}
+import { api } from "../services/api-client";
+import type { BossMentionItem } from "../types";
 
 export function BossMentionsBanner({ conversationId }: { conversationId: string | null }) {
-  const [mentions, setMentions] = useState<BossMention[]>([]);
+  const [mentions, setMentions] = useState<BossMentionItem[]>([]);
 
   useEffect(() => {
     if (!conversationId) { setMentions([]); return; }
-    api("GET", `/conversations/${conversationId}/boss-mentions`)
+    api("GET /api/conversations/:conversationId/boss-mentions", { params: { conversationId } })
       .then((data) => setMentions(Array.isArray(data) ? data : []))
       .catch(() => setMentions([]));
   }, [conversationId]);

@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { HomePage } from "../pages/HomePage";
 
-vi.mock("../services/api", () => ({ api: vi.fn() }));
+vi.mock("../services/api-client", () => ({ api: vi.fn() }));
 
 function renderHome() {
   return render(<MemoryRouter><HomePage /></MemoryRouter>);
