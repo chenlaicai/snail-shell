@@ -30,13 +30,13 @@ export function KnowledgeLibrary() {
         </div>
         <div className="p-6 overflow-auto flex-1">
           <h3 className="text-xs text-[var(--color-text-muted)] mb-3">Global</h3>
-          {globalItems.length === 0 ? <div className="empty-state">暂无全局知识</div> : (
+          {globalItems.length === 0 ? <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">暂无全局知识</div> : (
             <div className="grid gap-2 mb-6">
               {globalItems.map((item) => <KnowledgeCard key={item.id} item={item} />)}
             </div>
           )}
           <h3 className="text-xs text-[var(--color-text-muted)] mb-3">Workspace</h3>
-          {workspaceItems.length === 0 ? <div className="empty-state">暂无工作区知识</div> : (
+          {workspaceItems.length === 0 ? <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">暂无工作区知识</div> : (
             <div className="grid gap-2">
               {workspaceItems.map((item) => <KnowledgeCard key={item.id} item={item} />)}
             </div>

@@ -68,7 +68,7 @@ export function PromptCenter() {
               />
             </div>
             {filteredPrompts.length === 0 ? (
-              <div className="empty-state">无匹配结果</div>
+              <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">无匹配结果</div>
             ) : (
               filteredPrompts.map((p) => (
                 <div
@@ -94,7 +94,7 @@ export function PromptCenter() {
                 </pre>
               </div>
             ) : (
-              <div className="empty-state">选择一个 Prompt 查看详情</div>
+              <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">选择一个 Prompt 查看详情</div>
             )}
           </div>
         </div>

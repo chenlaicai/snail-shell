@@ -13,7 +13,7 @@ export function WorkspaceTree() {
   }, []);
 
   if (workspaces.length === 0) {
-    return <div className="empty-state">暂无工作区</div>;
+    return <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">暂无工作区</div>;
   }
 
   return (

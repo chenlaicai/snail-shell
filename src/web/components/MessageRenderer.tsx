@@ -253,8 +253,8 @@ export function ContentBlockView({ block, onApprove, onDeny }: {
         <div className="bg-[var(--color-assistant-msg-bg)] border border-[var(--color-warning-soft)] rounded-xl p-[var(--space-md)] mt-[var(--space-md)]">
           <div className="permission-tool">工具: {block.tool}</div>
           <div className="permission-actions">
-            <button className="primary-button" onClick={() => onApprove?.(block.tool || "", block.input || {})}>批准</button>
-            <button className="danger-button" onClick={() => onDeny?.(block.tool || "", block.input || {})}>拒绝</button>
+            <button className="bg-[var(--color-bg-elevated)] text-[var(--color-accent)] border border-[var(--color-accent)] rounded-md px-2.5 py-1 text-xs font-medium cursor-pointer transition-all hover:bg-[rgba(108,141,250,0.08)]" onClick={() => onApprove?.(block.tool || "", block.input || {})}>批准</button>
+            <button className="bg-[var(--color-bg-elevated)] text-[var(--color-danger-text)] border border-[var(--color-border-muted)] rounded-md px-2.5 py-1 text-xs font-medium cursor-pointer transition-all hover:border-[var(--color-danger-text)]" onClick={() => onDeny?.(block.tool || "", block.input || {})}>拒绝</button>
           </div>
         </div>
       );

@@ -1,11 +1,9 @@
 @import "tailwindcss";
 
 @theme inline {
-  /* Typography */
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  /* Colors — 从 tokens.css 迁移，直接内联 */
   --color-background: #0a0d12;
   --color-foreground: #e8ecf1;
   --color-card: #0f1218;
@@ -26,10 +24,8 @@
   --color-input: #121720;
   --color-ring: #6c8dfa;
 
-  /* Spacing */
   --spacing: 4px;
 
-  /* Radius */
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 8px;
@@ -37,8 +33,71 @@
   --radius-full: 9999px;
 }
 
-/* 响应式布局 token（保留 CSS 变量，因为 Tailwind @theme 不支持 media query 内覆盖） */
 :root {
+  /* Backgrounds */
+  --color-bg-base: #0a0d12;
+  --color-bg-surface: #0f1218;
+  --color-bg-elevated: #151a23;
+  --color-bg-input: #121720;
+  --color-bg-muted: #151a23;
+  --color-bg-deep: #0a0d12;
+  --color-bg-active: #1a2030;
+
+  /* Text */
+  --color-text-primary: #e8ecf1;
+  --color-text-secondary: #8892a4;
+  --color-text-muted: #8892a4;
+  --color-text-body: #e8ecf1;
+  --color-text-link: #6c8dfa;
+  --color-text-grey: #5c6678;
+  --color-text-code: #fbbf24;
+
+  /* Accent */
+  --color-accent: #6c8dfa;
+  --color-accent-blue: #6c8dfa;
+  --color-accent-cyan: #34d399;
+  --color-accent-purple: #a78bfa;
+
+  /* Borders */
+  --color-border-default: #252f3f;
+  --color-border-subtle: #1e2736;
+  --color-border-muted: #1e2736;
+
+  /* Status */
+  --color-success-text: #34d399;
+  --color-danger-text: #f87171;
+  --color-warning-text: #fbbf24;
+  --color-warning-soft: #fbbf24;
+  --color-info-text: #6c8dfa;
+
+  /* Message */
+  --color-user-msg-bg: rgba(108, 141, 250, 0.08);
+  --color-assistant-msg-bg: #121720;
+  --color-assistant-msg-border: #1e2736;
+
+  /* Spacing */
+  --space-2xs: 4px;
+  --space-xs: 6px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+
+  /* Typography */
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 17px;
+  --font-size-xl: 18px;
+  --font-size-2xl: 20px;
+  --font-size-3xl: 24px;
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+
+  --radius-button: 10px;
+
+  /* Layout */
   --sidebar-width: 260px;
   --context-panel-width: 300px;
   --message-max-width: 78%;
@@ -57,3 +116,45 @@
     --message-max-width: 88%;
   }
 }
+
+/* Base reset */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font-sans);
+  background: var(--color-bg-base);
+  color: var(--color-text-body);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+#app-root {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+button {
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  border: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+textarea, input, select {
+  width: 100%;
+  background: var(--color-bg-surface);
+  color: var(--color-text-body);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-button);
+  padding: var(--space-md);
+  font: inherit;
+}
+textarea { resize: vertical; }
+
+button:disabled { opacity: 0.55; cursor: not-allowed; }

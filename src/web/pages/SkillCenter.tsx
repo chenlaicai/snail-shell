@@ -56,7 +56,7 @@ export function SkillCenter() {
               />
             </div>
             {filteredSkills.length === 0 ? (
-              <div className="empty-state">无匹配结果</div>
+              <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">无匹配结果</div>
             ) : (
               filteredSkills.map((s) => (
                 <div
@@ -83,7 +83,7 @@ export function SkillCenter() {
                 </div>
               </div>
             ) : (
-              <div className="empty-state">选择一个 Skill 查看详情</div>
+              <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">选择一个 Skill 查看详情</div>
             )}
           </div>
         </div>

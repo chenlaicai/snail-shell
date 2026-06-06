@@ -146,7 +146,7 @@ export function ConversationView({ conversationId }: Props) {
   return (
     <>
       <div id="messages" className="flex-1 overflow-auto p-6" ref={messagesContainerRef}>
-        {messages.length === 0 && <div className="empty-state">暂无消息</div>}
+        {messages.length === 0 && <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">暂无消息</div>}
         {messages.map((msg) => {
           const msgContent = extractMessageContent(msg);
           const roleName = extractRoleName(msg);
@@ -178,10 +178,10 @@ export function ConversationView({ conversationId }: Props) {
                     </span>
                   )}
                   <div className="shrink-0 text-[var(--font-size-xs)] text-[var(--color-text-muted)] [font-variant-numeric:tabular-nums]">{new Date(msg.created_at).toLocaleTimeString()}</div>
-                  <button className="ghost-button" style={{ fontSize: "10px", padding: "2px 6px" }} onClick={() => setReplyTo({ id: msg.id, preview: extractTextSummary(msg) })}>回复</button>
+                  <button className="bg-transparent text-[var(--color-text-secondary)] border border-[var(--color-border-muted)] rounded-md px-2.5 py-1 text-xs font-medium cursor-pointer transition-all hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]" style={{ fontSize: "10px", padding: "2px 6px" }} onClick={() => setReplyTo({ id: msg.id, preview: extractTextSummary(msg) })}>回复</button>
                 </div>
               </div>
-              <div className="msg-content">
+              <div className="whitespace-pre-wrap">
                 {msg.quoted_message && (
                   <blockquote className="mb-[var(--space-sm)] px-[var(--space-md)] py-[var(--space-sm)] border-l-[3px] border-l-[var(--color-accent)] bg-[var(--color-bg-elevated)] rounded-[var(--radius-sm)] text-[var(--color-text-secondary)] text-[var(--font-size-sm)] leading-[var(--line-height-normal)] whitespace-pre-wrap">
                     {msg.quoted_message.speaker && <strong>{msg.quoted_message.speaker}: </strong>}
@@ -246,7 +246,7 @@ export function ConversationView({ conversationId }: Props) {
             </div>
           )}
         </div>
-        <div className="composer-actions button-row">
+        <div className="composer-actions flex gap-[var(--space-xs)] flex-wrap">
           {streamingMessage ? (
             <Button variant="destructive" onClick={() => handleInterrupt(streamingMessage.id)}>中断 Snail</Button>
           ) : (

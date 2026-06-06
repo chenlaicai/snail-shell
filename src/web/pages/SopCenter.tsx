@@ -167,7 +167,7 @@ export function SopCenter() {
           {/* 左侧：SOP 列表 */}
           <div style={{ width: 280, borderRight: "1px solid var(--color-border-muted)", overflow: "auto", padding: "var(--space-md)" }}>
             {sops.length === 0 ? (
-              <div className="empty-state">暂无 SOP</div>
+              <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">暂无 SOP</div>
             ) : (
               sops.map((sop) => (
                 <div
@@ -260,13 +260,13 @@ export function SopCenter() {
                     ))}
                   </div>
                 ) : (
-                  <div className="empty-state">暂无阶段定义</div>
+                  <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">暂无阶段定义</div>
                 )}
               </div>
             )}
 
             {mode === "list" && !detail && (
-              <div className="empty-state">选择一个 SOP 查看详情</div>
+              <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">选择一个 SOP 查看详情</div>
             )}
           </div>
         </div>
