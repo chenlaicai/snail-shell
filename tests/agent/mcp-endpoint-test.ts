@@ -9,7 +9,7 @@ import { registerMcpEndpoint } from "../../src/mcp/endpoint";
 /** Use a temp config directory to avoid polluting production config/sop/. */
 const TEST_CONFIG_DIR = path.join(__dirname, "..", "..", "data", "test-config-mcp-endpoint");
 fs.mkdirSync(TEST_CONFIG_DIR, { recursive: true });
-fs.writeFileSync(path.join(TEST_CONFIG_DIR, "workspaces.json"), JSON.stringify({ workspaces: [] }));
+fs.writeFileSync(path.join(TEST_CONFIG_DIR, "workspaces.json"), JSON.stringify([]));
 
 function postJson(app: express.Express, body: unknown): Promise<any> {
   return new Promise((resolve, reject) => {
@@ -39,7 +39,7 @@ function createMessage(store: ConversationStore): { convId: string; msgId: numbe
     [{ key: "dev", title: "Dev", sequence: 1, roles: [{ key: "user", name: "用户", is_primary: true }] }],
   );
   store.seedWorkspaceToCache({
-    id: "mcp-e2e", module: "default", name: "MCP E2E", summary: "", workspaceRoot: process.cwd(),
+    id: "mcp-e2e", name: "MCP E2E", summary: "", workspaceRoot: process.cwd(),
     sopBindings: [{ sop_id: "mcp-e2e-sop", is_default: true, role_bindings: { user: "opencode-default" } }],
   });
   const issue = store.createIssue({ id: "mcp-e2e-i", workspaceId: "mcp-e2e", title: "MCP E2E Issue" })!;

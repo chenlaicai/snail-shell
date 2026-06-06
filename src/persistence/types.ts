@@ -31,7 +31,6 @@ export type {
   MessageContextKind,
   MessageDispatchStatus,
   Workspace,
-  WorkspaceModule,
   WorkspaceStageDefinition,
   StageRoleDefinition,
   Issue,

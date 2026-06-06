@@ -15,7 +15,7 @@ if (fs.existsSync(TEST_DB)) fs.unlinkSync(TEST_DB);
 /** Use a temp config directory to avoid polluting production config/workspaces.json. */
 const TEST_CONFIG_DIR = path.join(__dirname, "..", "..", "data", "test-config-startup-recovery");
 fs.mkdirSync(TEST_CONFIG_DIR, { recursive: true });
-fs.writeFileSync(path.join(TEST_CONFIG_DIR, "workspaces.json"), JSON.stringify({ workspaces: [] }));
+fs.writeFileSync(path.join(TEST_CONFIG_DIR, "workspaces.json"), JSON.stringify([]));
 
 async function main(): Promise<void> {
   const store = new ConversationStore(TEST_DB, TEST_CONFIG_DIR);
@@ -25,18 +25,17 @@ async function main(): Promise<void> {
     { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ key: "developer", name: "开发者", description: "", is_primary: true, handbook: "" }] },
   ]);
 
-  store.seedSopToCache({ id: "sop-evolution-startup-recovery", source: "platform", sourceRef: null, key: "sop-evolution-startup-recovery", name: "Evolution Center SOP", description: null }, [
+  store.seedSopToCache({ id: "evolution", source: "platform", sourceRef: null, key: "evolution", name: "Evolution SOP", description: null }, [
     { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ key: "boss", name: "项目负责人", description: "最终决策者，确认治理结论", is_primary: true, handbook: "## 工作规则\n\n- 以数据为依据做决策\n- 治理结论需明确落地入口" }, { key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", handbook: "## 工作规则\n\n- 严格按入口校验流程\n- 查重需覆盖全局演进工作区\n- 裁决去向必须明确并记录PR链接" }] },
   ]);
 
-  /* Seed workspace 绑定 */
+  /* Seed workspace 绑定 — evolution SOP 也绑定到主 workspace，使 RoleRegistry 能解析 evolution roles */
   store.seedWorkspaceToCache({
-    id: "startup-recovery-workspace", module: "workspace_management", name: "Snail Shell", summary: "test", workspaceRoot: process.cwd(),
-    sopBindings: [{ sop_id: "sop-startup-recovery", is_default: true, role_bindings: { "developer": "opencode-default" } }],
-  });
-  store.seedWorkspaceToCache({
-    id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置工作区", workspaceRoot: process.cwd(),
-    sopBindings: [{ sop_id: "sop-evolution-startup-recovery", is_default: true, role_bindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } }],
+    id: "startup-recovery-workspace",  name: "Snail Shell", summary: "test", workspaceRoot: process.cwd(),
+    sopBindings: [
+      { sop_id: "sop-startup-recovery", is_default: true, role_bindings: { "developer": "opencode-default" } },
+      { sop_id: "evolution", is_default: false, role_bindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } },
+    ],
   });
   const workspace = store.getWorkspace("startup-recovery-workspace")!;
   const issue = store.createIssue({ id: "startup-recovery-issue", workspaceId: workspace.id, title: "Issue" });

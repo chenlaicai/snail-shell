@@ -18,7 +18,7 @@ removeDbFiles(TEST_DB);
 const TEST_CONFIG_DIR = path.join(__dirname, "..", "..", "data", "test-config-snapshot-integration");
 if (fs.existsSync(TEST_CONFIG_DIR)) fs.rmSync(TEST_CONFIG_DIR, { recursive: true });
 fs.mkdirSync(TEST_CONFIG_DIR, { recursive: true });
-fs.writeFileSync(path.join(TEST_CONFIG_DIR, "workspaces.json"), JSON.stringify({ workspaces: [] }));
+fs.writeFileSync(path.join(TEST_CONFIG_DIR, "workspaces.json"), JSON.stringify([]));
 
 const store = new ConversationStore(TEST_DB, TEST_CONFIG_DIR);
 
@@ -47,7 +47,7 @@ store.seedSopToCache(
 );
 
 store.seedWorkspaceToCache({
-  id: "snap-ws", module: "workspace_management", name: "Snapshot Workspace", summary: "测试快照",
+  id: "snap-ws",  name: "Snapshot Workspace", summary: "测试快照",
   sopBindings: [{ sop_id: "snap-sop", is_default: true, role_bindings: { designer: "tpl-1", developer: "tpl-2" } }],
 });
 

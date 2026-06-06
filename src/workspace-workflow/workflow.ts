@@ -30,13 +30,12 @@ export function createInitialWorkflow(
     summary?: string;
     workspaceRoot: string;
     workspaceId?: string;
-    module?: string;
     /** SOP ID，创建 workspace 时必须显式指定。 */
     sopId: string;
     roleBindings: Record<string, string | string[]>;
   },
 ): { workspace: Workspace; issue: Issue; stage: Stage; conversation: Conversation } {
-  const { name, summary, workspaceRoot, workspaceId, module = "workspace_management", sopId, roleBindings } = input;
+  const { name, summary, workspaceRoot, workspaceId, sopId, roleBindings } = input;
 
   const sop = deps.store.getSop(sopId);
   if (!sop) {
@@ -44,7 +43,7 @@ export function createInitialWorkflow(
   }
   assertRoleBindingsCoverSop(deps, sopId, roleBindings);
 
-  const workspace = deps.store.createWorkspace(workspaceId ?? randomUUID(), module, name, workspaceRoot, summary);
+  const workspace = deps.store.createWorkspace(workspaceId ?? randomUUID(), name, workspaceRoot, summary);
 
   deps.store.createWorkspaceSop({
     id: `ps-${workspace.id}-${sopId}`,

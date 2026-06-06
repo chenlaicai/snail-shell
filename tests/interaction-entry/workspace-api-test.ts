@@ -19,7 +19,7 @@ fs.writeFileSync(configPath, JSON.stringify({ snails: [{ id: "template-valid", n
 const DATA_DIR = path.join(process.cwd(), "data");
 fs.mkdirSync(DATA_DIR, { recursive: true });
 const TEST_CONFIG_DIR = fs.mkdtempSync(path.join(DATA_DIR, "test-config-ws-api-"));
-fs.writeFileSync(path.join(TEST_CONFIG_DIR, "workspaces.json"), JSON.stringify({ workspaces: [] }));
+fs.writeFileSync(path.join(TEST_CONFIG_DIR, "workspaces.json"), JSON.stringify([]));
 
 const store = new ConversationStore(":memory:", TEST_CONFIG_DIR);
 

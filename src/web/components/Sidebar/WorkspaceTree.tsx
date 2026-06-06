@@ -5,7 +5,6 @@ import { api } from "../../services/api";
 interface Workspace {
   id: string;
   name: string;
-  module: string;
   boss_pending_count: number;
 }
 
@@ -39,7 +38,6 @@ export function WorkspaceTree() {
                     <span className="pending-badge">@{ws.boss_pending_count}</span>
                   )}
                 </span>
-                <span className="node-meta">{ws.module}</span>
               </span>
             </button>
           </div>

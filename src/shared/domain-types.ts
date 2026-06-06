@@ -66,10 +66,27 @@ export type StageType = string;
 export type { MessageArtifactCardBlock, MessageChartBlock, MessageContentBlock, MessageIconBlock, MessageImageBlock, MessageMarkdownBlock, MessageQuestionBlock, MessageQuestionResponseBlock, MessageReferenceCardBlock, MessageRichTextBlock, MessageTableBlock, MessageTextBlock, MessageToolCallCardBlock, QuestionOptionPayload, QuestionResponseSelectedOptionPayload } from "./message-types";
 import type { MessageContentBlock } from "./message-types";
 
-export type WorkspaceModule = "workspace_management" | "evolution";
 export type StageStatus = "in_progress" | "completed" | "cancelled";
 export type ConversationKind = "discussion" | "planning" | "design" | "implementation" | "review" | "bugfix";
 export type ConversationOwnerType = "workspace_stage" | "evolution";
+
+/** evolution 治理服务配置（config/evolution.json 的 schema）。 */
+export interface EvolutionConfig {
+  sop_id: string;
+  role_bindings: Record<string, string>;
+}
+
+/** init.json 的 schema。FileConfigStore 和 snail-loader 共用此类型。 */
+export interface SnailWorkspaceConfig {
+  name: string;
+  summary?: string;
+  guard_profile?: Record<string, unknown> | null;
+  sop_bindings: Array<{
+    sop_id: string;
+    is_default: boolean;
+    role_bindings: Record<string, string | string[]>;
+  }>;
+}
 export type ConversationStatus = "active" | "paused" | "completed" | "archived";
 export type MessageRole = "user" | "assistant" | "system";
 export type MessageRuntime = "claude" | "opencode" | "codex" | "system" | "unknown";
@@ -82,7 +99,6 @@ export type MessageDispatchStatus = "pending" | "seen" | "consumed" | "skipped";
 
 export interface Workspace {
   id: string;
-  module: WorkspaceModule;
   name: string;
   summary: string | null;
   /** 工作区工作目录绝对路径。agent spawn cwd、.claude/、.codex/ 等均基于此路径。 */

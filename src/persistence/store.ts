@@ -55,7 +55,6 @@ export type {
   MessageWithEvents,
   PersistedMessageEventRow,
   Workspace,
-  WorkspaceModule,
   WorkspaceStageDefinition,
   RoleName,
   Stage,
@@ -97,7 +96,6 @@ import type {
   MessageWithEvents,
   PersistedMessageEventRow,
   Workspace,
-  WorkspaceModule,
   WorkspaceStageDefinition,
   WorkspaceSop,
   RoleName,
@@ -179,8 +177,8 @@ export class ConversationStore {
   seedWorkspaceConfigs(_seed?: unknown): { created: boolean } {
     return { created: false };
   }
-  seedWorkspaceToCache(input: { id: string; module: string; name: string; summary?: string; workspaceRoot?: string; sopBindings?: Array<{ sop_id: string; is_default: boolean; role_bindings: Record<string, string | string[]> }> }): void {
-    this.fileConfigStore.seedWorkspace({ ...input, module: input.module as WorkspaceModule });
+  seedWorkspaceToCache(input: { id: string; name: string; summary?: string; workspaceRoot?: string; sopBindings?: Array<{ sop_id: string; is_default: boolean; role_bindings: Record<string, string | string[]> }> }): void {
+    this.fileConfigStore.seedWorkspace(input);
   }
   /** Test helper: create a SOP via the real API (writes YAML file). Idempotent — skips if already exists. */
   seedSopToCache(
@@ -256,8 +254,8 @@ export class ConversationStore {
   listRoleDefinitionsByStageAndWorkspace(stageDefinitionId: string, workspaceId: string): StageRoleDefinition[] { return this.fileConfigStore.listRoleDefinitionsByStageAndWorkspace(stageDefinitionId, workspaceId); }
   listRoleDefinitionsByWorkspace(workspaceId: string): StageRoleDefinition[] { return this.fileConfigStore.listRoleDefinitionsByWorkspace(workspaceId); }
   listAllRoleDefinitions(): Array<StageRoleDefinition & { workspace_id: string }> { return this.fileConfigStore.listAllRoleDefinitions(); }
-  createWorkspace(id: string, module: string, name: string, workspaceRoot: string, summary?: string, guardProfile?: Record<string, unknown> | null): Workspace {
-    return this.fileConfigStore.createWorkspace({ id, module: module as WorkspaceModule, name, workspaceRoot, summary, guardProfile });
+  createWorkspace(id: string, name: string, workspaceRoot: string, summary?: string, guardProfile?: Record<string, unknown> | null): Workspace {
+    return this.fileConfigStore.createWorkspace({ id, name, workspaceRoot, summary, guardProfile });
   }
 
   getWorkspace(id: string): Workspace | undefined {
@@ -268,12 +266,13 @@ export class ConversationStore {
     return this.fileConfigStore.findWorkspaceByName(name);
   }
 
-  listWorkspaces(limit = 50, offset = 0, module = "workspace_management"): Workspace[] {
-    return this.fileConfigStore.listWorkspaces(limit, offset, module as WorkspaceModule);
+  listWorkspaces(limit = 50, offset = 0): Workspace[] {
+    return this.fileConfigStore.listWorkspaces(limit, offset);
   }
 
   // ── Evolution ────────────────────────────────────────────────────
 
+  getEvolutionConfig() { return this.fileConfigStore.getEvolutionConfig(); }
   createEvolutionItem(input: CreateEvolutionItemInput): EvolutionItemWithConversation { return this.evolution.create(input); }
   getEvolutionItem(id: string): EvolutionItemWithConversation | null { return this.evolution.get(id); }
   listEvolutionItems(filters: EvolutionItemListFilters = {}): EvolutionItemSearchResult[] { return this.evolution.list(filters); }

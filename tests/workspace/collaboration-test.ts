@@ -148,7 +148,12 @@ async function testLatestRespondingRoleIgnoresDefaultMessageLimitAndNonRespondin
 async function testEvolutionAtMentionFallbackIncludesSyntheticRole(): Promise<void> {
   const { store, conversation } = createEvolutionContext("governance-at-mention-fallback");
   const captured: Array<{ name: string }> = [];
-  const roles = store.listRoleDefinitionsByWorkspace("evolution-center");
+  // role definitions 从 evolution SOP 获取，手动应用 role_bindings（模拟 config/evolution.json）
+  const sop = store.getSopByKey("platform", "evolution")!;
+  const stageDef = store.getSopStageDefinitionByKey(sop.id, "development")!;
+  const rawRoles = store.listSopStageRoleDefinitions(stageDef.id);
+  const evolutionRoleBindings: Record<string, string> = { "boss": "opencode-default", "evolution-executor": "opencode-default" };
+  const roles = rawRoles.map((r) => ({ ...r, snail_template_id: evolutionRoleBindings[r.key] ?? null }));
 
   const deps = {
     ...buildDeps(store, conversation),
@@ -916,7 +921,7 @@ function createContext(suffix: string): { store: ConversationStore; conversation
   if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
   /** Use a temp config directory to avoid polluting production config/workspaces.json. */
   const configDir = fs.mkdtempSync(path.join(TEST_DATA_DIR, `config-${suffix}-`));
-  fs.writeFileSync(path.join(configDir, "workspaces.json"), JSON.stringify({ workspaces: [] }));
+  fs.writeFileSync(path.join(configDir, "workspaces.json"), JSON.stringify([]));
   const store = new ConversationStore(dbPath, configDir);
   const workspaceId = `workspace-collaboration-${suffix}`;
 
@@ -931,11 +936,11 @@ function createContext(suffix: string): { store: ConversationStore; conversation
 
   /* Seed workspace 绑定 */
   store.seedWorkspaceToCache({
-    id: workspaceId, module: "workspace_management", name: "Snail Shell", summary: "Collaboration test", workspaceRoot: process.cwd(),
+    id: workspaceId,  name: "Snail Shell", summary: "Collaboration test", workspaceRoot: process.cwd(),
     sopBindings: [{ sop_id: `${workspaceId}-sop`, is_default: true, role_bindings: { "developer": "opencode-default" } }],
   });
   store.seedWorkspaceToCache({
-    id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置工作区", workspaceRoot: process.cwd(),
+    id: "evolution-center",  name: "Evolution Center", summary: "演进中心内置工作区", workspaceRoot: process.cwd(),
     sopBindings: [{ sop_id: `kc-${workspaceId}-sop`, is_default: true, role_bindings: { "boss": "opencode-default", "knowledge-executor": "opencode-default" } }],
   });
   const workspace = store.getWorkspace(workspaceId)!;
@@ -950,20 +955,15 @@ function createEvolutionContext(suffix: string): { store: ConversationStore; con
   if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
   /** Use a temp config directory to avoid polluting production config/workspaces.json. */
   const configDir = fs.mkdtempSync(path.join(TEST_DATA_DIR, `config-evo-${suffix}-`));
-  fs.writeFileSync(path.join(configDir, "workspaces.json"), JSON.stringify({ workspaces: [] }));
+  fs.writeFileSync(path.join(configDir, "workspaces.json"), JSON.stringify([]));
   const store = new ConversationStore(dbPath, configDir);
-  const workspace = store.createWorkspace(`workspace-collaboration-${suffix}`, "workspace_management", "Snail Shell", process.cwd(), "Collaboration test");
+  const workspace = store.createWorkspace(`workspace-collaboration-${suffix}`, "Snail Shell", process.cwd(), "Collaboration test");
 
-  /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
-  store.seedSopToCache({ id: `sop-evolution-${suffix}`, source: "platform", sourceRef: null, key: `sop-evolution-${suffix}`, name: "Evolution Center SOP", description: null }, [
+  /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载）——evolution SOP key 固定为 "evolution" */
+  store.seedSopToCache({ id: "evolution", source: "platform", sourceRef: null, key: "evolution", name: "Evolution SOP", description: null }, [
     { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ key: "boss", name: "项目负责人", description: "最终决策者，确认治理结论", is_primary: true, handbook: "## 工作规则\n\n- 以数据为依据做决策\n- 治理结论需明确落地入口" }, { key: "evolution-executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", handbook: "## 工作规则\n\n- 严格按入口校验流程\n- 查重需覆盖全局演进工作区库\n- 裁决去向必须明确并记录PR链接" }] },
   ]);
 
-  /* Seed workspace 绑定 */
-  store.seedWorkspaceToCache({
-    id: "evolution-center", module: "evolution", name: "Evolution Center", summary: "演进中心内置工作区", workspaceRoot: process.cwd(),
-    sopBindings: [{ sop_id: `sop-evolution-${suffix}`, is_default: true, role_bindings: { "boss": "opencode-default", "evolution-executor": "opencode-default" } }],
-  });
   const evolutionItem = store.createEvolutionItem({ id: `evolution-collaboration-${suffix}`, workspaceId: workspace.id, title: "治理对话路由", content: "测试治理对话默认回复上一发言 Snail。", tags: ["constraint"] });
   const evolutionConversation = evolutionItem.conversation;
   if (!evolutionConversation) throw new Error("evolution conversation should exist");

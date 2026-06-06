@@ -13,7 +13,7 @@ if (fs.existsSync(TEST_DB)) fs.unlinkSync(TEST_DB);
 
 /** Use a temp config directory to avoid polluting production config/workspaces.json. */
 const TEST_CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "snail-test-config-"));
-fs.writeFileSync(path.join(TEST_CONFIG_DIR, "workspaces.json"), JSON.stringify({ workspaces: [] }));
+fs.writeFileSync(path.join(TEST_CONFIG_DIR, "workspaces.json"), JSON.stringify([]));
 
 const store = new ConversationStore(TEST_DB, TEST_CONFIG_DIR);
 
@@ -36,7 +36,7 @@ store.seedSopToCache({
 }]);
 
 store.seedWorkspaceToCache({
-  id: "workspace-1", module: "workspace_management", name: "Test Workspace", summary: "Initial summary", workspaceRoot: "/tmp/test",
+  id: "workspace-1",  name: "Test Workspace", summary: "Initial summary", workspaceRoot: "/tmp/test",
   sopBindings: [{ sop_id: "sop-global-1", is_default: true, role_bindings: {} }],
 });
 

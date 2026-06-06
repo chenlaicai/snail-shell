@@ -131,7 +131,6 @@ export class WorkspaceManager extends EventEmitter {
     const sopDir = path.join(workspaceRoot, ".snail", "config", "sop");
 
     /** 将 YAML SOP 定义转换为 seed 格式，复用 replaceWorkspaceConfigs 的全量替换语义 */
-    const defaultSopKey = context.config.default_sop_key;
     const sopSeeds = context.sopDefinitions.map((sopDef) => ({
       sop: {
         id: `${workspaceId}#${sopDef.key}`,
@@ -143,10 +142,11 @@ export class WorkspaceManager extends EventEmitter {
       },
       stage_definitions: this.resolveHandbookRefs(sopDef.stage_definitions, sopDir),
     }));
-    const workspaceBindings = sopSeeds.map((s) => ({
-      sop_id: s.sop.id,
-      is_default: s.sop.key === defaultSopKey,
-      role_bindings: {} as Record<string, string | string[]>,
+    // 使用 init.json 中的 sop_bindings（含 role_bindings 和 is_default）
+    const workspaceBindings = context.config.sop_bindings.map((b) => ({
+      sop_id: `${workspaceId}#${b.sop_id}`,
+      is_default: b.is_default,
+      role_bindings: b.role_bindings,
     }));
 
     this.store.replaceWorkspaceConfigs(workspaceId, {

@@ -19,7 +19,7 @@ function testLoadNonexistent(): void {
 
 function testLoadEmpty(): void {
   const r = createTemp(); fs.mkdirSync(path.join(r, ".snail", "prompts"), { recursive: true });
-  fs.writeFileSync(path.join(r, ".snail", "workspace.json"), JSON.stringify({ name: "Test" }));
+  fs.writeFileSync(path.join(r, ".snail", "init.json"), JSON.stringify({ name: "Test", sop_bindings: [] }));
   assert.deepStrictEqual(loadWorkspaceContext(r, { loadSopDefinitions: false }).prompts, []);
   fs.rmSync(r, { recursive: true });
 }
@@ -27,7 +27,7 @@ function testLoadEmpty(): void {
 function testLoadWithPrompts(): void {
   const r = createTemp(); const d = path.join(r, ".snail", "prompts");
   fs.mkdirSync(d, { recursive: true });
-  fs.writeFileSync(path.join(r, ".snail", "workspace.json"), JSON.stringify({ name: "Test" }));
+  fs.writeFileSync(path.join(r, ".snail", "init.json"), JSON.stringify({ name: "Test", sop_bindings: [] }));
   fs.writeFileSync(path.join(d, "P-01-custom.md"), '---\nid: P-01\ntitle: Custom\nlayer: workspace\npriority: 10\nstability: static\n---\n\n## C\n\ncontent.');
   const res = loadWorkspaceContext(r, { loadSopDefinitions: false }).prompts;
   assert.strictEqual(res.length, 1);
