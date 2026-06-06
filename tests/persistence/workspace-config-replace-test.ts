@@ -55,12 +55,9 @@ assert(developerInstances[0].count === 1, "developer count should be 1");
 store.seedWorkspaceToCache({
   id: "count-test-ws",  name: "Count Test", summary: "", workspaceRoot: process.cwd(),
 });
-
-/* Seed workspace */
 store.seedWorkspaceToCache({
   id: "workspace-1", name: "Snail Shell", summary: "Self evolution", workspaceRoot: process.cwd(),
 });
-// guard_profile backfill tests removed: FileConfigStore-based seedWorkspaceToCache does not support guard_profile field
 
 const workspace = store.getWorkspace("workspace-1")!;
 const issue = store.createIssue({ id: "issue-1", workspaceId: workspace.id, title: "Issue", summary: "Self evolution" });

@@ -128,11 +128,6 @@ export class FileConfigStore {
     this.saveInitConfig(entry.workspace_root, entry);
   }
 
-  /** Bump workspace updated_at (equivalent to DB side-effect in addMessage). */
-  touchWorkspace(_workspaceId: string): void {
-    /** No-op for file-backed store: updated_at is derived from file mtime. */
-  }
-
   /**
    * Programmatically seed a workspace into the in-memory cache (no file I/O).
    *

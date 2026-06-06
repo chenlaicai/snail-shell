@@ -79,7 +79,6 @@ import type {
   Conversation,
   ConversationHistorySearchResult,
   CreateConversationInput,
-  CreateMessageDispatchInput,
   CreateMessageEventInput,
   CreateMessageInput,
   CreateStageInput,
@@ -171,14 +170,11 @@ export class ConversationStore {
 
   // ── Workspace Config (file-backed via FileConfigStore) ─────────────
 
-  /** @deprecated Config is now loaded from files in the constructor via FileConfigStore. */
-  seedWorkspaceConfigs(_seed?: unknown): { created: boolean } {
-    return { created: false };
-  }
+  /** @test-helper Programmatically seed a workspace into the in-memory cache (no file I/O). */
   seedWorkspaceToCache(input: { id: string; name: string; summary?: string; workspaceRoot?: string }): void {
     this.fileConfigStore.seedWorkspace(input);
   }
-  /** Test helper: create a SOP via the real API (writes YAML file). Idempotent — skips if already exists. */
+  /** @test-helper Create a SOP via the real API (writes YAML file). Idempotent — skips if already exists. */
   seedSopToCache(
     sopInput: { id: string; source: "platform" | "workspace"; sourceRef: string | null; key: string; name: string; description?: string | null; firstStage?: string | null },
     stageDefinitions: Array<{
@@ -189,7 +185,7 @@ export class ConversationStore {
     }>,
     transitions?: Array<{ from: string; to: string; guard?: { type: string; config?: Record<string, unknown> } }>,
   ): void {
-    if (this.getSop(sopInput.key)) return; // idempotent: skip if SOP YAML already on disk
+    if (this.getSop(sopInput.key)) return;
     this.fileConfigStore.createPlatformSop({ key: sopInput.key, name: sopInput.name, description: sopInput.description ?? undefined, first_stage: sopInput.firstStage ?? undefined, stage_definitions: stageDefinitions, transitions });
   }
   replaceWorkspaceConfigs(
@@ -240,8 +236,6 @@ export class ConversationStore {
   listStageDefinitions(workspaceId: string): WorkspaceStageDefinition[] {
     return this.fileConfigStore.listStageDefinitions(workspaceId);
   }
-  getRoleDefinition(id: string): StageRoleDefinition | undefined { return this.fileConfigStore.getRoleDefinitionByWorkspace(id); }
-  listRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] { return this.fileConfigStore.listRoleDefinitionsByStage(stageDefinitionId); }
   listRoleDefinitionsByStageAndWorkspace(stageDefinitionId: string, workspaceId: string): StageRoleDefinition[] { return this.fileConfigStore.listRoleDefinitionsByStageAndWorkspace(stageDefinitionId, workspaceId); }
   listRoleDefinitionsByWorkspace(workspaceId: string): StageRoleDefinition[] { return this.fileConfigStore.listRoleDefinitionsByWorkspace(workspaceId); }
   createWorkspace(id: string, name: string, workspaceRoot: string, summary?: string, guardProfile?: Record<string, unknown> | null): Workspace {
@@ -250,10 +244,6 @@ export class ConversationStore {
 
   getWorkspace(id: string): Workspace | undefined {
     return this.fileConfigStore.getWorkspace(id);
-  }
-
-  findWorkspaceByName(name: string): Workspace | undefined {
-    return this.fileConfigStore.findWorkspaceByName(name);
   }
 
   listWorkspaces(limit = 50, offset = 0): Workspace[] {
@@ -553,17 +543,12 @@ export class ConversationStore {
   getMessageWindow(conversationId: string, anchorMessageId: number, before = 2, after = 2): MessageWithEvents[] { return messageReadModel.getMessageWindow({ db: this.db, conversationId, anchorMessageId, before, after, getMessageEvents: (messageId) => this.getMessageEvents(messageId, conversationId) }); }
   searchConversationMessages(conversationId: string, query: string, limit = 5, offset = 0): ConversationHistorySearchResult[] { return messageReadModel.searchConversationMessages({ db: this.db, conversationId, query, limit, offset }); }
   // ── Message Dispatch ─────────────────────────────────────────────
-  addMessageDispatch(input: CreateMessageDispatchInput): MessageDispatch {
-    this.db.prepare("INSERT INTO message_dispatch (conversation_id, message_id, to_role) VALUES (?, ?, ?)").run(input.conversationId, input.messageId, input.toRole);
-    const { id } = this.db.prepare("SELECT last_insert_rowid() as id").get() as { id: number };
-    return this.db.prepare("SELECT * FROM message_dispatch WHERE id = ?").get(id) as MessageDispatch;
-  }
   rebuildDispatchesForMessage(messageId: number, _conversationId?: string): void {
     const message = this.getMessage(messageId);
     if (!message) return;
     this.db.prepare("DELETE FROM message_dispatch WHERE message_id = ?").run(messageId);
     for (const toRole of message.to_roles) {
-      this.addMessageDispatch({ conversationId: message.conversation_id, messageId: message.id, toRole });
+      this.db.prepare("INSERT INTO message_dispatch (conversation_id, message_id, to_role) VALUES (?, ?, ?)").run(message.conversation_id, message.id, toRole);
     }
   }
   updateMessageRouting(messageId: number, toRoles: RoleName[], _conversationId?: string): void {
