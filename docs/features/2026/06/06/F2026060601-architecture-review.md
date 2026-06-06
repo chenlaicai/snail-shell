@@ -364,12 +364,13 @@ shared/ 标榜"所有领域类型在一处定义"，但实际成了类型垃圾�
 
 - **边界**：依赖方向应保持 DAG，当前唯一的循环依赖 `lobby ↔ interaction-entry` 应在后续重构中解耦
 - **关键决策**：God Class 拆解应按业务域垂直切分，而非按技术层水平切分
-- **非目标约束**：本次评审不执行任何代码变更
+- **非目标约束**：评审文档本身不做代码变更，但 P0 #1（ClaudeCodeBase 提取）已在本 PR 中实施
 - **语义不变量**：shared/ 只承载真正的跨模块共享类型（核心实体、消息事件协议、全局枚举），业务域类型和层内类型不得为满足单向依赖而放入 shared；api-contracts/ 是前后端唯一契约源
 
 ## 改动范围
 
-无代码改动。本次输出为 docs/features/2026/06/06/F2026060601-architecture-review.md 文档。
+1. 文档输出：`docs/features/2026/06/06/F2026060601-architecture-review.md`
+2. P0 #1 实施：提取 `ClaudeCodeBase` 共享基类（`src/agent/claude-code-base.ts` 新增 344 行，`claude-code.ts` 350→124 行，`claude-code-stateful.ts` 500→181 行，净减 201 行）
 
 ## 验证
 
