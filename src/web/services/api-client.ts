@@ -1,5 +1,6 @@
 // src/web/services/api-client.ts — 类型安全 API client
 import type { ApiEndpoints } from "../../api-contracts";
+import type { z } from "zod";
 
 type EndpointKey = keyof ApiEndpoints;
 
@@ -43,12 +44,14 @@ function parseEndpoint(endpoint: string): [string, string] {
 }
 
 // 类型安全的 API 调用函数
+// 可选 schema 参数：传入 zod schema 时对响应做运行时校验，不传则只做编译期类型检查
 export async function api<K extends EndpointKey>(
   endpoint: K,
   options?: {
     params?: ApiEndpoints[K]["params"] extends never ? never : ApiEndpoints[K]["params"];
     query?: ApiEndpoints[K]["query"] extends never ? never : ApiEndpoints[K]["query"];
     body?: ApiEndpoints[K]["body"] extends never ? never : ApiEndpoints[K]["body"];
+    schema?: z.ZodType<ApiEndpoints[K]["response"]>;
   }
 ): Promise<ApiEndpoints[K]["response"]> {
   const [method, rawPath] = parseEndpoint(endpoint);
@@ -60,5 +63,7 @@ export async function api<K extends EndpointKey>(
   if (response.status === 204) return undefined!;
   const data = await response.json();
   if (!response.ok) throw new Error(data?.error || data?.message || "Request failed");
+  // 可选运行时校验：关键路径传入 zod schema，校验失败直接抛出
+  if (options?.schema) return options.schema.parse(data);
   return data;
 }

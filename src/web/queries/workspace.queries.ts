@@ -1,12 +1,13 @@
 import { queryOptions } from "@tanstack/react-query";
 import { api } from "../services/api-client";
 import { queryKeys } from "./keys";
+import { WorkspaceSummaryDtoSchema, IssueDetailDtoSchema } from "../../api-contracts/validators";
 
 export const workspaceQueries = {
   list: (query?: { limit?: number; offset?: number }) =>
     queryOptions({
       queryKey: queryKeys.workspaces.list(query),
-      queryFn: () => api("GET /api/workspaces", { query }),
+      queryFn: () => api("GET /api/workspaces", { query, schema: WorkspaceSummaryDtoSchema.array() }),
     }),
 
   detail: (workspaceId: string) =>
@@ -18,7 +19,7 @@ export const workspaceQueries = {
   issues: (workspaceId: string) =>
     queryOptions({
       queryKey: queryKeys.workspaces.issues(workspaceId),
-      queryFn: () => api("GET /api/workspaces/:workspaceId/issues", { params: { workspaceId } }),
+      queryFn: () => api("GET /api/workspaces/:workspaceId/issues", { params: { workspaceId }, schema: IssueDetailDtoSchema.array() }),
     }),
 
   stages: (workspaceId: string) =>

@@ -12,6 +12,10 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { MessageDto, ConversationDetailDto, Role, RuntimeUsage } from "../types";
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
 function extractRoleName(msg: MessageDto): string {
   if (msg.from_role) return msg.from_role;
   if (msg.role === "user") return "用户";
@@ -24,7 +28,8 @@ function extractRuntimeUsage(msg: MessageDto): RuntimeUsage | null {
   const usageEvents = msg.events.filter(
     (e) => e.kind === "signal" && e.payload?.type === "runtime_usage" && e.payload?.detail
   );
-  const detail = usageEvents.at(-1)?.payload?.detail as Record<string, unknown> | undefined;
+  const rawDetail = usageEvents.at(-1)?.payload?.detail;
+  const detail = isRecord(rawDetail) ? rawDetail : undefined;
   if (!detail || typeof detail !== "object") {
     return { label: "- / -", percentLabel: "-", title: "上下文用量：数据尚未到达", isPlaceholder: true };
   }

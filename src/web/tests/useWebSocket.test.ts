@@ -1,5 +1,8 @@
+// @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
+import { createElement } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { useConversationStore } from "../stores/conversationStore";
 
@@ -20,6 +23,10 @@ class MockWebSocket {
   send() {}
 }
 
+const queryClient = new QueryClient();
+const wrapper = ({ children }: { children: React.ReactNode }) =>
+  createElement(QueryClientProvider, { client: queryClient }, children);
+
 describe("useWebSocket", () => {
   beforeEach(() => {
     MockWebSocket.instances = [];
@@ -33,24 +40,24 @@ describe("useWebSocket", () => {
   });
 
   it("connects when conversationId is provided", () => {
-    renderHook(() => useWebSocket("conv-1"));
+    renderHook(() => useWebSocket("conv-1"), { wrapper });
     expect(MockWebSocket.instances.length).toBe(1);
     expect(MockWebSocket.instances[0].url).toContain("conversation_id=conv-1");
   });
 
   it("does not connect when conversationId is null", () => {
-    renderHook(() => useWebSocket(null));
+    renderHook(() => useWebSocket(null), { wrapper });
     expect(MockWebSocket.instances.length).toBe(0);
   });
 
   it("sets wsStatus to connected on open", () => {
-    renderHook(() => useWebSocket("conv-1"));
+    renderHook(() => useWebSocket("conv-1"), { wrapper });
     act(() => { vi.advanceTimersByTime(10); });
     expect(useConversationStore.getState().wsStatus).toBe("connected");
   });
 
   it("cleans up on unmount", () => {
-    const { unmount } = renderHook(() => useWebSocket("conv-1"));
+    const { unmount } = renderHook(() => useWebSocket("conv-1"), { wrapper });
     act(() => { vi.advanceTimersByTime(10); });
     const ws = MockWebSocket.instances[0];
     const closeSpy = vi.spyOn(ws, "close");
