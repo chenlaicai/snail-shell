@@ -19,12 +19,13 @@ Snail Shell 经过多次迭代，模块数量已增长到 18 个后端模块 + 1
 2. 识别结构性架构债务并按优先级排序
 3. 追溯核心业务场景中的不合理代码和多版本残留
 4. 为后续渐进式重构提供明确的改进路线图
+5. 实施 P0 改进项（结构性债务修复）
 
 ## 非目标
 
-1. 不对任何具体模块执行重构（本次仅为评审输出）
-2. 不评估测试覆盖率或运行时性能
-3. 不评估 `.meta/` 提示词体系的质量
+1. 不评估测试覆盖率或运行时性能
+2. 不评估 `.meta/` 提示词体系的质量
+3. 不实施 P1-P3 改进项（留待后续 feature）
 
 ## 设计
 
@@ -364,13 +365,29 @@ shared/ 标榜"所有领域类型在一处定义"，但实际成了类型垃圾�
 
 - **边界**：依赖方向应保持 DAG，当前唯一的循环依赖 `lobby ↔ interaction-entry` 应在后续重构中解耦
 - **关键决策**：God Class 拆解应按业务域垂直切分，而非按技术层水平切分
-- **非目标约束**：评审文档本身不做代码变更，但 P0 #1（ClaudeCodeBase 提取）已在本 PR 中实施
+- **非目标约束**：P1-P3 改进项留待后续 feature，本 PR 仅实施 P0
 - **语义不变量**：shared/ 只承载真正的跨模块共享类型（核心实体、消息事件协议、全局枚举），业务域类型和层内类型不得为满足单向依赖而放入 shared；api-contracts/ 是前后端唯一契约源
 
 ## 改动范围
 
-1. 文档输出：`docs/features/2026/06/06/F2026060602-architecture-review.md`
-2. P0 #1 实施：提取 `ClaudeCodeBase` 共享基类（`src/agent/claude-code-base.ts` 新增 344 行，`claude-code.ts` 350→124 行，`claude-code-stateful.ts` 500→181 行，净减 201 行）
+### 文档
+- `docs/features/2026/06/06/F2026060602-architecture-review.md`
+
+### P0 代码实施
+
+**P0 #1 提取 ClaudeCodeBase（已完成）**
+- `src/agent/claude-code-base.ts` 新增 344 行
+- `src/agent/claude-code.ts` 350→124 行
+- `src/agent/claude-code-stateful.ts` 500→181 行
+- 净减 201 行
+
+**P0 #2 拆解 ConversationStore（待实施）**
+- `src/persistence/store.ts` 移除 45 个透传方法
+- 消费方直接注入 `FileConfigStore`、`EvolutionModel`、`KnowledgeLibraryModel`
+
+**P0 #3 拆解 WorkspaceManager（待实施）**
+- `src/workspace-workflow/manager.ts` 按业务域提取 Service 类
+- 消费方（interaction-entry、lobby）按需依赖具体 Service
 
 ## 验证
 
