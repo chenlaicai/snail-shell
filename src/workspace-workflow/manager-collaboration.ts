@@ -6,7 +6,7 @@
 import type { Conversation, ConversationStore, Issue, RoleName } from "../persistence/store";
 import type { SopSnapshot } from "../shared/types";
 import { SopSnapshotReader } from "./sop-snapshot-reader";
-import { buildConversationSystemPrompt } from "../roles";
+import { buildConversationSystemPrompt } from "../prompt-center";
 import type { AgentCapability } from "../agent/capability";
 import { logger } from "../logger";
 import type { CollaborationInvocationOptions, MentionResolution } from "../message-bus/collaboration";

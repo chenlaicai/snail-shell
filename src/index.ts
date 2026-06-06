@@ -47,8 +47,9 @@ export { WorkspaceManager } from "./workspace-workflow/manager";
 export type { ConversationDetail, WorkspaceDetail, WorkspaceSummary } from "./workspace-workflow/manager";
 
 // snails
-export { buildConversationSystemPrompt, buildConversationCapability } from "./roles";
-export type { PromptBuildContext, RoleDefinition } from "./roles";
+export { buildConversationSystemPrompt, buildConversationCapability } from "./prompt-center";
+export type { PromptBuildContext } from "./prompt-center";
+export type { RoleDefinition } from "./roles";
 
 // agent capability
 export { collectActiveSkills } from "./agent/capability";

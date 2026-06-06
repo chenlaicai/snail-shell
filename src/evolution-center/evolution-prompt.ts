@@ -1,4 +1,4 @@
-import { buildConversationSystemPrompt } from "../roles";
+import { buildConversationSystemPrompt } from "../prompt-center";
 import type { Conversation, ConversationStore } from "../persistence/store";
 import type { CollaborationInvocationOptions } from "../message-bus/collaboration";
 import type { AgentCapability } from "../agent/capability";
