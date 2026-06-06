@@ -69,7 +69,6 @@ export type {
   SopSnapshot,
   SopStageDefinition,
   SopTransition,
-  WorkspaceSop,
   StageChecklistItem,
   StageGateArtifact,
   StageGateEvidence,
@@ -97,7 +96,6 @@ import type {
   PersistedMessageEventRow,
   Workspace,
   WorkspaceStageDefinition,
-  WorkspaceSop,
   RoleName,
   Sop,
   SopStageDefinition,
@@ -177,7 +175,7 @@ export class ConversationStore {
   seedWorkspaceConfigs(_seed?: unknown): { created: boolean } {
     return { created: false };
   }
-  seedWorkspaceToCache(input: { id: string; name: string; summary?: string; workspaceRoot?: string; sopBindings?: Array<{ sop_id: string; is_default: boolean; role_bindings: Record<string, string | string[]> }> }): void {
+  seedWorkspaceToCache(input: { id: string; name: string; summary?: string; workspaceRoot?: string }): void {
     this.fileConfigStore.seedWorkspace(input);
   }
   /** Test helper: create a SOP via the real API (writes YAML file). Idempotent — skips if already exists. */
@@ -207,7 +205,6 @@ export class ConversationStore {
           roles: Array<{ key: string; name: string; description?: string; handbook?: string | null; is_primary?: boolean; count?: number }>;
         }>;
       }>;
-      workspaceBindings: Array<{ sop_id: string; is_default: boolean; role_bindings: Record<string, string | string[]> }>;
     },
   ): void {
     this.fileConfigStore.replaceWorkspaceConfigs(workspaceId, input);
@@ -234,12 +231,6 @@ export class ConversationStore {
   listSopStageRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] { return this.fileConfigStore.listSopStageRoleDefinitions(stageDefinitionId); }
   listSopStageDefinitionsWithRoles(sopId: string): Array<SopStageDefinition & { roles: StageRoleDefinition[] }> { return this.fileConfigStore.listSopStageDefinitionsWithRoles(sopId); }
   collectSopRoleKeys(sopId: string): Set<string> { return this.fileConfigStore.collectSopRoleKeys(sopId); }
-  getWorkspaceSop(workspaceId: string, sopId: string): WorkspaceSop | undefined { return this.fileConfigStore.getWorkspaceSop(workspaceId, sopId); }
-  listWorkspaceSops(workspaceId: string): WorkspaceSop[] { return this.fileConfigStore.listWorkspaceSops(workspaceId); }
-  getDefaultWorkspaceSop(workspaceId: string): WorkspaceSop | undefined { return this.fileConfigStore.getDefaultWorkspaceSop(workspaceId); }
-  createWorkspaceSop(input: { id: string; workspaceId: string; sopId: string; isDefault: boolean; roleBindings: Record<string, string | string[]> }): WorkspaceSop { return this.fileConfigStore.createWorkspaceSop(input); }
-  updateWorkspaceSop(workspaceId: string, sopId: string, updates: { isDefault?: boolean; roleBindings?: Record<string, string | string[]> }): WorkspaceSop { return this.fileConfigStore.updateWorkspaceSop(workspaceId, sopId, updates); }
-  deleteWorkspaceSop(workspaceId: string, sopId: string): void { return this.fileConfigStore.deleteWorkspaceSop(workspaceId, sopId); }
   getStageDefinition(id: string): WorkspaceStageDefinition | undefined {
     return this.fileConfigStore.getStageDefinitionByWorkspace(id);
   }
@@ -253,7 +244,6 @@ export class ConversationStore {
   listRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] { return this.fileConfigStore.listRoleDefinitionsByStage(stageDefinitionId); }
   listRoleDefinitionsByStageAndWorkspace(stageDefinitionId: string, workspaceId: string): StageRoleDefinition[] { return this.fileConfigStore.listRoleDefinitionsByStageAndWorkspace(stageDefinitionId, workspaceId); }
   listRoleDefinitionsByWorkspace(workspaceId: string): StageRoleDefinition[] { return this.fileConfigStore.listRoleDefinitionsByWorkspace(workspaceId); }
-  listAllRoleDefinitions(): Array<StageRoleDefinition & { workspace_id: string }> { return this.fileConfigStore.listAllRoleDefinitions(); }
   createWorkspace(id: string, name: string, workspaceRoot: string, summary?: string, guardProfile?: Record<string, unknown> | null): Workspace {
     return this.fileConfigStore.createWorkspace({ id, name, workspaceRoot, summary, guardProfile });
   }

@@ -1,4 +1,4 @@
-import { buildConversationSystemPrompt, type RoleRegistry } from "../roles";
+import { buildConversationSystemPrompt } from "../roles";
 import type { Conversation, ConversationStore } from "../persistence/store";
 import type { CollaborationInvocationOptions } from "../message-bus/collaboration";
 import type { AgentCapability } from "../agent/capability";
@@ -47,7 +47,7 @@ function applyRoleBindings(roles: StageRoleDefinition[], config: EvolutionConfig
   });
 }
 
-export function buildEvolutionSystemPrompt(input: { store: ConversationStore; roleRegistry: RoleRegistry; conversation: Conversation; options: CollaborationInvocationOptions }): { systemPrompt: string; capability: AgentCapability } {
+export function buildEvolutionSystemPrompt(input: { store: ConversationStore; conversation: Conversation; options: CollaborationInvocationOptions }): { systemPrompt: string; capability: AgentCapability } {
   const ctx: EvolutionContext = { store: input.store, conversation: input.conversation, options: input.options };
   const deps = resolveEvolutionDependencies(ctx);
   const roleDefinitions = applyRoleBindings(

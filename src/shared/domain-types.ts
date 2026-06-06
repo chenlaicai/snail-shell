@@ -81,11 +81,6 @@ export interface SnailWorkspaceConfig {
   name: string;
   summary?: string;
   guard_profile?: Record<string, unknown> | null;
-  sop_bindings: Array<{
-    sop_id: string;
-    is_default: boolean;
-    role_bindings: Record<string, string | string[]>;
-  }>;
 }
 export type ConversationStatus = "active" | "paused" | "completed" | "archived";
 export type MessageRole = "user" | "assistant" | "system";
@@ -211,14 +206,6 @@ export interface SopStageDefinition {
   acceptance_focus: string[];
   /** 阶段验收清单，JSON 数组。每项包含 id、description、required。 */
   acceptance_checklist: StageChecklistItem[];
-}
-
-export interface WorkspaceSop {
-  id: string;
-  workspace_id: string;
-  sop_id: string;
-  is_default: number;
-  role_bindings: Record<string, string | string[]>;
 }
 
 export interface Issue {

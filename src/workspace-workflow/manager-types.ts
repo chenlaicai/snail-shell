@@ -1,9 +1,7 @@
 import type { Conversation, ConversationHistorySearchResult, ConversationStore, Issue, MessageWithEvents, Workspace, RoleName, Stage } from "../persistence/store";
 import type { SnailDen, SystemAI } from "../snail-den";
-import type { RoleRegistry } from "../roles";
 
 export interface WorkspaceManagerDeps {
-  roleRegistry: RoleRegistry;
   systemAI: SystemAI;
   snailDen: SnailDen;
 }

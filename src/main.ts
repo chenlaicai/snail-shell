@@ -12,7 +12,6 @@ import { loadLlmConfig, OpenAIClient } from "./llm";
 import { SystemAISnail } from "./snail-den/system-ai";
 import { WorkspaceManager } from "./workspace-workflow/manager";
 import { createServer } from "./interaction-entry/api/server";
-import { RoleRegistry } from "./roles";
 import { SnailDen } from "./snail-den";
 import { logger } from "./logger";
 import { ConversationGateway } from "./interaction-entry/gateway";
@@ -114,11 +113,11 @@ function createOpenAIClient(llmConfig: ReturnType<typeof loadLlmConfig>): OpenAI
 function createWorkspaceManager(
   store: ConversationStore,
   agentResolver: RuntimeSnailAgentResolver,
-  deps: { roleRegistry: RoleRegistry; snailDen: SnailDen; llmConfig: ReturnType<typeof loadLlmConfig> }
+  deps: { snailDen: SnailDen; llmConfig: ReturnType<typeof loadLlmConfig> }
 ): WorkspaceManager {
   const openAIClient = createOpenAIClient(deps.llmConfig);
   const systemAI = new SystemAISnail(openAIClient);
-  return new WorkspaceManager(store, agentResolver, { roleRegistry: deps.roleRegistry, systemAI, snailDen: deps.snailDen });
+  return new WorkspaceManager(store, agentResolver, { systemAI, snailDen: deps.snailDen });
 }
 
 async function startFeishuChannel(
@@ -178,7 +177,7 @@ async function startWecomChannel(
   return { stop: () => channel.stop(), lobbyChannel: channel };
 }
 
-async function createRuntimeContext(store: ConversationStore): Promise<{ agentResolver: RuntimeSnailAgentResolver; roleRegistry: RoleRegistry; snailDen: SnailDen; workspaceManager: WorkspaceManager }> {
+async function createRuntimeContext(store: ConversationStore): Promise<{ agentResolver: RuntimeSnailAgentResolver; snailDen: SnailDen; workspaceManager: WorkspaceManager }> {
   const llmConfig = loadLlmConfig();
   if (llmConfig.provider !== "openai") throw new Error(`Unsupported llm provider: ${llmConfig.provider}`);
   if (!llmConfig.openai.api_key) throw new Error("config/llm.json openai.api_key is required for conversation summary generation");
@@ -186,9 +185,7 @@ async function createRuntimeContext(store: ConversationStore): Promise<{ agentRe
   const agentResolver = new RuntimeSnailAgentResolver(agents);
   const snailDen = new SnailDen(agentResolver);
 
-  const roleRegistry = new RoleRegistry(store);
-
-  return { agentResolver, roleRegistry, snailDen, workspaceManager: createWorkspaceManager(store, agentResolver, { roleRegistry, snailDen, llmConfig }) };
+  return { agentResolver, snailDen, workspaceManager: createWorkspaceManager(store, agentResolver, { snailDen, llmConfig }) };
 }
 
 interface ChannelSetup {

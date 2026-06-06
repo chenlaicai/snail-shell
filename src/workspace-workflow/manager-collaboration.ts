@@ -3,7 +3,7 @@
  *
  * 从 manager.ts 拆出以满足文件行数限制（max 400）。
  */
-import type { Conversation, ConversationStore, RoleName } from "../persistence/store";
+import type { Conversation, ConversationStore, Issue, RoleName } from "../persistence/store";
 import type { SopSnapshot } from "../shared/types";
 import { SopSnapshotReader } from "./sop-snapshot-reader";
 import { buildConversationSystemPrompt } from "../roles";
@@ -15,7 +15,6 @@ import { getInputContent, type MessageInputEvent } from "../message-bus/message-
 import { dedupeMentions } from "../message-bus/mentions";
 import { buildEvolutionSystemPrompt } from "../evolution-center/evolution-prompt";
 import type { RoleDefinition } from "../roles";
-import type { RoleRegistry } from "../roles/registry";
 import type { SnailDen } from "../snail-den";
 import type { SystemAI } from "../snail-den/system-ai";
 import { loadWorkspaceContext } from "./snail-loader";
@@ -23,7 +22,6 @@ import { loadWorkspaceContext } from "./snail-loader";
 /** resolveConversationSystemPrompt / resolveMentions 所需的外部依赖。 */
 export interface CollaborationDeps {
   store: ConversationStore;
-  roleRegistry: RoleRegistry;
   systemAI: SystemAI;
   snailDen: SnailDen;
 }
@@ -37,11 +35,11 @@ export function resolveConversationSystemPrompt(
   conversationId: string,
   options: CollaborationInvocationOptions,
 ): { systemPrompt: string; capability: AgentCapability } {
-  const { store, roleRegistry } = deps;
+  const { store } = deps;
   const conversation = store.getConversation(conversationId);
   if (!conversation) throw new Error(`Conversation not found: ${conversationId}`);
   if (conversation.owner_type === "evolution") {
-    return buildEvolutionSystemPrompt({ store, roleRegistry, conversation, options });
+    return buildEvolutionSystemPrompt({ store, conversation, options });
   }
   return buildWorkflowSystemPrompt(deps, conversationId, conversation, options);
 }
@@ -154,26 +152,45 @@ export function resolveSnailDisplayName(
 
 /**
  * 解析 conversation 上下文中指定 roleName 的 RoleDefinition。
- * Issue 级 role_snail_mapping 优先于工作区模板。
+ * 从 issue.sop_snapshot 读取角色定义，role_snail_mapping 应用模板绑定。
+ * Evolution conversation 从 evolution config role_bindings 回退。
  */
 export function resolveConversationRole(
   deps: CollaborationDeps,
   conversationId: string,
   roleName: RoleName,
 ): RoleDefinition | undefined {
-  const { store, roleRegistry } = deps;
-  const conversation = store.getConversation(conversationId);
-  if (!conversation?.stage_id) return undefined;
-  const stage = store.getStage(conversation.stage_id);
-  if (!stage) return undefined;
-  const roleDef = roleRegistry.getByStageDefinitionName(stage.workspace_id, stage.stage_definition_id, roleName);
+  const { store } = deps;
+  const ctx = resolveRoleContext(store, conversationId);
+  if (!ctx) return undefined;
+
+  const reader = new SopSnapshotReader(ctx.issue.sop_snapshot);
+  const roleDef = reader.listRoleDefinitionsByStage(ctx.stage.stage_definition_id).find((r) => r.name === roleName);
   if (!roleDef) return undefined;
-  if (conversation.issue_id) {
-    const issue = store.getIssue(conversation.issue_id);
-    const templateId = issue?.role_snail_mapping?.[stage.id]?.[roleName];
-    if (templateId) return { ...roleDef, snail_template_id: templateId };
-  }
-  return roleDef;
+
+  return resolveTemplateId({ store: ctx.store, conversation: ctx.conversation, issue: ctx.issue, stageType: ctx.stage.type }, roleName, roleDef);
+}
+
+function resolveRoleContext(store: ConversationStore, conversationId: string): { store: ConversationStore; conversation: Conversation; issue: Issue; stage: { id: string; stage_definition_id: string; type: string } } | undefined {
+  const conversation = store.getConversation(conversationId);
+  if (!conversation?.stage_id || !conversation.issue_id) return undefined;
+  const stage = store.getStage(conversation.stage_id);
+  const issue = store.getIssue(conversation.issue_id);
+  if (!stage || !issue) return undefined;
+  return { store, conversation, issue, stage };
+}
+
+function resolveTemplateId(ctx: { store: ConversationStore; conversation: Conversation; issue: Issue; stageType: string }, roleName: RoleName, roleDef: RoleDefinition): RoleDefinition {
+  const issueTemplateId = ctx.issue.role_snail_mapping?.[ctx.stageType]?.[roleDef.key] ?? ctx.issue.role_snail_mapping?.[ctx.stageType]?.[roleName];
+  if (issueTemplateId) return { ...roleDef, snail_template_id: issueTemplateId };
+  return resolveEvolutionTemplateId(ctx.store, ctx.conversation, roleDef);
+}
+
+function resolveEvolutionTemplateId(store: ConversationStore, conversation: Conversation, roleDef: RoleDefinition): RoleDefinition {
+  if (conversation.owner_type !== "evolution") return roleDef;
+  const evolutionConfig = store.getEvolutionConfig();
+  const evolutionTemplateId = evolutionConfig?.role_bindings?.[roleDef.key];
+  return evolutionTemplateId ? { ...roleDef, snail_template_id: evolutionTemplateId } : roleDef;
 }
 
 /**

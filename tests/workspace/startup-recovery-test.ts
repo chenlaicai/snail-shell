@@ -29,13 +29,9 @@ async function main(): Promise<void> {
     { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ key: "executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", is_primary: true, handbook: "## 工作规则\n\n- 严格按入口校验流程\n- 查重需覆盖全局演进工作区\n- 裁决去向必须明确并记录PR链接" }] },
   ]);
 
-  /* Seed workspace 绑定 — evolution SOP 也绑定到主 workspace，使 RoleRegistry 能解析 evolution roles */
+  /* Seed workspace — SOP is now self-declared */
   store.seedWorkspaceToCache({
     id: "startup-recovery-workspace",  name: "Snail Shell", summary: "test", workspaceRoot: process.cwd(),
-    sopBindings: [
-      { sop_id: "sop-startup-recovery", is_default: true, role_bindings: { "developer": "opencode-default" } },
-      { sop_id: "evolution", is_default: false, role_bindings: { "executor": "opencode-default" } },
-    ],
   });
   const workspace = store.getWorkspace("startup-recovery-workspace")!;
   const issue = store.createIssue({ id: "startup-recovery-issue", workspaceId: workspace.id, title: "Issue" });

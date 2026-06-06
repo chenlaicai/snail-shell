@@ -265,40 +265,6 @@ function registerSopRoutes(router: express.Router, workspaceManager: WorkspaceMa
       res.status(err.message.includes("not found") ? 404 : 400).json({ error: err.message });
     }
   });
-
-  router.get("/workspaces/:workspaceId/sops", (req, res) => {
-    res.json(workspaceManager.listWorkspaceSops(req.params.workspaceId));
-  });
-
-  router.post("/workspaces/:workspaceId/sops", (req, res) => {
-    const { sop_id, is_default, role_bindings } = req.body ?? {};
-    if (!sop_id || typeof sop_id !== "string") { res.status(400).json({ error: "sop_id is required" }); return; }
-    try {
-      const result = workspaceManager.createWorkspaceSop({ workspaceId: req.params.workspaceId, sopId: sop_id, isDefault: Boolean(is_default), roleBindings: role_bindings ?? {} });
-      res.status(201).json(result);
-    } catch (err: any) {
-      res.status(400).json({ error: err.message });
-    }
-  });
-
-  router.patch("/workspaces/:workspaceId/sops/:sopId", (req, res) => {
-    const { is_default, role_bindings } = req.body ?? {};
-    try {
-      const result = workspaceManager.updateWorkspaceSop(req.params.workspaceId, req.params.sopId, { isDefault: is_default !== undefined ? Boolean(is_default) : undefined, roleBindings: role_bindings });
-      res.json(result);
-    } catch (err: any) {
-      res.status(err.message.includes("not found") ? 404 : 400).json({ error: err.message });
-    }
-  });
-
-  router.delete("/workspaces/:workspaceId/sops/:sopId", (req, res) => {
-    try {
-      workspaceManager.deleteWorkspaceSop(req.params.workspaceId, req.params.sopId);
-      res.status(204).send();
-    } catch (err: any) {
-      res.status(err.message.includes("not found") ? 404 : 409).json({ error: err.message });
-    }
-  });
 }
 
 function registerConversationRoutes(router: express.Router, workspaceManager: WorkspaceManager, conversationGateway: ConversationGateway, store: ConversationStore): void {

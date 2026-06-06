@@ -55,32 +55,13 @@ const developerInstances = countTestRoles.filter((r) => r.key === "developer");
 assert(developerInstances[0].name === "开发者", `developer name should not be expanded, got "${developerInstances[0].name}"`);
 assert(developerInstances[0].count === 1, "developer count should be 1");
 
-/* ── count 展开后 role_bindings string[] 绑定测试 ──────────────── */
+/* Seed workspace */
 store.seedWorkspaceToCache({
   id: "count-test-ws",  name: "Count Test", summary: "", workspaceRoot: process.cwd(),
-  sopBindings: [{ sop_id: "count-test-sop", is_default: true, role_bindings: { "developer": "opencode-default", "reviewer": ["codex-gpt-5-5", "gpt-5-5"] } }],
 });
-const countTestRolesWithBinding = store.listRoleDefinitionsByStageAndWorkspace(countTestStages[0].id, "count-test-ws");
-const reviewerWithBinding = countTestRolesWithBinding.filter((r) => r.key === "reviewer");
-assert(reviewerWithBinding[0].snail_template_id === "codex-gpt-5-5", `reviewer-1 template should be "codex-gpt-5-5", got "${reviewerWithBinding[0].snail_template_id}"`);
-assert(reviewerWithBinding[1].snail_template_id === "gpt-5-5", `reviewer-2 template should be "gpt-5-5", got "${reviewerWithBinding[1].snail_template_id}"`);
-const developerWithBinding = countTestRolesWithBinding.filter((r) => r.key === "developer");
-assert(developerWithBinding[0].snail_template_id === "opencode-default", `developer template should be "opencode-default", got "${developerWithBinding[0].snail_template_id}"`);
-
-/* Seed workspace 绑定 */
 store.seedWorkspaceToCache({
   id: "workspace-1", name: "Snail Shell", summary: "Self evolution", workspaceRoot: process.cwd(),
-  sopBindings: [
-    { sop_id: "workspace-1-sop", is_default: true, role_bindings: { "developer": "opencode-default", "reviewer": "opencode-default" } },
-    { sop_id: "evolution", is_default: false, role_bindings: { "executor": "opencode-default" } },
-  ],
 });
-// guard_profile backfill tests removed: FileConfigStore-based seedWorkspaceToCache does not support guard_profile field
-
-/* ── count=1 时 role_bindings string 格式仍正常工作 ──────────── */
-const devRolesWs1 = store.listRoleDefinitionsByStageAndWorkspace("development", "workspace-1");
-assert(devRolesWs1.length === 1, "workspace-1 development should have 1 role");
-assert(devRolesWs1[0].snail_template_id === "opencode-default", "string binding should resolve correctly");
 
 const workspace = store.getWorkspace("workspace-1")!;
 const issue = store.createIssue({ id: "issue-1", workspaceId: workspace.id, title: "Issue", summary: "Self evolution" });

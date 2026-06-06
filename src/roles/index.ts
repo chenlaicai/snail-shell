@@ -1,4 +1,5 @@
-export { RoleRegistry } from "./registry";
 export { buildConversationSystemPrompt, buildConversationCapability } from "../prompt-center";
-export type { RoleDefinition, RoleDefinitionStore, StageRoleBinding } from "./registry";
+import type { StageRoleDefinition } from "../shared/types";
+/** @deprecated Use StageRoleDefinition directly. Kept for backward compatibility. */
+export type RoleDefinition = StageRoleDefinition;
 export type { PromptBuildContext } from "../prompt-center";

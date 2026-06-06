@@ -2,7 +2,6 @@ import { randomUUID } from "crypto";
 import { HUMAN_ROLE_NAME } from "../shared/domain-types";
 import type { Conversation, ConversationStore, Issue, Workspace, Stage, StageGateEvidence, StageGateArtifact, StageChecklistItem, SopTransition, SopSnapshot } from "../persistence/store";
 import type { FileConfigStore } from "../persistence/file-config-store";
-import type { RoleRegistry } from "../roles";
 import { SopSnapshotReader } from "./sop-snapshot-reader";
 import { logger } from "../logger";
 
@@ -21,7 +20,6 @@ export interface IssueTransitionResult {
 
 interface WorkflowDependencies {
   store: ConversationStore;
-  roleRegistry: RoleRegistry;
 }
 
 export function createInitialWorkflow(
@@ -38,7 +36,6 @@ export function createInitialWorkflow(
   const { name, summary, workspaceRoot, workspaceId, sopId, roleSnailMapping } = input;
 
   const workspace = deps.store.createWorkspace(workspaceId ?? randomUUID(), name, workspaceRoot, summary);
-  deps.roleRegistry.reloadFromStore();
 
   const issueWorkflow = createIssueWorkflow(deps, { workspace, title: "初始设计与实现", summary: "工作区创建时自动生成的默认 issue。", adoptedSopId: sopId, roleSnailMapping });
   return { workspace, ...issueWorkflow };

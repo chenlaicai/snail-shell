@@ -14,7 +14,7 @@ import fs from "fs";
 import path from "path";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { logger } from "../logger";
-import type { Workspace, EvolutionConfig, SnailWorkspaceConfig, Sop, SopStageDefinition, SopTransition, StageRoleDefinition, WorkspaceSop, WorkspaceStageDefinition } from "../shared/types";
+import type { Workspace, EvolutionConfig, SnailWorkspaceConfig, Sop, SopStageDefinition, SopTransition, StageRoleDefinition, WorkspaceStageDefinition } from "../shared/types";
 import { type SopYamlFile, countSopDir, listSopDir, parseSopById, findWorkspaceSopIdByKey } from "./sop-file-utils";
 
 // ── Cache entry ───────────────────────────────────────────────────────
@@ -112,7 +112,6 @@ export class FileConfigStore {
       workspace_root: input.workspaceRoot,
       original_path: input.workspaceRoot,
       guard_profile: input.guardProfile ?? null,
-      sop_bindings: [],
     };
     this.workspaceCache.set(input.id, entry);
     this.saveInitConfig(input.workspaceRoot, entry);
@@ -137,11 +136,10 @@ export class FileConfigStore {
   /**
    * Programmatically seed a workspace into the in-memory cache (no file I/O).
    *
-   * Why: tests need to create workspace + SOP bindings without touching the filesystem.
+   * Why: tests need to create workspace without touching the filesystem.
    */
   seedWorkspace(input: {
     id: string; name: string; summary?: string; workspaceRoot?: string;
-    sopBindings?: Array<{ sop_id: string; is_default: boolean; role_bindings: Record<string, string | string[]> }>;
   }): void {
     const root = input.workspaceRoot ?? this.repoRoot;
     this.workspaceCache.set(input.id, {
@@ -150,78 +148,7 @@ export class FileConfigStore {
       summary: input.summary ?? "",
       workspace_root: root,
       original_path: root,
-      sop_bindings: input.sopBindings ?? [],
     });
-  }
-
-  // ── Workspace SOP binding reads ─────────────────────────────────────
-
-  getWorkspaceSop(workspaceId: string, sopId: string): WorkspaceSop | undefined {
-    const entry = this.workspaceCache.get(workspaceId);
-    if (!entry) return undefined;
-    const binding = entry.sop_bindings.find((b) => b.sop_id === sopId);
-    if (!binding) return undefined;
-    return this.mapBindingToWorkspaceSop(workspaceId, binding);
-  }
-
-  listWorkspaceSops(workspaceId: string): WorkspaceSop[] {
-    const entry = this.workspaceCache.get(workspaceId);
-    if (!entry) return [];
-    return entry.sop_bindings.map((b) => this.mapBindingToWorkspaceSop(workspaceId, b));
-  }
-
-  getDefaultWorkspaceSop(workspaceId: string): WorkspaceSop | undefined {
-    const entry = this.workspaceCache.get(workspaceId);
-    if (!entry) return undefined;
-    const binding = entry.sop_bindings.find((b) => b.is_default);
-    return binding ? this.mapBindingToWorkspaceSop(workspaceId, binding) : undefined;
-  }
-
-  // ── Workspace SOP binding writes ────────────────────────────────────
-
-  createWorkspaceSop(input: { id: string; workspaceId: string; sopId: string; isDefault: boolean; roleBindings: Record<string, string | string[]> }): WorkspaceSop {
-    const entry = this.workspaceCache.get(input.workspaceId);
-    if (!entry) throw new Error(`Workspace not found: ${input.workspaceId}`);
-    if (entry.sop_bindings.some((b) => b.sop_id === input.sopId)) {
-      throw new Error(`SOP binding already exists: workspace=${input.workspaceId} sop=${input.sopId}`);
-    }
-    if (input.isDefault) {
-      for (const b of entry.sop_bindings) b.is_default = false;
-    }
-    entry.sop_bindings.push({
-      sop_id: input.sopId,
-      is_default: input.isDefault,
-      role_bindings: input.roleBindings,
-    });
-    this.saveInitConfig(entry.workspace_root, entry);
-    return this.getWorkspaceSop(input.workspaceId, input.sopId)!;
-  }
-
-  updateWorkspaceSop(workspaceId: string, sopId: string, updates: { isDefault?: boolean; roleBindings?: Record<string, string | string[]> }): WorkspaceSop {
-    const entry = this.workspaceCache.get(workspaceId);
-    if (!entry) throw new Error(`Workspace not found: ${workspaceId}`);
-    const binding = entry.sop_bindings.find((b) => b.sop_id === sopId);
-    if (!binding) throw new Error(`WorkspaceSop not found: workspace=${workspaceId} sop=${sopId}`);
-    if (updates.isDefault !== undefined) {
-      if (updates.isDefault) {
-        for (const b of entry.sop_bindings) b.is_default = false;
-      }
-      binding.is_default = updates.isDefault;
-    }
-    if (updates.roleBindings !== undefined) {
-      binding.role_bindings = updates.roleBindings;
-    }
-    this.saveInitConfig(entry.workspace_root, entry);
-    return this.getWorkspaceSop(workspaceId, sopId)!;
-  }
-
-  deleteWorkspaceSop(workspaceId: string, sopId: string): void {
-    const entry = this.workspaceCache.get(workspaceId);
-    if (!entry) throw new Error(`Workspace not found: ${workspaceId}`);
-    const idx = entry.sop_bindings.findIndex((b) => b.sop_id === sopId);
-    if (idx < 0) throw new Error(`WorkspaceSop not found: workspace=${workspaceId} sop=${sopId}`);
-    entry.sop_bindings.splice(idx, 1);
-    this.saveInitConfig(entry.workspace_root, entry);
   }
 
   // ── SOP reads (file-based, no cache) ────────────────────────────────
@@ -256,12 +183,8 @@ export class FileConfigStore {
   listSopsByWorkspace(workspaceId: string): Sop[] {
     const entry = this.workspaceCache.get(workspaceId);
     if (!entry) return [];
-    const sops: Array<{ sop: Sop; isDefault: boolean }> = [];
-    for (const binding of entry.sop_bindings) {
-      const parsed = this._parseSopById(binding.sop_id);
-      if (parsed) sops.push({ sop: parsed.sop, isDefault: binding.is_default });
-    }
-    return sops.sort((a, b) => (a.isDefault === b.isDefault ? 0 : a.isDefault ? -1 : 1)).map((s) => s.sop);
+    const resolvedRoot = this.resolveWorkspaceRoot(entry.workspace_root);
+    return listSopDir(path.join(resolvedRoot, ".snail", "config", "sop"), "workspace", workspaceId);
   }
 
   // ── SOP writes ───────────────────────────────────────────────────────
@@ -353,22 +276,7 @@ export class FileConfigStore {
       fs.rmSync(sopDir, { recursive: true, force: true });
     }
 
-    // Clean up workspace bindings that reference this SOP
-    const affectedWorkspaces: string[] = [];
-    for (const ws of this.workspaceCache.values()) {
-      const idx = ws.sop_bindings.findIndex((b) => b.sop_id === sopId);
-      if (idx >= 0) {
-        ws.sop_bindings.splice(idx, 1);
-        affectedWorkspaces.push(ws.id);
-      }
-    }
-    if (affectedWorkspaces.length > 0) {
-      for (const wsId of affectedWorkspaces) {
-        const ws = this.workspaceCache.get(wsId);
-        if (ws) this.saveInitConfig(ws.workspace_root, ws);
-      }
-    }
-    return affectedWorkspaces;
+    return [];
   }
 
   // ── SOP Transition reads ────────────────────────────────────────────
@@ -460,7 +368,10 @@ export class FileConfigStore {
     const sd = this.getSopStageDefinition(key, sopId);
     if (!sd) return undefined;
     for (const ws of this.workspaceCache.values()) {
-      if (ws.sop_bindings.some((b) => b.sop_id === sd.sop_id)) {
+      // Check if this workspace has any SOP with this stage definition
+      const resolvedRoot = this.resolveWorkspaceRoot(ws.workspace_root);
+      const wsSops = listSopDir(path.join(resolvedRoot, ".snail", "config", "sop"), "workspace", ws.id);
+      if (wsSops.some((s) => s.id === sd.sop_id)) {
         return this.toWorkspaceStageDefinition(sd, ws.id);
       }
     }
@@ -468,26 +379,25 @@ export class FileConfigStore {
   }
 
   getStageDefinitionByKey(workspaceId: string, key: string): WorkspaceStageDefinition | undefined {
-    const entry = this.workspaceCache.get(workspaceId);
-    if (!entry) return undefined;
-    const sortedBindings = [...entry.sop_bindings].sort((a, b) => (a.is_default === b.is_default ? 0 : a.is_default ? -1 : 1));
-    for (const binding of sortedBindings) {
-      const sd = this.getSopStageDefinitionByKey(binding.sop_id, key);
+    // Search all SOPs (platform + workspace) for the stage definition
+    for (const sop of this.listSops()) {
+      const sd = this.getSopStageDefinitionByKey(sop.id, key);
       if (sd) return this.toWorkspaceStageDefinition(sd, workspaceId);
     }
     return undefined;
   }
 
   listStageDefinitions(workspaceId: string): WorkspaceStageDefinition[] {
-    const entry = this.workspaceCache.get(workspaceId);
-    if (!entry) return [];
     const result: WorkspaceStageDefinition[] = [];
-    const sortedBindings = [...entry.sop_bindings].sort((a, b) => (a.is_default === b.is_default ? 0 : a.is_default ? -1 : 1));
-    for (const binding of sortedBindings) {
-      const parsed = this._parseSopById(binding.sop_id);
+    const seen = new Set<string>();
+    for (const sop of this.listSops()) {
+      const parsed = this._parseSopById(sop.id);
       if (!parsed) continue;
       for (const sd of parsed.stageDefinitions) {
-        result.push(this.toWorkspaceStageDefinition(sd, workspaceId));
+        if (!seen.has(sd.key)) {
+          seen.add(sd.key);
+          result.push(this.toWorkspaceStageDefinition(sd, workspaceId));
+        }
       }
     }
     return result.sort((a, b) => a.sequence - b.sequence);
@@ -503,7 +413,7 @@ export class FileConfigStore {
       const parsed = this._parseSopById(sop.id);
       if (!parsed) continue;
       const role = parsed.stageRoleDefinitions.find((r) => r.id === id);
-      if (role) return this.resolveRoleTemplate(role, sop.id);
+      if (role) return role;
     }
     return undefined;
   }
@@ -513,56 +423,35 @@ export class FileConfigStore {
       const parsed = this._parseSopById(sopId);
       if (!parsed) return [];
       return parsed.stageRoleDefinitions
-        .filter((r) => r.stage_definition_id === stageKey)
-        .map((r) => this.resolveRoleTemplate(r, sopId));
+        .filter((r) => r.stage_definition_id === stageKey);
     }
     for (const sop of this.listSops()) {
       const parsed = this._parseSopById(sop.id);
       if (!parsed) continue;
       const roles = parsed.stageRoleDefinitions.filter((r) => r.stage_definition_id === stageKey);
-      if (roles.length > 0) return roles.map((r) => this.resolveRoleTemplate(r, sop.id));
+      if (roles.length > 0) return roles;
     }
     return [];
   }
 
-  listRoleDefinitionsByStageAndWorkspace(stageKey: string, workspaceId: string): StageRoleDefinition[] {
-    const entry = this.workspaceCache.get(workspaceId);
-    if (!entry) return [];
-    for (const binding of entry.sop_bindings) {
-      const parsed = this._parseSopById(binding.sop_id);
+  listRoleDefinitionsByStageAndWorkspace(stageKey: string, _workspaceId: string): StageRoleDefinition[] {
+    // Search all SOPs for the stage definition
+    for (const sop of this.listSops()) {
+      const parsed = this._parseSopById(sop.id);
       if (!parsed) continue;
       const roles = parsed.stageRoleDefinitions.filter((r) => r.stage_definition_id === stageKey);
-      if (roles.length > 0) return roles.map((r) => this.applyRoleBinding(r, binding.role_bindings));
+      if (roles.length > 0) return roles;
     }
     return [];
   }
 
-  listRoleDefinitionsByWorkspace(workspaceId: string): StageRoleDefinition[] {
-    const entry = this.workspaceCache.get(workspaceId);
-    if (!entry) return [];
+  listRoleDefinitionsByWorkspace(_workspaceId: string): StageRoleDefinition[] {
     const result: StageRoleDefinition[] = [];
-    for (const binding of entry.sop_bindings) {
-      const parsed = this._parseSopById(binding.sop_id);
+    for (const sop of this.listSops()) {
+      const parsed = this._parseSopById(sop.id);
       if (!parsed) continue;
-      for (const sd of parsed.stageDefinitions) {
-        const roles = parsed.stageRoleDefinitions
-          .filter((r) => r.stage_definition_id === sd.id)
-          .map((r) => this.applyRoleBinding(r, binding.role_bindings));
-        result.push(...roles);
-      }
-    }
-    return result;
-  }
-
-  listAllRoleDefinitions(): Array<StageRoleDefinition & { workspace_id: string }> {
-    const result: Array<StageRoleDefinition & { workspace_id: string }> = [];
-    for (const ws of this.workspaceCache.values()) {
-      for (const binding of ws.sop_bindings) {
-        const parsed = this._parseSopById(binding.sop_id);
-        if (!parsed) continue;
-        for (const role of parsed.stageRoleDefinitions) {
-          result.push({ ...this.applyRoleBinding(role, binding.role_bindings), workspace_id: ws.id });
-        }
+      for (const role of parsed.stageRoleDefinitions) {
+        result.push(role);
       }
     }
     return result;
@@ -578,7 +467,6 @@ export class FileConfigStore {
         sop: { id: string; source: "platform" | "workspace"; sourceRef: string | null; key: string; name: string; description?: string | null };
         stage_definitions: SopYamlFile["stage_definitions"];
       }>;
-      workspaceBindings: Array<{ sop_id: string; is_default: boolean; role_bindings: Record<string, string | string[]> }>;
     },
   ): void {
     const entry = this.workspaceCache.get(workspaceId);
@@ -599,14 +487,6 @@ export class FileConfigStore {
       fs.mkdirSync(sopDir, { recursive: true });
       this.atomicWrite(path.join(sopDir, `${seed.sop.key}.yaml`), stringifyYaml(yamlContent));
     }
-
-    /** Replace workspace SOP bindings. */
-    const normalizedBindings = this.normalizeDefaultBindings(input.workspaceBindings);
-    entry.sop_bindings = normalizedBindings.map((b) => ({
-      sop_id: b.sop_id,
-      is_default: b.is_default,
-      role_bindings: b.role_bindings,
-    }));
 
     this.saveInitConfig(entry.workspace_root, entry);
   }
@@ -699,49 +579,5 @@ export class FileConfigStore {
       updated_at: now,
       guard_profile: entry.guard_profile ?? null,
     };
-  }
-
-  private mapBindingToWorkspaceSop(workspaceId: string, binding: WorkspaceCacheEntry["sop_bindings"][number]): WorkspaceSop {
-    return {
-      id: `ps-${workspaceId}-${binding.sop_id}`,
-      workspace_id: workspaceId,
-      sop_id: binding.sop_id,
-      is_default: binding.is_default ? 1 : 0,
-      role_bindings: binding.role_bindings,
-    };
-  }
-
-  private resolveRoleTemplate(role: StageRoleDefinition, sopId: string): StageRoleDefinition {
-    for (const ws of this.workspaceCache.values()) {
-      const binding = ws.sop_bindings.find((b) => b.sop_id === sopId);
-      if (binding) return this.applyRoleBinding(role, binding.role_bindings);
-    }
-    return role;
-  }
-
-  private applyRoleBinding(role: StageRoleDefinition, roleBindings?: Record<string, string | string[]>): StageRoleDefinition {
-    if (!roleBindings) return role;
-    const bindingValue = roleBindings[role.key];
-    if (!bindingValue) return role;
-    const instanceIndex = this.extractInstanceIndex(role.id);
-    const snailTemplateId = typeof bindingValue === "string"
-      ? bindingValue
-      : Array.isArray(bindingValue)
-        ? bindingValue[instanceIndex > 0 ? instanceIndex - 1 : 0] ?? null
-        : null;
-    return { ...role, snail_template_id: snailTemplateId };
-  }
-
-  private extractInstanceIndex(id: string): number {
-    const match = id.match(/-(\d+)$/);
-    return match ? parseInt(match[1], 10) : 0;
-  }
-
-  private normalizeDefaultBindings(bindings: Array<{ sop_id: string; is_default: boolean; role_bindings: Record<string, string | string[]> }>): typeof bindings {
-    let foundDefault = false;
-    return bindings.map((b) => {
-      if (b.is_default && !foundDefault) { foundDefault = true; return b; }
-      return { ...b, is_default: false };
-    });
   }
 }

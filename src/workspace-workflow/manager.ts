@@ -74,7 +74,7 @@ export class WorkspaceManager extends EventEmitter {
   ) {
     super();
     this.repoRoot = options.repoRoot ?? process.cwd();
-    this.collaborationDeps = { store, roleRegistry: deps.roleRegistry, systemAI: deps.systemAI, snailDen: deps.snailDen };
+    this.collaborationDeps = { store, systemAI: deps.systemAI, snailDen: deps.snailDen };
     this.startupRecovery = recoverOrphanedStreamingAssistantMessages({ store: this.store, summaryGenerator: null });
   }
 
@@ -102,7 +102,7 @@ export class WorkspaceManager extends EventEmitter {
     }
 
     const result = createInitialWorkflow(
-      { store: this.store, roleRegistry: this.deps.roleRegistry },
+      { store: this.store },
       { name, summary: input.summary, workspaceRoot: resolvedRoot, workspaceId, sopId: input.sopId, roleSnailMapping: input.roleSnailMapping ?? {} },
     );
     logger.info("WorkspaceManager initialized workspace workflow", { workspaceId: result.workspace.id, issueId: result.issue.id, stageId: result.stage.id, conversationId: result.conversation.id });
@@ -140,20 +140,11 @@ export class WorkspaceManager extends EventEmitter {
       },
       stage_definitions: this.resolveHandbookRefs(sopDef.stage_definitions, sopDir),
     }));
-    // 使用 init.json 中的 sop_bindings（含 role_bindings 和 is_default）
-    const workspaceBindings = context.config.sop_bindings.map((b) => ({
-      sop_id: `${workspaceId}#${b.sop_id}`,
-      is_default: b.is_default,
-      role_bindings: b.role_bindings,
-    }));
 
     this.store.replaceWorkspaceConfigs(workspaceId, {
       workspaceUpdate: { name: context.config.name, summary: context.config.summary },
       sopSeeds,
-      workspaceBindings,
     });
-
-    this.deps.roleRegistry.reloadFromStore();
 
     logger.info("WorkspaceManager loaded workspace from .snail", {
       workspaceId,
@@ -219,7 +210,7 @@ export class WorkspaceManager extends EventEmitter {
   createIssue(workspaceId: string, title: string, summary: string | undefined, adoptedSopId: string, roleSnailMapping: Record<string, Record<string, string>>) {
     const workspace = this.store.getWorkspace(workspaceId);
     if (!workspace) throw new Error(`Workspace not found: ${workspaceId}`);
-    const result = createIssueWorkflow({ store: this.store, roleRegistry: this.deps.roleRegistry }, { workspace, title, summary, adoptedSopId, roleSnailMapping });
+    const result = createIssueWorkflow({ store: this.store }, { workspace, title, summary, adoptedSopId, roleSnailMapping });
     logger.info("WorkspaceManager created issue workflow", { workspaceId, issueId: result.issue.id, stageId: result.stage.id, conversationId: result.conversation.id });
     return result;
   }
@@ -239,7 +230,7 @@ export class WorkspaceManager extends EventEmitter {
     if (!activeStage) throw new Error(`No active stage found for issue: ${issueId}`);
     assertStageCanAdvance(this.store, activeStage.id);
     this.pendingStageSuggestions.delete(issueId);
-    const result = transitionIssueStage({ store: this.store, roleRegistry: this.deps.roleRegistry }, { workspace, issue, activeStage, targetStageKey });
+    const result = transitionIssueStage({ store: this.store }, { workspace, issue, activeStage, targetStageKey });
     logger.info("WorkspaceManager transitioned issue", { workspaceId: workspace.id, issueId, completedStageId: result.completed_stage.id, nextStageId: result.next_stage?.id ?? null, nextConversationId: result.conversation?.id ?? null });
     return { ...result, completed_stage: buildStageDetail(this.store, result.completed_stage), next_stage: result.next_stage ? buildStageDetail(this.store, result.next_stage) : null };
   }
@@ -255,7 +246,7 @@ export class WorkspaceManager extends EventEmitter {
     if (!workspace) throw new Error(`Workspace not found: ${issue.workspace_id}`);
     const activeStage = this.store.getActiveStage(issueId);
     if (!activeStage) throw new Error(`No active stage found for issue: ${issueId}`);
-    const result = transitionIssueStage({ store: this.store, roleRegistry: this.deps.roleRegistry }, { workspace, issue, activeStage, targetStageKey });
+    const result = transitionIssueStage({ store: this.store }, { workspace, issue, activeStage, targetStageKey });
     // 转移成功后清除 AI 建议（bounce 后旧建议失效；confirm 失败时此处不会执行，建议保留）
     this.pendingStageSuggestions.delete(issueId);
     logger.info("WorkspaceManager transitioned issue stage", { workspaceId: workspace.id, issueId, completedStageId: result.completed_stage.id, nextStageId: result.next_stage?.id, nextConversationId: result.conversation?.id });
@@ -384,7 +375,7 @@ export class WorkspaceManager extends EventEmitter {
 
   searchConversationHistory(conversationId: string, query: string, limit = 5, offset = 0): ConversationHistorySearchPage { return managerQueries.searchConversationHistory({ store: this.store, conversationId, query, limit, offset }); }
 
-  listRoles() { return this.deps.roleRegistry.list(); }
+  listRoles() { return this.store.listRoleDefinitionsByWorkspace(""); }
   listSops(source?: "platform" | "workspace") { return this.store.listSops(source); }
   getSop(sopId: string) { return this.store.getSop(sopId); }
   createPlatformSop(input: Parameters<typeof this.store.createPlatformSop>[0]) { return this.store.createPlatformSop(input); }
@@ -395,10 +386,6 @@ export class WorkspaceManager extends EventEmitter {
   listSopStageDefinitions(sopId: string) { return this.store.listSopStageDefinitions(sopId); }
   getSopTransitions(sopId: string) { return this.store.getSopTransitions(sopId); }
   getForwardTransitions(sopId: string, fromStageKey: string) { return this.store.getForwardTransitions(sopId, fromStageKey); }
-  listWorkspaceSops(workspaceId: string) { return this.store.listWorkspaceSops(workspaceId); }
-  createWorkspaceSop(input: { workspaceId: string; sopId: string; isDefault: boolean; roleBindings: Record<string, string | string[]> }) { const r = this.store.createWorkspaceSop({ id: randomUUID(), ...input }); this.deps.roleRegistry.reloadFromStore(); return r; }
-  updateWorkspaceSop(workspaceId: string, sopId: string, updates: { isDefault?: boolean; roleBindings?: Record<string, string | string[]> }) { const r = this.store.updateWorkspaceSop(workspaceId, sopId, updates); this.deps.roleRegistry.reloadFromStore(); return r; }
-  deleteWorkspaceSop(workspaceId: string, sopId: string) { const r = this.store.deleteWorkspaceSop(workspaceId, sopId); this.deps.roleRegistry.reloadFromStore(); return r; }
 
   createEvolutionItem(input: Omit<CreateEvolutionItemInput, "id">): EvolutionItemWithConversation { return evolutionCenter.createEvolutionItem(this.store, input); }
   getEvolutionItem(id: string): EvolutionItemWithConversation | null { return evolutionCenter.getEvolutionItem(this.store, id); }
@@ -423,12 +410,12 @@ export class WorkspaceManager extends EventEmitter {
       messageContextSummaryGenerator: null,
       resolveRole: (roleName: RoleName) => resolveConversationRole(deps, conversationId, roleName),
       resolveRuntimeByRole: (role: any) => {
-        const templateId = role.snail_template_id ?? this.deps.roleRegistry.getSnailTemplateId(role.workspace_id, role.id);
+        const templateId = role.snail_template_id;
         if (!templateId) throw new Error(`No snail template for role: ${role.name}`);
         return this.deps.snailDen.getSnailRuntime(templateId).runtime;
       },
       resolveRoleTemplate: (role: any) => {
-        const templateId = role.snail_template_id ?? this.deps.roleRegistry.getSnailTemplateId(role.workspace_id, role.id);
+        const templateId = role.snail_template_id;
         if (!templateId) return undefined;
         const template = this.deps.snailDen.getTemplate(templateId);
         if (!template) return undefined;
@@ -443,7 +430,7 @@ export class WorkspaceManager extends EventEmitter {
       },
       lookupOrCreateSnailAgentSession: (targetConversationId: string, roleName: string, role: any) => {
         const existing = this.store.getCurrentSnailAgentSession(targetConversationId, roleName);
-        const templateId = role.snail_template_id ?? this.deps.roleRegistry.getSnailTemplateId(role.workspace_id, role.id);
+        const templateId = role.snail_template_id;
         if (!templateId) throw new Error(`No snail template for role: ${roleName}`);
         const template = this.deps.snailDen.getTemplate(templateId);
         if (!template) throw new Error(`Snail template not found: ${templateId}`);

@@ -4,7 +4,6 @@ import path from "path";
 import { createServer } from "../../src/interaction-entry/api/server";
 import { WorkspaceManager } from "../../src/workspace-workflow/manager";
 import { ConversationStore } from "../../src/persistence/store";
-import { RoleRegistry } from "../../src/roles";
 import type { SnailRuntime } from "../../src/agent/interface";
 import { SnailDen, type SystemAI } from "../../src/snail-den";
 
@@ -35,7 +34,6 @@ store.seedSopToCache({ id: "dev-only", source: "platform", sourceRef: null, key:
   { key: "development", title: "执行", sequence: 1, roles: [{ key: "executor", name: "执行者", description: "exec", is_primary: true }] },
 ]);
 
-const roleRegistry = new RoleRegistry(store);
 const runtime: SnailRuntime = { name: "test", runtime: "opencode-cli", invokeMessage: async () => ({}) };
 const snailDen = new SnailDen({ resolve: () => runtime, list: () => [runtime] });
 const systemAI: SystemAI = {
@@ -43,7 +41,7 @@ const systemAI: SystemAI = {
   generateMessageContextSummary: async () => "summary",
   extractMentions: async () => ({ mentions: [] }),
 };
-const manager = new WorkspaceManager(store, { resolve: () => runtime, list: () => [runtime] }, { roleRegistry, snailDen, systemAI });
+const manager = new WorkspaceManager(store, { resolve: () => runtime, list: () => [runtime] }, { snailDen, systemAI });
 const { server } = createServer(manager, snailDen, store);
 
 function listen(): Promise<string> {

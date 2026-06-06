@@ -3,7 +3,6 @@ import fs from "fs";
 import path from "path";
 import { WorkspaceManager } from "../../src/workspace-workflow/manager";
 import { ConversationStore } from "../../src/persistence/store";
-import { RoleRegistry } from "../../src/roles";
 import { buildPlainTextEvent } from "../../src/message-bus/message-events";
 import type { AgentEvent, AgentRuntime, SnailRuntimeMessageInput } from "../../src/agent/interface";
 import type { SnailDen } from "../../src/snail-den";
@@ -27,6 +26,8 @@ removeDbFiles(TEST_DB);
 const TEST_CONFIG_DIR = path.join(__dirname, "..", "..", "data", "test-config-stage-cycle");
 fs.mkdirSync(TEST_CONFIG_DIR, { recursive: true });
 fs.writeFileSync(path.join(TEST_CONFIG_DIR, "workspaces.json"), JSON.stringify([]));
+/** Write evolution config for evolution conversation role resolution. */
+fs.writeFileSync(path.join(TEST_CONFIG_DIR, "evolution.json"), JSON.stringify({ sop_id: "evolution", role_bindings: { executor: "opencode-default" } }));
 
 const store = new ConversationStore(TEST_DB, TEST_CONFIG_DIR);
 
@@ -49,13 +50,10 @@ store.seedSopToCache({ id: "evolution", source: "platform", sourceRef: null, key
   { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ key: "executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", is_primary: true, handbook: "## 工作规则\n\n- 严格按入口校验流程\n- 查重需覆盖全局演进工作区库\n- 裁决去向必须明确并记录PR链接" }] },
 ]);
 
-// 将 evolution SOP 绑定到一个 workspace，使 RoleRegistry 能加载 evolution roles
+// 将 evolution SOP 绑定到一个 workspace
 store.seedWorkspaceToCache({
   id: "evolution-host", name: "Evolution Host", summary: "", workspaceRoot: process.cwd(),
-  sopBindings: [{ sop_id: "evolution", is_default: true, role_bindings: { "executor": "opencode-default" } }],
 });
-
-const roleRegistry = new RoleRegistry(store);
 const runtimeInputs: string[] = [];
 const systemPromptInputs: string[] = [];
 const systemReminderInputs: string[] = [];
@@ -79,7 +77,6 @@ const manager = new WorkspaceManager(
     list: () => [],
   },
   {
-    roleRegistry,
     systemAI: { generateConversationSummary: async () => "summary", generateMessageContextSummary: async (input: { context: string; targetChars: number }) => input.context.slice(0, input.targetChars), extractMentions: async () => ({ mentions: [] }) },
     snailDen: {
       getTemplate: (id: string) => ({ id, name: id, runtime: "opencode-cli" as AgentRuntime, model: "default", contextProvider: "shell" as const }),
@@ -111,19 +108,12 @@ run().catch((error) => {
 
 async function run(): Promise<void> {
   try {
-    const created = manager.createWorkspace("Stage Cycle Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-test", roleSnailMapping: { design: { designer: "opencode-default" }, development: { developer: "opencode-default" }, review: { reviewer: "opencode-default" }, merge: { merger: "opencode-default" } } });
-    // Seed sop_bindings for role registry (needed for runtime role resolution)
-    store.seedWorkspaceToCache({
-      id: created.workspace.id, name: "Stage Cycle Test", summary: "test", workspaceRoot: process.cwd(),
-      sopBindings: [{ sop_id: "sop-test", is_default: true, role_bindings: { designer: "opencode-default", developer: "opencode-default", reviewer: "opencode-default", merger: "opencode-default" } }],
-    });
-    roleRegistry.reloadFromStore();
+    const created = manager.createWorkspace("Stage Cycle Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-test", roleSnailMapping: { design: { designer: "opencode-default" }, development: { developer: "opencode-default" }, review: { developer: "opencode-default", reviewer: "opencode-default" }, merge: { merger: "opencode-default" } } });
+    // SOP is now self-declared, no workspace binding needed
     assert.equal(created.stage.type, "design", "issue should start with design stage");
     assert.equal(created.conversation.default_role, "架构师", "design should start with designer");
 
-    // 将 evolution SOP 绑定到 workspace，使 RoleRegistry 能解析 evolution roles
-    store.createWorkspaceSop({ id: `ps-${created.workspace.id}-evolution`, workspaceId: created.workspace.id, sopId: "evolution", isDefault: false, roleBindings: { "executor": "opencode-default" } });
-    roleRegistry.reloadFromStore();
+    // SOP is now self-declared, no workspace binding needed
 
     const evolutionItem = manager.createEvolutionItem({
       workspaceId: created.workspace.id,
@@ -238,7 +228,8 @@ async function run(): Promise<void> {
     const reqArtResult = manager.advanceIssue(reqArtWs.issue.id);
     assert.equal(reqArtResult.next_stage?.type, "development", "requires_artifacts guard should allow transition when all required artifacts are present");
 
-    const parallelIssue = manager.createIssue(created.workspace.id, "Parallel Issue", "test parallel work", "sop-test", {});
+    const testRoleSnailMapping = { design: { designer: "opencode-default" }, development: { developer: "opencode-default" }, review: { developer: "opencode-default", reviewer: "opencode-default" }, merge: { merger: "opencode-default" } };
+    const parallelIssue = manager.createIssue(created.workspace.id, "Parallel Issue", "test parallel work", "sop-test", testRoleSnailMapping);
     assert.equal(parallelIssue.stage.type, "design", "new issue should start with design stage");
 
     const archivedParallelIssue = manager.archiveIssue(parallelIssue.issue.id);
@@ -269,7 +260,7 @@ async function run(): Promise<void> {
     assert.equal(bounced.conversation!.default_role, "架构师", "design stage primary role is 架构师");
     assert.deepEqual(bounced.conversation!.from_conversation_ids, [issueComplete.conversation!.id], "transition should carry review (seq 5) context");
 
-    const repoIssue = manager.createIssue(created.workspace.id, "Repo Context Issue", "test repo context", "sop-test", {});
+    const repoIssue = manager.createIssue(created.workspace.id, "Repo Context Issue", "test repo context", "sop-test", testRoleSnailMapping);
 	    store.updateStage(repoIssue.stage.id, {
 	      output_artifacts: {
 	        branch_name: "feature/repo-context-test",
@@ -285,7 +276,7 @@ async function run(): Promise<void> {
     assert.equal(completedRepoIssue.cleanup.steps.find((step) => step.target === "branch")?.status, "skipped", "recorded branch that doesn't exist in git should be skipped");
 
 	    // setIssueTaskAnchor
-	    const taskAnchorIssue = manager.createIssue(created.workspace.id, "Task Anchor Issue", "test task anchor", "sop-test", {});
+	    const taskAnchorIssue = manager.createIssue(created.workspace.id, "Task Anchor Issue", "test task anchor", "sop-test", testRoleSnailMapping);
 	    assert.equal(taskAnchorIssue.issue.task_anchor, null, "new issue should have null task anchor");
 	    const anchored = manager.setIssueTaskAnchor(taskAnchorIssue.issue.id, "本质目标: 测试任务锚\\n反目标: 不偏离目标\\n语义不变量: 核心约束不变\\n成功标准: 测试通过");
 	    assert.equal(anchored.task_anchor, "本质目标: 测试任务锚\\n反目标: 不偏离目标\\n语义不变量: 核心约束不变\\n成功标准: 测试通过", "setIssueTaskAnchor should persist task anchor");
@@ -310,7 +301,7 @@ async function run(): Promise<void> {
     );
 
     // 创建一个新 issue 用于测试建议流程
-    const suggestionIssue = manager.createIssue(created.workspace.id, "Suggestion Test", "test suggestion flow", "sop-test", {});
+    const suggestionIssue = manager.createIssue(created.workspace.id, "Suggestion Test", "test suggestion flow", "sop-test", testRoleSnailMapping);
     store.updateStage(suggestionIssue.stage.id, { output_artifacts: { design_doc: "locked" } });
 
     // 通过 sendMessage 触发 AI，AI 输出中不含 stage_transition → 不产生建议
@@ -343,9 +334,7 @@ async function run(): Promise<void> {
 
 async function testManagerSerializesConversationMessages(): Promise<void> {
   runtimeInputs.length = 0;
-  const created = manager.createWorkspace("Serialization Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-test", roleSnailMapping: { design: { designer: "opencode-default" }, development: { developer: "opencode-default" }, review: { reviewer: "opencode-default" }, merge: { merger: "opencode-default" } } });
-  store.seedWorkspaceToCache({ id: created.workspace.id, name: "Serialization Test", sopBindings: [{ sop_id: "sop-test", is_default: true, role_bindings: { designer: "opencode-default", developer: "opencode-default", reviewer: "opencode-default", merger: "opencode-default" } }] });
-  roleRegistry.reloadFromStore();
+  const created = manager.createWorkspace("Serialization Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-test", roleSnailMapping: { design: { designer: "opencode-default" }, development: { developer: "opencode-default" }, review: { developer: "opencode-default", reviewer: "opencode-default" }, merge: { merger: "opencode-default" } } });
   const first = manager.sendMessage(created.conversation.id, "first");
   const second = manager.sendMessage(created.conversation.id, "second");
   await Promise.all([first, second]);
@@ -355,7 +344,7 @@ async function testManagerSerializesConversationMessages(): Promise<void> {
 }
 
 function testManagerMessagePaginationContracts(): void {
-  const created = manager.createWorkspace("Recent Messages Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-test", roleSnailMapping: { design: { designer: "opencode-default" }, development: { developer: "opencode-default" }, review: { reviewer: "opencode-default" }, merge: { merger: "opencode-default" } } });
+  const created = manager.createWorkspace("Recent Messages Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-test", roleSnailMapping: { design: { designer: "opencode-default" }, development: { developer: "opencode-default" }, review: { developer: "opencode-default", reviewer: "opencode-default" }, merge: { merger: "opencode-default" } } });
   const streaming = store.addMessage({ conversationId: created.conversation.id, fromRole: "Owner Snail", toRoles: [], role: "assistant", runtime: "system", status: "streaming", contextCutoffAt: "0" });
   const messageIds = Array.from({ length: 5 }, () => store.addMessage({ conversationId: created.conversation.id, fromRole: "项目负责人", toRoles: [], role: "user", runtime: "system", status: "completed", contextCutoffAt: String(store.getMessages(created.conversation.id).at(-1)?.id ?? 0) }).id);
   const firstPage = manager.getConversationMessages(created.conversation.id, 3, 0).map((message) => message.id);

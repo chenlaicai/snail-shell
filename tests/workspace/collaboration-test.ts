@@ -934,13 +934,9 @@ function createContext(suffix: string): { store: ConversationStore; conversation
     { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ key: "boss", name: "项目负责人", description: "最终决策者，确认治理结论", is_primary: true, handbook: "## 工作规则\n\n- 以数据为依据做决策\n- 治理结论需明确落地入口" }, { key: "knowledge-executor", name: "知识执行者", description: "负责执行知识治理流程：入口校验、查重、裁决去向跟踪", handbook: "## 工作规则\n\n- 严格按入口校验流程\n- 查重需覆盖全局知识库\n- 裁决去向必须明确并记录PR链接" }] },
   ]);
 
-  /* Seed workspace 绑定 */
+  /* Seed workspace — SOP is now self-declared */
   store.seedWorkspaceToCache({
     id: workspaceId, name: "Snail Shell", summary: "Collaboration test", workspaceRoot: process.cwd(),
-    sopBindings: [
-      { sop_id: `${workspaceId}-sop`, is_default: true, role_bindings: { "developer": "opencode-default" } },
-      { sop_id: `kc-${workspaceId}-sop`, is_default: false, role_bindings: { "boss": "opencode-default", "knowledge-executor": "opencode-default" } },
-    ],
   });
   const workspace = store.getWorkspace(workspaceId)!;
   const issue = store.createIssue({ id: `issue-collaboration-${suffix}`, workspaceId: workspace.id, title: "Collaboration", summary: "test" });
@@ -963,10 +959,9 @@ function createEvolutionContext(suffix: string): { store: ConversationStore; con
     { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ key: "executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", is_primary: true, handbook: "## 工作规则\n\n- 严格按入口校验流程\n- 查重需覆盖全局演进工作区库\n- 裁决去向必须明确并记录PR链接" }] },
   ]);
 
-  /* Seed workspace 绑定 */
+  /* Seed workspace — SOP is now self-declared */
   store.seedWorkspaceToCache({
     id: `workspace-collaboration-${suffix}`, name: "Snail Shell", summary: "Collaboration test", workspaceRoot: process.cwd(),
-    sopBindings: [{ sop_id: "evolution", is_default: true, role_bindings: { "executor": "opencode-default" } }],
   });
   const evolutionItem = store.createEvolutionItem({ id: `evolution-collaboration-${suffix}`, workspaceId: workspace.id, title: "治理对话路由", content: "测试治理对话默认回复上一发言 Snail。", tags: ["constraint"] });
   const evolutionConversation = evolutionItem.conversation;
