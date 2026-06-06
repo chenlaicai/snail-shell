@@ -1,6 +1,10 @@
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../services/api-client";
+import { issueQueries } from "../queries/workspace.queries";
+import { sopQueries } from "../queries/sop.queries";
+import { queryKeys } from "../queries/keys";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { useConversationStore } from "../stores/conversationStore";
 import { ConversationView } from "./ConversationView";
@@ -17,12 +21,6 @@ interface Stage {
   stage_definition?: { title?: string };
 }
 
-interface Conversation {
-  id: string;
-  title: string;
-  default_role: string;
-}
-
 interface Issue {
   id: string;
   title: string;
@@ -35,59 +33,63 @@ interface Issue {
 export function ConversationLayout() {
   const { workspaceId, issueId } = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [issue, setIssue] = useState<Issue | null>(null);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [transitions, setTransitions] = useState<Transition[]>([]);
-  const [loading, setLoading] = useState(true);
 
   const { currentStage, currentConversation, setCurrentStage, setCurrentConversation, clear } =
     useConversationStore();
 
-  // Use ref to avoid stale closure in effects
-  const searchParamsRef = useRef(searchParams);
-  searchParamsRef.current = searchParams;
+  // TanStack Query: issue detail
+  const { data: issue, isLoading } = useQuery({
+    ...issueQueries.detail(issueId || ""),
+    enabled: !!issueId,
+  });
 
-  // Load issue data — 只在 issueId 变化时清空并重新加载
+  // TanStack Query: SOP transitions
+  const sopId = (issue as Issue | undefined)?.sop_snapshot?.sop_id;
+  const { data: sopData } = useQuery({
+    ...sopQueries.detail(sopId || ""),
+    enabled: !!sopId,
+  });
+  const transitions: Transition[] = (sopData as { transitions?: Transition[] } | undefined)?.transitions ?? [];
+
+  // 当前 stage 的 ID（来自 store 或 issue 默认值）
+  const activeStageId = currentStage?.id || (issue as Issue | undefined)?.current_stage?.id || (issue as Issue | undefined)?.stages?.at(-1)?.id;
+
+  // TanStack Query: stage conversations
+  const { data: conversations = [] } = useQuery({
+    ...issueQueries.stageConversations(activeStageId || ""),
+    enabled: !!activeStageId,
+  });
+
+  // 初始化：issue 加载后设置 currentStage
   const prevIssueRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!issueId) return;
-    // 只在切换到不同 issue 时才清空
+    if (!issueId || !issue) return;
     if (prevIssueRef.current !== issueId) {
       clear();
       prevIssueRef.current = issueId;
+      const issueData = issue as Issue;
+      const stageId = searchParams.get("stage");
+      const stage = stageId
+        ? issueData.stages.find((s) => s.id === stageId)
+        : issueData.current_stage || issueData.stages[issueData.stages.length - 1];
+      setCurrentStage(stage || null);
     }
-    setLoading(true);
-    api("GET /api/issues/:issueId", { params: { issueId: issueId! } })
-      .then((data: Issue) => {
-        setIssue(data);
-        const stageId = searchParamsRef.current.get("stage");
-        const stage = stageId
-          ? data.stages.find((s) => s.id === stageId)
-          : data.current_stage || data.stages[data.stages.length - 1];
-        setCurrentStage(stage || null);
-        if (data.sop_snapshot?.sop_id) {
-          api("GET /api/sops/:sopId", { params: { sopId: data.sop_snapshot.sop_id } })
-            .then((sop: { transitions?: Transition[] }) => setTransitions(sop?.transitions ?? []))
-            .catch(() => {});
-        }
-      })
-      .catch((err) => showToast(`加载 Issue 失败：${err.message}`, true))
-      .finally(() => setLoading(false));
-  }, [issueId]);
+  }, [issueId, issue]);
 
-  // Load conversations when stage changes
+  // 初始化：conversations 加载后设置 currentConversation
+  const prevStageRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!currentStage) return;
-    api("GET /api/stages/:stageId/conversations", { params: { stageId: currentStage.id } })
-      .then((data: Conversation[]) => {
-        setConversations(data);
-        const convId = searchParamsRef.current.get("conv");
-        const conv = convId ? data.find((c) => c.id === convId) : data[0];
-        setCurrentConversation(conv || null);
-      })
-      .catch((err) => showToast(`加载 Conversation 失败：${err.message}`, true));
-  }, [currentStage?.id]);
+    if (!activeStageId || !conversations.length) return;
+    if (prevStageRef.current !== activeStageId) {
+      prevStageRef.current = activeStageId;
+      const convList = conversations as Array<{ id: string; title: string; default_role: string }>;
+      const convId = searchParams.get("conv");
+      const conv = convId ? convList.find((c) => c.id === convId) : convList[0];
+      setCurrentConversation(conv || null);
+    }
+  }, [activeStageId, conversations]);
 
   // Update URL when stage/conversation changes (one-way: store -> URL)
   useEffect(() => {
@@ -101,8 +103,14 @@ export function ConversationLayout() {
   // WebSocket connection
   useWebSocket(currentConversation?.id || null);
 
-  if (loading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
+  if (isLoading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
   if (!issue) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">Issue 不存在</div>;
+
+  const issueData = issue as Issue;
+
+  function handleStageChanged() {
+    queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(issueId!) });
+  }
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden" data-view-pane="workspaces">
@@ -114,9 +122,9 @@ export function ConversationLayout() {
           </svg>
         </button>
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{issue.title}</div>
+          <div className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{issueData.title}</div>
           <div className="text-[11px] text-[var(--color-text-grey)] truncate">
-            {workspaceId} / <span>{issue.title}</span>
+            {workspaceId} / <span>{issueData.title}</span>
             {currentStage && ` / ${currentStage.stage_definition?.title || currentStage.type}`}
           </div>
         </div>
@@ -124,7 +132,7 @@ export function ConversationLayout() {
 
       {/* Stage tabs */}
       <div className="flex gap-[var(--space-xs)] px-[var(--space-lg)] py-[var(--space-sm)] border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0 overflow-x-auto">
-        {issue.stages.map((stage) => (
+        {issueData.stages.map((stage) => (
           <button
             key={stage.id}
             className={`px-[var(--space-md)] py-[var(--space-xs)] rounded-[var(--radius-sm)] text-[12px] border transition-colors ${
@@ -140,22 +148,16 @@ export function ConversationLayout() {
       </div>
 
       <StageActions
-        issue={issue}
+        issue={issueData}
         currentStage={currentStage}
         transitions={transitions}
-        onStageChanged={() => {
-          api("GET /api/issues/:issueId", { params: { issueId: issueId! } }).then((data: Issue) => {
-            setIssue(data);
-            const stage = data.stages[data.stages.length - 1];
-            setCurrentStage(stage || null);
-          });
-        }}
+        onStageChanged={handleStageChanged}
       />
 
       {/* Conversation tabs */}
-      {conversations.length > 1 && (
+      {(conversations as Array<{ id: string; title: string }>).length > 1 && (
         <div className="flex gap-[var(--space-xs)] px-[var(--space-lg)] py-[var(--space-xs)] border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0 overflow-x-auto">
-          {conversations.map((conv) => (
+          {(conversations as Array<{ id: string; title: string }>).map((conv) => (
             <button
               key={conv.id}
               className={`px-[var(--space-md)] py-[var(--space-xs)] rounded-[var(--radius-sm)] text-[11px] transition-colors ${
@@ -176,7 +178,7 @@ export function ConversationLayout() {
               try {
                 const result = await api("POST /api/issues/:issueId/stages/:stageId/conversations", { params: { issueId: issueId!, stageId: currentStage.id }, body: {} });
                 const newConv = result.conversation || result;
-                setConversations((prev) => [...prev, newConv]);
+                queryClient.invalidateQueries({ queryKey: ["stages", currentStage.id, "conversations"] });
                 setCurrentConversation(newConv);
                 showToast("已创建新 Conversation");
               } catch (err: unknown) {
@@ -189,13 +191,7 @@ export function ConversationLayout() {
         </div>
       )}
 
-      <StageSuggestionBanner issueId={issueId || null} onAccepted={() => {
-        api("GET /api/issues/:issueId", { params: { issueId: issueId! } }).then((data: Issue) => {
-          setIssue(data);
-          const stage = data.stages[data.stages.length - 1];
-          setCurrentStage(stage || null);
-        });
-      }} />
+      <StageSuggestionBanner issueId={issueId || null} onAccepted={handleStageChanged} />
       <BossMentionsBanner conversationId={currentConversation?.id || null} />
       <ConversationView conversationId={currentConversation?.id || null} />
     </div>

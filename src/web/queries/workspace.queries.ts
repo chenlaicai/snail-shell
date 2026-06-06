@@ -28,3 +28,17 @@ export const workspaceQueries = {
       queryFn: () => api("GET /api/workspaces/:workspaceId/stages", { params: { workspaceId } }),
     }),
 };
+
+export const issueQueries = {
+  detail: (issueId: string) =>
+    queryOptions({
+      queryKey: queryKeys.issues.detail(issueId),
+      queryFn: () => api("GET /api/issues/:issueId", { params: { issueId } }),
+    }),
+
+  stageConversations: (stageId: string) =>
+    queryOptions({
+      queryKey: ["stages", stageId, "conversations"],
+      queryFn: () => api("GET /api/stages/:stageId/conversations", { params: { stageId } }),
+    }),
+};

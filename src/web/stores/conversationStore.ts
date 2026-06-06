@@ -1,18 +1,15 @@
 import { create } from "zustand";
+import type { StageDetailDto, ConversationDto } from "../types";
 
-interface CurrentStage {
-  id: string;
-  type: string;
-  status: string;
-  stage_definition?: { title?: string };
-}
+/** Store 中保存的 Stage 子集——StageDetailDto 包含 stage_definition 等运行时丰富字段。 */
+type CurrentStage = Pick<StageDetailDto, "id" | "type" | "status"> & {
+  stage_definition?: { title?: string } | null;
+};
 
-interface CurrentConversation {
-  id: string;
-  title: string;
-  default_role: string;
+/** Store 中保存的 Conversation 子集。 */
+type CurrentConversation = Pick<ConversationDto, "id" | "title" | "default_role"> & {
   participating_roles?: string[];
-}
+};
 
 // 只保留纯客户端状态——messages 迁移到 TanStack Query 缓存
 interface ConversationState {

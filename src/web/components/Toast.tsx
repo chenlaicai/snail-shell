@@ -24,17 +24,15 @@ export function Toast() {
   }, []);
 
   return (
-    <div id="app-notice" style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 1000 }}>
+    <div className="fixed top-0 left-0 right-0 z-[1000]">
       {toasts.map((t) => (
         <div
           key={t.id}
-          style={{
-            padding: "10px 20px",
-            background: t.isError ? "var(--color-danger-bg)" : "var(--color-info-bg)",
-            color: t.isError ? "var(--color-danger-text)" : "var(--color-info-text)",
-            fontSize: "13px",
-            borderBottom: "1px solid var(--color-border-muted)",
-          }}
+          className={`px-5 py-2.5 text-[13px] border-b border-[var(--color-border-muted)] ${
+            t.isError
+              ? "bg-[var(--color-bg-danger)] text-[var(--color-danger-text)]"
+              : "bg-[var(--color-bg-info)] text-[var(--color-info-text)]"
+          }`}
         >
           {t.message}
         </div>

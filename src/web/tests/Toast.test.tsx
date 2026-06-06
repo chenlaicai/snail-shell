@@ -22,7 +22,7 @@ describe("Toast", () => {
     render(<Toast />);
     act(() => { showToast("Error!", true); });
     const el = screen.getByText("Error!");
-    expect(el).toHaveStyle({ background: "var(--color-danger-bg)" });
+    expect(el.className).toContain("bg-[var(--color-bg-danger)]");
   });
 
   it("auto-hides after 2500ms", () => {

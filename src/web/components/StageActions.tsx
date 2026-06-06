@@ -76,7 +76,7 @@ export function StageActions({
   }
 
   return (
-    <div className="flex gap-[var(--space-xs)] px-[var(--space-lg)] py-[var(--space-sm)] border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0">
+    <div className="flex items-center gap-[var(--space-xs)] px-[var(--space-lg)] py-[var(--space-sm)] border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0">
       {forward.length > 1 && (
         <select
           className="px-[var(--space-md)] py-[var(--space-xs)] rounded-[var(--radius-sm)] text-[12px] border border-[var(--color-border-muted)] text-[var(--color-text-muted)] bg-[var(--color-bg-input)] hover:border-[var(--color-border-default)]"
@@ -95,18 +95,16 @@ export function StageActions({
         disabled={advancing || forward.length === 0}
         title={forward.length === 0 ? "当前阶段无可用前进目标" : "推进到下一阶段"}
       >
-        推进阶段
+        推进
       </button>
       {forward.length > 1 && (
-        <select
-          className="px-[var(--space-md)] py-[var(--space-xs)] rounded-[var(--radius-sm)] text-[12px] border border-[var(--color-border-muted)] text-[var(--color-text-muted)] bg-[var(--color-bg-input)] hover:border-[var(--color-border-default)]"
-          onChange={(e) => { if (e.target.value) handleBounce(e.target.value); e.target.value = ""; }}
+        <button
+          className="px-[var(--space-md)] py-[var(--space-xs)] rounded-[var(--radius-sm)] text-[12px] border border-[var(--color-border-muted)] text-[var(--color-text-muted)] hover:border-[var(--color-border-default)] hover:text-[var(--color-text-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
+          onClick={() => { const key = selectedTarget || forward[0]?.to_stage_key; if (key) handleBounce(key); }}
+          disabled={!selectedTarget && forward.length === 0}
         >
-          <option value="">转移到...</option>
-          {forward.map((t) => (
-            <option key={t.to_stage_key} value={t.to_stage_key}>{t.to_stage_key}</option>
-          ))}
-        </select>
+          转移
+        </button>
       )}
     </div>
   );
