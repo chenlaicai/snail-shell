@@ -25,7 +25,6 @@ Snail Shell 经过多次迭代，模块数量已增长到 18 个后端模块 + 1
 
 1. 不评估测试覆盖率或运行时性能
 2. 不评估 `.meta/` 提示词体系的质量
-3. 不实施 P1-P3 改进项（留待后续 feature）
 
 ## 设计
 
@@ -365,7 +364,7 @@ shared/ 标榜"所有领域类型在一处定义"，但实际成了类型垃圾�
 
 - **边界**：依赖方向应保持 DAG，当前唯一的循环依赖 `lobby ↔ interaction-entry` 应在后续重构中解耦
 - **关键决策**：God Class 拆解应按业务域垂直切分，而非按技术层水平切分
-- **非目标约束**：P1-P3 改进项留待后续 feature，本 PR 仅实施 P0
+- **非目标约束**：不评估测试覆盖率和运行时性能
 - **语义不变量**：shared/ 只承载真正的跨模块共享类型（核心实体、消息事件协议、全局枚举），业务域类型和层内类型不得为满足单向依赖而放入 shared；api-contracts/ 是前后端唯一契约源
 
 ## 改动范围
@@ -373,7 +372,7 @@ shared/ 标榜"所有领域类型在一处定义"，但实际成了类型垃圾�
 ### 文档
 - `docs/features/2026/06/06/F2026060602-architecture-review.md`
 
-### P0 代码实施
+### 代码实施（全部 21 项改进）
 
 **P0 #1 提取 ClaudeCodeBase（已完成）**
 - `src/agent/claude-code-base.ts` 新增 344 行
@@ -388,6 +387,25 @@ shared/ 标榜"所有领域类型在一处定义"，但实际成了类型垃圾�
 **P0 #3 拆解 WorkspaceManager（待实施）**
 - `src/workspace-workflow/manager.ts` 按业务域提取 Service 类
 - 消费方（interaction-entry、lobby）按需依赖具体 Service
+
+**P1 #4-#10 边界修正（待实施）**
+- GuardProfile 移入 agent/capability/
+- FeishuStreamingSession 移到 im-channel/
+- EvolutionModel.create 上移到 evolution-center
+- api/server.ts 按域拆分
+- collaboration.ts + message-protocol.ts 分层
+- shared/ 层瘦身（含 AgentRuntime 封装）
+
+**P2 #11-#18 DRY 清理与死代码清除（待实施）**
+- JSONC parser 合并、CapabilityInjector 提取、config store 工厂
+- re-export 链消除、零调用方法清理、幽灵参数清理、遗留代码清理
+- roles re-export 移除
+
+**P3 #19-#21 运行时健壮性（待实施）**
+- drainMessageBus 终止条件修复
+- resolveWorkspaceRootForInvocation fs 缓存
+- pendingForwardChatId 时序 hack 根治
+- workspace created_at 数据完整性修复
 
 ## 验证
 
