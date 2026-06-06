@@ -1,5 +1,6 @@
 import { createRoot } from "react-dom/client";
 import { QueryClientProvider } from "@tanstack/react-query";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { RouterProvider } from "react-router-dom";
 import { queryClient } from "./queries/client";
 import { router } from "./router";
@@ -10,6 +11,7 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <Toast />
       <RouterProvider router={router} />
+      <ReactQueryDevtools />
     </QueryClientProvider>
   );
 }

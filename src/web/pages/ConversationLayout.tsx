@@ -81,7 +81,7 @@ export function ConversationLayout() {
   if (!issue) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">Issue 不存在</div>;
 
   return (
-    <div className="workspace-main view-pane is-active" data-view-pane="workspaces">
+    <div className="flex flex-col h-full min-h-0" data-view-pane="workspaces">
       <div className="top-workspace-state" />
       <div className="conv-header">
         <button className="conv-back" type="button" onClick={() => navigate(`/ws/${workspaceId}`)}>

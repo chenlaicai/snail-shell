@@ -151,7 +151,7 @@ export function SopCenter() {
   if (loading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
 
   return (
-    <div className="task-board-panel view-pane is-active" data-view-pane="sops">
+    <div className="flex flex-col h-full min-h-0" data-view-pane="sops">
       <div className="flex flex-col flex-1 overflow-hidden min-w-0">
         <div className="flex items-center gap-4 p-3 px-6 border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0">
           <div className="flex items-baseline gap-2 flex-1 min-w-0">
@@ -237,7 +237,7 @@ export function SopCenter() {
                 {detail.stage_definitions && detail.stage_definitions.length > 0 ? (
                   <div style={{ display: "grid", gap: "var(--space-md)" }}>
                     {detail.stage_definitions.map((stage) => (
-                      <div key={stage.key} className="task-card flex gap-2.5 py-3 px-3.5 bg-[var(--color-bg-surface)] border border-[var(--color-border-muted)] rounded-[var(--radius-sm)] mb-1.5 cursor-pointer transition-all duration-150 relative hover:border-[var(--color-border-default)] hover:bg-[var(--color-bg-active)]">
+                      <div key={stage.key} className="flex gap-2.5 py-3 px-3.5 bg-[var(--color-bg-surface)] border border-[var(--color-border-muted)] rounded-[var(--radius-sm)] mb-1.5 cursor-pointer transition-all duration-150 relative hover:border-[var(--color-border-default)] hover:bg-[var(--color-bg-active)]">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1.5">
                             <span className="text-[13px] font-semibold text-[var(--color-text-primary)] flex-1 whitespace-nowrap overflow-hidden text-ellipsis">{stage.title}</span>

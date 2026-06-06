@@ -143,7 +143,7 @@ export function WorkspaceBoard() {
   const activeCount = groups.pending.length + groups.in_progress.length;
 
   return (
-    <div className="task-board-panel view-pane is-active" data-view-pane="workspaces">
+    <div className="flex flex-col h-full min-h-0" data-view-pane="workspaces">
       <div className="flex flex-col flex-1 overflow-hidden min-w-0">
         <div className="flex items-center gap-4 p-3 px-6 border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0">
           <div className="flex items-baseline gap-2 flex-1 min-w-0">
@@ -222,7 +222,7 @@ function TaskCard({ issue, onClick, onArchive }: { issue: IssueDetailDto; onClic
 
   return (
     <div
-      className={`task-card flex gap-2.5 py-3 px-3.5 bg-[var(--color-bg-surface)] border border-[var(--color-border-muted)] rounded-[var(--radius-sm)] mb-1.5 cursor-pointer transition-all duration-150 relative hover:border-[var(--color-border-default)] hover:bg-[var(--color-bg-active)]${isCompleted ? " opacity-60 border-transparent bg-[rgba(8,15,28,0.88)] hover:opacity-90 data-[completed]:hover:opacity-85" : ""}`}
+      className={`flex gap-2.5 py-3 px-3.5 bg-[var(--color-bg-surface)] border border-[var(--color-border-muted)] rounded-[var(--radius-sm)] mb-1.5 cursor-pointer transition-all duration-150 relative hover:border-[var(--color-border-default)] hover:bg-[var(--color-bg-active)]${isCompleted ? " opacity-60 border-transparent bg-[rgba(8,15,28,0.88)] hover:opacity-90 data-[completed]:hover:opacity-85" : ""}`}
       data-completed={isCompleted ? "true" : undefined}
       onClick={onClick}
     >
@@ -253,7 +253,7 @@ function TaskCard({ issue, onClick, onArchive }: { issue: IssueDetailDto; onClic
           >{stageLabel(issue)}</span>
           {!isCompleted && (
             <button
-              className="issue-archive-button"
+              className="text-[10px] text-[var(--color-text-grey)] cursor-pointer hover:text-[var(--color-danger-text)] border-none bg-transparent"
               onClick={(e) => { e.stopPropagation(); onArchive(); }}
             >
               归档

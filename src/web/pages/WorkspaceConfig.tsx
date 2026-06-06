@@ -150,7 +150,7 @@ export function WorkspaceConfig() {
   }
 
   return (
-    <div className="task-board-panel view-pane is-active" data-view-pane="workspace-config">
+    <div className="flex flex-col h-full min-h-0" data-view-pane="workspace-config">
       <div className="flex flex-col flex-1 overflow-hidden min-w-0">
         <div className="flex items-center gap-4 p-3 px-6 border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0">
           <div className="flex items-baseline gap-2 flex-1 min-w-0">

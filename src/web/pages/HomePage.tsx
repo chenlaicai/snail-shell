@@ -26,7 +26,7 @@ export function HomePage() {
   }
 
   return (
-    <div className="task-board-panel view-pane is-active" data-view-pane="workspaces">
+    <div className="flex flex-col h-full min-h-0" data-view-pane="workspaces">
       <div className="flex flex-col flex-1 overflow-hidden min-w-0 items-center justify-center">
         <div style={{ textAlign: "center", maxWidth: 480 }}>
           <div style={{ fontSize: 48, marginBottom: "var(--space-lg)" }}>🐌</div>
