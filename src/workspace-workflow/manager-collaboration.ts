@@ -153,7 +153,6 @@ export function resolveSnailDisplayName(
 /**
  * 解析 conversation 上下文中指定 roleName 的 RoleDefinition。
  * 从 issue.sop_snapshot 读取角色定义，role_snail_mapping 应用模板绑定。
- * Evolution conversation 从 evolution config role_bindings 回退。
  */
 export function resolveConversationRole(
   deps: CollaborationDeps,

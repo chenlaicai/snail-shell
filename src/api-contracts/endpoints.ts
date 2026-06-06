@@ -28,7 +28,7 @@ export type ApiEndpoints = {
   "POST /api/workspaces": ApiEndpointDef<
     never,
     never,
-    { name: string; summary?: string; workspace_root?: string; sop_id: string; role_bindings?: Record<string, string | string[]>; load_from_snail?: boolean },
+    { name: string; summary?: string; workspace_root?: string; sop_id: string; role_snail_mapping?: Record<string, Record<string, string>>; load_from_snail?: boolean },
     Dto.CreateWorkspaceResult
   >;
   "GET /api/workspaces/:workspaceId": ApiEndpointDef<

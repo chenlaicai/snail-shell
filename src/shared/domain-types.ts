@@ -140,7 +140,7 @@ export interface StageRoleDefinition {
   key: string;
   /** 角色显示名，用于 conversation/message 路由。 */
   name: string;
-  /** 引用的 snail den template ID，来自 workspace_sop.role_bindings 运行时绑定。 */
+  /** 引用的 snail den template ID，来自 issue.role_snail_mapping 运行时绑定。 */
   snail_template_id: string | null;
   /** 是否为该 Stage 的主角色。 */
   is_primary: number;
