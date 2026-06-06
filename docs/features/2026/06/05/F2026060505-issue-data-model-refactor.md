@@ -257,7 +257,7 @@ updated[stageKey][roleKey] = snailTemplateId;
 - `sop_bindings` 字段 — 整个移除（F2026060502 已将配置下沉到 init.json，本设计进一步移除 sop_bindings）
 
 **config/evolution.json 简化**：
-- `role_bindings` 字段 — 移除（`role_snail_mapping` 在 issue 创建时显式提供）
+- `role_bindings` 字段 — 改为可选（`role_snail_mapping` 在 issue 创建时显式提供；演化项创建 API 尚不支持 `role_snail_mapping`，暂时保留为 fallback，待 API 支持后移除）
 
 **SnailWorkspaceConfig 类型移除**：
 - `sop_bindings` 字段 — 移除

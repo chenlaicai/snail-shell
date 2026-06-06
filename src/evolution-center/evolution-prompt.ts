@@ -2,7 +2,6 @@ import { buildConversationSystemPrompt } from "../roles";
 import type { Conversation, ConversationStore } from "../persistence/store";
 import type { CollaborationInvocationOptions } from "../message-bus/collaboration";
 import type { AgentCapability } from "../agent/capability";
-import type { EvolutionConfig, StageRoleDefinition } from "../shared/types";
 import { SopSnapshotReader } from "../workspace-workflow/sop-snapshot-reader";
 
 interface EvolutionContext {
@@ -36,24 +35,13 @@ function resolveEvolutionDependencies(ctx: EvolutionContext) {
     reader.getSopStageDefinitionByKey(stage.type),
     `Evolution stage definition '${stage.type}' not found in SOP snapshot`,
   );
-  return { evolutionItem, workspaceId, workspace, issue, stage, evolutionConfig: store.getEvolutionConfig(), stageDefinition };
-}
-
-function applyRoleBindings(roles: StageRoleDefinition[], config: EvolutionConfig | null): StageRoleDefinition[] {
-  if (!config) return roles;
-  return roles.map((r) => {
-    const bindingValue = config.role_bindings[r.key];
-    return bindingValue ? { ...r, snail_template_id: bindingValue } : r;
-  });
+  return { evolutionItem, workspaceId, workspace, issue, stage, stageDefinition };
 }
 
 export function buildEvolutionSystemPrompt(input: { store: ConversationStore; conversation: Conversation; options: CollaborationInvocationOptions }): { systemPrompt: string; capability: AgentCapability } {
   const ctx: EvolutionContext = { store: input.store, conversation: input.conversation, options: input.options };
   const deps = resolveEvolutionDependencies(ctx);
-  const roleDefinitions = applyRoleBindings(
-    input.store.listSopStageRoleDefinitions(deps.stageDefinition.id),
-    deps.evolutionConfig,
-  );
+  const roleDefinitions = input.store.listSopStageRoleDefinitions(deps.stageDefinition.id);
   const now = new Date().toISOString();
   return buildConversationSystemPrompt({
     workspace: deps.workspace,
