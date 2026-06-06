@@ -1,5 +1,5 @@
 ---
-id: F2026060601
+id: F2026060505
 title: issue-data-model-refactor
 from_ids: [F2026052903, F2026060407, F2026060408, F2026060502]
 tags: [data-model, sop, evolution, refactor]
@@ -7,7 +7,7 @@ modules: [persistence, workspace-workflow, interaction-entry, evolution]
 doc_kind: spec
 ---
 
-# F2026060601 [data-model] Issue 数据模型重构
+# F2026060505 [data-model] Issue 数据模型重构
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 <!-- 进入实现阶段后不得单方面修改，如需变更须通过问题卡片向用户提出并确认 -->
