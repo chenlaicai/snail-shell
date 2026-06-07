@@ -132,6 +132,11 @@ export async function invokeRoleBatch(deps: CollaborationDeps, conversationId: s
   const agentDonePromise = new Promise<void>((resolve) => { resolveAgentDone = resolve; });
   deps.registerStopPromise(conversationId, streamingContext.session.assistantMessageId, agentDonePromise);
   deps.store.markConversationDispatchesConsumed(conversationId, batch.dispatches.map((dispatch) => dispatch.id), streamingContext.session.assistantMessageId);
+
+  // MCP context 注入：将 conversation_id 和 message_id 注入系统提示词，
+  // 供 agent 通过 MCP set_final_body 工具传入。注入位置在系统提示词末尾。
+  runtimeInput.capability.systemPrompt += buildMcpContextBlock(conversationId, streamingContext.session.assistantMessageId);
+
   try {
     const result = await invokeRuntimeMessage(
       ctx.runtime.invokeMessage.bind(ctx.runtime), streamingContext, runtimeInput,
@@ -287,4 +292,8 @@ async function finalizePendingApproval(
   }
   await finalizeMessageLifecycle(streamingContext, { status: "pending_approval", finalRole: "assistant" });
   return { messageId };
+}
+
+function buildMcpContextBlock(conversationId: string, messageId: number): string {
+  return `\n\n<mcp_context>\nconversation_id: ${conversationId}\nmessage_id: ${messageId}\n\n[HARD] 回复完成前必须调用 MCP 工具 set_final_body，传入 text（最终正文）、conversation_id 和 message_id。这是标准收尾步骤，不可跳过。调用后最终正文将替代流式过程作为消息的主要展示内容。如果你没有调用 set_final_body，系统将使用自动提取的文本作为展示内容，可能丢失格式或结构。\n</mcp_context>`;
 }

@@ -91,11 +91,6 @@ export async function invokeRuntimeMessage(
   input: SnailRuntimeMessageInput,
   options?: AgentInvocationOptions
 ): Promise<{ messageId: number }> {
-  // 将 conversation_id 和 message_id 注入系统提示词，供 agent 通过 MCP set_final_body 工具传入
-  // 注入位置在系统提示词末尾，但使用 [HARD] 标记确保 AI 不会忽略
-  const mcpContextBlock = `\n\n<mcp_context>\nconversation_id: ${context.conversationId}\nmessage_id: ${context.session.assistantMessageId}\n\n[HARD] 回复完成前必须调用 MCP 工具 set_final_body，传入 text（最终正文）、conversation_id 和 message_id。这是标准收尾步骤，不可跳过。调用后最终正文将替代流式过程作为消息的主要展示内容。如果你没有调用 set_final_body，系统将使用自动提取的文本作为展示内容，可能丢失格式或结构。\n</mcp_context>`;
-  input.capability.systemPrompt += mcpContextBlock;
-
   const reply = await invokeMessage(input, (event) => handleStreamingEvent(context, event), options);
   if (reply.sessionId !== undefined) {
     context.deps.updateSnailAgentSessionExternalId(context.snailAgentSessionId, reply.sessionId ?? null);
@@ -171,17 +166,15 @@ function handleStreamingEvent(context: StreamingContext, event: AgentEvent): voi
       break;
     case "permission_required":
       context.session.pendingPermissionRequest = true;
-      // 暂存审批请求，供后续 API endpoint 和 retry 使用
       permissionStore.set({
         conversationId: context.conversationId,
         messageId: context.session.assistantMessageId,
         request: event.request,
-        originalUserMessageId: 0, // 由 finalizePendingApproval 回溯设置
+        originalUserMessageId: 0,
         originalRoleName: context.activeRole.name,
-        originalFromRole: "", // 由 finalizePendingApproval 回溯设置
+        originalFromRole: "",
         createdAt: new Date().toISOString(),
       });
-      // 转发给前端展示审批 UI
       context.deps.emitAgentEvent(context.conversationId, { ...event, message_id: context.session.assistantMessageId, role_name: context.activeRole.name });
       break;
     default:
