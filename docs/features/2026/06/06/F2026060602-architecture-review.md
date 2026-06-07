@@ -83,11 +83,11 @@ interaction-entry ← lobby (router.ts)
 
 #### 问题 1：God Class 集群
 
-| Class | 文件 | 行数 | 方法签名 | 直接跨模块依赖 |
-|-------|------|------|----------|---------------|
-| ConversationStore | persistence/store.ts | 671 | ~82（含 private） | 4（shared, logger, feature-chain, persistence 子模块） |
-| FileConfigStore | persistence/file-config-store.ts | 729 | ~114（含 private） | 2（shared, logger） |
-| WorkspaceManager | workspace-workflow/manager.ts | 538 | ~41 | 7（logger, message-bus x3, evolution-center, shared, agent） |
+| Class | 文件 | 审视时行数 | 当前行数 | 当前状态 |
+|-------|------|-----------|---------|---------|
+| ConversationStore | persistence/store.ts | 671 | 571 | **已改善**：36 个透传方法移除，子 store 公开为 public readonly |
+| FileConfigStore | persistence/file-config-store.ts | 729 | ~720 | 未改动 |
+| WorkspaceManager | workspace-workflow/manager.ts | 538 | 263 | **已改善**：拆解为 5 个 service 文件 |
 
 **ConversationStore** 同时承担 DB 生命周期、Workspace/Issue/Stage/Conversation/Message CRUD、SOP 管理（代理给 FileConfigStore）、Evolution/Knowledge Library CRUD（代理给子 Model）、Feature Chain 索引重建，以及 45 个纯透传方法（35 个到 fileConfigStore + 4 个到 evolution + 6 个到 knowledgeLibrary，均为 `return this.xxx.method()` 委托调用）。其直接跨模块导入仅 4 个（shared、logger、feature-chain、persistence 子模块），但作为 facade 它聚合了 persistence 下 13 个子模块的完整 API 表面，任何消费方都通过它访问全部持久化能力。
 
@@ -97,7 +97,7 @@ interaction-entry ← lobby (router.ts)
 
 #### 问题 2：Agent 模块代码重复
 
-`claude-code.ts`（351 行）与 `claude-code-stateful.ts`（501 行）之间存在 ~130-150 行逐字复制的代码。经逐行比对确认的重复方法：
+**当前状态：已修复。** ClaudeCodeBase 基类已提取（claude-code 351→124，claude-code-stateful 501→181）。JSONC parser 已合并为 jsonc-utils.ts。CapabilityInjector 已提取。以下为审视时的原始记录：
 
 | 方法 | claude-code.ts 行号 | stateful 行号 | 差异 |
 |------|---------------------|---------------|------|
@@ -121,32 +121,32 @@ interaction-entry ← lobby (router.ts)
 
 #### 问题 3：interaction-entry/api/server.ts God File
 
-677 行的文件同时包含 Express app 创建、WebSocket server 管理、12+ 路由组、内联业务逻辑（approve-tool handler），从 12 个外部模块导入。是系统中扇出最大的单一文件。
+**当前状态：已修复。** 677→171 行，路由按域拆分为 meta-routes.ts(38)、workspace-routes.ts(134)、sop-routes.ts(51)、conversation-routes.ts(209)。server.ts 保留 createServer、WebSocket 管理、静态文件服务。
 
 #### 问题 4：边界与层级违反
 
-| 严重程度 | 违反类型 | 位置 | 详情 |
-|----------|----------|------|------|
-| **严重** | Persistence 嵌入业务逻辑 | evolution-model.ts:18-63 | `create` 方法在一个事务内创建 issue+stage+conversation，硬编码 SOP key `"evolution"`、stage key `"development"`、中文字符串 `'治理对话'`/`'演进执行者'`，绕过标准工作流生命周期 |
-| **严重** | AgentRuntime 跨边界泄漏 | shared/types.ts → 8+ 模块 | Agent 内部实现命名（`-cli` 后缀）定义在 shared 层，prompt-center/message-bus/persistence/workspace-workflow 直接依赖，SnailDen 封装失效 |
-| **中等** | message-bus 深入 agent 内部 | collaboration.ts | 直接依赖 agent/permission-store、agent/message-flow-logger、agent/runtime-error |
-| **中等** | message-protocol 层注入业务逻辑 | message-protocol.ts:96-97 | 在 `invokeRuntimeMessage` 中向 systemPrompt 追加 MCP 指令块，且处理 permission_store 写入（175-185 行）和前端事件发射（185 行） |
-| **中等** | server.ts 内联业务逻辑 | server.ts:623-677 | approve-tool handler 查找原始用户消息、提取事件、重新发送触发 agent 重试，这是领域逻辑不是 HTTP 路由 |
-| **低** | Agent 反向依赖 Persistence | agent/guard-config.ts | 直接从 persistence/guard-profile-store 导入 GuardProfile 类型 |
-| **低** | api-contracts 层泄漏 | lobby.dto.ts, ws-protocol.ts | 契约层从 lobby/types 和 agent/interface 导入 |
-| **低** | im-channel 抽象层被破坏 | lobby-aware-channel.ts:9 | 平台无关抽象层直接导入 feishu/streaming-session.ts |
-| **低** | 模块间循环依赖 | lobby ↔ interaction-entry | lobby/router.ts 导入 interaction-entry/gateway；interaction-entry 多文件导入 lobby/types、lobby/session-store |
+| 严重程度 | 违反类型 | 位置 | 状态 | 详情 |
+|----------|----------|------|------|------|
+| **严重** | Persistence 嵌入业务逻辑 | evolution-model.ts | **已修复** | 工作流逻辑上移到 evolution-center/evolution-service，复用 store 标准方法 |
+| **严重** | AgentRuntime 跨边界泄漏 | shared/types.ts → 8+ 模块 | **未修复** | Agent 内部实现命名（`-cli` 后缀）定义在 shared 层，SnailDen 封装失效 |
+| **中等** | message-bus 深入 agent 内部 | collaboration.ts | **已改善** | agent 调用编排提取到 role-invoker.ts，但 role-invoker.ts 仍依赖 agent 子模块 |
+| **中等** | message-protocol 层注入业务逻辑 | message-protocol.ts | **未修复** | MCP 指令块注入和 permission_store 写入仍在 message-protocol 层 |
+| **中等** | server.ts 内联业务逻辑 | server.ts | **已改善** | approve-tool handler 移入 conversation-routes.ts，但仍在 HTTP 路由层 |
+| **低** | Agent 反向依赖 Persistence | agent/guard-config.ts | **已修复** | GuardProfile 移入 shared/domain-types，agent 从 shared 导入 |
+| **低** | api-contracts 层泄漏 | lobby.dto.ts, ws-protocol.ts | **未修复** | 契约层仍从 lobby/types 和 agent/interface 导入 |
+| **低** | im-channel 抽象层被破坏 | lobby-aware-channel.ts | **已修复** | FeishuStreamingSession 移入 im-channel/streaming-session.ts |
+| **低** | 模块间循环依赖 | lobby ↔ interaction-entry | **未修复** | 循环依赖仍然存在 |
 
 #### 问题 5：重复模式与 DRY 违反
 
-| 重复项 | 位置 | 影响 |
-|--------|------|------|
-| buildWhere 助手 x2 | evolution-model.ts + knowledge-library-model.ts | 结构相同的动态 WHERE 构建 |
-| getMessageContext x2 | message-read-model.ts + message-context-model.ts | 完全相同的实现 |
-| Config store 模式 x7 | 7 个 config store（file-config-store 除外） | 相同的构造-缓存-读取模式无共享抽象 |
-| Feishu/WeCom config store x2 | 结构克隆 | 不同类型名但相同模式 |
-| sendMessage 三层包装 | manager.ts:335-368 | sendMessage→sendStructuredMessage→sendConversationMessage，三入口一实现 |
-| `process.cwd()` 路径解析散射 | 15+ 文件、30+ 处调用 | 每个模块独立从 CWD 解析配置/数据路径，`shared/platform-paths.ts` 的 `PLATFORM_ROOT` 仅 1 个消费方，无统一路径解析层 |
+| 重复项 | 位置 | 状态 | 影响 |
+|--------|------|------|------|
+| buildWhere 助手 x2 | evolution-model.ts + knowledge-library-model.ts | **未修复** | 结构相同的动态 WHERE 构建 |
+| getMessageContext x2 | message-read-model.ts + message-context-model.ts | **未修复** | 完全相同的实现 |
+| Config store 模式 x7 | 7 个 config store | **部分修复**：logging-config-store 改用 JsonConfigStore 工厂；其余因错误处理差异保持现状 |
+| Feishu/WeCom config store x2 | 结构克隆 | **未修复** | 不同类型名但相同模式 |
+| sendMessage 三层包装 | manager.ts | **未修复** | sendMessage→sendStructuredMessage→sendConversationMessage，三入口一实现 |
+| `process.cwd()` 路径解析散射 | 15+ 文件、30+ 处调用 | **未修复** | 每个模块独立从 CWD 解析配置/数据路径，无统一路径解析层 |
 
 ### 核心业务场景审视
 
@@ -206,43 +206,43 @@ IMTransport.onMessage → LobbyAwareChannel.handleInbound → LobbyRouter.proces
 
 ### 历史残留与死代码
 
-#### 零调用方法（可直接删除，无行为变化）
+#### 零调用方法
 
 | 方法/文件 | 位置 | 状态 |
 |-----------|------|------|
-| `seedWorkspaceConfigs` | store.ts:177 | `@deprecated`，零调用，始终返回 `{ created: false }` |
-| `touchWorkspace` | file-config-store.ts:133 | 零调用，no-op |
-| `persistence/message-types.ts` | 整文件 | 零文件导入此模块，完全未使用 |
-| `SopSeedItem` 类型 | persistence/types.ts:87 | 仅被 store.ts re-export，零消费方 |
-| `findWorkspaceByName` | store.ts:265 | 零外部调用 |
-| `getInitialConversationByStage` | store.ts:413 | 零外部调用 |
-| `listConversationsByOwner` | store.ts:408 | 零外部调用 |
-| `getRoleDefinition` | store.ts:252 | 零外部调用 |
-| `refreshConversationSummary` 接线 | manager.ts:437 | 死接线（非死代码）：deps wiring 用 `async () => {}` 空壳替换了 summary-input.ts:14 的真实函数，真实函数仍被 index.ts:31 导出 |
-| `createKnowledgeLibraryEntry` | store.ts:280 | 零调用，pass-through 到 knowledgeLibraryModel |
-| `updateKnowledgeLibraryEntry` | store.ts:284 | 零调用，pass-through 到 knowledgeLibraryModel |
-| `addMessageDispatch` | store.ts:571 | 零调用（含测试） |
-| `seedWorkspaceToCache` | store.ts:180 | 零调用 |
-| `seedSopToCache` | store.ts:184 | 零调用（JSDoc 标注 "Test helper" 但测试中也无调用） |
-| `listRoleDefinitions` | store.ts:253 | 零调用 |
+| `seedWorkspaceConfigs` | store.ts | **已删除** |
+| `touchWorkspace` | file-config-store.ts | **已删除** |
+| `persistence/message-types.ts` | 整文件 | **已删除** |
+| `SopSeedItem` 类型 | persistence/types.ts | **已删除**（types.ts 已整体删除） |
+| `findWorkspaceByName` | store.ts | **已删除** |
+| `getInitialConversationByStage` | store.ts | **已删除** |
+| `listConversationsByOwner` | store.ts | **已删除** |
+| `getRoleDefinition` | store.ts | **已删除** |
+| `refreshConversationSummary` 接线 | manager.ts | **已删除**（deps wiring 移除） |
+| `createKnowledgeLibraryEntry` | store.ts | **已删除**（随透传方法清理） |
+| `updateKnowledgeLibraryEntry` | store.ts | **已删除**（随透传方法清理） |
+| `addMessageDispatch` | store.ts | **已删除**（逻辑内联到 rebuildDispatchesForMessage） |
+| `seedWorkspaceToCache` | store.ts | 保留（测试辅助方法，6 个测试文件使用） |
+| `seedSopToCache` | store.ts | 保留（测试辅助方法，6 个测试文件使用） |
+| `listRoleDefinitions` | store.ts | **已删除** |
 
 #### 幽灵参数与遗留包装
 
 | 问题 | 位置 | 详情 |
 |------|------|------|
-| 7 个幽灵 `_conversationId` 参数 | store.ts:465(`addMessageEvent`),490(`completeMessageWithEvent`),508(`upsertMessageContext`),516(`getMessageContext`),522(`getMessageEvents`),576(`rebuildDispatchesForMessage`),584(`updateMessageRouting`) | 调用方始终传入 conversationId 但实现忽略，是从未实现的 per-conversation 作用域的残留 |
-| 3 个 `markConversation*` 丢弃参数包装 | store.ts:606-620 | `markConversationDispatchesConsumed`/`Seen`/`Skip` 接受 conversationId 但直接丢弃 |
-| `_ignoredInputArtifacts` 防御性剥离 | helpers.ts:50 | `mapStage` 剥离 `input_artifacts` 列，但该列已从 schema 中移除，是 schema 迁移残留 |
-| `log-preview.ts` 恒等函数 | agent/log-preview.ts:5-9 | `formatText` 调用 `fullText`，`fullText` 直接 `return text`，零转换 |
-| `DEFAULT_SOP_YAML` 硬编码 | snail-loader.ts:131-181 | 50 行 YAML 字符串硬编码为 `code-delivery` 的 fallback，可能与平台 SOP 文件不同步 |
-| store.ts 也是 re-export hub | store.ts:30-78,108 | 49 行 `export type { ... } from "./types"` 加 line 108 单独 re-export `StageType`，与 persistence/types.ts 形成三跳链 |
-| workspace `created_at` 总是 "now" | file-config-store.ts:678 | `mapWorkspaceEntry` 同时设置 `created_at: now` 和 `updated_at: now`，workspace 创建时间永久丢失 |
+| 7 个幽灵 `_conversationId` 参数 | store.ts | **已修复**：参数已移除，调用方已更新 |
+| 3 个 `markConversation*` 丢弃参数包装 | store.ts | **已修复**：包装方法已移除 |
+| `_ignoredInputArtifacts` 防御性剥离 | helpers.ts | **已修复**：剥离代码已移除 |
+| `log-preview.ts` 恒等函数 | agent/log-preview.ts | **已修复**：fullText 已移除，formatText 直接返回输入 |
+| `DEFAULT_SOP_YAML` 硬编码 | snail-loader.ts | **未修复**：50 行 YAML 字符串仍硬编码 |
+| store.ts re-export hub | store.ts | **已修复**：persistence/types.ts 已删除，store.ts 改为从 shared/types 直接导出 |
+| workspace `created_at` 总是 "now" | file-config-store.ts | **已修复**：WorkspaceCacheEntry 新增 loaded_at，mapWorkspaceEntry 使用它 |
 
 #### @deprecated 标记与实际使用矛盾
 
 | 项目 | 位置 | 矛盾 |
 |------|------|------|
-| `DEFAULT_GUARD_PROFILE` | guard-config.ts:61-64 | 标记 `@deprecated`，但 `resolveGuardProfile`（72, 82-83 行）仍在使用。lazy-load 模式被模块级 eager 赋值（64 行）defeat |
+| `DEFAULT_GUARD_PROFILE` | guard-config.ts | **已修复**：deprecated 常量已移除，resolveGuardProfile 改用 getDefaultGuardProfile() |
 
 #### 类型系统问题
 
