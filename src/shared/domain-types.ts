@@ -1,14 +1,8 @@
-import type { SopSnapshot } from "./sop-snapshot";
+import type { SopSnapshot, StageChecklistItem, TransitionGuard } from "./sop-snapshot";
+export type { StageChecklistItem, TransitionGuard };
 
 /** 人类操作者角色名称——系统级常量，所有模块统一引用。 */
 export const HUMAN_ROLE_NAME = "项目负责人";
-
-/** 阶段验收清单项。定义在 stage_definition 上，描述该阶段需要满足的验收条件。 */
-export interface StageChecklistItem {
-  id: string;
-  description: string;
-  required: boolean;
-}
 
 /** Gate 产物：AI 对某一项 checklist 的自查结果。 */
 export interface StageGateArtifact {
@@ -167,18 +161,6 @@ export interface Sop {
   shared_handbook: string | null;
   created_at: string;
   updated_at: string;
-}
-
-/** SOP 转移守卫配置。 */
-export interface TransitionGuard {
-  /**
-   * 守卫类型。当前仅支持 requires_artifacts。
-   * 使用 string 而非字面量联合类型，以便在 checkGuard 中捕获未知类型并抛错，
-   * 而非在类型检查阶段就阻止非法值进入运行时。
-   */
-  type: string;
-  /** 守卫参数。requires_artifacts 时为必须存在的 artifact key 列表。 */
-  config: Record<string, unknown>;
 }
 
 /** SOP 转移边定义，描述 stage 之间的有向转移关系。 */

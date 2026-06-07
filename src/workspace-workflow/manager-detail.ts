@@ -3,8 +3,8 @@
  *
  * 从 manager.ts 拆出以满足文件行数限制（max 400）。
  */
-import type { Conversation, ConversationStore, DispatchInboxGroup, DispatchInboxPreviewItem, Issue, Stage } from "../persistence/store";
-import type { ConversationDetail, ConversationDispatchState, IssueDetail, StageDetail } from "./manager-types";
+import type { Conversation, DispatchInboxGroup, DispatchInboxPreviewItem, Issue, Stage, ConversationDetail, ConversationDispatchState, IssueDetail, StageDetail } from "../shared/types";
+import type { ConversationStore } from "../persistence/store";
 import { buildBossMentionItem, sumBossPendingCount } from "./manager-events";
 import { buildMessagePreview } from "../message-bus/message-events";
 import { SopSnapshotReader } from "./sop-snapshot-reader";

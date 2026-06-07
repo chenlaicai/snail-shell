@@ -1,42 +1,42 @@
 // barrel export — api-contracts 的唯一入口
 export type { ApiEndpoints, ApiEndpointDef } from "./endpoints";
 
-// DTO — 显式导出，防止内部类型泄漏
+// 领域实体 + 聚合视图（直接从 shared 导入，无 DTO 中转）
 export type {
-  WorkspaceSummary, WorkspaceDetail, CreateWorkspaceResult, DetectSnailResult, LoadSnailResult,
-} from "./dto/workspace.dto";
+  Workspace, WorkspaceSummary, WorkspaceDetail,
+  Issue, IssueDetail,
+  Stage, StageDetail, StageStatus,
+  Conversation, ConversationDetail, ConversationKind, ConversationStatus, ConversationOwnerType,
+  ConversationMessagesPage, ConversationRecentMessagesSnapshot, ConversationHistoryWindow, ConversationHistorySearchPage,
+  ConversationDispatchState, BossMentionItem,
+  MessageEvent, MessageEventSource, MessageContext,
+  MessageDispatch, DispatchInboxGroup, DispatchInboxPreviewItem,
+  RoleName, MessageRole, MessageStatus,
+  Sop, SopTransition, SopSnapshot, TransitionGuard, StageChecklistItem,
+  EvolutionItem, EvolutionItemWithConversation, EvolutionItemSearchResult,
+  KnowledgeLibraryEntry, KnowledgeLibrarySearchResult, KnowledgeLibraryScope,
+} from "../shared";
+
+// Lobby 类型（定义在 lobby/types.ts）
+export type { LobbySession, LobbyMessage } from "../lobby/types";
+
+// API 扩展类型（有额外字段的组合类型，从 DTO 文件导入）
 export type {
-  StageDetail, UpdateStageBody, StageStatus,
-} from "./dto/stage.dto";
+  MessageDto, ConversationEventWithMessage, SendMessageResult, ApproveToolResult, InterruptMessageResult,
+} from "./dto/message.dto";
 export type {
-  Issue, IssueDetail, CreateIssueResult, AdvanceIssueResult, IssueCleanupResult,
+  CreateIssueResult, AdvanceIssueResult, IssueCleanupResult,
   RepoCleanupResult, RepoCleanupStep, StageSuggestion,
 } from "./dto/issue.dto";
 export type {
-  Conversation, ConversationDetail, ConversationMessagesPage,
-  ConversationRecentMessagesSnapshot, ConversationHistoryWindow, ConversationHistorySearchPage,
-  ConversationKind, ConversationStatus, ConversationOwnerType,
-} from "./dto/conversation.dto";
+  CreateWorkspaceResult, DetectSnailResult, LoadSnailResult,
+} from "./dto/workspace.dto";
 export type {
-  MessageDto, MessageEvent, MessageEventSource, MessageContext,
-  ConversationEventWithMessage, ConversationDispatchState, BossMentionItem,
-  SendMessageResult, ApproveToolResult, InterruptMessageResult,
-  MessageDispatch, DispatchInboxGroup, DispatchInboxPreviewItem,
-  RoleName, MessageRole, MessageStatus,
-} from "./dto/message.dto";
-export type {
-  Sop, SopDetailDto, SopStageDefinitionWithRolesDto, SopStageDefinitionInputDto,
-  SopTransition, DeleteSopResult, SopSnapshot, TransitionGuard, StageChecklistItem,
+  SopDetailDto, SopStageDefinitionWithRolesDto, SopStageDefinitionInputDto, DeleteSopResult,
 } from "./dto/sop.dto";
 export type {
-  EvolutionItem, EvolutionItemWithConversation, EvolutionItemSearchResult,
-} from "./dto/evolution.dto";
-export type {
-  KnowledgeLibraryEntry, KnowledgeLibrarySearchResult, KnowledgeLibraryScope,
-} from "./dto/knowledge.dto";
-export type {
-  LobbySession, LobbyMessage,
-} from "./dto/lobby.dto";
+  UpdateStageBody,
+} from "./dto/stage.dto";
 export type {
   PromptDto, SkillDto, SnailDenTemplateDto, McpServerDto, RoleDto,
 } from "./dto/meta.dto";

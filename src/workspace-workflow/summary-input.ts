@@ -1,4 +1,5 @@
-import type { Conversation, ConversationStore, MessageWithEvents } from "../persistence/store";
+import type { Conversation, MessageWithEvents } from "../shared/types";
+import type { ConversationStore } from "../persistence/store";
 import type { ConversationSummaryGenerator } from "../llm";
 import { logger } from "../logger";
 import type { SummaryGenerationInput } from "./manager-types";

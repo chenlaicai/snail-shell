@@ -1,6 +1,7 @@
 import type { MessageContextSummaryGenerator } from "../llm";
 import { logger } from "../logger";
-import type { ConversationStore, CreateMessageEventInput, Message, MessageContextKind } from "../persistence/store";
+import type { CreateMessageEventInput, Message, MessageContextKind } from "../shared/types";
+import type { ConversationStore } from "../persistence/store";
 import { buildTerminalMessageContext } from "../message-bus/message-context";
 
 const STARTUP_RECOVERY_REASON = "server_startup_orphaned_streaming_message";

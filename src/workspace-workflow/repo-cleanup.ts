@@ -1,7 +1,7 @@
 import { existsSync, realpathSync } from "fs";
 import path from "path";
 import { spawnSync } from "child_process";
-import type { Stage } from "../persistence/store";
+import type { Stage } from "../shared/types";
 
 export interface RepoCleanupStep {
   target: "worktree" | "branch";

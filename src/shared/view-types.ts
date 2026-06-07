@@ -45,10 +45,6 @@ export interface IssueDetail extends Issue {
 export interface StageDetail extends Stage {
   input_artifacts: Record<string, unknown>;
   boss_pending_count: number;
-  /** Stage 创建时间（API 响应中的扁平化字段）。 */
-  created_at?: string;
-  /** 当前活跃的 role 列表（API 响应中的扁平化字段）。 */
-  active_roles?: string[];
   stage_definition: {
     key: string;
     title: string;

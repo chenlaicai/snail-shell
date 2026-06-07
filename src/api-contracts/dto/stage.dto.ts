@@ -1,6 +1,4 @@
-import type { StageStatus, StageDetail, StageGateEvidence } from "../../shared";
-
-export type { StageDetail };
+import type { StageStatus, StageGateEvidence } from "../../shared";
 
 // PATCH /api/stages/:id request body
 export type UpdateStageBody = {
@@ -10,5 +8,3 @@ export type UpdateStageBody = {
   gate_evidence?: StageGateEvidence | null;
   output_artifacts?: Record<string, unknown>;
 };
-
-export type { StageStatus };

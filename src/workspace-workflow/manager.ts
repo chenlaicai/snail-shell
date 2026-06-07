@@ -5,7 +5,6 @@ import { HUMAN_ROLE_NAME } from "../shared/domain-types";
 import { randomUUID } from "crypto";
 import type { SnailAgentResolver } from "../agent/resolver";
 import type {
-  ConversationStore,
   CreateEvolutionItemInput,
   EvolutionItemListFilters,
   EvolutionItemSearchResult,
@@ -16,13 +15,15 @@ import type {
   Stage,
   UpdateEvolutionItemInput,
   Workspace,
-} from "../persistence/store";
+} from "../shared/types";
+import type { ConversationStore } from "../persistence/store";
 import { logger } from "../logger";
 import type { CollaborationInvocationOptions } from "../message-bus/collaboration";
 import type { BossMentionItem, ConversationDetail, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, IssueDetail, ConversationRecentMessagesSnapshot, WorkspaceDetail, WorkspaceManagerDeps, WorkspaceSummary, StageDetail } from "./manager-types";
 import { buildConversationBadgePayload, sumBossPendingCount } from "./manager-events";
 import * as managerQueries from "./manager-queries";
-export type { BossMentionItem, ConversationDetail, ConversationDispatchState, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, WorkspaceDetail, WorkspaceManagerDeps, WorkspaceSummary, StageDetail, IssueDetail } from "./manager-types";
+export type { BossMentionItem, ConversationDetail, ConversationDispatchState, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, WorkspaceDetail, WorkspaceSummary, StageDetail, IssueDetail } from "../shared/types";
+export type { WorkspaceManagerDeps } from "./manager-types";
 import type { ConversationDispatchState } from "./manager-types";
 import { sendStructuredMessage as sendStructuredMessageWithCollaboration } from "../message-bus/collaboration";
 import { ConversationQueue } from "./conversation-queue";

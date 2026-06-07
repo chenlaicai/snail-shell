@@ -1,5 +1,5 @@
-import type { ConversationHistorySearchResult, ConversationStore, MessageWithEvents } from "../persistence/store";
-import type { ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, ConversationRecentMessagesSnapshot } from "./manager-types";
+import type { ConversationHistorySearchResult, MessageWithEvents, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, ConversationRecentMessagesSnapshot } from "../shared/types";
+import type { ConversationStore } from "../persistence/store";
 
 export function getConversationMessages(store: ConversationStore, conversationId: string, limit = 100, offset = 0): MessageWithEvents[] {
   return store.getMessages(conversationId, limit, offset);

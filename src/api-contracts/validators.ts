@@ -45,8 +45,8 @@ export const StageDetailSchema = z.object({
   type: z.string(),
   status: StageStatusSchema,
   sequence: z.number(),
-  created_at: z.string().optional(),
-  active_roles: z.array(z.string()).optional(),
+  input_artifacts: z.record(z.unknown()),
+  boss_pending_count: z.number(),
   stage_definition: z.object({
     key: z.string(),
     title: z.string(),
@@ -54,6 +54,13 @@ export const StageDetailSchema = z.object({
     output_description: z.string().nullable(),
     acceptance_focus: z.array(z.string()),
   }).nullable(),
+  role_definitions: z.array(z.object({
+    name: z.string(),
+    snail_template_id: z.string().nullable(),
+    is_primary: z.boolean(),
+    description: z.string(),
+    handbook: z.string().nullable(),
+  })),
 });
 
 export const IssueDetailSchema = z.object({
