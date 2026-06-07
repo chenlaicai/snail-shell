@@ -5,8 +5,6 @@ import type { SnailWorkspaceConfig } from "../shared/types";
 import { parsePromptDocument, type PromptDocument } from "../prompt-center/registry";
 import { parseSkillDefinition, type SkillDefinition } from "../skill-center/registry";
 
-export type { SnailWorkspaceConfig } from "../shared/types";
-
 /** YAML 中 stage 定义内嵌的角色定义。 */
 export interface YamlStageRoleDefinition {
   key: string;

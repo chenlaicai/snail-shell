@@ -1,8 +1,8 @@
-import type { Conversation, CreateMessageEventInput, MessageContext, MessageEvent, MessageRole, MessageStatus, MessageWithEvents, AgentRuntime } from "../shared/types";
+import type { Conversation, CreateMessageEventInput, MessageContext, MessageEvent, MessageRole, MessageStatus, MessageWithEvents, AgentRuntime, RuntimeBinding, InvocationSubject } from "../shared/types";
 import type { RoleDefinition } from "../roles";
 import type { AgentCapability } from "./capability";
 
-export type { AgentRuntime };
+export type { AgentRuntime, RuntimeBinding, InvocationSubject };
 
 export interface AgentMessage {
   role: "user" | "assistant";

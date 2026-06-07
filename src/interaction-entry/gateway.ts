@@ -1,6 +1,6 @@
 import type { RealtimeConversationEvent } from "../agent/interface";
 import { HUMAN_ROLE_NAME } from "../shared/domain-types";
-import { summarizeRuntimeError } from "../shared/runtime-error";
+import { summarizeRuntimeError } from "../agent/runtime-error";
 import { logger } from "../logger";
 import type { WorkspaceManager } from "../workspace-workflow/manager";
 import { buildPlainTextEvent, type MessageInputEvent } from "../message-bus/message-events";

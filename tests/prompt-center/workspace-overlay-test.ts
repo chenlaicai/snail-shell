@@ -4,7 +4,7 @@ import path from "path";
 import os from "os";
 import { mergePrompts, listPrompts, assembleSystemPrompt, type PromptDocument, type PromptLayer } from "../../src/prompt-center";
 import { loadWorkspaceContext } from "../../src/workspace-workflow";
-import { PLATFORM_ROOT, PLATFORM_META } from "../../src/shared/platform-paths";
+import { PLATFORM_ROOT, PLATFORM_META } from "../../src/prompt-center/platform-paths";
 
 function mp(id: string, title: string, layer: PromptLayer, priority: number, stability: "static"|"dynamic", content: string): PromptDocument {
   return { id, title, layer, priority, stability, content, filePath: `/fake/${id}.md` };

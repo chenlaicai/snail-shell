@@ -1,6 +1,6 @@
 import path from "path";
 import { assembleSystemPrompt, renderPromptTemplate, listPrompts, mergePrompts, type PromptMatchContext, type PromptDocument } from "./registry";
-import { PLATFORM_META } from "../shared/platform-paths";
+import { PLATFORM_META } from "./platform-paths";
 import type { Conversation, Issue, EvolutionItemWithConversation, Workspace, WorkspaceStageDefinition, StageRoleDefinition, StageType } from "../shared/types";
 import type { AgentRuntime } from "../shared/types";
 import type { RoleDefinition } from "../roles";

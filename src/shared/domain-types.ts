@@ -69,6 +69,13 @@ export interface InvocationSubject {
   gateArtifacts?: StageGateArtifact[];
 }
 
+/** init.json 的 schema。FileConfigStore 和 snail-loader 共用此类型。 */
+export interface SnailWorkspaceConfig {
+  name: string;
+  summary?: string;
+  guard_profile?: Record<string, unknown> | null;
+}
+
 export type RoleName = string;
 export type StageType = string;
 export type { MessageArtifactCardBlock, MessageChartBlock, MessageContentBlock, MessageIconBlock, MessageImageBlock, MessageMarkdownBlock, MessageQuestionBlock, MessageQuestionResponseBlock, MessageReferenceCardBlock, MessageRichTextBlock, MessageTableBlock, MessageTextBlock, MessageToolCallCardBlock, QuestionOptionPayload, QuestionResponseSelectedOptionPayload } from "./message-types";
@@ -83,12 +90,6 @@ export interface EvolutionConfig {
   sop_id: string;
 }
 
-/** init.json 的 schema。FileConfigStore 和 snail-loader 共用此类型。 */
-export interface SnailWorkspaceConfig {
-  name: string;
-  summary?: string;
-  guard_profile?: Record<string, unknown> | null;
-}
 export type ConversationStatus = "active" | "paused" | "completed" | "archived";
 export type MessageRole = "user" | "assistant" | "system";
 export type MessageRuntime = "claude" | "opencode" | "codex" | "system" | "unknown";
