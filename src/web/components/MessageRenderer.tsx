@@ -22,6 +22,19 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
 }
 
+/** 验证图片 URL 安全性——仅允许 http(s)、data:image/ 和相对路径 */
+function isSafeImageUrl(url: string): boolean {
+  if (!url) return false;
+  if (url.startsWith("data:image/")) return true;
+  if (url.startsWith("/") || url.startsWith("./") || url.startsWith("../")) return true;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 /** 安全访问 event payload 属性——通过 isRecord 守卫避免 as 断言 */
 function payloadField(payload: unknown, key: string): unknown {
   if (isRecord(payload) && key in payload) {
@@ -260,6 +273,7 @@ export function ContentBlockView({ block, onApprove, onDeny }: {
       );
 
     case "image":
+      if (!isSafeImageUrl(block.url)) return null;
       return <img className="max-w-full rounded-[var(--radius-sm)] mt-[var(--space-sm)]" src={block.url} alt={block.alt || ""} />;
 
     case "table":
