@@ -47,31 +47,33 @@ export function ConversationLayout() {
     enabled: !!activeStageId,
   });
 
-  // 初始化：issue 加载后设置 currentStage
-  const prevIssueRef = useRef<string | null>(null);
+  // 初始化：issueId 切换时清空 store 并设置默认 stage/conv
+  const initializedRef = useRef<string | null>(null);
   useEffect(() => {
     if (!issueId || !issue) return;
-    if (prevIssueRef.current !== issueId) {
-      clear();
-      prevIssueRef.current = issueId;
-      const stageId = searchParams.get("stage");
-      const stage = stageId
-        ? issue.stages.find((s) => s.id === stageId)
-        : issue.current_stage || issue.stages[issue.stages.length - 1];
-      setCurrentStage(stage || null);
-    }
+    if (initializedRef.current === issueId) return;
+    initializedRef.current = issueId;
+    clear();
+
+    // 从 URL searchParams 或 issue 默认值确定初始 stage
+    const stageId = searchParams.get("stage");
+    const stage = stageId
+      ? issue.stages.find((s) => s.id === stageId)
+      : issue.current_stage || issue.stages[issue.stages.length - 1];
+    setCurrentStage(stage || null);
+
+    // conversations 尚未加载，由下面的 effect 在加载后设置 currentConversation
   }, [issueId, issue]);
 
-  // 初始化：conversations 加载后设置 currentConversation
-  const prevStageRef = useRef<string | null>(null);
+  // conversations 加载后设置 currentConversation（仅首次）
+  const convInitializedRef = useRef<string | null>(null);
   useEffect(() => {
     if (!activeStageId || !conversations.length) return;
-    if (prevStageRef.current !== activeStageId) {
-      prevStageRef.current = activeStageId;
-      const convId = searchParams.get("conv");
-      const conv = convId ? conversations.find((c) => c.id === convId) : conversations[0];
-      setCurrentConversation(conv || null);
-    }
+    if (convInitializedRef.current === activeStageId) return;
+    convInitializedRef.current = activeStageId;
+    const convId = searchParams.get("conv");
+    const conv = convId ? conversations.find((c) => c.id === convId) : conversations[0];
+    setCurrentConversation(conv || null);
   }, [activeStageId, conversations]);
 
   // Update URL when stage/conversation changes (one-way: store -> URL)
