@@ -1,6 +1,7 @@
 import type Database from "better-sqlite3";
 import { HUMAN_ROLE_NAME } from "../shared/domain-types";
-import { attachMessageEvents, buildFtsQuery, mapMessage, mapMessageContext, mapMessageEvent, normalizeSnippet } from "./helpers";
+import { attachMessageEvents, buildFtsQuery, mapMessage, mapMessageEvent, normalizeSnippet } from "./helpers";
+import { getMessageContext } from "./message-context-model";
 import type { ConversationHistorySearchResult, MessageEvent, MessageRole, MessageWithEvents, PersistedMessageEventRow, RoleName } from "../shared/types";
 
 export type ConversationEventWithMessage = MessageEvent & { message_from_role: RoleName | null };
@@ -28,11 +29,6 @@ export function getRecentMessagesSnapshot(input: { db: Database.Database; conver
     return { items, last_event_id: snapshotEventId };
   });
   return transaction() as RecentMessagesSnapshot;
-}
-
-export function getMessageContext(db: Database.Database, messageId: number): MessageWithEvents["context"] {
-  const row = db.prepare("SELECT * FROM message_context WHERE message_id = ?").get(messageId) as Record<string, unknown> | undefined;
-  return row ? mapMessageContext(row) : null;
 }
 
 export function getLastMessageEventId(db: Database.Database, conversationId: string): number {
