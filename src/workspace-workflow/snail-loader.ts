@@ -125,58 +125,6 @@ const DEFAULT_WORKSPACE_CONFIG: SnailWorkspaceConfig = {
   summary: "",
 };
 
-const DEFAULT_SOP_YAML = `name: Code Delivery
-description: Standard code delivery workflow
-stage_definitions:
-  - key: development
-    title: Development
-    sequence: 1
-    description: Requirements, problem clues, or previous stage output
-    input_description: "输入: 需求、问题线索或上一阶段产出物"
-    output_description: "输出: 完成需求收敛、设计、实现、自检并提交 PR"
-    acceptance_focus:
-      - 需求边界已收敛
-      - 实现完成必要验证
-      - PR 可供检视
-    roles:
-      - key: developer
-        name: Developer
-        description: Responsible for requirement discussion, implementation, self-check, and PR submission
-        is_primary: true
-        handbook: |
-          ## 开发者手册
-
-          - 当前身份：开发者，负责需求讨论、实现、自检和提交 PR
-
-          ## 工作规则
-
-          - 实现前先和用户讨论需求
-          - 完成开发后必须自检并提交 PR
-  - key: review
-    title: PR Review
-    sequence: 2
-    description: PR deliverable from previous stage
-    input_description: "输入: 上一阶段的 PR 交付物"
-    output_description: "输出: 完成 PR 检视、意见处理和复检直到无待处理问题"
-    acceptance_focus:
-      - 检视意见已处理或回复
-      - 验证结果可追溯
-      - 等待用户合入
-    roles:
-      - key: developer
-        name: Developer
-        description: Responsible for requirement discussion, implementation, self-check, and PR submission
-        is_primary: true
-        handbook: |
-          ## 开发者手册
-
-          - 当前身份：开发者，负责检视阶段的响应和修复
-
-          ## 工作规则
-
-          - 逐条处理或理性回应检视意见
-`;
-
 /** 判断文件是否为 SOP 目录中应复制的文件（*.yaml/*.yml 或 *.handbook.md）。 */
 function isSopFile(fileName: string): boolean {
   return fileName.endsWith(".yaml") || fileName.endsWith(".yml") || fileName.endsWith(".handbook.md");
@@ -198,19 +146,11 @@ function copyPlatformSopToDir(sopKey: string, destDir: string): void {
   }
 }
 
-/** 确保 SOP YAML 文件存在于 .snail 目录，不存在则从平台复制或 fallback。 */
+/** 确保 SOP YAML 文件存在于 .snail 目录，不存在则从平台 SOP 目录复制。 */
 function ensureSopYaml(sopDir: string, sopKey: string): void {
   const sopYamlPath = path.join(sopDir, `${sopKey}.yaml`);
   if (fs.existsSync(sopYamlPath)) return;
-  try {
-    copyPlatformSopToDir(sopKey, sopDir);
-  } catch {
-    if (sopKey === "code-delivery") {
-      fs.writeFileSync(sopYamlPath, DEFAULT_SOP_YAML, "utf8");
-    } else {
-      throw new Error(`Platform SOP "${sopKey}" not found. Cannot initialize .snail directory.`);
-    }
-  }
+  copyPlatformSopToDir(sopKey, sopDir);
 }
 
 /**
