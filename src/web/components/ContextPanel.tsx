@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useConversationStore } from "../stores/conversationStore";
 import { api } from "../services/api-client";
+import { metaQueries } from "../queries/meta.queries";
 import { showToast } from "./Toast";
-import type { WorkspaceSummaryDto, IssueDto, SnailDenTemplateDto, Participant, RoleDefinition } from "../types";
+import type { WorkspaceSummaryDto, IssueDto, Participant, RoleDefinition, StageDetailDto } from "../types";
 
 export function ContextPanel({
   workspace,
@@ -12,51 +14,43 @@ export function ContextPanel({
   issue: IssueDto | null;
 }) {
   const { currentStage, currentConversation, wsStatus } = useConversationStore();
-  const [participants, setParticipants] = useState<Participant[]>([]);
-  const [outputArtifacts, setOutputArtifacts] = useState<Record<string, string>>({});
-  const [inputArtifacts, setInputArtifacts] = useState<Record<string, string>>({});
-  const [templates, setTemplates] = useState<SnailDenTemplateDto[]>([]);
   const [newArtifactKey, setNewArtifactKey] = useState("");
   const [newArtifactValue, setNewArtifactValue] = useState("");
 
-  // 加载 Stage 详情（参与者、产物）
-  useEffect(() => {
-    if (!currentStage) {
-      setParticipants([]);
-      setOutputArtifacts({});
-      setInputArtifacts({});
-      return;
-    }
-    api("GET /api/stages/:stageId", { params: { stageId: currentStage.id } })
-      .then((data) => {
-        const roleDefs = data.role_definitions || [];
-        const convRoles = currentConversation?.participating_roles || [];
-        const participantMap = new Map<string, Participant>();
-        roleDefs.forEach((rd: RoleDefinition) => {
-          participantMap.set(rd.name, {
-            name: rd.name,
-            roleDef: rd,
-            isPrimary: rd.is_primary || false,
-          });
-        });
-        convRoles.forEach((name: string) => {
-          if (!participantMap.has(name)) {
-            participantMap.set(name, { name, roleDef: null, isPrimary: false });
-          }
-        });
-        setParticipants(Array.from(participantMap.values()));
-        setOutputArtifacts(data.output_artifacts || {});
-        setInputArtifacts(data.input_artifacts || {});
-      })
-      .catch(() => {});
-  }, [currentStage?.id, currentConversation?.id]);
+  // TanStack Query: stage detail
+  const { data: stageDetail } = useQuery({
+    queryKey: ["stages", currentStage?.id],
+    queryFn: (): Promise<StageDetailDto> => api("GET /api/stages/:stageId", { params: { stageId: currentStage!.id } }),
+    enabled: !!currentStage?.id,
+  });
 
-  // 加载可用模板
-  useEffect(() => {
-    api("GET /api/snail-den")
-      .then(setTemplates)
-      .catch(() => {});
-  }, []);
+  // TanStack Query: templates
+  const { data: templates = [] } = useQuery(metaQueries.snailDen());
+
+  // 从 stageDetail 和 conversation 参与角色计算参与者列表
+  const participants = useMemo((): Participant[] => {
+    if (!stageDetail) return [];
+    const roleDefs = stageDetail.role_definitions || [];
+    const convRoles = currentConversation?.participating_roles || [];
+    const participantMap = new Map<string, Participant>();
+    roleDefs.forEach((rd: RoleDefinition) => {
+      participantMap.set(rd.name, { name: rd.name, roleDef: rd, isPrimary: rd.is_primary || false });
+    });
+    convRoles.forEach((name: string) => {
+      if (!participantMap.has(name)) {
+        participantMap.set(name, { name, roleDef: null, isPrimary: false });
+      }
+    });
+    return Array.from(participantMap.values());
+  }, [stageDetail, currentConversation?.participating_roles]);
+
+  const queryClient = useQueryClient();
+  const outputArtifacts = useMemo(() => (stageDetail?.output_artifacts || {}) as Record<string, string>, [stageDetail?.output_artifacts]);
+  const inputArtifacts = useMemo(() => (stageDetail?.input_artifacts || {}) as Record<string, string>, [stageDetail?.input_artifacts]);
+
+  function invalidateStage() {
+    if (currentStage) queryClient.invalidateQueries({ queryKey: ["stages", currentStage.id] });
+  }
 
   // 添加输出产物
   async function handleAddArtifact() {
@@ -64,9 +58,9 @@ export function ContextPanel({
     const updated = { ...outputArtifacts, [newArtifactKey.trim()]: newArtifactValue.trim() };
     try {
       await api("PATCH /api/stages/:stageId", { params: { stageId: currentStage.id }, body: { output_artifacts: updated } });
-      setOutputArtifacts(updated);
       setNewArtifactKey("");
       setNewArtifactValue("");
+      invalidateStage();
       showToast("已添加输出产物");
     } catch (err: unknown) {
       showToast(`添加失败：${err instanceof Error ? err.message : String(err)}`, true);
@@ -80,7 +74,7 @@ export function ContextPanel({
     delete updated[key];
     try {
       await api("PATCH /api/stages/:stageId", { params: { stageId: currentStage.id }, body: { output_artifacts: updated } });
-      setOutputArtifacts(updated);
+      invalidateStage();
       showToast("已移除输出产物");
     } catch (err: unknown) {
       showToast(`移除失败：${err instanceof Error ? err.message : String(err)}`, true);

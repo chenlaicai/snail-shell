@@ -51,6 +51,7 @@ export const queryKeys = {
   knowledge: {
     list: (filters?: KnowledgeFilters) => ["knowledge", filters] as const,
     search: (q: string) => ["knowledge", "search", q] as const,
+    summary: ["knowledge", "summary"] as const,
   },
   lobby: {
     sessions: ["lobby", "sessions"] as const,

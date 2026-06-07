@@ -40,14 +40,15 @@ export function StageActions({
     (t) => t.from_stage_key === currentStage.type && t.to_stage_key !== currentStage.type
   );
 
+  const needsSelection = forward.length > 1 && !selectedTarget;
+
   async function handleAdvance() {
-    if (advancing || forward.length === 0) return;
+    if (advancing || forward.length === 0 || needsSelection) return;
     setAdvancing(true);
     try {
       const targetKey = forward.length === 1
         ? forward[0].to_stage_key
-        : selectedTarget || forward[0].to_stage_key;
-      if (!targetKey) { showToast("请选择目标阶段", true); setAdvancing(false); return; }
+        : selectedTarget;
       const result = await api("POST /api/issues/:issueId/advance", { params: { issueId: issue.id }, body: { target_stage_key: targetKey } });
       showToast("阶段已推进");
       // 自动触发 AI 工作
@@ -92,16 +93,16 @@ export function StageActions({
       <button
         className="px-[var(--space-md)] py-[var(--space-xs)] rounded-[var(--radius-sm)] text-[12px] border border-[var(--color-accent)] text-[var(--color-accent)] bg-[var(--color-bg-elevated)] hover:bg-[rgba(108,141,250,0.08)] disabled:opacity-50 disabled:cursor-not-allowed"
         onClick={handleAdvance}
-        disabled={advancing || forward.length === 0}
-        title={forward.length === 0 ? "当前阶段无可用前进目标" : "推进到下一阶段"}
+        disabled={advancing || forward.length === 0 || needsSelection}
+        title={forward.length === 0 ? "当前阶段无可用前进目标" : needsSelection ? "请先选择目标阶段" : "推进到下一阶段"}
       >
         推进
       </button>
       {forward.length > 1 && (
         <button
           className="px-[var(--space-md)] py-[var(--space-xs)] rounded-[var(--radius-sm)] text-[12px] border border-[var(--color-border-muted)] text-[var(--color-text-muted)] hover:border-[var(--color-border-default)] hover:text-[var(--color-text-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
-          onClick={() => { const key = selectedTarget || forward[0]?.to_stage_key; if (key) handleBounce(key); }}
-          disabled={!selectedTarget && forward.length === 0}
+          onClick={() => { if (selectedTarget) handleBounce(selectedTarget); }}
+          disabled={!selectedTarget}
         >
           转移
         </button>

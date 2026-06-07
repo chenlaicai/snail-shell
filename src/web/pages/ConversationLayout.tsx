@@ -93,6 +93,13 @@ export function ConversationLayout() {
 
   function handleStageChanged() {
     queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(issueId!) });
+    if (currentStage) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.stages.conversations(currentStage.id) });
+    }
+    // 重置 store 使 activeStageId 从 issue 数据重新计算
+    setCurrentStage(null);
+    setCurrentConversation(null);
+    convInitializedRef.current = null;
   }
 
   return (

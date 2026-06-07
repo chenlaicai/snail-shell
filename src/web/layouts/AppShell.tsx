@@ -110,10 +110,12 @@ export function AppShell() {
             <div className="text-sm font-semibold text-[var(--color-text-primary)]"><span className="text-[var(--color-accent)]">Snail</span> Shell</div>
           </header>
 
-          <button className="md:hidden p-[var(--space-sm)] text-[var(--color-text-muted)]" type="button" aria-label="Toggle navigation" onClick={() => setSidebarExpanded(!sidebarExpanded)}>
-            ☰
-          </button>
-          {sidebarExpanded && layout === "compact" && <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setSidebarExpanded(false)} />}
+          {(layout === "compact" || layout === "narrow") && (
+            <button className="p-[var(--space-sm)] text-[var(--color-text-muted)]" type="button" aria-label="Toggle navigation" onClick={() => setSidebarExpanded(!sidebarExpanded)}>
+              ☰
+            </button>
+          )}
+          {sidebarExpanded && (layout === "compact" || layout === "narrow") && <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setSidebarExpanded(false)} />}
 
           <section className="flex flex-col min-h-0">
             <button className="flex items-center justify-between px-[var(--space-md)] py-[var(--space-sm)] text-[var(--color-text-muted)] text-xs" type="button">

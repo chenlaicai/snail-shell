@@ -3,7 +3,7 @@ import type { StageDetailDto, ConversationDto } from "../types";
 
 /** Store 中保存的 Stage 子集——StageDetailDto 包含 stage_definition 等运行时丰富字段。 */
 type CurrentStage = Pick<StageDetailDto, "id" | "type" | "status"> & {
-  stage_definition?: { title?: string } | null;
+  stage_definition?: { key: string; title?: string; sequence?: number } | null;
 };
 
 /** Store 中保存的 Conversation 子集。 */
