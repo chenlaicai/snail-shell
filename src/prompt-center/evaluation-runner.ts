@@ -1,4 +1,4 @@
-import type { AgentRuntime } from "../shared/types";
+import type { AgentRuntime } from "../agent/interface";
 import type { AgentEvent } from "../agent/interface";
 import { classifyRuntimeError } from "../agent/runtime-error";
 import type { PromptEvaluationSample } from "./evaluation-registry";

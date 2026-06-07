@@ -2,7 +2,7 @@ import path from "path";
 import { assembleSystemPrompt, renderPromptTemplate, listPrompts, mergePrompts, type PromptMatchContext, type PromptDocument } from "./registry";
 import { PLATFORM_META } from "./platform-paths";
 import type { Conversation, Issue, EvolutionItemWithConversation, Workspace, WorkspaceStageDefinition, StageRoleDefinition, StageType } from "../shared/types";
-import type { AgentRuntime } from "../shared/types";
+import type { AgentRuntime } from "../agent/interface";
 import type { RoleDefinition } from "../roles";
 import { collectActiveSkills } from "../agent/capability";
 import type { AgentCapability } from "../agent/capability";

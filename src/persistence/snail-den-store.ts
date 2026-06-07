@@ -9,13 +9,13 @@
  */
 import fs from "fs";
 import path from "path";
-import type { AgentRuntime } from "../shared/types";
+import type { MessageRuntime } from "../shared/types";
 
 /** Snail Template 类型定义——从 snail-den/index.ts 迁移。 */
 export interface SnailTemplate {
   id: string;
   name: string;
-  runtime: AgentRuntime;
+  runtime: MessageRuntime;
   model: string;
   /** 上下文窗口大小（token 数），用于 runtime 未返回上下文窗口时的兜底 */
   contextWindow?: number;
