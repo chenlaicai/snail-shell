@@ -72,6 +72,14 @@ export function advanceIssue(
   return { ...result, completed_stage: buildStageDetail(store, result.completed_stage), next_stage: result.next_stage ? buildStageDetail(store, result.next_stage) : null };
 }
 
+/**
+ * 显式阶段转移（用户指定目标 stage）。
+ *
+ * 与 advanceIssue 不同，此方法不调用 assertStageCanAdvance。
+ * 设计意图：advanceIssue 是自动推进，需要 output_artifacts 守卫；
+ * transitionIssueStageForIssue 是用户显式指定目标，用户有完全控制权。
+ * [待确认] 此差异是否为有意设计。
+ */
 export function transitionIssueStageForIssue(
   deps: IssueServiceDeps,
   issueId: string,

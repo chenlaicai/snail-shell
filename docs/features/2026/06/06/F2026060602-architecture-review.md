@@ -133,9 +133,9 @@ interaction-entry ← lobby (router.ts)
 | **中等** | message-protocol 层注入业务逻辑 | message-protocol.ts | **部分修复** | MCP 注入已移至 role-invoker.ts；permissionStore 写入保留（测试依赖） |
 | **中等** | server.ts 内联业务逻辑 | server.ts | **已改善** | approve-tool handler 移入 conversation-routes.ts，但仍在 HTTP 路由层 |
 | **低** | Agent 反向依赖 Persistence | agent/guard-config.ts | **已修复** | GuardProfile 移入 shared/domain-types，agent 从 shared 导入 |
-| **低** | api-contracts 层泄漏 | lobby.dto.ts, ws-protocol.ts | **未修复** | 契约层仍从 lobby/types 和 agent/interface 导入 |
+| **低** | api-contracts 层泄漏 | lobby.dto.ts, ws-protocol.ts | **部分修复** | lobby.dto 改从 shared 导入；ws-protocol 的 RealtimeConversationEvent 因引用 ToolPermissionRequest 无法移入 shared |
 | **低** | im-channel 抽象层被破坏 | lobby-aware-channel.ts | **已修复** | FeishuStreamingSession 移入 im-channel/streaming-session.ts |
-| **低** | 模块间循环依赖 | lobby ↔ interaction-entry | **未修复** | 循环依赖仍然存在 |
+| **低** | 模块间循环依赖 | lobby ↔ interaction-entry | **已修复** | LobbySession/LobbyMessage/NavigationLevel 移入 shared，interaction-entry 改从 shared 导入 |
 
 #### 问题 5：重复模式与 DRY 违反
 
@@ -146,7 +146,7 @@ interaction-entry ← lobby (router.ts)
 | Config store 模式 x7 | 7 个 config store | **部分修复**：logging-config-store 改用 JsonConfigStore 工厂；其余因错误处理差异保持现状 |
 | Feishu/WeCom config store x2 | 结构克隆 | **未修复** | 不同类型名但相同模式 |
 | sendMessage 三层包装 | manager.ts | **未修复** | sendMessage→sendStructuredMessage→sendConversationMessage，三入口一实现 |
-| `process.cwd()` 路径解析散射 | 15+ 文件、30+ 处调用 | **未修复** | 每个模块独立从 CWD 解析配置/数据路径，无统一路径解析层 |
+| `process.cwd()` 路径解析散射 | 15+ 文件、30+ 处调用 | **已修复** | 创建 shared/paths.ts 统一路径解析层，6 个高影响文件已迁移 |
 
 ### 核心业务场景审视
 
@@ -176,7 +176,7 @@ IMTransport.onMessage → LobbyAwareChannel.handleInbound → LobbyRouter.proces
 
 #### 场景 2：Issue 生命周期（创建→阶段推进→完成）
 
-**advanceIssue vs transitionIssueStage 断言不一致（待确认）**：`advanceIssue`（manager.ts:234）调用 `assertStageCanAdvance` 检查 `output_artifacts` 非空，但 `transitionIssueStage`（manager.ts:252）不调用此断言。两者是独立 API 端点（`POST /issues/:id/advance` vs `POST /issues/:id/transition`），语义不同：advance 是自动推进需守卫，transition 是用户显式指定目标可能故意跳过守卫。需确认是 bug 还是设计意图。
+**advanceIssue vs transitionIssueStage 断言不一致（已标注设计意图）**：`advanceIssue` 调用 `assertStageCanAdvance` 检查 `output_artifacts` 非空，`transitionIssueStageForIssue` 不调用。两者是独立 API 端点，语义不同：advance 是自动推进需守卫，transition 是用户显式指定目标。已在 issue-service.ts 添加注释说明设计意图，标记为待确认。
 
 **completeIssue vs archiveIssue 断言不一致**：`completeIssue`（manager.ts:291）调用 `assertIssueWritable`，`archiveIssue`（manager.ts:302）不调用。已关闭的 issue 可以被再次 archive。
 
