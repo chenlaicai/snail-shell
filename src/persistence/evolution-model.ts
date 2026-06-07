@@ -1,5 +1,6 @@
 import type Database from "better-sqlite3";
 import { buildFtsQuery, mapConversation, normalizeSnippet } from "./helpers";
+import { buildDynamicWhere } from "./query-helpers";
 import type { Conversation } from "../shared/types";
 import type { FileConfigStore } from "./file-config-store";
 import type {
@@ -30,7 +31,10 @@ export class EvolutionModel {
 
   list(filters: EvolutionItemListFilters = {}): EvolutionItemSearchResult[] {
     if (filters.query?.trim()) return this.search(filters);
-    const built = buildWhere(filters);
+    const built = buildDynamicWhere([
+      { value: filters.workspaceId, column: "workspace_id" },
+      { value: filters.issueId, column: "issue_id", allowNull: true },
+    ]);
     const rows = this.db
       .prepare(
         `SELECT * FROM evolution_item ${built.where} ORDER BY datetime(updated_at) DESC, datetime(created_at) DESC LIMIT ? OFFSET ?`,
@@ -43,7 +47,13 @@ export class EvolutionModel {
   }
 
   search(filters: EvolutionItemListFilters): EvolutionItemSearchResult[] {
-    const built = buildWhere(filters, "e.");
+    const built = buildDynamicWhere(
+      [
+        { value: filters.workspaceId, column: "workspace_id" },
+        { value: filters.issueId, column: "issue_id", allowNull: true },
+      ],
+      "e.",
+    );
     const where = ["evolution_item_search MATCH ?", ...built.clauses].join(" AND ");
     const rows = this.db
       .prepare(
@@ -154,27 +164,3 @@ function toSearchResultWithSnippet(
   return { ...toSearchResult(item), snippet: normalizeSnippet(item.snippet) };
 }
 
-function buildWhere(
-  filters: EvolutionItemListFilters,
-  prefix = "",
-): { where: string; clauses: string[]; params: unknown[] } {
-  const clauses: string[] = [];
-  const params: unknown[] = [];
-  if (filters.workspaceId) {
-    clauses.push(`${prefix}workspace_id = ?`);
-    params.push(filters.workspaceId);
-  }
-  if (filters.issueId !== undefined) {
-    if (filters.issueId === null) {
-      clauses.push(`${prefix}issue_id IS NULL`);
-    } else {
-      clauses.push(`${prefix}issue_id = ?`);
-      params.push(filters.issueId);
-    }
-  }
-  return {
-    where: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "",
-    clauses,
-    params,
-  };
-}

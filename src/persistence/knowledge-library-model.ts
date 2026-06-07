@@ -1,5 +1,6 @@
 import type Database from "better-sqlite3";
 import { buildFtsQuery, normalizeSnippet } from "./helpers";
+import { buildDynamicWhere } from "./query-helpers";
 import type {
   CreateKnowledgeLibraryInput,
   KnowledgeLibraryEntry,
@@ -44,7 +45,10 @@ export class KnowledgeLibraryModel {
     filters: KnowledgeLibraryListFilters = {},
   ): KnowledgeLibrarySearchResult[] {
     if (filters.query?.trim()) return this.search(filters);
-    const built = buildWhere(filters);
+    const built = buildDynamicWhere([
+      { value: filters.scope, column: "scope" },
+      { value: filters.workspaceId, column: "workspace_id", allowNull: true },
+    ]);
     const rows = this.db
       .prepare(
         `SELECT * FROM knowledge_library ${built.where} ORDER BY datetime(updated_at) DESC, datetime(created_at) DESC LIMIT ? OFFSET ?`,
@@ -60,7 +64,13 @@ export class KnowledgeLibraryModel {
   search(
     filters: KnowledgeLibraryListFilters,
   ): KnowledgeLibrarySearchResult[] {
-    const built = buildWhere(filters, "kl.");
+    const built = buildDynamicWhere(
+      [
+        { value: filters.scope, column: "scope" },
+        { value: filters.workspaceId, column: "workspace_id", allowNull: true },
+      ],
+      "kl.",
+    );
     const where = ["knowledge_library_search MATCH ?", ...built.clauses].join(
       " AND ",
     );
@@ -162,27 +172,3 @@ function toSearchResult(
   };
 }
 
-function buildWhere(
-  filters: KnowledgeLibraryListFilters,
-  prefix = "",
-): { where: string; clauses: string[]; params: unknown[] } {
-  const clauses: string[] = [];
-  const params: unknown[] = [];
-  if (filters.scope) {
-    clauses.push(`${prefix}scope = ?`);
-    params.push(filters.scope);
-  }
-  if (filters.workspaceId !== undefined) {
-    if (filters.workspaceId === null) {
-      clauses.push(`${prefix}workspace_id IS NULL`);
-    } else {
-      clauses.push(`${prefix}workspace_id = ?`);
-      params.push(filters.workspaceId);
-    }
-  }
-  return {
-    where: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "",
-    clauses,
-    params,
-  };
-}
