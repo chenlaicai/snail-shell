@@ -15,10 +15,7 @@ import type {
   DispatchInboxPreviewItem,
   ConversationHistorySearchResult,
   MessageWithEvents,
-  SnailAgentSession,
 } from "./domain-types";
-
-export type { SnailAgentSession };
 
 /** Workspace 聚合计数视图。 */
 export interface WorkspaceSummary extends Workspace {
@@ -107,25 +104,3 @@ export interface ConversationDispatchState {
   inbox_groups: Array<DispatchInboxGroup & { messages: DispatchInboxPreviewItem[] }>;
 }
 
-// ═══════════════════════════════════════════════════════════
-// 辅助类型 — 从 persistence 和 agent 模块迁入
-// ═══════════════════════════════════════════════════════════
-
-/** GuardProfile 安全守护策略。 */
-export interface GuardProfile {
-  /** 放行列表：匹配的工具调用直接放行，不触发审批 */
-  allow: string[];
-  /** 拒绝列表：匹配的工具调用直接拒绝（优先于 allow） */
-  deny: string[];
-}
-
-/** SOP 种子项，用于从 .snail 目录或 JSON 种子加载 SOP。 */
-export interface SopSeedItem {
-  sop: { id: string; source: "platform" | "workspace"; sourceRef: string | null; key: string; name: string; description?: string | null };
-  stage_definitions: Array<{
-    key: string; title: string; sequence: number;
-    input_description?: string | null; output_description?: string | null;
-    acceptance_focus?: string[]; acceptance_checklist?: Array<{ id: string; description: string; required: boolean }>;
-    roles: Array<{ key: string; name: string; description?: string; handbook?: string | null; is_primary?: boolean; count?: number }>;
-  }>;
-}

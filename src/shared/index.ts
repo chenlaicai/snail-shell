@@ -62,6 +62,7 @@ export type {
   RuntimeBinding,
   InvocationSubject,
   AgentRuntime,
+  MessageContextSummaryInput,
   MessageContextSummaryGenerator,
   Issue,
   Stage,
@@ -113,7 +114,6 @@ export type {
   BossMentionItem,
   ConversationDispatchState,
   SnailAgentSession,
-  // 辅助类型
   GuardProfile,
   SopSeedItem,
 } from "./types";

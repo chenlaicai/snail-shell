@@ -111,6 +111,8 @@ export type {
   CreateStageInput,
   CreateConversationInput,
   SnailAgentSession,
+  GuardProfile,
+  SopSeedItem,
 } from "./domain-types";
 export type {
   // Enriched view types
@@ -125,7 +127,4 @@ export type {
   ConversationHistorySearchPage,
   BossMentionItem,
   ConversationDispatchState,
-  // 辅助类型
-  GuardProfile,
-  SopSeedItem,
 } from "./view-types";
