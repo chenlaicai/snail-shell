@@ -316,11 +316,6 @@ export class ConversationStore {
     return row ? mapConversation(row) : undefined;
   }
 
-  listConversationsByOwner(ownerType: string, ownerId: string): Conversation[] {
-    const rows = this.db.prepare("SELECT * FROM conversation WHERE owner_type = ? AND owner_id = ? ORDER BY updated_at DESC").all(ownerType, ownerId) as Record<string, unknown>[];
-    return rows.map(mapConversation);
-  }
-
   updateConversation(id: string, updates: Partial<Pick<Conversation, "status" | "summary" | "from_conversation_ids" | "participating_roles" | "title">>): Conversation {
     const conversation = this.getConversation(id);
     if (!conversation) throw new Error(`Conversation not found: ${id}`);

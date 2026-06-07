@@ -86,13 +86,6 @@ export class FileConfigStore {
     return entry ? this.mapWorkspaceEntry(entry) : undefined;
   }
 
-  findWorkspaceByName(name: string): Workspace | undefined {
-    for (const entry of this.workspaceCache.values()) {
-      if (entry.name === name) return this.mapWorkspaceEntry(entry);
-    }
-    return undefined;
-  }
-
   listWorkspaces(limit = 50, offset = 0): Workspace[] {
     const all = [...this.workspaceCache.values()].slice(offset, offset + limit);
     return all.map((e) => this.mapWorkspaceEntry(e));

@@ -222,7 +222,8 @@ assert(evolutionItem.conversation?.participating_roles.includes("项目负责人
 const persistedEvolutionConversation = store.getConversation(evolutionItem.conversation!.id)!;
 assert(persistedEvolutionConversation.owner_type === "evolution", "evolution conversation should be exposed with evolution owner semantics");
 assert(persistedEvolutionConversation.workspace_id === "workspace-1" && persistedEvolutionConversation.issue_id !== null && persistedEvolutionConversation.stage_id !== null, "evolution conversation should own real source workspace issue and stage");
-assert(store.listConversationsByOwner("evolution", evolutionItem.id).some((item) => item.id === persistedEvolutionConversation.id), "evolution conversation should be persisted in the unified conversation table");
+const ownerConversations = store.getDb().prepare("SELECT * FROM conversation WHERE owner_type = ? AND owner_id = ?").all("evolution", evolutionItem.id) as Record<string, unknown>[];
+assert(ownerConversations.some((item) => item.id === persistedEvolutionConversation.id), "evolution conversation should be persisted in the unified conversation table");
 assert(store.evolution.list({ workspaceId: "workspace-1" }).some((item) => item.id === evolutionItem.id), "evolution item should be listable by workspace");
 assert(store.evolution.list({ query: "approval-gate", workspaceId: "workspace-1" }).some((item) => item.id === evolutionItem.id), "evolution item should be searchable by FTS");
 const evolutionMessage = store.addMessage({ conversationId: persistedEvolutionConversation.id, fromRole: "项目负责人", toRoles: ["开发者"], role: "user", runtime: "system", status: "streaming" });

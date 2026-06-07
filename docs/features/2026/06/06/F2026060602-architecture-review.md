@@ -86,7 +86,7 @@ interaction-entry ← lobby (router.ts)
 | Class | 文件 | 审视时行数 | 当前行数 | 当前状态 |
 |-------|------|-----------|---------|---------|
 | ConversationStore | persistence/store.ts | 671 | 571 | **已改善**：36 个透传方法移除，子 store 公开为 public readonly |
-| FileConfigStore | persistence/file-config-store.ts | 729 | ~720 | 未改动 |
+| FileConfigStore | persistence/file-config-store.ts | 729 | ~580 | **已改善**：findWorkspaceByName 移除，config store 改用 JsonConfigStore 工厂 |
 | WorkspaceManager | workspace-workflow/manager.ts | 538 | 263 | **已改善**：拆解为 5 个 service 文件 |
 
 **ConversationStore** 同时承担 DB 生命周期、Workspace/Issue/Stage/Conversation/Message CRUD、SOP 管理（代理给 FileConfigStore）、Evolution/Knowledge Library CRUD（代理给子 Model）、Feature Chain 索引重建，以及 45 个纯透传方法（35 个到 fileConfigStore + 4 个到 evolution + 6 个到 knowledgeLibrary，均为 `return this.xxx.method()` 委托调用）。其直接跨模块导入仅 4 个（shared、logger、feature-chain、persistence 子模块），但作为 facade 它聚合了 persistence 下 13 个子模块的完整 API 表面，任何消费方都通过它访问全部持久化能力。
@@ -214,9 +214,9 @@ IMTransport.onMessage → LobbyAwareChannel.handleInbound → LobbyRouter.proces
 | `touchWorkspace` | file-config-store.ts | **已删除** |
 | `persistence/message-types.ts` | 整文件 | **已删除** |
 | `SopSeedItem` 类型 | persistence/types.ts | **已删除**（types.ts 已整体删除） |
-| `findWorkspaceByName` | store.ts | **已删除** |
+| `findWorkspaceByName` | store.ts + file-config-store.ts | **已删除**（store.ts 透传 + file-config-store.ts 底层方法均已移除） |
 | `getInitialConversationByStage` | store.ts | **已删除** |
-| `listConversationsByOwner` | store.ts | **已删除** |
+| `listConversationsByOwner` | store.ts | **已删除**（本次自检发现并修复） |
 | `getRoleDefinition` | store.ts | **已删除** |
 | `refreshConversationSummary` 接线 | manager.ts | **已删除**（deps wiring 移除） |
 | `createKnowledgeLibraryEntry` | store.ts | **已删除**（随透传方法清理） |
@@ -231,7 +231,7 @@ IMTransport.onMessage → LobbyAwareChannel.handleInbound → LobbyRouter.proces
 | 问题 | 位置 | 详情 |
 |------|------|------|
 | 7 个幽灵 `_conversationId` 参数 | store.ts | **已修复**：参数已移除，调用方已更新 |
-| 3 个 `markConversation*` 丢弃参数包装 | store.ts | **已修复**：包装方法已移除 |
+| 3 个 `markConversation*` 丢弃参数包装 | store.ts:507-521 | **保留**：包装方法被 role-invoker、message-bus、manager 调用，conversationId 参数为 API 一致性保留 |
 | `_ignoredInputArtifacts` 防御性剥离 | helpers.ts | **已修复**：剥离代码已移除 |
 | `log-preview.ts` 恒等函数 | agent/log-preview.ts | **已修复**：fullText 已移除，formatText 直接返回输入 |
 | `DEFAULT_SOP_YAML` 硬编码 | snail-loader.ts | **已修复**：硬编码 YAML 和 code-delivery 特殊 fallback 已移除 |
