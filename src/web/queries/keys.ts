@@ -33,6 +33,7 @@ export const queryKeys = {
     conversations: (id: string) => ["issues", id, "conversations"] as const,
   },
   stages: {
+    detail: (stageId: string) => ["stages", stageId] as const,
     conversations: (stageId: string) => ["stages", stageId, "conversations"] as const,
   },
   conversations: {

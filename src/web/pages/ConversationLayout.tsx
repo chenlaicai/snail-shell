@@ -33,7 +33,7 @@ export function ConversationLayout() {
   const { data: transitions = [] } = useQuery({
     ...sopQueries.detail(sopId || ""),
     enabled: !!sopId,
-    select: (data) => data.transitions,
+    select: (data) => data.transitions ?? [],
   });
 
   // 当前 stage 的 ID（来自 store 或 issue 默认值）
@@ -75,7 +75,7 @@ export function ConversationLayout() {
       const conv = convId ? conversations.find((c) => c.id === convId) : conversations[0];
       setCurrentConversation(conv || null);
     }
-  }, [initKey, conversations, currentConversation]);
+  }, [initKey, conversations.length, currentConversation]);
 
   // Update URL when stage/conversation changes (one-way: store -> URL)
   useEffect(() => {
@@ -94,8 +94,10 @@ export function ConversationLayout() {
 
   function handleStageChanged() {
     queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(issueId!) });
-    if (currentStage) {
-      queryClient.invalidateQueries({ queryKey: queryKeys.stages.conversations(currentStage.id) });
+    // 用 getState() 获取最新 stage，避免闭包捕获 stale 值
+    const latestStage = useConversationStore.getState().currentStage;
+    if (latestStage) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.stages.conversations(latestStage.id) });
     }
     // 重置 store 和初始化跟踪，使 effect 重新设置 stage/conv
     setCurrentStage(null);

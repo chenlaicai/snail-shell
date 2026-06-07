@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useConversationStore } from "../stores/conversationStore";
 import { api } from "../services/api-client";
 import { metaQueries } from "../queries/meta.queries";
+import { queryKeys } from "../queries/keys";
 import { showToast } from "./Toast";
 import type { WorkspaceSummaryDto, IssueDto, Participant, RoleDefinition, StageDetailDto } from "../types";
 
@@ -19,7 +20,7 @@ export function ContextPanel({
 
   // TanStack Query: stage detail
   const { data: stageDetail } = useQuery({
-    queryKey: ["stages", currentStage?.id],
+    queryKey: queryKeys.stages.detail(currentStage?.id ?? ""),
     queryFn: (): Promise<StageDetailDto> => api("GET /api/stages/:stageId", { params: { stageId: currentStage!.id } }),
     enabled: !!currentStage?.id,
   });
@@ -55,7 +56,7 @@ export function ContextPanel({
   const outputArtifacts = useMemo(() => toStringRecord(stageDetail?.output_artifacts), [stageDetail?.output_artifacts]);
   const inputArtifacts = useMemo(() => toStringRecord(stageDetail?.input_artifacts), [stageDetail?.input_artifacts]);
 
-  const stageQueryKey = ["stages", currentStage?.id];
+  const stageQueryKey = queryKeys.stages.detail(currentStage?.id ?? "");
 
   const addArtifactMutation = useMutation({
     mutationFn: (updated: Record<string, string>) => {

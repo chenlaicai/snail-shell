@@ -16,18 +16,14 @@ export const queryClient = new QueryClient({
 const recentErrors = new Map<string, number>();
 
 // 定期清理过期条目，防止内存泄漏
-// 防止 HMR 场景下累积多个 interval
 const CLEANUP_INTERVAL = 60_000;
 const MAX_ERROR_AGE = 120_000;
-const g = globalThis as Record<string, unknown>;
-if (!g.__snail_error_cleanup_interval) {
-  g.__snail_error_cleanup_interval = setInterval(() => {
-    const now = Date.now();
-    for (const [key, timestamp] of recentErrors) {
-      if (now - timestamp > MAX_ERROR_AGE) recentErrors.delete(key);
-    }
-  }, CLEANUP_INTERVAL);
-}
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, timestamp] of recentErrors) {
+    if (now - timestamp > MAX_ERROR_AGE) recentErrors.delete(key);
+  }
+}, CLEANUP_INTERVAL);
 
 queryClient.getQueryCache().subscribe((event) => {
   if (event.type !== "updated" || event.query.state.status !== "error") return;
