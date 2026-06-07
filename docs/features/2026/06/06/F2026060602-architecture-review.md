@@ -128,7 +128,7 @@ interaction-entry ← lobby (router.ts)
 | 严重程度 | 违反类型 | 位置 | 状态 | 详情 |
 |----------|----------|------|------|------|
 | **严重** | Persistence 嵌入业务逻辑 | evolution-model.ts | **已修复** | 工作流逻辑上移到 evolution-center/evolution-service，复用 store 标准方法 |
-| **严重** | AgentRuntime 跨边界泄漏 | shared/types.ts → 8+ 模块 | **未修复** | Agent 内部实现命名（`-cli` 后缀）定义在 shared 层，SnailDen 封装失效 |
+| **严重** | AgentRuntime 跨边界泄漏 | shared/types.ts → 8+ 模块 | **已修复** | prompt-center 改从 agent/interface 导入，snail-den-store 改用 MessageRuntime |
 | **中等** | message-bus 深入 agent 内部 | collaboration.ts | **已改善** | agent 调用编排提取到 role-invoker.ts，但 role-invoker.ts 仍依赖 agent 子模块 |
 | **中等** | message-protocol 层注入业务逻辑 | message-protocol.ts | **未修复** | MCP 指令块注入和 permission_store 写入仍在 message-protocol 层 |
 | **中等** | server.ts 内联业务逻辑 | server.ts | **已改善** | approve-tool handler 移入 conversation-routes.ts，但仍在 HTTP 路由层 |
@@ -141,8 +141,8 @@ interaction-entry ← lobby (router.ts)
 
 | 重复项 | 位置 | 状态 | 影响 |
 |--------|------|------|------|
-| buildWhere 助手 x2 | evolution-model.ts + knowledge-library-model.ts | **未修复** | 结构相同的动态 WHERE 构建 |
-| getMessageContext x2 | message-read-model.ts + message-context-model.ts | **未修复** | 完全相同的实现 |
+| buildWhere 助手 x2 | evolution-model.ts + knowledge-library-model.ts | **已修复** | 提取为 query-helpers.ts 共享实现 |
+| getMessageContext x2 | message-read-model.ts + message-context-model.ts | **已修复** | message-read-model 改为从 message-context-model 导入 |
 | Config store 模式 x7 | 7 个 config store | **部分修复**：logging-config-store 改用 JsonConfigStore 工厂；其余因错误处理差异保持现状 |
 | Feishu/WeCom config store x2 | 结构克隆 | **未修复** | 不同类型名但相同模式 |
 | sendMessage 三层包装 | manager.ts | **未修复** | sendMessage→sendStructuredMessage→sendConversationMessage，三入口一实现 |
@@ -234,7 +234,7 @@ IMTransport.onMessage → LobbyAwareChannel.handleInbound → LobbyRouter.proces
 | 3 个 `markConversation*` 丢弃参数包装 | store.ts | **已修复**：包装方法已移除 |
 | `_ignoredInputArtifacts` 防御性剥离 | helpers.ts | **已修复**：剥离代码已移除 |
 | `log-preview.ts` 恒等函数 | agent/log-preview.ts | **已修复**：fullText 已移除，formatText 直接返回输入 |
-| `DEFAULT_SOP_YAML` 硬编码 | snail-loader.ts | **未修复**：50 行 YAML 字符串仍硬编码 |
+| `DEFAULT_SOP_YAML` 硬编码 | snail-loader.ts | **已修复**：硬编码 YAML 和 code-delivery 特殊 fallback 已移除 |
 | store.ts re-export hub | store.ts | **已修复**：persistence/types.ts 已删除，store.ts 改为从 shared/types 直接导出 |
 | workspace `created_at` 总是 "now" | file-config-store.ts | **已修复**：WorkspaceCacheEntry 新增 loaded_at，mapWorkspaceEntry 使用它 |
 
