@@ -2,6 +2,9 @@ import assert from "assert";
 import fs from "fs";
 import os from "os";
 import path from "path";
+
+/** 测试专用临时工作区根目录，避免 createWorkspace 写 .snail/init.json 污染项目目录 */
+const TEST_WORKSPACE_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), "snail-test-repo-cleanup-"));
 import { execFileSync, spawnSync } from "child_process";
 import { WorkspaceManager } from "../../src/workspace-workflow/manager";
 import { cleanupIssueRepoContext } from "../../src/workspace-workflow/repo-cleanup";
@@ -136,7 +139,7 @@ function testScriptRecordsContextConsumedByArchive(fixtureRoot: string): void {
         template: { id: templateId, name: templateId, runtime: "opencode-cli" as AgentRuntime, model: "default" },
       }),
     } as unknown as SnailDen }, { repoRoot });
-  const created = manager.createWorkspace("Script Record Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-test", roleSnailMapping: { design: { designer: "opencode-default" }, development: { developer: "opencode-default" }, review: { reviewer: "opencode-default" }, merge: { merger: "opencode-default" } } });
+  const created = manager.createWorkspace("Script Record Test", { summary: "test", workspaceRoot: TEST_WORKSPACE_ROOT, sopId: "sop-test", roleSnailMapping: { design: { designer: "opencode-default" }, development: { developer: "opencode-default" }, review: { reviewer: "opencode-default" }, merge: { merger: "opencode-default" } } });
   const sourceWrapperPath = path.join(process.cwd(), ".meta", "skills", "record-issue-repo-context", "scripts", "record-issue-repo-context.js");
   execFileSync(sourceWrapperPath, [
     "--db-path", dbPath,
@@ -179,7 +182,7 @@ function testKeepViaScript(fixtureRoot: string): void {
         template: { id: templateId, name: templateId, runtime: "opencode-cli" as AgentRuntime, model: "default" },
       }),
     } as unknown as SnailDen }, { repoRoot: process.cwd() });
-  const created = manager.createWorkspace("Keep Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-test", roleSnailMapping: { design: { designer: "opencode-default" }, development: { developer: "opencode-default" }, review: { reviewer: "opencode-default" }, merge: { merger: "opencode-default" } } });
+  const created = manager.createWorkspace("Keep Test", { summary: "test", workspaceRoot: TEST_WORKSPACE_ROOT, sopId: "sop-test", roleSnailMapping: { design: { designer: "opencode-default" }, development: { developer: "opencode-default" }, review: { reviewer: "opencode-default" }, merge: { merger: "opencode-default" } } });
 
   const sourceWrapperPath = path.join(process.cwd(), ".meta", "skills", "record-issue-repo-context", "scripts", "record-issue-repo-context.js");
 
@@ -246,7 +249,7 @@ function testScriptUsesPrimaryRepoDatabaseFromWorktree(fixtureRoot: string): voi
         template: { id: templateId, name: templateId, runtime: "opencode-cli" as AgentRuntime, model: "default" },
       }),
     } as unknown as SnailDen }, { repoRoot });
-  const created = manager.createWorkspace("Default DB Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-test", roleSnailMapping: { design: { designer: "opencode-default" }, development: { developer: "opencode-default" }, review: { reviewer: "opencode-default" }, merge: { merger: "opencode-default" } } });
+  const created = manager.createWorkspace("Default DB Test", { summary: "test", workspaceRoot: TEST_WORKSPACE_ROOT, sopId: "sop-test", roleSnailMapping: { design: { designer: "opencode-default" }, development: { developer: "opencode-default" }, review: { reviewer: "opencode-default" }, merge: { merger: "opencode-default" } } });
 
   const worktreePath = path.join(worktreesRoot, "default-db");
   git(repoRoot, ["worktree", "add", worktreePath, "default-db-worktree"]);
@@ -314,7 +317,7 @@ function testScriptFirstTimeRecordingAutoDiscoversStage(fixtureRoot: string): vo
         template: { id: templateId, name: templateId, runtime: "opencode-cli" as AgentRuntime, model: "default" },
       }),
     } as unknown as SnailDen }, { repoRoot });
-  const created = manager.createWorkspace("First Time Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-test", roleSnailMapping: { design: { designer: "opencode-default" }, development: { developer: "opencode-default" }, review: { reviewer: "opencode-default" }, merge: { merger: "opencode-default" } } });
+  const created = manager.createWorkspace("First Time Test", { summary: "test", workspaceRoot: TEST_WORKSPACE_ROOT, sopId: "sop-test", roleSnailMapping: { design: { designer: "opencode-default" }, development: { developer: "opencode-default" }, review: { reviewer: "opencode-default" }, merge: { merger: "opencode-default" } } });
 
   // Verify output_artifacts is empty before the script runs
   const stageBefore = store.getStage(created.stage.id)!;
