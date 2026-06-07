@@ -31,10 +31,12 @@ export interface MessageServiceDeps {
   emit: (event: string, ...args: unknown[]) => void;
 }
 
+/** 便利方法：纯文本输入 → 结构化事件 → sendStructuredMessage。测试和简单场景使用。 */
 export async function sendMessage(deps: MessageServiceDeps, conversationId: string, userContent: string): Promise<{ messageIds: number[] }> {
   return sendStructuredMessage(deps, conversationId, [buildPlainTextEvent(userContent)]);
 }
 
+/** 核心实现：生产代码通过 gateway.sendMessage → 此方法。 */
 export async function sendStructuredMessage(
   deps: MessageServiceDeps,
   conversationId: string,
@@ -57,6 +59,7 @@ export async function sendStructuredMessage(
   });
 }
 
+/** 便利方法：带 try/catch 包装的 sendStructuredMessage，返回 error 对象而非抛异常。测试使用。 */
 export async function sendConversationMessage(
   deps: MessageServiceDeps,
   conversationId: string,
