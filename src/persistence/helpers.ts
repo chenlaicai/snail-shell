@@ -23,7 +23,7 @@ import type {
   TextEventPayload,
   ToolResultEventPayload,
   CommandResultEventPayload,
-} from "./types";
+} from "../shared/types";
 
 export function parseJsonArray<T extends string>(value: string | null): T[] {
   if (!value) return [];

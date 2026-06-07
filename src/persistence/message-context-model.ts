@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 import { mapMessageContext } from "./helpers";
-import type { MessageContext, MessageContextKind } from "./types";
+import type { MessageContext, MessageContextKind } from "../shared/types";
 
 export function upsertMessageContext(input: { db: Database.Database; messageId: number; kind: MessageContextKind; context: string }): MessageContext {
   input.db.prepare(

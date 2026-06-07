@@ -1,5 +1,5 @@
 import type Database from "better-sqlite3";
-import type { MessageDispatch, MessageDispatchStatus } from "./types";
+import type { MessageDispatch, MessageDispatchStatus } from "../shared/types";
 
 export function markWorkspaceDispatchesConsumed(db: Database.Database, dispatchIds: number[], consumedByMessageId: number | null = null): void {
   updateWorkspaceDispatchStatus(db, dispatchIds, "consumed", consumedByMessageId);

@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import type Database from "better-sqlite3";
 import { buildFtsQuery, mapConversation, normalizeSnippet } from "./helpers";
-import type { Conversation } from "./types";
+import type { Conversation } from "../shared/types";
 import type { FileConfigStore } from "./file-config-store";
 import { HUMAN_ROLE_NAME } from "../shared/domain-types";
 import type { SopSnapshot } from "../shared/sop-snapshot";

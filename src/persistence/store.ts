@@ -65,7 +65,6 @@ export type {
   ToolCallEventPayload,
   ToolResultEventPayload,
   Sop,
-  SopSeedItem,
   SopSnapshot,
   SopStageDefinition,
   SopTransition,
@@ -74,7 +73,7 @@ export type {
   StageGateEvidence,
   RuntimeBinding,
   InvocationSubject,
-} from "./types";
+} from "../shared/types";
 import type {
   Conversation,
   ConversationHistorySearchResult,
@@ -101,12 +100,23 @@ import type {
   SopTransition,
   Stage,
   StageRoleDefinition,
-} from "./types";
-export type { StageType } from "./types";
+} from "../shared/types";
+export type { StageType } from "../shared/types";
 export type { EvolutionItem, EvolutionItemWithConversation, CreateEvolutionItemInput, UpdateEvolutionItemInput, EvolutionItemListFilters, EvolutionItemSearchResult } from "../shared/evolution-types";
 import type { CreateEvolutionItemInput, EvolutionItemListFilters, EvolutionItemSearchResult, EvolutionItemWithConversation, UpdateEvolutionItemInput } from "../shared/evolution-types";
 export type { KnowledgeLibraryScope, CreateKnowledgeLibraryInput, KnowledgeLibraryEntry, KnowledgeLibraryListFilters, KnowledgeLibrarySearchResult, UpdateKnowledgeLibraryInput } from "../shared/knowledge-library-types";
 import type { CreateKnowledgeLibraryInput, KnowledgeLibraryEntry, KnowledgeLibraryListFilters, KnowledgeLibrarySearchResult, UpdateKnowledgeLibraryInput } from "../shared/knowledge-library-types";
+
+/** SOP 种子项，用于从 .snail 目录或 JSON 种子加载 SOP。 */
+export interface SopSeedItem {
+  sop: { id: string; source: "platform" | "workspace"; sourceRef: string | null; key: string; name: string; description?: string | null };
+  stage_definitions: Array<{
+    key: string; title: string; sequence: number;
+    input_description?: string | null; output_description?: string | null;
+    acceptance_focus?: string[]; acceptance_checklist?: Array<{ id: string; description: string; required: boolean }>;
+    roles: Array<{ key: string; name: string; description?: string; handbook?: string | null; is_primary?: boolean; count?: number }>;
+  }>;
+}
 
 export interface SnailAgentSession {
   id: string;

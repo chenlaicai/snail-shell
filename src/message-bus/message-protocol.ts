@@ -1,7 +1,7 @@
 import type { AgentEvent, AgentInvocationOptions, AgentMessageStatus, AgentStopDetail, SnailRuntimeMessageInput } from "../agent/interface";
 import type { MessageContextSummaryGenerator } from "../shared/types";
 import type { CreateMessageEventInput, Message, MessageContextKind, MessageEvent, MessageRuntime, MessageStatus, RoleName } from "../persistence/store";
-import type { MessageContext } from "../persistence/types";
+import type { MessageContext } from "../shared/types";
 import type { RoleDefinition } from "../roles";
 import { logAgentOutput } from "../agent/message-flow-logger";
 import { summarizeRuntimeError } from "../agent/runtime-error";

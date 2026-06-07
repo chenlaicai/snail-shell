@@ -1,7 +1,7 @@
 import type Database from "better-sqlite3";
 import { HUMAN_ROLE_NAME } from "../shared/domain-types";
 import { attachMessageEvents, buildFtsQuery, mapMessage, mapMessageContext, mapMessageEvent, normalizeSnippet } from "./helpers";
-import type { ConversationHistorySearchResult, MessageEvent, MessageRole, MessageWithEvents, PersistedMessageEventRow, RoleName } from "./types";
+import type { ConversationHistorySearchResult, MessageEvent, MessageRole, MessageWithEvents, PersistedMessageEventRow, RoleName } from "../shared/types";
 
 export type ConversationEventWithMessage = MessageEvent & { message_from_role: RoleName | null };
 export interface RecentMessagesSnapshot {

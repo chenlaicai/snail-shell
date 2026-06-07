@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { ConversationStore } from "../../src/persistence/store";
-import type { SopSeedItem } from "../../src/persistence/types";
+import type { SopSeedItem } from "../../src/persistence/store";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);
