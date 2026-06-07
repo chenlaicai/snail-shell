@@ -166,7 +166,7 @@ export function EventStreamView({ blocks, defaultOpen, onApprove, onDeny }: {
 }) {
   if (blocks.length === 0) return null;
   return (
-    <details className="message-event-stream border border-[var(--color-border-muted)] rounded-[var(--radius-sm)] bg-[var(--color-bg-elevated)] overflow-hidden" open={defaultOpen}>
+    <details className="border border-[var(--color-border-muted)] rounded-[var(--radius-sm)] bg-[var(--color-bg-elevated)] overflow-hidden" open={defaultOpen}>
       <summary className="flex items-center justify-between gap-[var(--space-md)] p-[var(--space-md)] cursor-pointer list-none text-[var(--color-accent)] text-[var(--font-size-sm)] font-semibold">
         <span className="flex-1 tracking-[0.04em]">流式过程</span>
         <span className="text-[var(--color-text-secondary)] text-[var(--font-size-xs)] font-medium">{blocks.length} 个事件</span>

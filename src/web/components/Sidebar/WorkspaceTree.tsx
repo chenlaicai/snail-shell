@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../../services/api-client";
-import type { WorkspaceSummaryDto } from "../types";
+import type { WorkspaceSummaryDto } from "../../types";
 
 export function WorkspaceTree() {
   const navigate = useNavigate();
