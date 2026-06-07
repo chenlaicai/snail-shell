@@ -215,7 +215,7 @@ export function WorkspaceBoard() {
 }
 
 function TaskCard({ issue, onClick, onArchive }: { issue: IssueDetail; onClick: () => void; onArchive: () => void }) {
-  const waitStr = formatWaitTime(issue.current_stage?.created_at || issue.created_at);
+  const waitStr = formatWaitTime(issue.current_stage?.entered_at || issue.created_at);
   const isCompleted = !!issue.closed_at;
   const priorityKey = stageTagClass(issue) || "low";
   const stageKey = stageTagClass(issue);
@@ -271,14 +271,6 @@ function TaskCard({ issue, onClick, onArchive }: { issue: IssueDetail; onClick: 
                     <path d="M12 6v6l4 2" />
                   </svg>
                   <span>等待 {waitStr}</span>
-                </span>
-              )}
-              {issue.current_stage?.active_roles?.[0] && (
-                <span className="flex items-center gap-1">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                  </svg>
-                  <span>{issue.current_stage.active_roles[0]}</span>
                 </span>
               )}
             </>

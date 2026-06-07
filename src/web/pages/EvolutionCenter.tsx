@@ -14,12 +14,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import type { EvolutionItemDto } from "../types";
+import type { EvolutionItem } from "../types";
 
 export function EvolutionCenter() {
   const queryClient = useQueryClient();
   const { data: items = [], isLoading } = useQuery(evolutionQueries.list({ limit: 100 }));
-  const [selectedItem, setSelectedItem] = useState<EvolutionItemDto | null>(null);
+  const [selectedItem, setSelectedItem] = useState<EvolutionItem | null>(null);
   const [mode, setMode] = useState<"list" | "detail" | "create">("list");
 
   // 创建表单

@@ -36,7 +36,7 @@ export type {
   SopDetailDto, SopStageDefinitionWithRolesDto, SopStageDefinitionInputDto,
   DeleteSopResult, TransitionGuard, StageChecklistItem,
   PromptDto, SkillDto, SnailDenTemplateDto, McpServerDto, RoleDto,
-} from "../api-contracts/dto";
+} from "../api-contracts";
 
 // Lobby 类型
 export type { LobbySession, LobbyMessage } from "../lobby/types";
