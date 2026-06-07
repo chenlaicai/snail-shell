@@ -87,3 +87,11 @@ export interface SummaryGenerationInput {
   previousSummary: string;
   recentMessages: MessageWithEvents[];
 }
+
+export interface StageSuggestion {
+  issueId: string;
+  fromStageKey: string;
+  toStageKey: string;
+  reason: string | null;
+  suggestedAt: string;
+}

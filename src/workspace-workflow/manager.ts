@@ -1,8 +1,4 @@
 import { EventEmitter } from "events";
-import fs from "node:fs";
-import path from "node:path";
-import { HUMAN_ROLE_NAME } from "../shared/domain-types";
-import { randomUUID } from "crypto";
 import type { SnailAgentResolver } from "../agent/resolver";
 import type {
   ConversationStore,
@@ -15,45 +11,34 @@ import type {
   RoleName,
   Stage,
   UpdateEvolutionItemInput,
-  Workspace,
 } from "../persistence/store";
-import { logger } from "../logger";
-import type { CollaborationInvocationOptions } from "../message-bus/collaboration";
-import type { BossMentionItem, ConversationDetail, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, IssueDetail, ConversationRecentMessagesSnapshot, WorkspaceDetail, WorkspaceManagerDeps, WorkspaceSummary, StageDetail } from "./manager-types";
-import { buildConversationBadgePayload, sumBossPendingCount } from "./manager-events";
+import type { BossMentionItem, ConversationDetail, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, IssueDetail, ConversationRecentMessagesSnapshot, WorkspaceDetail, WorkspaceManagerDeps, WorkspaceSummary, StageDetail, StageSuggestion } from "./manager-types";
+import { buildConversationBadgePayload } from "./manager-events";
 import * as managerQueries from "./manager-queries";
-export type { BossMentionItem, ConversationDetail, ConversationDispatchState, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, WorkspaceDetail, WorkspaceManagerDeps, WorkspaceSummary, StageDetail, IssueDetail } from "./manager-types";
+export type { BossMentionItem, ConversationDetail, ConversationDispatchState, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, WorkspaceDetail, WorkspaceManagerDeps, WorkspaceSummary, StageDetail, IssueDetail, StageSuggestion } from "./manager-types";
 import type { ConversationDispatchState } from "./manager-types";
-import { sendStructuredMessage as sendStructuredMessageWithCollaboration } from "../message-bus/collaboration";
 import { ConversationQueue } from "./conversation-queue";
 import { MessageInterruptRegistry } from "../message-bus/message-interrupt";
-import { transitionIssueStage, createIssueWorkflow, createInitialWorkflow } from "./workflow";
-import { resolveWorkspaceRoot } from "./default-workspace-dir";
-import { buildPlainTextEvent, type MessageInputEvent } from "../message-bus/message-events";
-import { cleanupIssueRepoContext, type RepoCleanupResult } from "./repo-cleanup";
+import type { MessageInputEvent } from "../message-bus/message-events";
 import { recoverOrphanedStreamingAssistantMessages, type StartupRecoveryResult } from "./startup-recovery";
-import { SopSnapshotReader } from "./sop-snapshot-reader";
+import { buildConversationDetail, getConversationDispatchState, getBossMentions } from "./manager-detail";
+import type { RepoCleanupResult } from "./repo-cleanup";
+import type { CollaborationDeps } from "./manager-collaboration";
+
+// Service imports
+import * as issueService from "./issue-service";
+import type { IssueServiceDeps } from "./issue-service";
+import * as workspaceService from "./workspace-service";
+import type { WorkspaceServiceDeps } from "./workspace-service";
+import * as sopService from "./sop-service";
+import * as messageService from "./message-service";
+import type { MessageServiceDeps } from "./message-service";
+import * as stageSuggestionService from "./stage-suggestion-service";
+import type { StageSuggestionServiceDeps } from "./stage-suggestion-service";
 
 import * as evolutionCenter from "../evolution-center/evolution-service";
-import { resolveConversationSystemPrompt, resolveConversationRole, resolveMentions, type CollaborationDeps } from "./manager-collaboration";
-import { buildStageDetail, buildIssueDetail, buildConversationDetail, getConversationDispatchState, getBossMentions, assertIssueWritable, assertConversationIssueWritable, assertStageCanAdvance } from "./manager-detail";
-import { hasSnailDirectory, loadWorkspaceContext, initializeSnailDirectory, type YamlStageDefinition } from "./snail-loader";
-
-/**
- * 非 boss role 之间的最大协作轮次，超过后强制由 default_role 收口。
- * 设为 30 是为了支持复杂任务下更长的多 role 循环讨论，同时保留收口上限，避免协作链无限延伸。
- */
-const MAX_COLLABORATION_ROUNDS = 30;
 
 const DEFAULT_AGENT_HISTORY_USER_MESSAGE_LIMIT = 3;
-
-export interface StageSuggestion {
-  issueId: string;
-  fromStageKey: string;
-  toStageKey: string;
-  reason: string | null;
-  suggestedAt: string;
-}
 
 export class WorkspaceManager extends EventEmitter {
   private readonly conversationQueue = new ConversationQueue();
@@ -66,6 +51,12 @@ export class WorkspaceManager extends EventEmitter {
   /** AI 提议的待确认阶段转移，keyed by issueId。 */
   private readonly pendingStageSuggestions = new Map<string, StageSuggestion>();
 
+  // Pre-built service dependency objects
+  private readonly issueDeps: IssueServiceDeps;
+  private readonly workspaceDeps: WorkspaceServiceDeps;
+  private readonly messageDeps: MessageServiceDeps;
+  private readonly stageSuggestionDeps: StageSuggestionServiceDeps;
+
   constructor(
     private store: ConversationStore,
     private _agentResolver: SnailAgentResolver,
@@ -76,240 +67,103 @@ export class WorkspaceManager extends EventEmitter {
     this.repoRoot = options.repoRoot ?? process.cwd();
     this.collaborationDeps = { store, systemAI: deps.systemAI, snailDen: deps.snailDen };
     this.startupRecovery = recoverOrphanedStreamingAssistantMessages({ store: this.store, summaryGenerator: null });
+
+    // Build service dependency objects
+    this.issueDeps = { store: this.store, repoRoot: this.repoRoot };
+    this.workspaceDeps = { store: this.store, issueDeps: this.issueDeps };
+    this.messageDeps = {
+      store: this.store,
+      wmDeps: this.deps,
+      conversationQueue: this.conversationQueue,
+      messageInterrupts: this.messageInterrupts,
+      collaborationDeps: this.collaborationDeps,
+      getShuttingDown: () => this.shuttingDown,
+      onStageTransitionDetected: (conversationId, targetStageKey, reason) => this.handleAgentStageSuggestion(conversationId, targetStageKey, reason),
+      emitBadgeUpdate: (conversationId) => this.emitConversationBadgeUpdate(conversationId),
+      emit: (event, ...args) => this.emit(event, ...args),
+    };
+    this.stageSuggestionDeps = {
+      store: this.store,
+      pendingStageSuggestions: this.pendingStageSuggestions,
+      emit: (event, ...args) => this.emit(event, ...args),
+      transitionIssueStage: (issueId, targetStageKey) => this.transitionIssueStage(issueId, targetStageKey),
+    };
   }
 
   async waitForStartupRecovery(): Promise<StartupRecoveryResult> { return this.startupRecovery; }
 
+  // ── Workspace CRUD (delegated to workspace-service) ──────────────
+
   createWorkspace(name: string, input: { summary?: string; workspaceRoot?: string; sopId: string; roleSnailMapping?: Record<string, Record<string, string>>; loadFromSnail?: boolean }) {
-    const workspaceId = randomUUID();
-    const resolvedRoot = resolveWorkspaceRoot(workspaceId, input.workspaceRoot || undefined);
-
-    // 如果指定了从 .snail 加载，先尝试加载配置
-    if (input.loadFromSnail) {
-      // 如果 .snail 目录不存在，初始化默认结构
-      if (!hasSnailDirectory(resolvedRoot)) {
-        initializeSnailDirectory(resolvedRoot, { name, summary: input.summary, sopKey: input.sopId });
-        logger.info("WorkspaceManager initialized .snail directory", { workspaceId, workspaceRoot: resolvedRoot });
-      }
-      this.loadWorkspaceFromSnail(workspaceId, resolvedRoot);
-      // 从 .snail 加载后，获取 workspace 和创建默认 issue
-      const workspace = this.store.fileConfigStore.getWorkspace(workspaceId);
-      if (workspace) {
-        const issueResult = this.createIssue(workspaceId, "初始研发迭代", "工作区创建时自动生成的默认 issue。", input.sopId, {});
-        logger.info("WorkspaceManager created workspace from .snail", { workspaceId, issueId: issueResult.issue.id, stageId: issueResult.stage.id, conversationId: issueResult.conversation.id });
-        return { workspace, ...issueResult };
-      }
-    }
-
-    const result = createInitialWorkflow(
-      { store: this.store },
-      { name, summary: input.summary, workspaceRoot: resolvedRoot, workspaceId, sopId: input.sopId, roleSnailMapping: input.roleSnailMapping ?? {} },
-    );
-    logger.info("WorkspaceManager initialized workspace workflow", { workspaceId: result.workspace.id, issueId: result.issue.id, stageId: result.stage.id, conversationId: result.conversation.id });
-    return result;
+    return workspaceService.createWorkspace(this.workspaceDeps, name, input);
   }
 
-  /**
-   * 从 `.snail` 目录加载配置到数据库。
-   *
-   * 全量替换该 workspace 的 SOP 配置（workspace_sop、sop、role_definition、stage_definition），
-   * 但不影响运行中的 issue 实例。
-   *
-   * @param workspaceId 目标 workspace ID
-   * @param workspaceRoot `.snail` 目录所在的父目录路径
-   * @returns 是否成功加载
-   * @throws `.snail` 目录不存在或配置格式错误时抛出异常
-   */
   loadWorkspaceFromSnail(workspaceId: string, workspaceRoot: string): boolean {
-    if (!hasSnailDirectory(workspaceRoot)) {
-      throw new Error(`.snail directory not found in ${workspaceRoot}`);
-    }
-
-    const context = loadWorkspaceContext(workspaceRoot);
-    const sopDir = path.join(workspaceRoot, ".snail", "config", "sop");
-
-    /** 将 YAML SOP 定义转换为 seed 格式，复用 replaceWorkspaceConfigs 的全量替换语义 */
-    const sopSeeds = context.sopDefinitions.map((sopDef) => ({
-      sop: {
-        id: `${workspaceId}#${sopDef.key}`,
-        source: "workspace" as const,
-        sourceRef: workspaceId,
-        key: sopDef.key,
-        name: sopDef.name,
-        description: sopDef.description ?? null,
-      },
-      stage_definitions: this.resolveHandbookRefs(sopDef.stage_definitions, sopDir),
-    }));
-
-    this.store.fileConfigStore.replaceWorkspaceConfigs(workspaceId, {
-      workspaceUpdate: { name: context.config.name, summary: context.config.summary },
-      sopSeeds,
-    });
-
-    logger.info("WorkspaceManager loaded workspace from .snail", {
-      workspaceId,
-      workspaceRoot,
-      sopCount: context.sopDefinitions.length,
-      promptCount: context.prompts.length,
-      skillCount: context.skills.length,
-    });
-
-    return true;
+    return workspaceService.loadWorkspaceFromSnail(this.store, workspaceId, workspaceRoot);
   }
 
-  /**
-   * 就地解析 stage_definitions 中的 `@file` 引用为实际文件内容。
-   * 注意：直接修改传入的 role.handbook 属性，返回同一引用。
-   */
-  private resolveHandbookRefs(stageDefinitions: YamlStageDefinition[], sopDir: string): YamlStageDefinition[] {
-    for (const sd of stageDefinitions) {
-      for (const role of sd.roles ?? []) {
-        if (typeof role.handbook === "string" && role.handbook.startsWith("@")) {
-          const filePath = path.join(sopDir, role.handbook.slice(1));
-          if (fs.existsSync(filePath)) {
-            role.handbook = fs.readFileSync(filePath, "utf8");
-          }
-        }
-      }
-    }
-    return stageDefinitions;
-  }
-
-  /**
-   * 检查目录是否包含 `.snail` 目录。
-   */
   hasSnailConfig(workspaceRoot: string): boolean {
-    return hasSnailDirectory(workspaceRoot);
+    return workspaceService.hasSnailConfig(workspaceRoot);
   }
 
   listWorkspaces(limit = 50, offset = 0): WorkspaceSummary[] {
-    return this.store.fileConfigStore.listWorkspaces(limit, offset).map((workspace) => ({
-      ...workspace,
-      conversation_count: this.store.listConversationsByWorkspace(workspace.id).length,
-      stage_count: this.store.listStages(workspace.id).length,
-      issue_count: this.store.listIssues(workspace.id).length,
-      boss_pending_count: sumBossPendingCount(this.store.listConversationsByWorkspace(workspace.id), (cid) => this.store.listBossPendingDispatches(cid).length),
-    }));
+    return workspaceService.listWorkspaces(this.store, limit, offset);
   }
 
   getWorkspace(workspaceId: string): WorkspaceDetail | null {
-    const workspace = this.store.fileConfigStore.getWorkspace(workspaceId);
-    if (!workspace) return null;
-    const stages = this.store.listStages(workspaceId);
-    const issues = this.store.listIssues(workspaceId).map((f) => buildIssueDetail(this.store, f));
-    return {
-      ...workspace,
-      conversation_count: this.store.listConversationsByWorkspace(workspaceId).length,
-      stage_count: stages.length,
-      issue_count: issues.length,
-      issues,
-      boss_pending_count: sumBossPendingCount(this.store.listConversationsByWorkspace(workspace.id), (cid) => this.store.listBossPendingDispatches(cid).length),
-    };
+    return workspaceService.getWorkspace(this.store, workspaceId);
   }
+
+  // ── Issue lifecycle (delegated to issue-service) ─────────────────
 
   createIssue(workspaceId: string, title: string, summary: string | undefined, adoptedSopId: string, roleSnailMapping: Record<string, Record<string, string>>) {
-    const workspace = this.store.fileConfigStore.getWorkspace(workspaceId);
-    if (!workspace) throw new Error(`Workspace not found: ${workspaceId}`);
-    const result = createIssueWorkflow({ store: this.store }, { workspace, title, summary, adoptedSopId, roleSnailMapping });
-    logger.info("WorkspaceManager created issue workflow", { workspaceId, issueId: result.issue.id, stageId: result.stage.id, conversationId: result.conversation.id });
-    return result;
+    return issueService.createIssue(this.issueDeps, workspaceId, title, summary, adoptedSopId, roleSnailMapping);
   }
 
-  getIssue(issueId: string): IssueDetail | null { const f = this.store.getIssue(issueId); return f ? buildIssueDetail(this.store, f) : null; }
-  listIssues(workspaceId: string): IssueDetail[] { return this.store.listIssues(workspaceId).map((f) => buildIssueDetail(this.store, f)); }
-  listStages(workspaceId: string): StageDetail[] { return this.store.listStages(workspaceId).map((s) => buildStageDetail(this.store, s)); }
-  getStage(stageId: string): StageDetail | null { const s = this.store.getStage(stageId); return s ? buildStageDetail(this.store, s) : null; }
+  getIssue(issueId: string): IssueDetail | null { return issueService.getIssue(this.issueDeps, issueId); }
+  listIssues(workspaceId: string): IssueDetail[] { return issueService.listIssues(this.issueDeps, workspaceId); }
+  listStages(workspaceId: string): StageDetail[] { return issueService.listStages(this.issueDeps, workspaceId); }
+  getStage(stageId: string): StageDetail | null { return issueService.getStage(this.issueDeps, stageId); }
 
   advanceIssue(issueId: string, targetStageKey?: string) {
-    const issue = this.store.getIssue(issueId);
-    if (!issue) throw new Error(`Issue not found: ${issueId}`);
-    assertIssueWritable(this.store, issue);
-    const workspace = this.store.fileConfigStore.getWorkspace(issue.workspace_id);
-    if (!workspace) throw new Error(`Workspace not found: ${issue.workspace_id}`);
-    const activeStage = this.store.getActiveStage(issueId);
-    if (!activeStage) throw new Error(`No active stage found for issue: ${issueId}`);
-    assertStageCanAdvance(this.store, activeStage.id);
-    this.pendingStageSuggestions.delete(issueId);
-    const result = transitionIssueStage({ store: this.store }, { workspace, issue, activeStage, targetStageKey });
-    logger.info("WorkspaceManager transitioned issue", { workspaceId: workspace.id, issueId, completedStageId: result.completed_stage.id, nextStageId: result.next_stage?.id ?? null, nextConversationId: result.conversation?.id ?? null });
-    return { ...result, completed_stage: buildStageDetail(this.store, result.completed_stage), next_stage: result.next_stage ? buildStageDetail(this.store, result.next_stage) : null };
+    return issueService.advanceIssue(this.issueDeps, issueId, targetStageKey, this.pendingStageSuggestions);
   }
 
-  /**
-   * 从当前 stage 转移到指定目标 stage。转移路径由 SOP 转移图约束。
-   */
   transitionIssueStage(issueId: string, targetStageKey: string) {
-    const issue = this.store.getIssue(issueId);
-    if (!issue) throw new Error(`Issue not found: ${issueId}`);
-    assertIssueWritable(this.store, issue);
-    const workspace = this.store.fileConfigStore.getWorkspace(issue.workspace_id);
-    if (!workspace) throw new Error(`Workspace not found: ${issue.workspace_id}`);
-    const activeStage = this.store.getActiveStage(issueId);
-    if (!activeStage) throw new Error(`No active stage found for issue: ${issueId}`);
-    const result = transitionIssueStage({ store: this.store }, { workspace, issue, activeStage, targetStageKey });
-    // 转移成功后清除 AI 建议（bounce 后旧建议失效；confirm 失败时此处不会执行，建议保留）
-    this.pendingStageSuggestions.delete(issueId);
-    logger.info("WorkspaceManager transitioned issue stage", { workspaceId: workspace.id, issueId, completedStageId: result.completed_stage.id, nextStageId: result.next_stage?.id, nextConversationId: result.conversation?.id });
-    return { ...result, completed_stage: buildStageDetail(this.store, result.completed_stage), next_stage: result.next_stage ? buildStageDetail(this.store, result.next_stage) : null };
+    return issueService.transitionIssueStageForIssue(this.issueDeps, issueId, targetStageKey, this.pendingStageSuggestions);
   }
 
   setIssueTaskAnchor(issueId: string, taskAnchor: string): Issue {
-    const issue = this.store.getIssue(issueId);
-    if (!issue) throw new Error(`Issue not found: ${issueId}`);
-    assertIssueWritable(this.store, issue);
-    return this.store.updateIssue(issueId, { task_anchor: taskAnchor });
+    return issueService.setIssueTaskAnchor(this.issueDeps, issueId, taskAnchor);
   }
 
   setIssueRoleSnail(issueId: string, stageKey: string, roleKey: string, snailTemplateId: string): Issue {
-    const issue = this.store.getIssue(issueId);
-    if (!issue) throw new Error(`Issue not found: ${issueId}`);
-    assertIssueWritable(this.store, issue);
-    const template = this.deps.snailDen.getTemplate(snailTemplateId);
-    if (!template) throw new Error(`Snail template not found: ${snailTemplateId}`);
-    const reader = new SopSnapshotReader(issue.sop_snapshot);
-    const roleKeys = reader.collectSopRoleKeys();
-    if (!roleKeys.has(roleKey)) throw new Error(`Invalid role key '${roleKey}' in SOP snapshot`);
-    const updated = { ...issue.role_snail_mapping };
-    if (!updated[stageKey]) updated[stageKey] = {};
-    updated[stageKey][roleKey] = snailTemplateId;
-    return this.store.updateIssue(issueId, { role_snail_mapping: updated });
+    return issueService.setIssueRoleSnail(this.issueDeps, issueId, stageKey, roleKey, snailTemplateId, this.deps.snailDen);
   }
 
   completeIssue(issueId: string): { issue: Issue; cleanup: RepoCleanupResult } {
-    const issue = this.store.getIssue(issueId);
-    if (!issue) throw new Error(`Issue not found: ${issueId}`);
-    assertIssueWritable(this.store, issue);
-    const stages = this.store.listStagesByIssue(issueId);
-    const cleanup = cleanupIssueRepoContext(stages, { repoRoot: this.repoRoot });
-    const completedIssue = this.store.updateIssue(issueId, { closed_at: new Date().toISOString() });
-    logger.info("WorkspaceManager completed issue", { issueId, cleanup });
-    return { issue: completedIssue, cleanup };
+    return issueService.completeIssue(this.issueDeps, issueId);
   }
 
   archiveIssue(issueId: string): { issue: Issue; cleanup: RepoCleanupResult } {
-    const issue = this.store.getIssue(issueId);
-    if (!issue) throw new Error(`Issue not found: ${issueId}`);
-    const stages = this.store.listStagesByIssue(issueId);
-    const cleanup = cleanupIssueRepoContext(stages, { repoRoot: this.repoRoot });
-    const archivedIssue = this.store.updateIssue(issueId, { closed_at: issue.closed_at ?? new Date().toISOString() });
-    logger.info("WorkspaceManager archived issue", { issueId, cleanup });
-    return { issue: archivedIssue, cleanup };
+    return issueService.archiveIssue(this.issueDeps, issueId);
   }
 
   updateStage(stageId: string, updates: Partial<Pick<Stage, "status" | "output_artifacts" | "gate_evidence" | "entered_at" | "left_at">>): Stage {
-    const stage = this.store.getStage(stageId);
-    if (!stage) throw new Error(`Stage not found: ${stageId}`);
-    assertIssueWritable(this.store, this.store.getIssue(stage.issue_id)!);
-    return this.store.updateStage(stageId, updates);
+    return issueService.updateStage(this.issueDeps, stageId, updates);
   }
+
+  // ── Conversation queries (delegated to manager-detail / manager-queries) ──
 
   listWorkspaceConversations(workspaceId: string): ConversationDetail[] { return this.store.listConversationsByWorkspace(workspaceId).map((c) => buildConversationDetail(this.store, c)); }
   getStageConversation(stageId: string): ConversationDetail | null { const c = this.store.getConversationByStage(stageId); return c ? buildConversationDetail(this.store, c) : null; }
   listIssueConversations(issueId: string): ConversationDetail[] { return this.store.listConversationsByIssue(issueId).map((c) => buildConversationDetail(this.store, c)); }
   getConversation(conversationId: string): ConversationDetail | null { const c = this.store.getConversation(conversationId); return c ? buildConversationDetail(this.store, c) : null; }
 
+  // ── Message sending (delegated to message-service) ───────────────
+
   async sendMessage(conversationId: string, userContent: string): Promise<{ messageIds: number[] }> {
-    return this.sendStructuredMessage(conversationId, [buildPlainTextEvent(userContent)]);
+    return messageService.sendMessage(this.messageDeps, conversationId, userContent);
   }
 
   async sendStructuredMessage(
@@ -317,43 +171,22 @@ export class WorkspaceManager extends EventEmitter {
     userParts: MessageInputEvent[],
     options: { fromRole?: RoleName; quotedMessageId?: number | null; askerRole?: RoleName | null; clientId?: string | null } = {},
   ): Promise<{ messageIds: number[] }> {
-    if (this.shuttingDown) throw new Error("Server is shutting down");
-    assertConversationIssueWritable(this.store, conversationId);
-    const { fromRole = HUMAN_ROLE_NAME, quotedMessageId = null, askerRole = null, clientId = null } = options;
-    return this.conversationQueue.enqueue(conversationId, async () => {
-      const result = await sendStructuredMessageWithCollaboration(
-        this.buildCollaborationInvokeDeps(conversationId),
-        conversationId,
-        userParts,
-        MAX_COLLABORATION_ROUNDS,
-        { fromRole, quotedMessageId, askerRole, clientId },
-      );
-      this.emitConversationBadgeUpdate(conversationId);
-      return result;
-    });
+    return messageService.sendStructuredMessage(this.messageDeps, conversationId, userParts, options);
   }
 
   async sendConversationMessage(conversationId: string, input: { content?: string; events?: MessageInputEvent[]; fromRole?: RoleName; quotedMessageId?: number | null; clientId?: string | null }): Promise<{ messageIds: number[] } | { error: { message: string } }> {
-    try {
-      const events = input.events ?? (input.content ? [buildPlainTextEvent(input.content)] : []);
-      if (events.length === 0) return { error: { message: "No content provided" } };
-      return await this.sendStructuredMessage(conversationId, events, { fromRole: input.fromRole, quotedMessageId: input.quotedMessageId, clientId: input.clientId });
-    } catch (err: any) {
-      return { error: { message: err.message } };
-    }
+    return messageService.sendConversationMessage(this.messageDeps, conversationId, input);
   }
 
   interruptMessage(conversationId: string, messageId: number): { interrupted: boolean } {
-    assertConversationIssueWritable(this.store, conversationId);
-    const message = this.store.getMessage(messageId, conversationId);
-    if (!message) throw new Error(`Message not found: ${messageId}`);
-    if (message.role !== "assistant") throw new Error(`Message is not interruptible: ${messageId}`);
-    return { interrupted: this.messageInterrupts.interrupt(conversationId, messageId) };
+    return messageService.interruptMessage(this.messageDeps, conversationId, messageId);
   }
 
-  interruptAllRunningMessages(): void { this.messageInterrupts.interruptAll(); }
-  markShuttingDown(): void { this.shuttingDown = true; this.interruptAllRunningMessages(); }
-  async waitForAllAgentProcessesStopped(): Promise<void> { await this.messageInterrupts.waitForAllStopped(); }
+  interruptAllRunningMessages(): void { messageService.interruptAllRunningMessages(this.messageDeps); }
+  markShuttingDown(): void { this.shuttingDown = true; messageService.interruptAllRunningMessages(this.messageDeps); }
+  async waitForAllAgentProcessesStopped(): Promise<void> { await messageService.waitForAllAgentProcessesStopped(this.messageDeps); }
+
+  // ── Conversation message queries (delegated to manager-queries) ──
 
   getConversationMessages(conversationId: string, limit = 100, offset = 0): MessageWithEvents[] { return managerQueries.getConversationMessages(this.store, conversationId, limit, offset); }
   getRecentConversationMessages(conversationId: string, limit = DEFAULT_AGENT_HISTORY_USER_MESSAGE_LIMIT): ConversationRecentMessagesSnapshot { return managerQueries.getRecentConversationMessages(this.store, conversationId, limit); }
@@ -375,136 +208,56 @@ export class WorkspaceManager extends EventEmitter {
 
   searchConversationHistory(conversationId: string, query: string, limit = 5, offset = 0): ConversationHistorySearchPage { return managerQueries.searchConversationHistory({ store: this.store, conversationId, query, limit, offset }); }
 
-  listRoles() { return this.store.fileConfigStore.listRoleDefinitionsByWorkspace(""); }
-  listSops(source?: "platform" | "workspace") { return this.store.fileConfigStore.listSops(source); }
-  getSop(sopId: string) { return this.store.fileConfigStore.getSop(sopId); }
-  createPlatformSop(input: Parameters<typeof this.store.fileConfigStore.createPlatformSop>[0]) { return this.store.fileConfigStore.createPlatformSop(input); }
-  updatePlatformSop(sopId: string, input: Parameters<typeof this.store.fileConfigStore.updatePlatformSop>[1]) { return this.store.fileConfigStore.updatePlatformSop(sopId, input); }
-  deletePlatformSop(sopId: string): string[] { return this.store.fileConfigStore.deletePlatformSop(sopId); }
-  listSopStageDefinitionsWithRoles(sopId: string) { return this.store.fileConfigStore.listSopStageDefinitionsWithRoles(sopId); }
-  collectSopRoleKeys(sopId: string) { return this.store.fileConfigStore.collectSopRoleKeys(sopId); }
-  listSopStageDefinitions(sopId: string) { return this.store.fileConfigStore.listSopStageDefinitions(sopId); }
-  getSopTransitions(sopId: string) { return this.store.fileConfigStore.getSopTransitions(sopId); }
-  getForwardTransitions(sopId: string, fromStageKey: string) { return this.store.fileConfigStore.getForwardTransitions(sopId, fromStageKey); }
+  // ── SOP management (delegated to sop-service) ────────────────────
+
+  listRoles() { return sopService.listRoles(this.store); }
+  listSops(source?: "platform" | "workspace") { return sopService.listSops(this.store, source); }
+  getSop(sopId: string) { return sopService.getSop(this.store, sopId); }
+  createPlatformSop(input: Parameters<ConversationStore["fileConfigStore"]["createPlatformSop"]>[0]) { return sopService.createPlatformSop(this.store, input); }
+  updatePlatformSop(sopId: string, input: Parameters<ConversationStore["fileConfigStore"]["updatePlatformSop"]>[1]) { return sopService.updatePlatformSop(this.store, sopId, input); }
+  deletePlatformSop(sopId: string): string[] { return sopService.deletePlatformSop(this.store, sopId); }
+  listSopStageDefinitionsWithRoles(sopId: string) { return sopService.listSopStageDefinitionsWithRoles(this.store, sopId); }
+  collectSopRoleKeys(sopId: string) { return sopService.collectSopRoleKeys(this.store, sopId); }
+  listSopStageDefinitions(sopId: string) { return sopService.listSopStageDefinitions(this.store, sopId); }
+  getSopTransitions(sopId: string) { return sopService.getSopTransitions(this.store, sopId); }
+  getForwardTransitions(sopId: string, fromStageKey: string) { return sopService.getForwardTransitions(this.store, sopId, fromStageKey); }
+
+  // ── Evolution center ─────────────────────────────────────────────
 
   createEvolutionItem(input: Omit<CreateEvolutionItemInput, "id">, roleSnailMapping: Record<string, Record<string, string>>): EvolutionItemWithConversation { return evolutionCenter.createEvolutionItem(this.store, input, roleSnailMapping); }
   getEvolutionItem(id: string): EvolutionItemWithConversation | null { return evolutionCenter.getEvolutionItem(this.store, id); }
   listEvolutionItems(filters: EvolutionItemListFilters = {}): EvolutionItemSearchResult[] { return evolutionCenter.listEvolutionItems(this.store, filters); }
   updateEvolutionItem(id: string, input: UpdateEvolutionItemInput): EvolutionItemWithConversation { return evolutionCenter.updateEvolutionItem(this.store, id, input); }
 
-  /** Knowledge Library methods */
+  // ── Knowledge library ────────────────────────────────────────────
+
   getKnowledgeLibrarySummary(): { scope: string; count: number }[] { return this.store.knowledgeLibrary.summary(); }
   getKnowledgeLibraryEntry(id: string) { return this.store.knowledgeLibrary.get(id); }
   listKnowledgeLibrary(filters: any = {}) { return this.store.knowledgeLibrary.list(filters); }
   searchKnowledgeLibrary(filters: any) { return this.store.knowledgeLibrary.search(filters); }
 
-  /** 构建 sendStructuredMessageWithCollaboration 所需的依赖对象。 */
-  private buildCollaborationInvokeDeps(conversationId: string) {
-    const deps = this.collaborationDeps;
-    return {
-      store: this.store,
-      emitAgentEvent: (targetConversationId: string, event: Record<string, unknown>) => this.emit("agent-event", targetConversationId, event),
-      buildConversationSystemPrompt: (targetConversationId: string, options: CollaborationInvocationOptions) => resolveConversationSystemPrompt(deps, targetConversationId, options),
-      resolveMentions: (targetConversationId: string, events: MessageInputEvent[], isAgentReply?: boolean) => resolveMentions(deps, targetConversationId, events, isAgentReply),
-      refreshConversationSummary: async () => { /* disabled — relying on agent-side state tracking */ },
-      messageContextSummaryGenerator: null,
-      resolveRole: (roleName: RoleName) => resolveConversationRole(deps, conversationId, roleName),
-      resolveRuntimeByRole: (role: any) => {
-        const templateId = role.snail_template_id;
-        if (!templateId) throw new Error(`No snail template for role: ${role.name}`);
-        return this.deps.snailDen.getSnailRuntime(templateId).runtime;
-      },
-      resolveRoleTemplate: (role: any) => {
-        const templateId = role.snail_template_id;
-        if (!templateId) return undefined;
-        const template = this.deps.snailDen.getTemplate(templateId);
-        if (!template) return undefined;
-        return {
-          templateId,
-          runtime: template.runtime,
-          model: template.model,
-          contextProvider: template.contextProvider,
-          contextWindow: template.contextWindow,
-          invocationTimeoutMs: template.invocationTimeoutMs,
-        };
-      },
-      lookupOrCreateSnailAgentSession: (targetConversationId: string, roleName: string, role: any) => {
-        const existing = this.store.getCurrentSnailAgentSession(targetConversationId, roleName);
-        const templateId = role.snail_template_id;
-        if (!templateId) throw new Error(`No snail template for role: ${roleName}`);
-        const template = this.deps.snailDen.getTemplate(templateId);
-        if (!template) throw new Error(`Snail template not found: ${templateId}`);
-        if (existing && existing.runtime === template.runtime && existing.model === template.model) return existing;
-        return this.store.createSnailAgentSession({ id: `${targetConversationId}:${roleName}:${Date.now()}`, conversationId: targetConversationId, roleName, runtime: template.runtime, model: template.model, contextProvider: template.contextProvider });
-      },
-      updateSnailAgentSessionExternalId: (sessionId: string, externalSessionId: string | null) => { this.store.updateSnailAgentSessionExternalId(sessionId, externalSessionId); },
-      createInterruptController: () => this.messageInterrupts.createRunController(),
-      bindInterruptMessage: (targetConversationId: string, messageId: number, controller: AbortController) => this.messageInterrupts.bindMessage(targetConversationId, messageId, controller),
-      registerStopPromise: (targetConversationId: string, messageId: number, stopPromise: Promise<void>) => this.messageInterrupts.registerStopPromise(targetConversationId, messageId, stopPromise),
-      finishInterruptMessage: (targetConversationId: string, messageId: number) => this.messageInterrupts.finishMessage(targetConversationId, messageId),
-      onStageTransitionDetected: (targetConversationId: string, targetStageKey: string, reason: string | null) => {
-        this.handleAgentStageSuggestion(targetConversationId, targetStageKey, reason);
-      },
-    };
-  }
+  // ── Stage suggestions (delegated to stage-suggestion-service) ────
 
-  /**
-   * Agent 输出中检测到 stage_transition 时，存储为待确认建议并通过 WebSocket 通知前端。
-   * 不再自动执行转移——用户确认后通过 confirmStageSuggestion 执行。
-   */
-  private handleAgentStageSuggestion(conversationId: string, targetStageKey: string, reason: string | null): void {
-    try {
-      const context = this.resolveAgentTransitionContext(conversationId);
-      if (!context) return;
-      const suggestion: StageSuggestion = {
-        issueId: context.issue.id,
-        fromStageKey: context.activeStage.type,
-        toStageKey: targetStageKey,
-        reason,
-        suggestedAt: new Date().toISOString(),
-      };
-      this.pendingStageSuggestions.set(context.issue.id, suggestion);
-      this.emit("stage-suggestion", suggestion);
-      logger.info("Agent stage transition suggested", { conversationId, issueId: context.issue.id, from: suggestion.fromStageKey, to: targetStageKey, reason });
-    } catch (error) {
-      logger.warn("Agent stage suggestion failed", { conversationId, targetStageKey, error: error instanceof Error ? error.message : String(error) });
-    }
-  }
-
-  /** 获取指定 issue 的待确认阶段转移建议。 */
   getPendingStageSuggestion(issueId: string): StageSuggestion | null {
-    return this.pendingStageSuggestions.get(issueId) ?? null;
+    return stageSuggestionService.getPendingStageSuggestion(this.stageSuggestionDeps, issueId);
   }
 
-  /** 确认 AI 提议的阶段转移并执行。转移失败时保留建议以便重试。 */
   confirmStageSuggestion(issueId: string) {
-    const suggestion = this.pendingStageSuggestions.get(issueId);
-    if (!suggestion) throw new Error("No pending stage suggestion");
-    const result = this.transitionIssueStage(issueId, suggestion.toStageKey);
-    // 转移成功后才清除建议；失败则保留以便用户重试
-    this.pendingStageSuggestions.delete(issueId);
-    return result;
+    return stageSuggestionService.confirmStageSuggestion(this.stageSuggestionDeps, issueId);
   }
 
-  /** 拒绝 AI 提议的阶段转移。 */
   clearStageSuggestion(issueId: string): void {
-    this.pendingStageSuggestions.delete(issueId);
+    stageSuggestionService.clearStageSuggestion(this.stageSuggestionDeps, issueId);
   }
 
-  /** 解析 agent 转移所需的上下文，缺失时 log.warn 并返回 null */
-  private resolveAgentTransitionContext(conversationId: string): { issue: Issue; workspace: Workspace; activeStage: Stage } | null {
-    const conversation = this.store.getConversation(conversationId);
-    if (!conversation || !conversation.issue_id || !conversation.stage_id) { logger.warn("stage_transition: conversation context incomplete", { conversationId }); return null; }
-    const issue = this.store.getIssue(conversation.issue_id);
-    if (!issue) { logger.warn("stage_transition: issue not found", { issueId: conversation.issue_id }); return null; }
-    /** 防止 agent 在已归档 issue 上绕过 API 层保护直接驱动转移 */
-    assertIssueWritable(this.store, issue);
-    const workspace = this.store.fileConfigStore.getWorkspace(issue.workspace_id);
-    if (!workspace) { logger.warn("stage_transition: workspace not found", { workspaceId: issue.workspace_id }); return null; }
-    const activeStage = this.store.getStage(conversation.stage_id);
-    if (!activeStage) { logger.warn("stage_transition: stage not found", { stageId: conversation.stage_id }); return null; }
-    return { issue, workspace, activeStage };
+  // ── Private helpers (kept for event emission and delegation wiring) ──
+
+  private handleAgentStageSuggestion(conversationId: string, targetStageKey: string, reason: string | null): void {
+    stageSuggestionService.handleAgentStageSuggestion(this.stageSuggestionDeps, conversationId, targetStageKey, reason);
   }
 
-  private emitConversationBadgeUpdate(conversationId: string): void { const conversation = this.getConversation(conversationId); if (conversation) this.emit("conversation-badge", buildConversationBadgePayload(conversation)); }
+  private emitConversationBadgeUpdate(conversationId: string): void {
+    const conversation = this.getConversation(conversationId);
+    if (conversation) this.emit("conversation-badge", buildConversationBadgePayload(conversation));
+  }
 }
