@@ -13,8 +13,6 @@ import { StageActions, type Transition } from "../components/StageActions";
 import { StageSuggestionBanner } from "../components/StageSuggestionBanner";
 import { showToast } from "../components/Toast";
 import { Button } from "@/components/ui/button";
-// Types inferred from query return types
-
 export function ConversationLayout() {
   const { workspaceId, issueId } = useParams();
   const navigate = useNavigate();
@@ -32,11 +30,11 @@ export function ConversationLayout() {
 
   // TanStack Query: SOP transitions
   const sopId = issue?.sop_snapshot?.sop_id;
-  const { data: sopData } = useQuery({
+  const { data: transitions = [] } = useQuery({
     ...sopQueries.detail(sopId || ""),
     enabled: !!sopId,
+    select: (data): Transition[] => (data as { transitions?: Transition[] } | undefined)?.transitions ?? [],
   });
-  const transitions: Transition[] = (sopData as { transitions?: Transition[] } | undefined)?.transitions ?? [];
 
   // 当前 stage 的 ID（来自 store 或 issue 默认值）
   const activeStageId = currentStage?.id || issue?.current_stage?.id || issue?.stages?.at(-1)?.id;
