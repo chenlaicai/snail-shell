@@ -165,6 +165,7 @@ export default tseslint.config(
       "src/agent/claude-code.ts",
       "src/agent/claude-code-stateful.ts",
       "src/message-bus/collaboration.ts",
+      "src/message-bus/role-invoker.ts",
       "src/workspace-workflow/tool-use.ts",
       "src/snails/prompt-builder.ts",
       "src/prompt-center/builder.ts",
