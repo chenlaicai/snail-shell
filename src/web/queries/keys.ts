@@ -1,6 +1,6 @@
 // query key 工厂——queries/mutations/WebSocket handler 统一引用
 
-interface EvolutionFilters {
+export interface EvolutionFilters {
   workspace_id?: string;
   issue_id?: string;
   query?: string;
@@ -8,7 +8,7 @@ interface EvolutionFilters {
   offset?: number;
 }
 
-interface KnowledgeFilters {
+export interface KnowledgeFilters {
   scope?: "global" | "workspace";
   workspace_id?: string;
   query?: string;

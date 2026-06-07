@@ -16,11 +16,14 @@ export function Dialog({ open, onClose, title, children }: DialogProps) {
     if (!el) return;
     if (open && !el.open) {
       el.showModal();
-      // 焦点移到 dialog 内第一个可聚焦元素
-      const firstFocusable = el.querySelector<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-      );
-      firstFocusable?.focus();
+      // 延迟聚焦，确保动态内容已渲染
+      requestAnimationFrame(() => {
+        const autofocus = el.querySelector<HTMLElement>("[data-autofocus]");
+        const target = autofocus ?? el.querySelector<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        target?.focus();
+      });
     }
     if (!open && el.open) el.close();
   }, [open]);

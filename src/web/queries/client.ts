@@ -15,16 +15,24 @@ export const queryClient = new QueryClient({
 // 使用 errorUpdatedAt 去重，避免 refetch 时重复弹 toast
 const recentErrors = new Map<string, number>();
 
-// 定期清理过期条目，防止内存泄漏
+// 定期清理过期条目 + 最大条目限制，防止内存泄漏
 // globalThis 防止 Vite HMR 场景下累积多个 interval
 const CLEANUP_INTERVAL = 60_000;
 const MAX_ERROR_AGE = 120_000;
+const MAX_ERROR_ENTRIES = 200;
 const g = globalThis as Record<string, unknown>;
 if (!g.__snail_error_cleanup) {
   g.__snail_error_cleanup = setInterval(() => {
     const now = Date.now();
     for (const [key, timestamp] of recentErrors) {
       if (now - timestamp > MAX_ERROR_AGE) recentErrors.delete(key);
+    }
+    // 超出上限时删除最旧条目
+    if (recentErrors.size > MAX_ERROR_ENTRIES) {
+      const sorted = [...recentErrors.entries()].sort((a, b) => a[1] - b[1]);
+      for (let i = 0; i < sorted.length - MAX_ERROR_ENTRIES; i++) {
+        recentErrors.delete(sorted[i][0]);
+      }
     }
   }, CLEANUP_INTERVAL);
 }

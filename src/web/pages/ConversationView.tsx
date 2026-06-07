@@ -107,7 +107,9 @@ export function ConversationView({ conversationId }: Props) {
       queryClient.invalidateQueries({ queryKey: queryKeys.conversations.messages(conversationId) });
     } catch (err: unknown) {
       showToast(`发送失败：${err instanceof Error ? err.message : String(err)}`, true);
+      // 回滚乐观消息 + 重新同步相关缓存
       queryClient.setQueryData(queryKeys.conversations.messages(conversationId), (old: MessageDto[] | undefined) => old?.filter((m) => m.id !== optimisticId));
+      queryClient.invalidateQueries({ queryKey: queryKeys.conversations.detail(conversationId) });
     }
     setSending(false);
   }
