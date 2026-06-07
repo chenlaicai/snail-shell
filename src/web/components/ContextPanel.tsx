@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useConversationStore } from "../stores/conversationStore";
 import { api } from "../services/api-client";
 import { metaQueries } from "../queries/meta.queries";
@@ -48,51 +48,55 @@ export function ContextPanel({
   const outputArtifacts = useMemo(() => (stageDetail?.output_artifacts || {}) as Record<string, string>, [stageDetail?.output_artifacts]);
   const inputArtifacts = useMemo(() => (stageDetail?.input_artifacts || {}) as Record<string, string>, [stageDetail?.input_artifacts]);
 
-  function invalidateStage() {
-    if (currentStage) queryClient.invalidateQueries({ queryKey: ["stages", currentStage.id] });
-  }
+  const stageQueryKey = ["stages", currentStage?.id];
 
-  // 添加输出产物
-  async function handleAddArtifact() {
-    if (!currentStage || !newArtifactKey.trim() || !newArtifactValue.trim()) return;
-    const updated = { ...outputArtifacts, [newArtifactKey.trim()]: newArtifactValue.trim() };
-    try {
-      await api("PATCH /api/stages/:stageId", { params: { stageId: currentStage.id }, body: { output_artifacts: updated } });
+  const addArtifactMutation = useMutation({
+    mutationFn: (updated: Record<string, string>) =>
+      api("PATCH /api/stages/:stageId", { params: { stageId: currentStage!.id }, body: { output_artifacts: updated } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: stageQueryKey });
       setNewArtifactKey("");
       setNewArtifactValue("");
-      invalidateStage();
       showToast("已添加输出产物");
-    } catch (err: unknown) {
-      showToast(`添加失败：${err instanceof Error ? err.message : String(err)}`, true);
-    }
+    },
+    onError: (err: Error) => showToast(`添加失败：${err.message}`, true),
+  });
+
+  const removeArtifactMutation = useMutation({
+    mutationFn: (updated: Record<string, string>) =>
+      api("PATCH /api/stages/:stageId", { params: { stageId: currentStage!.id }, body: { output_artifacts: updated } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: stageQueryKey });
+      showToast("已移除输出产物");
+    },
+    onError: (err: Error) => showToast(`移除失败：${err.message}`, true),
+  });
+
+  const templateMutation = useMutation({
+    mutationFn: ({ roleName, templateId }: { roleName: string; templateId: string }) =>
+      api("PATCH /api/issues/:issueId/role-snail", {
+        params: { issueId: issue!.id },
+        body: { stage_id: currentStage!.id, role_name: roleName, snail_template_id: templateId },
+      }),
+    onSuccess: (_data, { roleName }) => showToast(`已切换 ${roleName} 的模板`),
+    onError: (err: Error) => showToast(`切换失败：${err.message}`, true),
+  });
+
+  function handleAddArtifact() {
+    if (!currentStage || !newArtifactKey.trim() || !newArtifactValue.trim()) return;
+    addArtifactMutation.mutate({ ...outputArtifacts, [newArtifactKey.trim()]: newArtifactValue.trim() });
   }
 
-  // 删除输出产物
-  async function handleRemoveArtifact(key: string) {
+  function handleRemoveArtifact(key: string) {
     if (!currentStage) return;
     const updated = { ...outputArtifacts };
     delete updated[key];
-    try {
-      await api("PATCH /api/stages/:stageId", { params: { stageId: currentStage.id }, body: { output_artifacts: updated } });
-      invalidateStage();
-      showToast("已移除输出产物");
-    } catch (err: unknown) {
-      showToast(`移除失败：${err instanceof Error ? err.message : String(err)}`, true);
-    }
+    removeArtifactMutation.mutate(updated);
   }
 
-  // 切换角色模板
-  async function handleTemplateChange(roleName: string, templateId: string) {
+  function handleTemplateChange(roleName: string, templateId: string) {
     if (!issue || !currentStage) return;
-    try {
-      await api("PATCH /api/issues/:issueId/role-snail", {
-        params: { issueId: issue.id },
-        body: { stage_id: currentStage.id, role_name: roleName, snail_template_id: templateId },
-      });
-      showToast(`已切换 ${roleName} 的模板`);
-    } catch (err: unknown) {
-      showToast(`切换失败：${err instanceof Error ? err.message : String(err)}`, true);
-    }
+    templateMutation.mutate({ roleName, templateId });
   }
 
   return (

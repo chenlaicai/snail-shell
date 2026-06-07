@@ -1,9 +1,10 @@
 import { create } from "zustand";
 import type { StageDetailDto, ConversationDto } from "../types";
 
-/** Store 中保存的 Stage 子集——StageDetailDto 包含 stage_definition 等运行时丰富字段。 */
+/** Store 中保存的 Stage 子集——从 StageDetailDto 提取，自动跟随 DTO 类型演进。 */
+type StageDef = NonNullable<StageDetailDto["stage_definition"]>;
 type CurrentStage = Pick<StageDetailDto, "id" | "type" | "status"> & {
-  stage_definition?: { key: string; title?: string; sequence?: number } | null;
+  stage_definition?: Pick<StageDef, "key" | "title"> | null;
 };
 
 /** Store 中保存的 Conversation 子集。 */

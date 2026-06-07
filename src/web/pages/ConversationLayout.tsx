@@ -46,33 +46,35 @@ export function ConversationLayout() {
   });
 
   // 初始化：issueId 切换时清空 store 并设置默认 stage/conv
-  const initializedRef = useRef<string | null>(null);
+  // 用单一 key 跟踪初始化状态，避免双 ref 隐式依赖
+  const initKey = issueId ? `${issueId}:${activeStageId ?? ""}` : null;
+  const lastInitRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (!issueId || !issue) return;
-    if (initializedRef.current === issueId) return;
-    initializedRef.current = issueId;
-    clear();
+    if (!issueId || !issue || !initKey) return;
+    if (lastInitRef.current === initKey) return;
+    lastInitRef.current = initKey;
 
-    // 从 URL searchParams 或 issue 默认值确定初始 stage
-    const stageId = searchParams.get("stage");
-    const stage = stageId
-      ? issue.stages.find((s) => s.id === stageId)
-      : issue.current_stage || issue.stages[issue.stages.length - 1];
-    setCurrentStage(stage || null);
+    // issueId 变化时清空
+    const prevIssue = lastInitRef.current?.split(":")[0];
+    if (prevIssue !== issueId) clear();
 
-    // conversations 尚未加载，由下面的 effect 在加载后设置 currentConversation
-  }, [issueId, issue]);
+    // 设置 stage（仅尚未设置时）
+    if (!currentStage) {
+      const stageId = searchParams.get("stage");
+      const stage = stageId
+        ? issue.stages.find((s) => s.id === stageId)
+        : issue.current_stage || issue.stages[issue.stages.length - 1];
+      setCurrentStage(stage || null);
+    }
 
-  // conversations 加载后设置 currentConversation（仅首次）
-  const convInitializedRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!activeStageId || !conversations.length) return;
-    if (convInitializedRef.current === activeStageId) return;
-    convInitializedRef.current = activeStageId;
-    const convId = searchParams.get("conv");
-    const conv = convId ? conversations.find((c) => c.id === convId) : conversations[0];
-    setCurrentConversation(conv || null);
-  }, [activeStageId, conversations]);
+    // 设置 conversation（仅 conversations 已加载且尚未设置时）
+    if (!currentConversation && conversations.length) {
+      const convId = searchParams.get("conv");
+      const conv = convId ? conversations.find((c) => c.id === convId) : conversations[0];
+      setCurrentConversation(conv || null);
+    }
+  }, [initKey]);
 
   // Update URL when stage/conversation changes (one-way: store -> URL)
   useEffect(() => {
@@ -94,10 +96,10 @@ export function ConversationLayout() {
     if (currentStage) {
       queryClient.invalidateQueries({ queryKey: queryKeys.stages.conversations(currentStage.id) });
     }
-    // 重置 store 使 activeStageId 从 issue 数据重新计算
+    // 重置 store 和初始化跟踪，使 effect 重新设置 stage/conv
     setCurrentStage(null);
     setCurrentConversation(null);
-    convInitializedRef.current = null;
+    lastInitRef.current = null;
   }
 
   return (
