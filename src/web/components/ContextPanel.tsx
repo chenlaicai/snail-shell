@@ -56,7 +56,7 @@ export function ContextPanel({
   const outputArtifacts = useMemo(() => toStringRecord(stageDetail?.output_artifacts), [stageDetail?.output_artifacts]);
   const inputArtifacts = useMemo(() => toStringRecord(stageDetail?.input_artifacts), [stageDetail?.input_artifacts]);
 
-  const stageQueryKey = queryKeys.stages.detail(currentStage?.id ?? "");
+  const stageQueryKey = useMemo(() => queryKeys.stages.detail(currentStage?.id ?? ""), [currentStage?.id]);
 
   const addArtifactMutation = useMutation({
     mutationFn: (updated: Record<string, string>) => {

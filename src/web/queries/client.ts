@@ -16,14 +16,18 @@ export const queryClient = new QueryClient({
 const recentErrors = new Map<string, number>();
 
 // 定期清理过期条目，防止内存泄漏
+// globalThis 防止 Vite HMR 场景下累积多个 interval
 const CLEANUP_INTERVAL = 60_000;
 const MAX_ERROR_AGE = 120_000;
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, timestamp] of recentErrors) {
-    if (now - timestamp > MAX_ERROR_AGE) recentErrors.delete(key);
-  }
-}, CLEANUP_INTERVAL);
+const g = globalThis as Record<string, unknown>;
+if (!g.__snail_error_cleanup) {
+  g.__snail_error_cleanup = setInterval(() => {
+    const now = Date.now();
+    for (const [key, timestamp] of recentErrors) {
+      if (now - timestamp > MAX_ERROR_AGE) recentErrors.delete(key);
+    }
+  }, CLEANUP_INTERVAL);
+}
 
 queryClient.getQueryCache().subscribe((event) => {
   if (event.type !== "updated" || event.query.state.status !== "error") return;
