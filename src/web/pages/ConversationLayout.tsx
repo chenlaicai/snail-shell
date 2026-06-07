@@ -13,22 +13,7 @@ import { StageActions, type Transition } from "../components/StageActions";
 import { StageSuggestionBanner } from "../components/StageSuggestionBanner";
 import { showToast } from "../components/Toast";
 import { Button } from "@/components/ui/button";
-
-interface Stage {
-  id: string;
-  type: string;
-  status: string;
-  stage_definition?: { title?: string };
-}
-
-interface Issue {
-  id: string;
-  title: string;
-  stages: Stage[];
-  current_stage?: Stage;
-  sop_snapshot?: { sop_id?: string };
-  closed_at?: string | null;
-}
+// Types inferred from query return types
 
 export function ConversationLayout() {
   const { workspaceId, issueId } = useParams();
@@ -46,7 +31,7 @@ export function ConversationLayout() {
   });
 
   // TanStack Query: SOP transitions
-  const sopId = (issue as Issue | undefined)?.sop_snapshot?.sop_id;
+  const sopId = issue?.sop_snapshot?.sop_id;
   const { data: sopData } = useQuery({
     ...sopQueries.detail(sopId || ""),
     enabled: !!sopId,
@@ -54,7 +39,7 @@ export function ConversationLayout() {
   const transitions: Transition[] = (sopData as { transitions?: Transition[] } | undefined)?.transitions ?? [];
 
   // 当前 stage 的 ID（来自 store 或 issue 默认值）
-  const activeStageId = currentStage?.id || (issue as Issue | undefined)?.current_stage?.id || (issue as Issue | undefined)?.stages?.at(-1)?.id;
+  const activeStageId = currentStage?.id || issue?.current_stage?.id || issue?.stages?.at(-1)?.id;
 
   // TanStack Query: stage conversations
   const { data: conversations = [] } = useQuery({
@@ -69,11 +54,10 @@ export function ConversationLayout() {
     if (prevIssueRef.current !== issueId) {
       clear();
       prevIssueRef.current = issueId;
-      const issueData = issue as Issue;
       const stageId = searchParams.get("stage");
       const stage = stageId
-        ? issueData.stages.find((s) => s.id === stageId)
-        : issueData.current_stage || issueData.stages[issueData.stages.length - 1];
+        ? issue.stages.find((s) => s.id === stageId)
+        : issue.current_stage || issue.stages[issue.stages.length - 1];
       setCurrentStage(stage || null);
     }
   }, [issueId, issue]);
@@ -84,9 +68,8 @@ export function ConversationLayout() {
     if (!activeStageId || !conversations.length) return;
     if (prevStageRef.current !== activeStageId) {
       prevStageRef.current = activeStageId;
-      const convList = conversations as Array<{ id: string; title: string; default_role: string }>;
       const convId = searchParams.get("conv");
-      const conv = convId ? convList.find((c) => c.id === convId) : convList[0];
+      const conv = convId ? conversations.find((c) => c.id === convId) : conversations[0];
       setCurrentConversation(conv || null);
     }
   }, [activeStageId, conversations]);
@@ -106,8 +89,6 @@ export function ConversationLayout() {
   if (isLoading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
   if (!issue) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">Issue 不存在</div>;
 
-  const issueData = issue as Issue;
-
   function handleStageChanged() {
     queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(issueId!) });
   }
@@ -122,9 +103,9 @@ export function ConversationLayout() {
           </svg>
         </button>
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{issueData.title}</div>
+          <div className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{issue.title}</div>
           <div className="text-[11px] text-[var(--color-text-grey)] truncate">
-            {workspaceId} / <span>{issueData.title}</span>
+            {workspaceId} / <span>{issue.title}</span>
             {currentStage && ` / ${currentStage.stage_definition?.title || currentStage.type}`}
           </div>
         </div>
@@ -132,7 +113,7 @@ export function ConversationLayout() {
 
       {/* Stage tabs */}
       <div className="flex gap-[var(--space-xs)] px-[var(--space-lg)] py-[var(--space-sm)] border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0 overflow-x-auto">
-        {issueData.stages.map((stage) => (
+        {issue.stages.map((stage) => (
           <button
             key={stage.id}
             className={`px-[var(--space-md)] py-[var(--space-xs)] rounded-[var(--radius-sm)] text-[12px] border transition-colors ${
@@ -148,16 +129,16 @@ export function ConversationLayout() {
       </div>
 
       <StageActions
-        issue={issueData}
+        issue={issue}
         currentStage={currentStage}
         transitions={transitions}
         onStageChanged={handleStageChanged}
       />
 
       {/* Conversation tabs */}
-      {(conversations as Array<{ id: string; title: string }>).length > 1 && (
+      {conversations.length > 1 && (
         <div className="flex gap-[var(--space-xs)] px-[var(--space-lg)] py-[var(--space-xs)] border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0 overflow-x-auto">
-          {(conversations as Array<{ id: string; title: string }>).map((conv) => (
+          {conversations.map((conv) => (
             <button
               key={conv.id}
               className={`px-[var(--space-md)] py-[var(--space-xs)] rounded-[var(--radius-sm)] text-[11px] transition-colors ${
@@ -178,7 +159,7 @@ export function ConversationLayout() {
               try {
                 const result = await api("POST /api/issues/:issueId/stages/:stageId/conversations", { params: { issueId: issueId!, stageId: currentStage.id }, body: {} });
                 const newConv = result.conversation || result;
-                queryClient.invalidateQueries({ queryKey: ["stages", currentStage.id, "conversations"] });
+                queryClient.invalidateQueries({ queryKey: queryKeys.stages.conversations(currentStage.id) });
                 setCurrentConversation(newConv);
                 showToast("已创建新 Conversation");
               } catch (err: unknown) {
