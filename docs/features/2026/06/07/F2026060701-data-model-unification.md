@@ -297,6 +297,9 @@ src/shared/
 - `src/web/pages/SopCenter.tsx` — `SopDto` → `Sop`
 - `src/web/pages/Lobby.tsx` — `LobbySessionDto` → `LobbySession`，`LobbyMessageDto` → `LobbyMessage`
 - `src/web/pages/KnowledgeLibrary.tsx` — `KnowledgeEntryDto` → `KnowledgeLibraryEntry`
+- `src/web/pages/WorkspaceBoard.tsx` — `WorkspaceDetailDto` → `WorkspaceDetail`，`IssueDetailDto` → `IssueDetail`
+- `src/web/pages/ConversationView.tsx` — `ConversationDetailDto` → `ConversationDetail`
+- `src/web/components/Sidebar/WorkspaceTree.tsx` — `WorkspaceSummaryDto` → `WorkspaceSummary`
 - `src/web/mutations/sop.mutations.ts` — `SopTransitionDto` → `SopTransition`
 
 ### src/

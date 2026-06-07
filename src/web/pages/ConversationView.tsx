@@ -10,7 +10,7 @@ import { extractMessageContent, EventStreamView, ContentBlockView } from "../com
 import { useMention } from "../hooks/useMention";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import type { MessageDto, ConversationDetailDto, Role, RuntimeUsage } from "../types";
+import type { MessageDto, ConversationDetail, Role, RuntimeUsage } from "../types";
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
@@ -164,7 +164,7 @@ export function ConversationView({ conversationId }: Props) {
   useEffect(() => {
     if (!conversationId) return;
     api("GET /api/conversations/:conversationId", { params: { conversationId } })
-      .then((data: ConversationDetailDto) => {
+      .then((data: ConversationDetail) => {
         setAvailableRoles((data.participating_roles || []).map((name) => ({ name })));
       })
       .catch(() => {});

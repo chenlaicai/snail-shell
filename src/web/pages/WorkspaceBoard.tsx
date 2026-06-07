@@ -6,7 +6,7 @@ import { Dialog } from "../components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import type { WorkspaceDetailDto, IssueDetailDto } from "../types";
+import type { WorkspaceDetail, IssueDetail } from "../types";
 
 const STATUS_GROUPS = [
   { key: "pending", label: "待处理" },
@@ -14,13 +14,13 @@ const STATUS_GROUPS = [
   { key: "completed", label: "已完成" },
 ];
 
-function classifyIssue(issue: IssueDetailDto): string {
+function classifyIssue(issue: IssueDetail): string {
   if (issue.closed_at) return "completed";
   if (issue.current_stage?.status === "in_progress") return "in_progress";
   return "pending";
 }
 
-function stageTagClass(issue: IssueDetailDto): string {
+function stageTagClass(issue: IssueDetail): string {
   const type = issue.current_stage?.type;
   if (type === "design") return "design";
   if (type === "development") return "development";
@@ -29,7 +29,7 @@ function stageTagClass(issue: IssueDetailDto): string {
   return "";
 }
 
-function stageLabel(issue: IssueDetailDto): string {
+function stageLabel(issue: IssueDetail): string {
   const type = issue.current_stage?.type;
   if (type === "design") return "design";
   if (type === "development") return "development";
@@ -68,13 +68,13 @@ function formatWaitTime(dateStr?: string): string {
 export function WorkspaceBoard() {
   const { workspaceId } = useParams();
   const navigate = useNavigate();
-  const [workspace, setWorkspace] = useState<WorkspaceDetailDto | null>(null);
+  const [workspace, setWorkspace] = useState<WorkspaceDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newSummary, setNewSummary] = useState("");
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
-  const [archiveTarget, setArchiveTarget] = useState<IssueDetailDto | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<IssueDetail | null>(null);
 
   function reload() {
     if (!workspaceId) return;
@@ -101,7 +101,7 @@ export function WorkspaceBoard() {
     }
   }
 
-  function confirmArchive(issue: IssueDetailDto) {
+  function confirmArchive(issue: IssueDetail) {
     if (issue.closed_at) return;
     setArchiveTarget(issue);
     setArchiveDialogOpen(true);
@@ -135,7 +135,7 @@ export function WorkspaceBoard() {
   if (loading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
   if (!workspace) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">工作区不存在</div>;
 
-  const groups: Record<string, IssueDetailDto[]> = { pending: [], in_progress: [], completed: [] };
+  const groups: Record<string, IssueDetail[]> = { pending: [], in_progress: [], completed: [] };
   for (const issue of workspace.issues ?? []) {
     groups[classifyIssue(issue)].push(issue);
   }
@@ -214,7 +214,7 @@ export function WorkspaceBoard() {
   );
 }
 
-function TaskCard({ issue, onClick, onArchive }: { issue: IssueDetailDto; onClick: () => void; onArchive: () => void }) {
+function TaskCard({ issue, onClick, onArchive }: { issue: IssueDetail; onClick: () => void; onArchive: () => void }) {
   const waitStr = formatWaitTime(issue.current_stage?.created_at || issue.created_at);
   const isCompleted = !!issue.closed_at;
   const priorityKey = stageTagClass(issue) || "low";
