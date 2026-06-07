@@ -91,8 +91,8 @@ export function EvolutionCenter() {
                   }`}
                   onClick={() => selectItem(item.id)}
                 >
-                  <div style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>{item.title}</div>
-                  <div style={{ display: "flex", gap: "var(--space-xs)", marginTop: 4 }}>
+                  <div className="font-semibold text-[var(--font-size-sm)]">{item.title}</div>
+                  <div className="flex gap-1 mt-1">
                     {item.tags?.slice(0, 2).map((tag: string) => (
                       <Badge key={tag} variant="outline">{tag}</Badge>
                     ))}
@@ -105,15 +105,15 @@ export function EvolutionCenter() {
           {/* 右侧详情/创建 */}
           <div className="flex-1 overflow-auto p-[var(--space-xl)]">
             {mode === "create" && (
-              <div style={{ maxWidth: 480 }}>
-                <h2 style={{ marginBottom: "var(--space-lg)" }}>新增演进项</h2>
-                <div style={{ marginBottom: "var(--space-md)" }}>
-                  <label style={{ display: "block", marginBottom: 4, fontSize: "var(--font-size-sm)" }}>标题</label>
+              <div className="max-w-[480px]">
+                <h2 className="mb-[var(--space-lg)]">新增演进项</h2>
+                <div className="mb-[var(--space-md)]">
+                  <label className="block mb-1 text-[var(--font-size-sm)]">标题</label>
                   <Input value={formTitle} onChange={(e) => setFormTitle(e.target.value)} placeholder="演进项标题" />
                 </div>
-                <div style={{ marginBottom: "var(--space-md)" }}>
-                  <label style={{ display: "block", marginBottom: 4, fontSize: "var(--font-size-sm)" }}>类型</label>
-                  <select value={formType} onChange={(e) => setFormType(e.target.value)} style={{ width: "100%", padding: "var(--space-sm)", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border-default)", background: "var(--color-bg-input)", color: "var(--color-text-primary)" }}>
+                <div className="mb-[var(--space-md)]">
+                  <label className="block mb-1 text-[var(--font-size-sm)]">类型</label>
+                  <select value={formType} onChange={(e) => setFormType(e.target.value)} className="w-full p-[var(--space-sm)] rounded-[var(--radius-sm)] border border-[var(--color-border-default)] bg-[var(--color-bg-input)] text-[var(--color-text-primary)]">
                     <option value="preference">偏好</option>
                     <option value="rule">规则</option>
                     <option value="pattern">模式</option>
@@ -121,11 +121,11 @@ export function EvolutionCenter() {
                     <option value="decision">决策</option>
                   </select>
                 </div>
-                <div style={{ marginBottom: "var(--space-lg)" }}>
-                  <label style={{ display: "block", marginBottom: 4, fontSize: "var(--font-size-sm)" }}>内容</label>
+                <div className="mb-[var(--space-lg)]">
+                  <label className="block mb-1 text-[var(--font-size-sm)]">内容</label>
                   <Textarea value={formContent} onChange={(e) => setFormContent(e.target.value)} placeholder="详细描述" rows={5} />
                 </div>
-                <div style={{ display: "flex", gap: "var(--space-sm)" }}>
+                <div className="flex gap-[var(--space-sm)]">
                   <Button onClick={handleCreate}>创建</Button>
                   <Button variant="outline" onClick={() => setMode("list")}>取消</Button>
                 </div>
@@ -134,19 +134,19 @@ export function EvolutionCenter() {
 
             {mode === "detail" && selectedItem && (
               <div>
-                <div style={{ marginBottom: "var(--space-lg)" }}>
-                  <h2 style={{ margin: 0 }}>{selectedItem.title}</h2>
-                  <div style={{ display: "flex", gap: "var(--space-xs)", marginTop: "var(--space-sm)" }}>
+                <div className="mb-[var(--space-lg)]">
+                  <h2 className="m-0">{selectedItem.title}</h2>
+                  <div className="flex gap-1 mt-[var(--space-sm)]">
                     {selectedItem.tags?.map((tag: string) => (
                       <Badge key={tag} variant="outline">{tag}</Badge>
                     ))}
                   </div>
-                  <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-grey)", marginTop: 4 }}>
+                  <div className="text-[var(--font-size-xs)] text-[var(--color-text-grey)] mt-1">
                     创建于 {new Date(selectedItem.created_at).toLocaleString()}
                   </div>
                 </div>
                 {selectedItem.content && (
-                  <div style={{ padding: "var(--space-md)", background: "var(--color-bg-elevated)", borderRadius: "var(--radius-sm)", whiteSpace: "pre-wrap", lineHeight: 1.6 }}>
+                  <div className="p-[var(--space-md)] bg-[var(--color-bg-elevated)] rounded-[var(--radius-sm)] whitespace-pre-wrap leading-relaxed">
                     {selectedItem.content}
                   </div>
                 )}

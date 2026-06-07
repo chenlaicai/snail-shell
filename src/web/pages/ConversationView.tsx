@@ -178,7 +178,7 @@ export function ConversationView({ conversationId }: Props) {
                     </span>
                   )}
                   <div className="shrink-0 text-[var(--font-size-xs)] text-[var(--color-text-muted)] [font-variant-numeric:tabular-nums]">{new Date(msg.created_at).toLocaleTimeString()}</div>
-                  <button className="bg-transparent text-[var(--color-text-secondary)] border border-[var(--color-border-muted)] rounded-md px-2.5 py-1 text-xs font-medium cursor-pointer transition-all hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]" style={{ fontSize: "10px", padding: "2px 6px" }} onClick={() => setReplyTo({ id: msg.id, preview: extractTextSummary(msg) })}>回复</button>
+                  <button className="bg-transparent text-[var(--color-text-secondary)] border border-[var(--color-border-muted)] rounded-md px-1.5 py-0.5 text-[10px] font-medium cursor-pointer transition-all hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]" onClick={() => setReplyTo({ id: msg.id, preview: extractTextSummary(msg) })}>回复</button>
                 </div>
               </div>
               <div className="whitespace-pre-wrap">

@@ -166,8 +166,8 @@ export function SopCenter() {
                   }`}
                   onClick={() => selectSop(sop.id)}
                 >
-                  <div style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>{sop.name}</div>
-                  <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-grey)" }}>
+                  <div className="font-semibold text-[var(--font-size-sm)]">{sop.name}</div>
+                  <div className="text-[var(--font-size-xs)] text-[var(--color-text-grey)]">
                     {sop.source === "platform" ? "Platform" : "Workspace"} · {sop.key}
                   </div>
                 </div>
@@ -208,24 +208,24 @@ export function SopCenter() {
 
             {mode === "detail" && detail && (
               <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-lg)" }}>
+                <div className="flex justify-between items-center mb-[var(--space-lg)]">
                   <div>
-                    <h2 style={{ margin: 0, fontSize: "var(--font-size-lg)" }}>{detail.name}</h2>
-                    <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-grey)", marginTop: 4 }}>
+                    <h2 className="m-0 text-[var(--font-size-lg)]">{detail.name}</h2>
+                    <div className="text-[var(--font-size-xs)] text-[var(--color-text-grey)] mt-1">
                       {detail.source} · {detail.key}
                     </div>
                   </div>
-                  <div style={{ display: "flex", gap: "var(--space-sm)" }}>
+                  <div className="flex gap-[var(--space-sm)]">
                     <Button variant="outline" size="sm" onClick={startEdit}>编辑</Button>
                     <Button variant="destructive" size="sm" onClick={() => confirmDelete(detail.id)}>删除</Button>
                   </div>
                 </div>
                 {detail.description && (
-                  <p style={{ color: "var(--color-text-secondary)", marginBottom: "var(--space-lg)" }}>{detail.description}</p>
+                  <p className="text-[var(--color-text-secondary)] mb-[var(--space-lg)]">{detail.description}</p>
                 )}
-                <h3 style={{ fontSize: "var(--font-size-md)", marginBottom: "var(--space-md)" }}>阶段定义</h3>
+                <h3 className="text-[var(--font-size-md)] mb-[var(--space-md)]">阶段定义</h3>
                 {detail.stage_definitions && detail.stage_definitions.length > 0 ? (
-                  <div style={{ display: "grid", gap: "var(--space-md)" }}>
+                  <div className="grid gap-[var(--space-md)]">
                     {detail.stage_definitions.map((stage) => (
                       <div key={stage.key} className="flex gap-2.5 py-3 px-3.5 bg-[var(--color-bg-surface)] border border-[var(--color-border-muted)] rounded-[var(--radius-sm)] mb-1.5 cursor-pointer transition-all duration-150 relative hover:border-[var(--color-border-default)] hover:bg-[var(--color-bg-active)]">
                         <div className="flex-1 min-w-0">
@@ -233,13 +233,13 @@ export function SopCenter() {
                             <span className="text-[13px] font-semibold text-[var(--color-text-primary)] flex-1 whitespace-nowrap overflow-hidden text-ellipsis">{stage.title}</span>
                             <Badge variant="outline">#{stage.sequence}</Badge>
                           </div>
-                          <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-grey)", marginTop: 4 }}>
+                          <div className="text-[var(--font-size-xs)] text-[var(--color-text-grey)] mt-1">
                             {stage.key}
                           </div>
                           {stage.roles && stage.roles.length > 0 && (
-                            <div style={{ marginTop: "var(--space-sm)" }}>
+                            <div className="mt-[var(--space-sm)]">
                               {stage.roles.map((role) => (
-                                <span key={role.key} style={{ fontSize: "var(--font-size-xs)", marginRight: "var(--space-sm)" }}>
+                                <span key={role.key} className="text-[var(--font-size-xs)] mr-[var(--space-sm)]">
                                   {role.name}{role.is_primary ? " (主)" : ""}
                                 </span>
                               ))}
@@ -263,7 +263,7 @@ export function SopCenter() {
       </div>
       <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)} title="确认删除">
         <p>确定删除此 SOP？</p>
-        <div style={{ display: "flex", gap: "var(--space-sm, 8px)", justifyContent: "flex-end" }}>
+        <div className="flex gap-2 justify-end">
           <Button variant="outline" onClick={() => setConfirmOpen(false)}>取消</Button>
           <Button variant="destructive" onClick={handleConfirmDelete}>确定</Button>
         </div>
@@ -290,21 +290,21 @@ function SopForm({
   disableKey?: boolean;
 }) {
   return (
-    <div style={{ maxWidth: 480 }}>
-      <h2 style={{ marginBottom: "var(--space-lg)" }}>{submitLabel === "创建" ? "新建 SOP" : "编辑 SOP"}</h2>
-      <div style={{ marginBottom: "var(--space-md)" }}>
-        <label style={{ display: "block", marginBottom: 4, fontSize: "var(--font-size-sm)" }}>名称</label>
+    <div className="max-w-[480px]">
+      <h2 className="mb-[var(--space-lg)]">{submitLabel === "创建" ? "新建 SOP" : "编辑 SOP"}</h2>
+      <div className="mb-[var(--space-md)]">
+        <label className="block mb-1 text-[var(--font-size-sm)]">名称</label>
         <Input value={name} onChange={(e) => onNameChange(e.target.value)} placeholder="SOP 名称" />
       </div>
-      <div style={{ marginBottom: "var(--space-md)" }}>
-        <label style={{ display: "block", marginBottom: 4, fontSize: "var(--font-size-sm)" }}>Key</label>
+      <div className="mb-[var(--space-md)]">
+        <label className="block mb-1 text-[var(--font-size-sm)]">Key</label>
         <Input value={sopKey} onChange={(e) => onKeyChange(e.target.value)} placeholder="唯一标识" disabled={disableKey} />
       </div>
-      <div style={{ marginBottom: "var(--space-lg)" }}>
-        <label style={{ display: "block", marginBottom: 4, fontSize: "var(--font-size-sm)" }}>描述</label>
+      <div className="mb-[var(--space-lg)]">
+        <label className="block mb-1 text-[var(--font-size-sm)]">描述</label>
         <Textarea value={description} onChange={(e) => onDescriptionChange(e.target.value)} placeholder="可选描述" rows={3} />
       </div>
-      <div style={{ display: "flex", gap: "var(--space-sm)" }}>
+      <div className="flex gap-[var(--space-sm)]">
         <Button onClick={onSubmit}>{submitLabel}</Button>
         <Button variant="outline" onClick={onCancel}>取消</Button>
       </div>

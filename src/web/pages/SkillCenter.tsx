@@ -40,7 +40,7 @@ export function SkillCenter() {
         <div className="flex flex-1 overflow-hidden min-h-0">
           {/* 左侧列表 */}
           <div className="w-[260px] shrink-0 border-r border-[var(--color-border-muted)] overflow-auto p-[var(--space-md)]">
-            <div style={{ marginBottom: "var(--space-sm)" }}>
+            <div className="mb-[var(--space-sm)]">
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -69,11 +69,11 @@ export function SkillCenter() {
           <div className="flex-1 overflow-auto p-[var(--space-xl)]">
             {selectedSkill ? (
               <div>
-                <h2 style={{ marginBottom: "var(--space-sm)", fontSize: "var(--font-size-md)" }}>{selectedSkill.name}</h2>
+                <h2 className="mb-[var(--space-sm)] text-[var(--font-size-md)]">{selectedSkill.name}</h2>
                 {selectedSkill.description && (
-                  <p style={{ color: "var(--color-text-secondary)", marginBottom: "var(--space-lg)" }}>{selectedSkill.description}</p>
+                  <p className="text-[var(--color-text-secondary)] mb-[var(--space-lg)]">{selectedSkill.description}</p>
                 )}
-                <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-grey)" }}>
+                <div className="text-[var(--font-size-xs)] text-[var(--color-text-grey)]">
                   路径：{selectedSkill.filePath}
                 </div>
               </div>

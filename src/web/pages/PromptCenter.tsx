@@ -52,7 +52,7 @@ export function PromptCenter() {
         <div className="flex flex-1 overflow-hidden min-h-0">
           {/* 左侧列表 */}
           <div className="w-[260px] shrink-0 border-r border-[var(--color-border-muted)] overflow-auto p-[var(--space-md)]">
-            <div style={{ marginBottom: "var(--space-sm)" }}>
+            <div className="mb-[var(--space-sm)]">
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -81,10 +81,10 @@ export function PromptCenter() {
           <div className="flex-1 overflow-auto p-[var(--space-xl)]">
             {selected ? (
               <div>
-                <h2 style={{ marginBottom: "var(--space-lg)", fontSize: "var(--font-size-md)" }}>
+                <h2 className="mb-[var(--space-lg)] text-[var(--font-size-md)]">
                   {prompts.find((p) => p.id === selected)?.title || selected}
                 </h2>
-                <pre style={{ fontSize: "var(--font-size-xs)", whiteSpace: "pre-wrap", color: "var(--color-text-secondary)", lineHeight: 1.6, padding: "var(--space-md)", background: "var(--color-bg-elevated)", borderRadius: "var(--radius-sm)" }}>
+                <pre className="text-[var(--font-size-xs)] whitespace-pre-wrap text-[var(--color-text-secondary)] leading-relaxed p-[var(--space-md)] bg-[var(--color-bg-elevated)] rounded-[var(--radius-sm)]">
                   {selectedContent}
                 </pre>
               </div>

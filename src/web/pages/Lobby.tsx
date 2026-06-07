@@ -97,8 +97,8 @@ export function Lobby() {
                   }`}
                   onClick={() => selectSession(s.id)}
                 >
-                  <div style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>{s.channel_type}</div>
-                  <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-grey)" }}>
+                  <div className="font-semibold text-[var(--font-size-sm)]">{s.channel_type}</div>
+                  <div className="text-[var(--font-size-xs)] text-[var(--color-text-grey)]">
                     {s.navigation_level} · {new Date(s.created_at).toLocaleString()}
                   </div>
                 </div>
@@ -110,9 +110,9 @@ export function Lobby() {
           <div className="flex-1 overflow-auto p-[var(--space-xl)]">
             {selectedSession ? (
               <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-lg)" }}>
-                  <h2 style={{ margin: 0, fontSize: "var(--font-size-md)" }}>会话消息</h2>
-                  <div style={{ display: "flex", gap: "var(--space-sm)" }}>
+                <div className="flex justify-between items-center mb-[var(--space-lg)]">
+                  <h2 className="m-0 text-[var(--font-size-md)]">会话消息</h2>
+                  <div className="flex gap-[var(--space-sm)]">
                     <Button variant="outline" size="sm" onClick={() => openConfirm(selectedSession, "reset")}>重置</Button>
                     <Button variant="destructive" size="sm" onClick={() => openConfirm(selectedSession, "delete")}>删除</Button>
                   </div>
@@ -120,7 +120,7 @@ export function Lobby() {
                 {sessionMessages.length === 0 ? (
                   <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">暂无消息</div>
                 ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
+                  <div className="flex flex-col gap-[var(--space-md)]">
                     {sessionMessages.map((msg) => (
                       <div key={msg.id} className={`msg max-w-[var(--message-max-width)] px-[14px] py-[var(--space-md)] rounded-[14px] leading-[1.6] whitespace-pre-wrap min-w-0 [overflow-wrap:break-word] ${
                         msg.direction === "in"
@@ -145,7 +145,7 @@ export function Lobby() {
       </div>
       <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)} title="确认操作">
         <p>{confirmAction === "reset" ? "确定重置此会话？" : "确定删除此会话？"}</p>
-        <div style={{ display: "flex", gap: "var(--space-sm, 8px)", justifyContent: "flex-end" }}>
+        <div className="flex gap-2 justify-end">
           <Button variant="outline" onClick={() => setConfirmOpen(false)}>取消</Button>
           <Button variant="destructive" onClick={handleConfirmAction}>确定</Button>
         </div>
