@@ -30,7 +30,7 @@ export interface ParsedSop {
 interface SopIdentity {
   sopId: string;
   source: "platform" | "workspace";
-  sourceRef: string | null;
+  source_ref: string | null;
   key: string;
 }
 
@@ -54,19 +54,19 @@ export function countSopDir(dir: string): number {
   return count;
 }
 
-export function listSopDir(dir: string, source: "platform" | "workspace", sourceRef: string | null): Sop[] {
+export function listSopDir(dir: string, source: "platform" | "workspace", source_ref: string | null): Sop[] {
   if (!fs.existsSync(dir)) return [];
   const result: Sop[] = [];
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     if (e.isFile() && (e.name.endsWith(".yaml") || e.name.endsWith(".yml"))) {
       const key = path.basename(e.name, path.extname(e.name));
-      const p = parseSopFile(path.join(dir, e.name), source, sourceRef, key);
+      const p = parseSopFile(path.join(dir, e.name), source, source_ref, key);
       if (p) result.push(p.sop);
     }
     if (e.isDirectory()) {
       const yamlPath = findSopYamlInDir(path.join(dir, e.name), e.name);
       if (yamlPath) {
-        const p = parseSopFile(yamlPath, source, sourceRef, e.name);
+        const p = parseSopFile(yamlPath, source, source_ref, e.name);
         if (p) result.push(p.sop);
       }
     }
@@ -106,7 +106,7 @@ export function findWorkspaceSopIdByKey(
 // ── File parsing ─────────────────────────────────────────────────────
 
 export function parseSopFile(
-  filePath: string, source: "platform" | "workspace", sourceRef: string | null, key: string,
+  filePath: string, source: "platform" | "workspace", source_ref: string | null, key: string,
 ): ParsedSop | undefined {
   if (!fs.existsSync(filePath)) return undefined;
   let parsed: SopYamlFile;
@@ -121,14 +121,14 @@ export function parseSopFile(
     return undefined;
   }
   resolveHandbookFileRefs(parsed, path.dirname(filePath));
-  const sopId = source === "workspace" && sourceRef ? `${sourceRef}#${key}` : key;
-  return buildParsedSop({ sopId, source, sourceRef, key }, parsed);
+  const sopId = source === "workspace" && source_ref ? `${source_ref}#${key}` : key;
+  return buildParsedSop({ sopId, source, source_ref, key }, parsed);
 }
 
 export function buildParsedSop(identity: SopIdentity, parsed: SopYamlFile): ParsedSop {
   const now = new Date().toISOString();
   const sop: Sop = {
-    id: identity.sopId, source: identity.source, source_ref: identity.sourceRef,
+    id: identity.sopId, source: identity.source, source_ref: identity.source_ref,
     key: identity.key, name: parsed.name, description: parsed.description ?? null,
     first_stage: parsed.first_stage ?? null, shared_handbook: parsed.shared_handbook ?? null,
     created_at: now, updated_at: now,

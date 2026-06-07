@@ -23,7 +23,7 @@ const store = new ConversationStore(TEST_DB, TEST_CONFIG_DIR);
 
 // Seed SOP with handbooks
 store.seedSopToCache(
-  { id: "snap-sop", source: "platform", sourceRef: null, key: "snap-sop", name: "Snapshot Test SOP", description: "Test SOP for snapshot", firstStage: "design" },
+  { id: "snap-sop", source: "platform", source_ref: null, key: "snap-sop", name: "Snapshot Test SOP", description: "Test SOP for snapshot", firstStage: "design" },
   [
     {
       key: "design", title: "设计", sequence: 1,
@@ -136,7 +136,7 @@ console.log("\n  SOP modification isolation");
 
 // Modify the SOP (simulate by creating a new SOP with different content)
 store.seedSopToCache(
-  { id: "snap-sop-v2", source: "platform", sourceRef: null, key: "snap-sop-v2", name: "Modified SOP", description: "Modified", firstStage: "dev" },
+  { id: "snap-sop-v2", source: "platform", source_ref: null, key: "snap-sop-v2", name: "Modified SOP", description: "Modified", firstStage: "dev" },
   [
     { key: "dev", title: "开发(改)", sequence: 1, input_description: null, output_description: null, acceptance_focus: [], acceptance_checklist: [], roles: [{ key: "developer", name: "开发者", description: "dev", is_primary: true }] },
   ],
@@ -180,7 +180,7 @@ console.log("\n  Delete SOP isolation");
 test("deletePlatformSop removes SOP", () => {
   // Create a temporary SOP to delete
   store.seedSopToCache(
-    { id: "snap-delete", source: "platform", sourceRef: null, key: "snap-delete", name: "Delete Me", description: null, firstStage: "x" },
+    { id: "snap-delete", source: "platform", source_ref: null, key: "snap-delete", name: "Delete Me", description: null, firstStage: "x" },
     [{ key: "x", title: "X", sequence: 1, acceptance_focus: [], acceptance_checklist: [], roles: [{ key: "r", name: "R", description: "", is_primary: true }] }],
     [],
   );

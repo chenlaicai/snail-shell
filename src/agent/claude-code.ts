@@ -20,7 +20,7 @@ import { formatText } from "./log-preview";
 import { renderStatelessTranscript } from "./stateless-runtime-adapter";
 import { buildRuntimeUsageSignal, usageDetailFromClaudeResult } from "./runtime-usage";
 import { buildDisallowedToolsArgs } from "./guard-config";
-import type { GuardProfile } from "../persistence/guard-profile-store";
+import type { GuardProfile } from "../shared/types";
 import { ensureMcpServers } from "./mcp-config";
 import { ensureSkillSymlinks } from "./skill-symlinks";
 import { buildContextEnv } from "./context-env";

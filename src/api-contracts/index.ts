@@ -52,5 +52,5 @@ export {
   CONVERSATION_KINDS, ConversationKindSchema,
   STAGE_STATUSES, StageStatusSchema,
   MESSAGE_ROLES, MessageRoleSchema,
-  MessageSchema, StageDetailSchema, IssueDetailSchema, WorkspaceSummarySchema,
+  MessageSchema, MessageWithEventsSchema, StageDetailSchema, IssueDetailSchema, WorkspaceSummarySchema, WorkspaceDetailSchema,
 } from "./validators";

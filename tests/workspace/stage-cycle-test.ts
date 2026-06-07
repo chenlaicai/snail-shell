@@ -33,7 +33,7 @@ fs.writeFileSync(path.join(TEST_CONFIG_DIR, "evolution.json"), JSON.stringify({ 
 const store = new ConversationStore(TEST_DB, TEST_CONFIG_DIR);
 
 /* 直接在 FileConfigStore 缓存中创建测试 SOP（模拟从 YAML 加载） */
-store.seedSopToCache({ id: "sop-test", source: "platform", sourceRef: null, key: "sop-test", name: "Test SOP", description: null, firstStage: "design" }, [
+store.seedSopToCache({ id: "sop-test", source: "platform", source_ref: null, key: "sop-test", name: "Test SOP", description: null, firstStage: "design" }, [
   { key: "design", title: "需求对齐与设计", sequence: 1, input_description: "用户需求", output_description: "Issue 文档", acceptance_focus: ["设计方案已锁定"], roles: [{ key: "designer", name: "架构师", description: "designer", is_primary: true, handbook: "## 工作规则\n\n- 独立分析需求" }] },
   { key: "development", title: "研发实现", sequence: 2, input_description: "锁定的 Issue 文档", output_description: "交付 PR", acceptance_focus: ["代码通过 CI", "PR 已合并"], roles: [{ key: "developer", name: "开发者", description: "dev", is_primary: true, handbook: "## 工作规则\n\n- 先写测试再实现" }] },
   { key: "review", title: "PR 检视", sequence: 3, input_description: "上一阶段产出的 PR", output_description: "检视完成", acceptance_focus: ["无遗留 comment", "检视通过"], roles: [{ key: "developer", name: "开发者", description: "dev", is_primary: true, handbook: "## 工作规则\n\n- 回应所有 comment" }, { key: "reviewer", name: "审查者", description: "rev", handbook: "## 工作规则\n\n- 验证验收条件" }] },
@@ -47,7 +47,7 @@ store.seedSopToCache({ id: "sop-test", source: "platform", sourceRef: null, key:
   { from: "merge", to: "review" },
 ]);
 
-store.seedSopToCache({ id: "evolution", source: "platform", sourceRef: null, key: "evolution", name: "Evolution Center SOP", description: null, firstStage: "development" }, [
+store.seedSopToCache({ id: "evolution", source: "platform", source_ref: null, key: "evolution", name: "Evolution Center SOP", description: null, firstStage: "development" }, [
   { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ key: "executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", is_primary: true, handbook: "## 工作规则\n\n- 严格按入口校验流程\n- 查重需覆盖全局演进工作区库\n- 裁决去向必须明确并记录PR链接" }] },
 ]);
 
@@ -175,7 +175,7 @@ async function run(): Promise<void> {
     assert.equal(issueComplete.next_stage?.sequence, 5, "review after merge should be sequence 5");
 
     /* 终态场景：merge 无出边时 advanceIssue 应抛错 */
-    store.seedSopToCache({ id: "sop-terminal", source: "platform", sourceRef: null, key: "sop-terminal", name: "Terminal SOP", description: null, firstStage: "design" }, [
+    store.seedSopToCache({ id: "sop-terminal", source: "platform", source_ref: null, key: "sop-terminal", name: "Terminal SOP", description: null, firstStage: "design" }, [
       { key: "design", title: "设计", sequence: 1, input_description: null, output_description: null, acceptance_focus: [], roles: [{ key: "designer", name: "架构师", description: "designer", is_primary: true, handbook: "" }] },
       { key: "merge", title: "合入", sequence: 2, input_description: null, output_description: null, acceptance_focus: [], roles: [{ key: "merger", name: "维护者", description: "merger", is_primary: true, handbook: "" }] },
     ], [
@@ -194,7 +194,7 @@ async function run(): Promise<void> {
     assert.equal(terminalResult.conversation, null, "terminal state should return conversation: null");
 
     /* 未知 guard type 应抛错，不能静默放行 */
-    store.seedSopToCache({ id: "sop-guard", source: "platform", sourceRef: null, key: "sop-guard", name: "Guard SOP", description: null, firstStage: "design" }, [
+    store.seedSopToCache({ id: "sop-guard", source: "platform", source_ref: null, key: "sop-guard", name: "Guard SOP", description: null, firstStage: "design" }, [
       { key: "design", title: "设计", sequence: 1, input_description: null, output_description: null, acceptance_focus: [], roles: [{ key: "designer", name: "架构师", description: "designer", is_primary: true, handbook: "" }] },
       { key: "development", title: "开发", sequence: 2, input_description: null, output_description: null, acceptance_focus: [], roles: [{ key: "developer", name: "开发者", description: "developer", is_primary: true, handbook: "" }] },
     ], [
@@ -209,7 +209,7 @@ async function run(): Promise<void> {
     );
 
     /* requires_artifacts guard：缺失 artifact 时应拒绝转移 */
-    store.seedSopToCache({ id: "sop-req-artifacts", source: "platform", sourceRef: null, key: "sop-req-artifacts", name: "Requires Artifacts SOP", description: null, firstStage: "design" }, [
+    store.seedSopToCache({ id: "sop-req-artifacts", source: "platform", source_ref: null, key: "sop-req-artifacts", name: "Requires Artifacts SOP", description: null, firstStage: "design" }, [
       { key: "design", title: "设计", sequence: 1, input_description: null, output_description: null, acceptance_focus: [], roles: [{ key: "designer", name: "架构师", description: "designer", is_primary: true, handbook: "" }] },
       { key: "development", title: "开发", sequence: 2, input_description: null, output_description: null, acceptance_focus: [], roles: [{ key: "developer", name: "开发者", description: "developer", is_primary: true, handbook: "" }] },
     ], [

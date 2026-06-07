@@ -135,7 +135,7 @@ export class WorkspaceManager extends EventEmitter {
       sop: {
         id: `${workspaceId}#${sopDef.key}`,
         source: "workspace" as const,
-        sourceRef: workspaceId,
+        source_ref: workspaceId,
         key: sopDef.key,
         name: sopDef.name,
         description: sopDef.description ?? null,

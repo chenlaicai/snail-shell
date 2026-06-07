@@ -639,7 +639,7 @@ export interface GuardProfile {
 
 /** SOP 种子项，用于从 .snail 目录或 JSON 种子加载 SOP。 */
 export interface SopSeedItem {
-  sop: { id: string; source: "platform" | "workspace"; sourceRef: string | null; key: string; name: string; description?: string | null };
+  sop: { id: string; source: "platform" | "workspace"; source_ref: string | null; key: string; name: string; description?: string | null };
   stage_definitions: Array<{
     key: string; title: string; sequence: number;
     input_description?: string | null; output_description?: string | null;

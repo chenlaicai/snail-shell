@@ -35,7 +35,7 @@ function createMessage(store: ConversationStore): { convId: string; msgId: numbe
   /* 直接在 FileConfigStore 缓存中创建测试 SOP 和 workspace（模拟从 YAML 加载）。
      seedSopToCache 会写入 YAML 文件；若文件已存在（同一进程内多次调用），跳过创建。 */
   store.seedSopToCache(
-    { id: "mcp-e2e-sop", source: "platform", sourceRef: null, key: "mcp-e2e-sop", name: "MCP E2E SOP", description: null },
+    { id: "mcp-e2e-sop", source: "platform", source_ref: null, key: "mcp-e2e-sop", name: "MCP E2E SOP", description: null },
     [{ key: "dev", title: "Dev", sequence: 1, roles: [{ key: "user", name: "用户", is_primary: true }] }],
   );
   store.seedWorkspaceToCache({

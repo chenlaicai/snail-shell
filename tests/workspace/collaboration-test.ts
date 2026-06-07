@@ -930,11 +930,11 @@ function createContext(suffix: string): { store: ConversationStore; conversation
   const workspaceId = `workspace-collaboration-${suffix}`;
 
   /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
-  store.seedSopToCache({ id: `${workspaceId}-sop`, source: "platform", sourceRef: null, key: `${workspaceId}-sop`, name: `${workspaceId} SOP`, description: null }, [
+  store.seedSopToCache({ id: `${workspaceId}-sop`, source: "platform", source_ref: null, key: `${workspaceId}-sop`, name: `${workspaceId} SOP`, description: null }, [
     { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ key: "developer", name: "开发者", description: "", is_primary: true, handbook: "" }] },
   ]);
 
-  store.seedSopToCache({ id: `kc-${workspaceId}-sop`, source: "platform", sourceRef: null, key: `kc-${workspaceId}-sop`, name: "Knowledge Center SOP", description: null }, [
+  store.seedSopToCache({ id: `kc-${workspaceId}-sop`, source: "platform", source_ref: null, key: `kc-${workspaceId}-sop`, name: "Knowledge Center SOP", description: null }, [
     { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "完成候选知识治理", acceptance_focus: [], roles: [{ key: "boss", name: "项目负责人", description: "最终决策者，确认治理结论", is_primary: true, handbook: "## 工作规则\n\n- 以数据为依据做决策\n- 治理结论需明确落地入口" }, { key: "knowledge-executor", name: "知识执行者", description: "负责执行知识治理流程：入口校验、查重、裁决去向跟踪", handbook: "## 工作规则\n\n- 严格按入口校验流程\n- 查重需覆盖全局知识库\n- 裁决去向必须明确并记录PR链接" }] },
   ]);
 
@@ -959,7 +959,7 @@ function createEvolutionContext(suffix: string): { store: ConversationStore; con
   const workspace = store.createWorkspace(`workspace-collaboration-${suffix}`, "Snail Shell", TEST_WORKSPACE_ROOT, "Collaboration test");
 
   /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
-  store.seedSopToCache({ id: "evolution", source: "platform", sourceRef: null, key: "evolution", name: "Evolution Center SOP", description: null }, [
+  store.seedSopToCache({ id: "evolution", source: "platform", source_ref: null, key: "evolution", name: "Evolution Center SOP", description: null }, [
     { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ key: "executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", is_primary: true, handbook: "## 工作规则\n\n- 严格按入口校验流程\n- 查重需覆盖全局演进工作区库\n- 裁决去向必须明确并记录PR链接" }] },
   ]);
 

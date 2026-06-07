@@ -23,17 +23,17 @@ fs.writeFileSync(path.join(TEST_CONFIG_DIR, "workspaces.json"), JSON.stringify([
 const store = new ConversationStore(TEST_DB, TEST_CONFIG_DIR);
 
 /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
-store.seedSopToCache({ id: "workspace-1-sop", source: "platform", sourceRef: null, key: "workspace-1-sop", name: "Workspace 1 SOP", description: null }, [
+store.seedSopToCache({ id: "workspace-1-sop", source: "platform", source_ref: null, key: "workspace-1-sop", name: "Workspace 1 SOP", description: null }, [
   { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付 PR", acceptance_focus: [], roles: [{ key: "developer", name: "开发者", description: "", is_primary: true, handbook: "" }] },
   { key: "review", title: "PR 检视", sequence: 2, input_description: "上一阶段产出", output_description: "检视完成", acceptance_focus: [], roles: [{ key: "reviewer", name: "审查者", description: "", is_primary: true, handbook: "" }] },
 ]);
 
-store.seedSopToCache({ id: "evolution", source: "platform", sourceRef: null, key: "evolution", name: "Evolution Center SOP", description: null }, [
+store.seedSopToCache({ id: "evolution", source: "platform", source_ref: null, key: "evolution", name: "Evolution Center SOP", description: null }, [
   { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ key: "executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", is_primary: true, handbook: "## 工作规则\n\n- 严格按入口校验流程\n- 查重需覆盖全局演进工作区库\n- 裁决去向必须明确并记录PR链接" }] },
 ]);
 
 /* ── count 展开测试 ──────────────────────────────────────────────── */
-store.seedSopToCache({ id: "count-test-sop", source: "platform", sourceRef: null, key: "count-test-sop", name: "Count Test SOP", description: null }, [
+store.seedSopToCache({ id: "count-test-sop", source: "platform", source_ref: null, key: "count-test-sop", name: "Count Test SOP", description: null }, [
   { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [
     { key: "developer", name: "开发者", description: "", is_primary: true, handbook: "" },
     { key: "reviewer", name: "审查者", description: "", is_primary: false, handbook: "", count: 2 },
@@ -74,7 +74,7 @@ store.createConversation({ id: "conversation-1", workspaceId: workspace.id, issu
 // 测试 replaceWorkspaceConfigs 基本功能
 function testReplaceWorkspaceConfigsBasic() {
   const newSopSeeds: SopSeedItem[] = [{
-    sop: { id: "sop-workspace-1", source: "workspace", sourceRef: "workspace-1", key: "sop-workspace-1", name: "Workspace SOP", description: "Test SOP" },
+    sop: { id: "sop-workspace-1", source: "workspace", source_ref: "workspace-1", key: "sop-workspace-1", name: "Workspace SOP", description: "Test SOP" },
     stage_definitions: [
       {
         key: "development", title: "Development", sequence: 1, input_description: "input", output_description: "output", acceptance_focus: ["focus1"],
@@ -121,7 +121,7 @@ function testReplaceWorkspaceConfigsBasic() {
 // 测试全量替换：旧 SOP 被移除
 function testReplaceWorkspaceConfigsRemovesOldSops() {
   const newSopSeeds: SopSeedItem[] = [{
-    sop: { id: "sop-workspace-2", source: "workspace", sourceRef: "workspace-1", key: "sop-workspace-2", name: "New SOP", description: null },
+    sop: { id: "sop-workspace-2", source: "workspace", source_ref: "workspace-1", key: "sop-workspace-2", name: "New SOP", description: null },
     stage_definitions: [
       {
         key: "development", title: "Development", sequence: 1, input_description: null, output_description: null, acceptance_focus: [],
@@ -153,7 +153,7 @@ function testReplaceWorkspaceConfigsPreservesReferencedSops() {
 
   // 尝试替换配置，但 sop-global-1 是全局 SOP，不会被删除
   const newSopSeeds: SopSeedItem[] = [{
-    sop: { id: "sop-workspace-3", source: "workspace", sourceRef: "workspace-1", key: "sop-workspace-3", name: "Another SOP", description: null },
+    sop: { id: "sop-workspace-3", source: "workspace", source_ref: "workspace-1", key: "sop-workspace-3", name: "Another SOP", description: null },
     stage_definitions: [
       {
         key: "development", title: "Development", sequence: 1, input_description: null, output_description: null, acceptance_focus: [],

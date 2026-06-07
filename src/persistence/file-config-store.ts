@@ -464,7 +464,7 @@ export class FileConfigStore {
     input: {
       workspaceUpdate: { name: string; summary?: string };
       sopSeeds: Array<{
-        sop: { id: string; source: "platform" | "workspace"; sourceRef: string | null; key: string; name: string; description?: string | null };
+        sop: { id: string; source: "platform" | "workspace"; source_ref: string | null; key: string; name: string; description?: string | null };
         stage_definitions: SopYamlFile["stage_definitions"];
       }>;
     },

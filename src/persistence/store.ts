@@ -186,7 +186,7 @@ export class ConversationStore {
   }
   /** Test helper: create a SOP via the real API (writes YAML file). Idempotent — skips if already exists. */
   seedSopToCache(
-    sopInput: { id: string; source: "platform" | "workspace"; sourceRef: string | null; key: string; name: string; description?: string | null; firstStage?: string | null },
+    sopInput: { id: string; source: "platform" | "workspace"; source_ref: string | null; key: string; name: string; description?: string | null; firstStage?: string | null },
     stageDefinitions: Array<{
       key: string; title: string; sequence: number;
       input_description?: string | null; output_description?: string | null;
@@ -203,7 +203,7 @@ export class ConversationStore {
     input: {
       workspaceUpdate: { name: string; summary?: string };
       sopSeeds: Array<{
-        sop: { id: string; source: "platform" | "workspace"; sourceRef: string | null; key: string; name: string; description?: string | null };
+        sop: { id: string; source: "platform" | "workspace"; source_ref: string | null; key: string; name: string; description?: string | null };
         stage_definitions: Array<{
           key: string; title: string; sequence: number;
           input_description?: string | null; output_description?: string | null;

@@ -37,6 +37,37 @@ export const MessageSchema = z.object({
   quoted_message: z.object({ speaker: z.string().optional(), preview: z.string().optional() }).nullable().optional(),
 });
 
+export const MessageEventSchema = z.object({
+  id: z.number(),
+  message_id: z.number(),
+  seq: z.number(),
+  category: z.enum(["content", "signal"]),
+  kind: z.string(),
+  payload: z.unknown(),
+  source: z.object({
+    runtime_name: z.string().nullable(),
+    runtime_event_type: z.string().nullable(),
+    runtime_message_id: z.string().nullable(),
+    runtime_item_id: z.string().nullable(),
+    runtime_call_id: z.string().nullable(),
+    raw_event: z.record(z.unknown()).nullable(),
+    metadata: z.record(z.unknown()).nullable(),
+  }),
+  created_at: z.string(),
+});
+
+export const MessageContextSchema = z.object({
+  message_id: z.number(),
+  kind: z.string(),
+  context: z.string(),
+  updated_at: z.string(),
+});
+
+export const MessageWithEventsSchema = MessageSchema.extend({
+  events: z.array(MessageEventSchema),
+  context: MessageContextSchema.nullable(),
+});
+
 export const StageDetailSchema = z.object({
   id: z.string(),
   workspace_id: z.string(),
@@ -67,9 +98,13 @@ export const StageDetailSchema = z.object({
     acceptance_focus: z.array(z.string()),
   }).nullable(),
   role_definitions: z.array(z.object({
+    id: z.string(),
+    stage_definition_id: z.string(),
+    key: z.string(),
     name: z.string(),
     snail_template_id: z.string().nullable(),
     is_primary: z.boolean(),
+    count: z.number(),
     description: z.string(),
     handbook: z.string().nullable(),
   })),
@@ -81,7 +116,28 @@ export const IssueDetailSchema = z.object({
   title: z.string(),
   summary: z.string().nullable(),
   task_anchor: z.string().nullable(),
-  sop_snapshot: z.record(z.unknown()),
+  sop_snapshot: z.object({
+    sop_id: z.string(),
+    source: z.enum(["platform", "workspace"]),
+    source_ref: z.string().nullable(),
+    name: z.string(),
+    description: z.string().nullable(),
+    first_stage: z.string().nullable(),
+    shared_handbook: z.string().nullable(),
+    stage_definitions: z.array(z.object({
+      key: z.string(),
+      title: z.string(),
+      sequence: z.number(),
+      input_description: z.string().nullable(),
+      output_description: z.string().nullable(),
+      acceptance_focus: z.array(z.string()),
+      acceptance_checklist: z.array(z.object({ id: z.string(), description: z.string(), required: z.boolean() })),
+      roles: z.array(z.object({
+        key: z.string(), name: z.string(), description: z.string(), is_primary: z.boolean(), count: z.number(), handbook: z.string().nullable(),
+      })),
+    })),
+    transitions: z.array(z.object({ from: z.string(), to: z.string(), guard: z.object({ type: z.string(), config: z.record(z.unknown()) }).nullable() })),
+  }),
   role_snail_mapping: z.record(z.record(z.string())),
   created_at: z.string(),
   updated_at: z.string(),
@@ -104,4 +160,8 @@ export const WorkspaceSummarySchema = z.object({
   stage_count: z.number(),
   issue_count: z.number(),
   boss_pending_count: z.number(),
+});
+
+export const WorkspaceDetailSchema = WorkspaceSummarySchema.extend({
+  issues: z.array(IssueDetailSchema),
 });

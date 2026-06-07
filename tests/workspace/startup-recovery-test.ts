@@ -25,11 +25,11 @@ async function main(): Promise<void> {
   const store = new ConversationStore(TEST_DB, TEST_CONFIG_DIR);
 
   /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
-  store.seedSopToCache({ id: "sop-startup-recovery", source: "platform", sourceRef: null, key: "sop-startup-recovery", name: "Startup Recovery SOP", description: null }, [
+  store.seedSopToCache({ id: "sop-startup-recovery", source: "platform", source_ref: null, key: "sop-startup-recovery", name: "Startup Recovery SOP", description: null }, [
     { key: "development", title: "研发迭代", sequence: 1, input_description: null, output_description: "交付", acceptance_focus: [], roles: [{ key: "developer", name: "开发者", description: "", is_primary: true, handbook: "" }] },
   ]);
 
-  store.seedSopToCache({ id: "evolution", source: "platform", sourceRef: null, key: "evolution", name: "Evolution Center SOP", description: null }, [
+  store.seedSopToCache({ id: "evolution", source: "platform", source_ref: null, key: "evolution", name: "Evolution Center SOP", description: null }, [
     { key: "development", title: "演进治理", sequence: 1, input_description: null, output_description: "完成演进工作区治理", acceptance_focus: [], roles: [{ key: "executor", name: "演进执行者", description: "负责执行演进治理流程：入口校验、查重、裁决去向跟踪", is_primary: true, handbook: "## 工作规则\n\n- 严格按入口校验流程\n- 查重需覆盖全局演进工作区\n- 裁决去向必须明确并记录PR链接" }] },
   ]);
 
