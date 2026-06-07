@@ -52,11 +52,12 @@ export function ConversationLayout() {
 
   useEffect(() => {
     if (!issueId || !issue || !initKey) return;
-    if (lastInitRef.current === initKey) return;
+    const prevKey = lastInitRef.current;
+    if (prevKey === initKey) return;
     lastInitRef.current = initKey;
 
-    // issueId 变化时清空
-    const prevIssue = lastInitRef.current?.split(":")[0];
+    // issueId 变化时清空 store
+    const prevIssue = prevKey?.split(":")[0];
     if (prevIssue !== issueId) clear();
 
     // 设置 stage（仅尚未设置时）
@@ -74,7 +75,7 @@ export function ConversationLayout() {
       const conv = convId ? conversations.find((c) => c.id === convId) : conversations[0];
       setCurrentConversation(conv || null);
     }
-  }, [initKey]);
+  }, [initKey, conversations, currentConversation]);
 
   // Update URL when stage/conversation changes (one-way: store -> URL)
   useEffect(() => {

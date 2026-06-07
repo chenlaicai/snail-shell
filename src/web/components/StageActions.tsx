@@ -49,6 +49,7 @@ export function StageActions({
       const targetKey = forward.length === 1
         ? forward[0].to_stage_key
         : selectedTarget;
+      if (!targetKey) { showToast("请选择目标阶段", true); setAdvancing(false); return; }
       const result = await api("POST /api/issues/:issueId/advance", { params: { issueId: issue.id }, body: { target_stage_key: targetKey } });
       showToast("阶段已推进");
       // 自动触发 AI 工作

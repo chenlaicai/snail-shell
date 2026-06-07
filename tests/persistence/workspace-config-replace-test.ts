@@ -1,4 +1,5 @@
 import fs from "fs";
+import os from "os";
 import path from "path";
 import { ConversationStore } from "../../src/persistence/store";
 import type { SopSeedItem } from "../../src/persistence/types";
@@ -6,6 +7,9 @@ import type { SopSeedItem } from "../../src/persistence/types";
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);
 }
+
+/** 测试专用临时工作区根目录，避免 replaceWorkspaceConfigs 写 .snail/init.json 污染项目目录 */
+const TEST_WORKSPACE_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), "snail-test-ws-config-"));
 
 const TEST_DB = path.join(__dirname, "..", "..", "data", "test-store.db");
 fs.mkdirSync(path.dirname(TEST_DB), { recursive: true });
@@ -53,12 +57,12 @@ assert(developerInstances[0].count === 1, "developer count should be 1");
 
 /* Seed workspace */
 store.seedWorkspaceToCache({
-  id: "count-test-ws",  name: "Count Test", summary: "", workspaceRoot: process.cwd(),
+  id: "count-test-ws",  name: "Count Test", summary: "", workspaceRoot: TEST_WORKSPACE_ROOT,
 });
 
 /* Seed workspace */
 store.seedWorkspaceToCache({
-  id: "workspace-1", name: "Snail Shell", summary: "Self evolution", workspaceRoot: process.cwd(),
+  id: "workspace-1", name: "Snail Shell", summary: "Self evolution", workspaceRoot: TEST_WORKSPACE_ROOT,
 });
 // guard_profile backfill tests removed: FileConfigStore-based seedWorkspaceToCache does not support guard_profile field
 

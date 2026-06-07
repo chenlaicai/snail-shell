@@ -51,8 +51,10 @@ export function ContextPanel({
   const stageQueryKey = ["stages", currentStage?.id];
 
   const addArtifactMutation = useMutation({
-    mutationFn: (updated: Record<string, string>) =>
-      api("PATCH /api/stages/:stageId", { params: { stageId: currentStage!.id }, body: { output_artifacts: updated } }),
+    mutationFn: (updated: Record<string, string>) => {
+      if (!currentStage) throw new Error("No active stage");
+      return api("PATCH /api/stages/:stageId", { params: { stageId: currentStage.id }, body: { output_artifacts: updated } });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: stageQueryKey });
       setNewArtifactKey("");
@@ -63,8 +65,10 @@ export function ContextPanel({
   });
 
   const removeArtifactMutation = useMutation({
-    mutationFn: (updated: Record<string, string>) =>
-      api("PATCH /api/stages/:stageId", { params: { stageId: currentStage!.id }, body: { output_artifacts: updated } }),
+    mutationFn: (updated: Record<string, string>) => {
+      if (!currentStage) throw new Error("No active stage");
+      return api("PATCH /api/stages/:stageId", { params: { stageId: currentStage.id }, body: { output_artifacts: updated } });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: stageQueryKey });
       showToast("已移除输出产物");
@@ -73,11 +77,13 @@ export function ContextPanel({
   });
 
   const templateMutation = useMutation({
-    mutationFn: ({ roleName, templateId }: { roleName: string; templateId: string }) =>
-      api("PATCH /api/issues/:issueId/role-snail", {
-        params: { issueId: issue!.id },
-        body: { stage_id: currentStage!.id, role_name: roleName, snail_template_id: templateId },
-      }),
+    mutationFn: ({ roleName, templateId }: { roleName: string; templateId: string }) => {
+      if (!issue || !currentStage) throw new Error("No active issue or stage");
+      return api("PATCH /api/issues/:issueId/role-snail", {
+        params: { issueId: issue.id },
+        body: { stage_id: currentStage.id, role_name: roleName, snail_template_id: templateId },
+      });
+    },
     onSuccess: (_data, { roleName }) => showToast(`已切换 ${roleName} 的模板`),
     onError: (err: Error) => showToast(`切换失败：${err.message}`, true),
   });
