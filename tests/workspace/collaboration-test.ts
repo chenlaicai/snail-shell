@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { AgentInvocationInterruptedError, AgentInvocationTerminatedError, type AgentEvent, type AgentInvocationOptions, type AgentStopDetail, type SnailRuntimeMessageInput } from "../../src/agent/interface";
+import { AgentInvocationInterruptedError, AgentInvocationTerminatedError, type AgentEvent, type AgentInvocationOptions, type AgentStopDetail, type SnailRuntimeMessageInput, type ToolPermissionRequest } from "../../src/agent/interface";
 import { ConversationStore, type Conversation, type CreateMessageEventInput, type RoleName } from "../../src/persistence/store";
 import { sendStructuredMessage, structuredMentionsFromEvents, extractStageTransition, type MentionResolution } from "../../src/message-bus/collaboration";
 import { buildContentBlockEvent, buildPlainTextEvent, type MessageInputEvent } from "../../src/message-bus/message-events";
@@ -285,6 +285,17 @@ async function testInterruptedRuntimeConsumesDispatchAfterMessageStarts(): Promi
   const result = await sendStructuredMessage({
     store,
     emitAgentEvent: () => undefined,
+    onPermissionRequired: (ctx) => {
+      permissionStore.set({
+        conversationId: ctx.conversationId,
+        messageId: ctx.messageId,
+        request: ctx.request as ToolPermissionRequest,
+        originalUserMessageId: 0,
+        originalRoleName: ctx.roleName,
+        originalFromRole: "",
+        createdAt: new Date().toISOString(),
+      });
+    },
     buildConversationSystemPrompt: () => mockCapability(),
     resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
       const currentConversation = store.getConversation(conversation.id);
@@ -329,6 +340,17 @@ async function testInterruptedParallelRuntimeDoesNotAbortOtherMessages(): Promis
   const result = await sendStructuredMessage({
     store,
     emitAgentEvent: () => undefined,
+    onPermissionRequired: (ctx) => {
+      permissionStore.set({
+        conversationId: ctx.conversationId,
+        messageId: ctx.messageId,
+        request: ctx.request as ToolPermissionRequest,
+        originalUserMessageId: 0,
+        originalRoleName: ctx.roleName,
+        originalFromRole: "",
+        createdAt: new Date().toISOString(),
+      });
+    },
     buildConversationSystemPrompt: () => mockCapability(),
     resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
       const currentConversation = store.getConversation(conversation.id);
@@ -374,6 +396,17 @@ async function testStreamedEventsCompleteWithoutReturnText(): Promise<void> {
   const result = await sendStructuredMessage({
     store,
     emitAgentEvent: () => undefined,
+    onPermissionRequired: (ctx) => {
+      permissionStore.set({
+        conversationId: ctx.conversationId,
+        messageId: ctx.messageId,
+        request: ctx.request as ToolPermissionRequest,
+        originalUserMessageId: 0,
+        originalRoleName: ctx.roleName,
+        originalFromRole: "",
+        createdAt: new Date().toISOString(),
+      });
+    },
     buildConversationSystemPrompt: () => mockCapability(),
     resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
       const currentConversation = store.getConversation(conversation.id);
@@ -435,6 +468,17 @@ async function testRuntimeFailureDoesNotConsumeDispatch(): Promise<void> {
     await sendStructuredMessage({
       store,
       emitAgentEvent: () => undefined,
+      onPermissionRequired: (ctx) => {
+        permissionStore.set({
+          conversationId: ctx.conversationId,
+          messageId: ctx.messageId,
+          request: ctx.request as ToolPermissionRequest,
+          originalUserMessageId: 0,
+          originalRoleName: ctx.roleName,
+          originalFromRole: "",
+          createdAt: new Date().toISOString(),
+        });
+      },
       buildConversationSystemPrompt: () => mockCapability(),
       resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
         const currentConversation = store.getConversation(conversation.id);
@@ -478,6 +522,17 @@ async function testStreamedJsonStillRoutesStructuredMentions(): Promise<void> {
   const deps = {
     store,
     emitAgentEvent: () => undefined,
+    onPermissionRequired: (ctx: { conversationId: string; messageId: number; request: unknown; roleName: string }) => {
+      permissionStore.set({
+        conversationId: ctx.conversationId,
+        messageId: ctx.messageId,
+        request: ctx.request as ToolPermissionRequest,
+        originalUserMessageId: 0,
+        originalRoleName: ctx.roleName,
+        originalFromRole: "",
+        createdAt: new Date().toISOString(),
+      });
+    },
     buildConversationSystemPrompt: () => mockCapability(),
     resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
       const currentConversation = store.getConversation(conversation.id);
@@ -521,6 +576,17 @@ async function testToolResultMessageOutDoesNotRouteAsMessageContent(): Promise<v
   const deps = {
     store,
     emitAgentEvent: () => undefined,
+    onPermissionRequired: (ctx: { conversationId: string; messageId: number; request: unknown; roleName: string }) => {
+      permissionStore.set({
+        conversationId: ctx.conversationId,
+        messageId: ctx.messageId,
+        request: ctx.request as ToolPermissionRequest,
+        originalUserMessageId: 0,
+        originalRoleName: ctx.roleName,
+        originalFromRole: "",
+        createdAt: new Date().toISOString(),
+      });
+    },
     buildConversationSystemPrompt: () => mockCapability(),
     resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
       const currentConversation = store.getConversation(conversation.id);
@@ -593,6 +659,17 @@ async function testSameRoundMentionsDispatchInParallel(): Promise<void> {
   const deps = {
     store,
     emitAgentEvent: () => undefined,
+    onPermissionRequired: (ctx: { conversationId: string; messageId: number; request: unknown; roleName: string }) => {
+      permissionStore.set({
+        conversationId: ctx.conversationId,
+        messageId: ctx.messageId,
+        request: ctx.request as ToolPermissionRequest,
+        originalUserMessageId: 0,
+        originalRoleName: ctx.roleName,
+        originalFromRole: "",
+        createdAt: new Date().toISOString(),
+      });
+    },
     buildConversationSystemPrompt: () => mockCapability(),
     resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
       const currentConversation = store.getConversation(conversation.id);
@@ -686,6 +763,17 @@ async function testParallelDispatchRespectsRemainingRoundBudget(): Promise<void>
   const deps = {
     store,
     emitAgentEvent: () => undefined,
+    onPermissionRequired: (ctx: { conversationId: string; messageId: number; request: unknown; roleName: string }) => {
+      permissionStore.set({
+        conversationId: ctx.conversationId,
+        messageId: ctx.messageId,
+        request: ctx.request as ToolPermissionRequest,
+        originalUserMessageId: 0,
+        originalRoleName: ctx.roleName,
+        originalFromRole: "",
+        createdAt: new Date().toISOString(),
+      });
+    },
     buildConversationSystemPrompt: (_conversationId: string, options: { activeRoleName: RoleName; forcedWrapUp: boolean; mentionAllowed: boolean; remainingRounds: number }) => {
       calls.push({ role: options.activeRoleName, forcedWrapUp: options.forcedWrapUp, mentionAllowed: options.mentionAllowed, remainingRounds: options.remainingRounds });
       return mockCapability();
@@ -733,6 +821,17 @@ async function testForcedWrapUpDispatchesDoNotRunInParallel(): Promise<void> {
   const deps = {
     store,
     emitAgentEvent: () => undefined,
+    onPermissionRequired: (ctx: { conversationId: string; messageId: number; request: unknown; roleName: string }) => {
+      permissionStore.set({
+        conversationId: ctx.conversationId,
+        messageId: ctx.messageId,
+        request: ctx.request as ToolPermissionRequest,
+        originalUserMessageId: 0,
+        originalRoleName: ctx.roleName,
+        originalFromRole: "",
+        createdAt: new Date().toISOString(),
+      });
+    },
     buildConversationSystemPrompt: () => mockCapability(),
     resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
       const currentConversation = store.getConversation(conversation.id);
@@ -798,6 +897,17 @@ async function testSystemReminderNotCommittedOnMessageFailureRetry(): Promise<vo
   const deps = {
     store,
     emitAgentEvent: () => undefined,
+    onPermissionRequired: (ctx: { conversationId: string; messageId: number; request: unknown; roleName: string }) => {
+      permissionStore.set({
+        conversationId: ctx.conversationId,
+        messageId: ctx.messageId,
+        request: ctx.request as ToolPermissionRequest,
+        originalUserMessageId: 0,
+        originalRoleName: ctx.roleName,
+        originalFromRole: "",
+        createdAt: new Date().toISOString(),
+      });
+    },
     buildConversationSystemPrompt: () => buildCap(),
     resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
       const currentConversation = store.getConversation(conversation.id);
@@ -980,6 +1090,17 @@ function buildDeps(store: ConversationStore, conversation: ReturnType<Conversati
   return {
     store,
     emitAgentEvent: () => undefined,
+    onPermissionRequired: (ctx: { conversationId: string; messageId: number; request: unknown; roleName: string }) => {
+      permissionStore.set({
+        conversationId: ctx.conversationId,
+        messageId: ctx.messageId,
+        request: ctx.request as ToolPermissionRequest,
+        originalUserMessageId: 0,
+        originalRoleName: ctx.roleName,
+        originalFromRole: "",
+        createdAt: new Date().toISOString(),
+      });
+    },
     buildConversationSystemPrompt: () => mockCapability(),
     resolveMentions: async (_conversationId: string, events: CreateMessageEventInput[]): Promise<MentionResolution> => {
       const currentConversation = store.getConversation(conversation.id);

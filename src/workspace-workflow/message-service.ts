@@ -11,6 +11,8 @@ import { sendStructuredMessage as sendStructuredMessageWithCollaboration } from 
 import type { ConversationQueue } from "./conversation-queue";
 import type { MessageInterruptRegistry } from "../message-bus/message-interrupt";
 import { buildPlainTextEvent, type MessageInputEvent } from "../message-bus/message-events";
+import { permissionStore } from "../agent/permission-store";
+import type { ToolPermissionRequest } from "../agent/interface";
 import { assertConversationIssueWritable } from "./manager-detail";
 import { resolveConversationSystemPrompt, resolveConversationRole, resolveMentions, type CollaborationDeps } from "./manager-collaboration";
 import type { WorkspaceManagerDeps } from "./manager-types";
@@ -132,5 +134,6 @@ export function buildCollaborationInvokeDeps(deps: MessageServiceDeps, conversat
     onStageTransitionDetected: (targetConversationId: string, targetStageKey: string, reason: string | null) => {
       deps.onStageTransitionDetected(targetConversationId, targetStageKey, reason);
     },
+    onPermissionRequired: (ctx: { conversationId: string; messageId: number; request: unknown; roleName: string }) => permissionStore.set({ conversationId: ctx.conversationId, messageId: ctx.messageId, request: ctx.request as ToolPermissionRequest, originalUserMessageId: 0, originalRoleName: ctx.roleName, originalFromRole: "", createdAt: new Date().toISOString() }),
   };
 }

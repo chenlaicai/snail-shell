@@ -7,11 +7,10 @@ import { logAgentOutput } from "../agent/message-flow-logger";
 import { summarizeRuntimeError } from "../agent/runtime-error";
 import { getInputContent } from "./message-events";
 import { buildTerminalMessageContext } from "./message-context";
-import { permissionStore } from "../agent/permission-store";
-
 export interface MessageProtocolDeps {
   emitAgentEvent: (conversationId: string, event: Record<string, unknown>) => void;
   updateSnailAgentSessionExternalId: (sessionId: string, externalSessionId: string | null) => void;
+  onPermissionRequired: (context: { conversationId: string; messageId: number; request: unknown; roleName: string }) => void;
   store: {
     addMessage: (input: { conversationId: string; fromRole: RoleName; toRoles: RoleName[]; role: "assistant"; contextCutoffAt: string; runtime: MessageRuntime; status: "streaming" }) => { id: number };
     addMessageEvent: (messageId: number, event: CreateMessageEventInput) => MessageEvent;
@@ -166,14 +165,11 @@ function handleStreamingEvent(context: StreamingContext, event: AgentEvent): voi
       break;
     case "permission_required":
       context.session.pendingPermissionRequest = true;
-      permissionStore.set({
+      context.deps.onPermissionRequired({
         conversationId: context.conversationId,
         messageId: context.session.assistantMessageId,
         request: event.request,
-        originalUserMessageId: 0,
-        originalRoleName: context.activeRole.name,
-        originalFromRole: "",
-        createdAt: new Date().toISOString(),
+        roleName: context.activeRole.name,
       });
       context.deps.emitAgentEvent(context.conversationId, { ...event, message_id: context.session.assistantMessageId, role_name: context.activeRole.name });
       break;

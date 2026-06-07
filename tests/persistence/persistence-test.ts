@@ -246,6 +246,7 @@ const collidingProtocolMessage = createStreamingContext({
   deps: {
     emitAgentEvent: () => {},
     updateSnailAgentSessionExternalId: () => {},
+    onPermissionRequired: () => {},
     store,
   },
   conversationId: persistedEvolutionConversation.id,

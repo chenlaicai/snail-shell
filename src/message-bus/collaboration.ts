@@ -77,6 +77,7 @@ export interface CollaborationDeps {
    * 失败仅 log.warn，不阻塞（agent 消息已完成）。
    */
   onStageTransitionDetected?: (conversationId: string, targetStageKey: string, reason: string | null) => void;
+  onPermissionRequired: (context: { conversationId: string; messageId: number; request: unknown; roleName: string }) => void;
 }
 
 interface SendStructuredMessageOptions {
