@@ -36,9 +36,9 @@ store.seedSopToCache({ id: "count-test-sop", source: "platform", sourceRef: null
   ] },
 ]);
 
-const countTestStages = store.listSopStageDefinitions("count-test-sop");
+const countTestStages = store.fileConfigStore.listSopStageDefinitions("count-test-sop");
 assert(countTestStages.length === 1, "count-test should have 1 stage");
-const countTestRoles = store.listSopStageRoleDefinitions(countTestStages[0].id);
+const countTestRoles = store.fileConfigStore.listSopStageRoleDefinitions(countTestStages[0].id);
 assert(countTestRoles.length === 3, `count-test stage should have 3 role rows (1 developer + 2 reviewers), got ${countTestRoles.length}`);
 const reviewerInstances = countTestRoles.filter((r) => r.key === "reviewer");
 assert(reviewerInstances.length === 2, `should have 2 reviewer instances, got ${reviewerInstances.length}`);
@@ -59,7 +59,7 @@ store.seedWorkspaceToCache({
   id: "workspace-1", name: "Snail Shell", summary: "Self evolution", workspaceRoot: process.cwd(),
 });
 
-const workspace = store.getWorkspace("workspace-1")!;
+const workspace = store.fileConfigStore.getWorkspace("workspace-1")!;
 const issue = store.createIssue({ id: "issue-1", workspaceId: workspace.id, title: "Issue", summary: "Self evolution" });
 const stage = store.createStage({ id: "stage-1", workspaceId: workspace.id, issueId: issue.id, stageDefinitionId: "development", type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
 store.createConversation({ id: "conversation-1", workspaceId: workspace.id, issueId: issue.id, stageId: stage.id, title: "Founding discussion", kind: "discussion", defaultRole: "Owner Snail", participatingRoles: ["项目负责人", "Owner Snail", "Product Snail"], summary: "Initial discussion", fromConversationIds: [] });
@@ -80,29 +80,29 @@ function testReplaceWorkspaceConfigsBasic() {
     ],
   }];
 
-  store.replaceWorkspaceConfigs("workspace-1", {
+  store.fileConfigStore.replaceWorkspaceConfigs("workspace-1", {
     workspaceUpdate: { name: "Updated Workspace", summary: "Updated summary" },
     sopSeeds: newSopSeeds,
   });
 
   // 验证 workspace 更新
-  const workspace = store.getWorkspace("workspace-1");
+  const workspace = store.fileConfigStore.getWorkspace("workspace-1");
   assert(workspace?.name === "Updated Workspace", "workspace name should be updated");
   assert(workspace?.summary === "Updated summary", "workspace summary should be updated");
 
   // 验证 SOP 已创建
-  const sop = store.getSop("sop-workspace-1");
+  const sop = store.fileConfigStore.getSop("sop-workspace-1");
   assert(sop !== undefined, "workspace sop should exist");
   assert(sop?.key === "sop-workspace-1", "sop key should match");
 
   // 验证 stage_definitions
-  const stageDefs = store.listSopStageDefinitions("sop-workspace-1");
+  const stageDefs = store.fileConfigStore.listSopStageDefinitions("sop-workspace-1");
   assert(stageDefs.length === 2, "should have 2 stage definitions");
   assert(stageDefs.some((s) => s.key === "development"), "should have development stage");
   assert(stageDefs.some((s) => s.key === "review"), "should have review stage");
 
   // 验证 stage_role_definition（角色现在嵌套在 stage 下）
-  const stagesWithRoles = store.listSopStageDefinitionsWithRoles("sop-workspace-1");
+  const stagesWithRoles = store.fileConfigStore.listSopStageDefinitionsWithRoles("sop-workspace-1");
   const allRoles = stagesWithRoles.flatMap((s) => s.roles);
   assert(allRoles.length === 2, "should have 2 role definitions across all stages");
   assert(allRoles.some((r) => r.key === "developer"), "should have developer role");
@@ -123,17 +123,17 @@ function testReplaceWorkspaceConfigsRemovesOldSops() {
     ],
   }];
 
-  store.replaceWorkspaceConfigs("workspace-1", {
+  store.fileConfigStore.replaceWorkspaceConfigs("workspace-1", {
     workspaceUpdate: { name: "Workspace After Replace" },
     sopSeeds: newSopSeeds,
   });
 
   // 旧 SOP 文件仍保留在磁盘上（replaceWorkspaceConfigs 只替换绑定，不删除 SOP 文件）
-  const oldSop = store.getSop("sop-workspace-1");
+  const oldSop = store.fileConfigStore.getSop("sop-workspace-1");
   assert(oldSop !== undefined, "old workspace sop file should still exist on disk");
 
   // 新 SOP 应该存在
-  const newSop = store.getSop("sop-workspace-2");
+  const newSop = store.fileConfigStore.getSop("sop-workspace-2");
   assert(newSop !== undefined, "new workspace sop should exist");
 
   console.log("  ✓ testReplaceWorkspaceConfigsRemovesOldSops passed");
@@ -155,13 +155,13 @@ function testReplaceWorkspaceConfigsPreservesReferencedSops() {
     ],
   }];
 
-  store.replaceWorkspaceConfigs("workspace-1", {
+  store.fileConfigStore.replaceWorkspaceConfigs("workspace-1", {
     workspaceUpdate: { name: "Workspace With Issue" },
     sopSeeds: newSopSeeds,
   });
 
   // 新 SOP 应该存在
-  const newSop = store.getSop("sop-workspace-3");
+  const newSop = store.fileConfigStore.getSop("sop-workspace-3");
   assert(newSop !== undefined, "new workspace sop should exist");
 
   console.log("  ✓ testReplaceWorkspaceConfigsPreservesReferencedSops passed");

@@ -35,7 +35,7 @@ export function createInitialWorkflow(
 ): { workspace: Workspace; issue: Issue; stage: Stage; conversation: Conversation } {
   const { name, summary, workspaceRoot, workspaceId, sopId, roleSnailMapping } = input;
 
-  const workspace = deps.store.createWorkspace(workspaceId ?? randomUUID(), name, workspaceRoot, summary);
+  const workspace = deps.store.fileConfigStore.createWorkspace({ id: workspaceId ?? randomUUID(), name, workspaceRoot, summary });
 
   const issueWorkflow = createIssueWorkflow(deps, { workspace, title: "初始设计与实现", summary: "工作区创建时自动生成的默认 issue。", adoptedSopId: sopId, roleSnailMapping });
   return { workspace, ...issueWorkflow };
@@ -46,14 +46,14 @@ export function createIssueWorkflow(
   input: { workspace: Workspace; title: string; summary?: string; fromConversationIds?: string[]; adoptedSopId: string; roleSnailMapping: Record<string, Record<string, string>> }
 ): IssueWorkflowResult {
   // SOP 可用性校验：通过 SOP scope 确认对当前 workspace 可用
-  const sop = deps.store.getSop(input.adoptedSopId);
+  const sop = deps.store.fileConfigStore.getSop(input.adoptedSopId);
   if (!sop) throw new Error(`SOP not found: ${input.adoptedSopId}`);
   if (sop.source === "workspace" && sop.source_ref !== input.workspace.id) {
     throw new Error(`SOP ${input.adoptedSopId} belongs to workspace ${sop.source_ref}, not ${input.workspace.id}`);
   }
 
   // 捕获 SOP 全量快照
-  const snapshot = buildSopSnapshot(deps, input.adoptedSopId);
+  const snapshot = buildSopSnapshot({ store: deps.store.fileConfigStore }, input.adoptedSopId);
   const reader = new SopSnapshotReader(snapshot);
 
   const issue = deps.store.createIssue({

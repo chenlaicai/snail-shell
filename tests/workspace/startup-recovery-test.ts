@@ -33,11 +33,11 @@ async function main(): Promise<void> {
   store.seedWorkspaceToCache({
     id: "startup-recovery-workspace",  name: "Snail Shell", summary: "test", workspaceRoot: process.cwd(),
   });
-  const workspace = store.getWorkspace("startup-recovery-workspace")!;
+  const workspace = store.fileConfigStore.getWorkspace("startup-recovery-workspace")!;
   const issue = store.createIssue({ id: "startup-recovery-issue", workspaceId: workspace.id, title: "Issue" });
   const stage = store.createStage({ id: "startup-recovery-stage", workspaceId: workspace.id, issueId: issue.id, stageDefinitionId: "development", type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
   const conversation = store.createConversation({ id: "startup-recovery-conversation", workspaceId: workspace.id, issueId: issue.id, stageId: stage.id, title: "Conversation", kind: "discussion", defaultRole: "开发者", participatingRoles: ["项目负责人", "开发者"], fromConversationIds: [] });
-  const evolutionItem = store.createEvolutionItem({ id: "startup-recovery-evolution", workspaceId: workspace.id, title: "启动恢复治理消息", content: "治理 conversation 的 streaming assistant 也需要恢复。", tags: ["constraint"] }, { development: { executor: "opencode-default" } });
+  const evolutionItem = store.evolution.create({ id: "startup-recovery-evolution", workspaceId: workspace.id, title: "启动恢复治理消息", content: "治理 conversation 的 streaming assistant 也需要恢复。", tags: ["constraint"] }, { development: { executor: "opencode-default" } });
   const evolutionConversationId = evolutionItem.conversation?.id;
   if (!evolutionConversationId) throw new Error("evolution conversation should exist");
 

@@ -93,7 +93,7 @@ export class WorkspaceManager extends EventEmitter {
       }
       this.loadWorkspaceFromSnail(workspaceId, resolvedRoot);
       // 从 .snail 加载后，获取 workspace 和创建默认 issue
-      const workspace = this.store.getWorkspace(workspaceId);
+      const workspace = this.store.fileConfigStore.getWorkspace(workspaceId);
       if (workspace) {
         const issueResult = this.createIssue(workspaceId, "初始研发迭代", "工作区创建时自动生成的默认 issue。", input.sopId, {});
         logger.info("WorkspaceManager created workspace from .snail", { workspaceId, issueId: issueResult.issue.id, stageId: issueResult.stage.id, conversationId: issueResult.conversation.id });
@@ -141,7 +141,7 @@ export class WorkspaceManager extends EventEmitter {
       stage_definitions: this.resolveHandbookRefs(sopDef.stage_definitions, sopDir),
     }));
 
-    this.store.replaceWorkspaceConfigs(workspaceId, {
+    this.store.fileConfigStore.replaceWorkspaceConfigs(workspaceId, {
       workspaceUpdate: { name: context.config.name, summary: context.config.summary },
       sopSeeds,
     });
@@ -183,7 +183,7 @@ export class WorkspaceManager extends EventEmitter {
   }
 
   listWorkspaces(limit = 50, offset = 0): WorkspaceSummary[] {
-    return this.store.listWorkspaces(limit, offset).map((workspace) => ({
+    return this.store.fileConfigStore.listWorkspaces(limit, offset).map((workspace) => ({
       ...workspace,
       conversation_count: this.store.listConversationsByWorkspace(workspace.id).length,
       stage_count: this.store.listStages(workspace.id).length,
@@ -193,7 +193,7 @@ export class WorkspaceManager extends EventEmitter {
   }
 
   getWorkspace(workspaceId: string): WorkspaceDetail | null {
-    const workspace = this.store.getWorkspace(workspaceId);
+    const workspace = this.store.fileConfigStore.getWorkspace(workspaceId);
     if (!workspace) return null;
     const stages = this.store.listStages(workspaceId);
     const issues = this.store.listIssues(workspaceId).map((f) => buildIssueDetail(this.store, f));
@@ -208,7 +208,7 @@ export class WorkspaceManager extends EventEmitter {
   }
 
   createIssue(workspaceId: string, title: string, summary: string | undefined, adoptedSopId: string, roleSnailMapping: Record<string, Record<string, string>>) {
-    const workspace = this.store.getWorkspace(workspaceId);
+    const workspace = this.store.fileConfigStore.getWorkspace(workspaceId);
     if (!workspace) throw new Error(`Workspace not found: ${workspaceId}`);
     const result = createIssueWorkflow({ store: this.store }, { workspace, title, summary, adoptedSopId, roleSnailMapping });
     logger.info("WorkspaceManager created issue workflow", { workspaceId, issueId: result.issue.id, stageId: result.stage.id, conversationId: result.conversation.id });
@@ -224,7 +224,7 @@ export class WorkspaceManager extends EventEmitter {
     const issue = this.store.getIssue(issueId);
     if (!issue) throw new Error(`Issue not found: ${issueId}`);
     assertIssueWritable(this.store, issue);
-    const workspace = this.store.getWorkspace(issue.workspace_id);
+    const workspace = this.store.fileConfigStore.getWorkspace(issue.workspace_id);
     if (!workspace) throw new Error(`Workspace not found: ${issue.workspace_id}`);
     const activeStage = this.store.getActiveStage(issueId);
     if (!activeStage) throw new Error(`No active stage found for issue: ${issueId}`);
@@ -242,7 +242,7 @@ export class WorkspaceManager extends EventEmitter {
     const issue = this.store.getIssue(issueId);
     if (!issue) throw new Error(`Issue not found: ${issueId}`);
     assertIssueWritable(this.store, issue);
-    const workspace = this.store.getWorkspace(issue.workspace_id);
+    const workspace = this.store.fileConfigStore.getWorkspace(issue.workspace_id);
     if (!workspace) throw new Error(`Workspace not found: ${issue.workspace_id}`);
     const activeStage = this.store.getActiveStage(issueId);
     if (!activeStage) throw new Error(`No active stage found for issue: ${issueId}`);
@@ -375,17 +375,17 @@ export class WorkspaceManager extends EventEmitter {
 
   searchConversationHistory(conversationId: string, query: string, limit = 5, offset = 0): ConversationHistorySearchPage { return managerQueries.searchConversationHistory({ store: this.store, conversationId, query, limit, offset }); }
 
-  listRoles() { return this.store.listRoleDefinitionsByWorkspace(""); }
-  listSops(source?: "platform" | "workspace") { return this.store.listSops(source); }
-  getSop(sopId: string) { return this.store.getSop(sopId); }
-  createPlatformSop(input: Parameters<typeof this.store.createPlatformSop>[0]) { return this.store.createPlatformSop(input); }
-  updatePlatformSop(sopId: string, input: Parameters<typeof this.store.updatePlatformSop>[1]) { return this.store.updatePlatformSop(sopId, input); }
-  deletePlatformSop(sopId: string): string[] { return this.store.deletePlatformSop(sopId); }
-  listSopStageDefinitionsWithRoles(sopId: string) { return this.store.listSopStageDefinitionsWithRoles(sopId); }
-  collectSopRoleKeys(sopId: string) { return this.store.collectSopRoleKeys(sopId); }
-  listSopStageDefinitions(sopId: string) { return this.store.listSopStageDefinitions(sopId); }
-  getSopTransitions(sopId: string) { return this.store.getSopTransitions(sopId); }
-  getForwardTransitions(sopId: string, fromStageKey: string) { return this.store.getForwardTransitions(sopId, fromStageKey); }
+  listRoles() { return this.store.fileConfigStore.listRoleDefinitionsByWorkspace(""); }
+  listSops(source?: "platform" | "workspace") { return this.store.fileConfigStore.listSops(source); }
+  getSop(sopId: string) { return this.store.fileConfigStore.getSop(sopId); }
+  createPlatformSop(input: Parameters<typeof this.store.fileConfigStore.createPlatformSop>[0]) { return this.store.fileConfigStore.createPlatformSop(input); }
+  updatePlatformSop(sopId: string, input: Parameters<typeof this.store.fileConfigStore.updatePlatformSop>[1]) { return this.store.fileConfigStore.updatePlatformSop(sopId, input); }
+  deletePlatformSop(sopId: string): string[] { return this.store.fileConfigStore.deletePlatformSop(sopId); }
+  listSopStageDefinitionsWithRoles(sopId: string) { return this.store.fileConfigStore.listSopStageDefinitionsWithRoles(sopId); }
+  collectSopRoleKeys(sopId: string) { return this.store.fileConfigStore.collectSopRoleKeys(sopId); }
+  listSopStageDefinitions(sopId: string) { return this.store.fileConfigStore.listSopStageDefinitions(sopId); }
+  getSopTransitions(sopId: string) { return this.store.fileConfigStore.getSopTransitions(sopId); }
+  getForwardTransitions(sopId: string, fromStageKey: string) { return this.store.fileConfigStore.getForwardTransitions(sopId, fromStageKey); }
 
   createEvolutionItem(input: Omit<CreateEvolutionItemInput, "id">, roleSnailMapping: Record<string, Record<string, string>>): EvolutionItemWithConversation { return evolutionCenter.createEvolutionItem(this.store, input, roleSnailMapping); }
   getEvolutionItem(id: string): EvolutionItemWithConversation | null { return evolutionCenter.getEvolutionItem(this.store, id); }
@@ -393,10 +393,10 @@ export class WorkspaceManager extends EventEmitter {
   updateEvolutionItem(id: string, input: UpdateEvolutionItemInput): EvolutionItemWithConversation { return evolutionCenter.updateEvolutionItem(this.store, id, input); }
 
   /** Knowledge Library methods */
-  getKnowledgeLibrarySummary(): { scope: string; count: number }[] { return this.store.summaryKnowledgeLibrary(); }
-  getKnowledgeLibraryEntry(id: string) { return this.store.getKnowledgeLibraryEntry(id); }
-  listKnowledgeLibrary(filters: any = {}) { return this.store.listKnowledgeLibrary(filters); }
-  searchKnowledgeLibrary(filters: any) { return this.store.searchKnowledgeLibrary(filters); }
+  getKnowledgeLibrarySummary(): { scope: string; count: number }[] { return this.store.knowledgeLibrary.summary(); }
+  getKnowledgeLibraryEntry(id: string) { return this.store.knowledgeLibrary.get(id); }
+  listKnowledgeLibrary(filters: any = {}) { return this.store.knowledgeLibrary.list(filters); }
+  searchKnowledgeLibrary(filters: any) { return this.store.knowledgeLibrary.search(filters); }
 
   /** 构建 sendStructuredMessageWithCollaboration 所需的依赖对象。 */
   private buildCollaborationInvokeDeps(conversationId: string) {
@@ -499,7 +499,7 @@ export class WorkspaceManager extends EventEmitter {
     if (!issue) { logger.warn("stage_transition: issue not found", { issueId: conversation.issue_id }); return null; }
     /** 防止 agent 在已归档 issue 上绕过 API 层保护直接驱动转移 */
     assertIssueWritable(this.store, issue);
-    const workspace = this.store.getWorkspace(issue.workspace_id);
+    const workspace = this.store.fileConfigStore.getWorkspace(issue.workspace_id);
     if (!workspace) { logger.warn("stage_transition: workspace not found", { workspaceId: issue.workspace_id }); return null; }
     const activeStage = this.store.getStage(conversation.stage_id);
     if (!activeStage) { logger.warn("stage_transition: stage not found", { stageId: conversation.stage_id }); return null; }

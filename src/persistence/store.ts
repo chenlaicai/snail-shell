@@ -92,20 +92,12 @@ import type {
   MessageStatus,
   MessageWithEvents,
   PersistedMessageEventRow,
-  Workspace,
-  WorkspaceStageDefinition,
   RoleName,
-  Sop,
-  SopStageDefinition,
-  SopTransition,
   Stage,
-  StageRoleDefinition,
 } from "../shared/types";
 export type { StageType } from "../shared/types";
 export type { EvolutionItem, EvolutionItemWithConversation, CreateEvolutionItemInput, UpdateEvolutionItemInput, EvolutionItemListFilters, EvolutionItemSearchResult } from "../shared/evolution-types";
-import type { CreateEvolutionItemInput, EvolutionItemListFilters, EvolutionItemSearchResult, EvolutionItemWithConversation, UpdateEvolutionItemInput } from "../shared/evolution-types";
 export type { KnowledgeLibraryScope, CreateKnowledgeLibraryInput, KnowledgeLibraryEntry, KnowledgeLibraryListFilters, KnowledgeLibrarySearchResult, UpdateKnowledgeLibraryInput } from "../shared/knowledge-library-types";
-import type { CreateKnowledgeLibraryInput, KnowledgeLibraryEntry, KnowledgeLibraryListFilters, KnowledgeLibrarySearchResult, UpdateKnowledgeLibraryInput } from "../shared/knowledge-library-types";
 
 /** SOP 种子项，用于从 .snail 目录或 JSON 种子加载 SOP。 */
 export interface SopSeedItem {
@@ -198,84 +190,9 @@ export class ConversationStore {
     }>,
     transitions?: Array<{ from: string; to: string; guard?: { type: string; config?: Record<string, unknown> } }>,
   ): void {
-    if (this.getSop(sopInput.key)) return;
+    if (this.fileConfigStore.getSop(sopInput.key)) return;
     this.fileConfigStore.createPlatformSop({ key: sopInput.key, name: sopInput.name, description: sopInput.description ?? undefined, first_stage: sopInput.firstStage ?? undefined, stage_definitions: stageDefinitions, transitions });
   }
-  replaceWorkspaceConfigs(
-    workspaceId: string,
-    input: {
-      workspaceUpdate: { name: string; summary?: string };
-      sopSeeds: Array<{
-        sop: { id: string; source: "platform" | "workspace"; sourceRef: string | null; key: string; name: string; description?: string | null };
-        stage_definitions: Array<{
-          key: string; title: string; sequence: number;
-          input_description?: string | null; output_description?: string | null;
-          acceptance_focus?: string[]; acceptance_checklist?: Array<{ id: string; description: string; required: boolean }>;
-          roles: Array<{ key: string; name: string; description?: string; handbook?: string | null; is_primary?: boolean; count?: number }>;
-        }>;
-      }>;
-    },
-  ): void {
-    this.fileConfigStore.replaceWorkspaceConfigs(workspaceId, input);
-  }
-
-  // ── SOP (file-backed via FileConfigStore) ───────────────────────
-
-  getSop(id: string): Sop | undefined { return this.fileConfigStore.getSop(id); }
-  getSopByKey(source: "platform" | "workspace", key: string): Sop | undefined { return this.fileConfigStore.getSopByKey(source, key); }
-  listSops(source?: "platform" | "workspace"): Sop[] { return this.fileConfigStore.listSops(source); }
-  listSopsByWorkspace(workspaceId: string): Sop[] { return this.fileConfigStore.listSopsByWorkspace(workspaceId); }
-  createPlatformSop(input: Parameters<typeof this.fileConfigStore.createPlatformSop>[0]): Sop { return this.fileConfigStore.createPlatformSop(input); }
-  updatePlatformSop(sopId: string, input: Parameters<typeof this.fileConfigStore.updatePlatformSop>[1]): Sop { return this.fileConfigStore.updatePlatformSop(sopId, input); }
-  deletePlatformSop(sopId: string): string[] { return this.fileConfigStore.deletePlatformSop(sopId); }
-
-  // ── SOP Transition (file-backed via FileConfigStore) ────────────
-
-  getSopTransitions(sopId: string): SopTransition[] { return this.fileConfigStore.getSopTransitions(sopId); }
-  getForwardTransitions(sopId: string, fromStageKey: string): SopTransition[] { return this.fileConfigStore.getForwardTransitions(sopId, fromStageKey); }
-  validateTransition(sopId: string, fromStageKey: string, toStageKey: string): SopTransition { return this.fileConfigStore.validateTransition(sopId, fromStageKey, toStageKey); }
-  getSopStageDefinition(id: string): SopStageDefinition | undefined { return this.fileConfigStore.getSopStageDefinition(id); }
-  getSopStageDefinitionByKey(sopId: string, key: string): SopStageDefinition | undefined { return this.fileConfigStore.getSopStageDefinitionByKey(sopId, key); }
-  listSopStageDefinitions(sopId: string): SopStageDefinition[] { return this.fileConfigStore.listSopStageDefinitions(sopId); }
-  listSopStageRoleDefinitions(stageDefinitionId: string): StageRoleDefinition[] { return this.fileConfigStore.listSopStageRoleDefinitions(stageDefinitionId); }
-  listSopStageDefinitionsWithRoles(sopId: string): Array<SopStageDefinition & { roles: StageRoleDefinition[] }> { return this.fileConfigStore.listSopStageDefinitionsWithRoles(sopId); }
-  collectSopRoleKeys(sopId: string): Set<string> { return this.fileConfigStore.collectSopRoleKeys(sopId); }
-  getStageDefinition(id: string): WorkspaceStageDefinition | undefined {
-    return this.fileConfigStore.getStageDefinitionByWorkspace(id);
-  }
-  getStageDefinitionByKey(workspaceId: string, key: string): WorkspaceStageDefinition | undefined {
-    return this.fileConfigStore.getStageDefinitionByKey(workspaceId, key);
-  }
-  listStageDefinitions(workspaceId: string): WorkspaceStageDefinition[] {
-    return this.fileConfigStore.listStageDefinitions(workspaceId);
-  }
-  listRoleDefinitionsByStageAndWorkspace(stageDefinitionId: string, workspaceId: string): StageRoleDefinition[] { return this.fileConfigStore.listRoleDefinitionsByStageAndWorkspace(stageDefinitionId, workspaceId); }
-  listRoleDefinitionsByWorkspace(workspaceId: string): StageRoleDefinition[] { return this.fileConfigStore.listRoleDefinitionsByWorkspace(workspaceId); }
-  createWorkspace(id: string, name: string, workspaceRoot: string, summary?: string, guardProfile?: Record<string, unknown> | null): Workspace {
-    return this.fileConfigStore.createWorkspace({ id, name, workspaceRoot, summary, guardProfile });
-  }
-
-  getWorkspace(id: string): Workspace | undefined {
-    return this.fileConfigStore.getWorkspace(id);
-  }
-
-  listWorkspaces(limit = 50, offset = 0): Workspace[] {
-    return this.fileConfigStore.listWorkspaces(limit, offset);
-  }
-
-  // ── Evolution ────────────────────────────────────────────────────
-
-  getEvolutionConfig() { return this.fileConfigStore.getEvolutionConfig(); }
-  createEvolutionItem(input: CreateEvolutionItemInput, roleSnailMapping: Record<string, Record<string, string>>): EvolutionItemWithConversation { return this.evolution.create(input, roleSnailMapping); }
-  getEvolutionItem(id: string): EvolutionItemWithConversation | null { return this.evolution.get(id); }
-  listEvolutionItems(filters: EvolutionItemListFilters = {}): EvolutionItemSearchResult[] { return this.evolution.list(filters); }
-  updateEvolutionItem(id: string, input: UpdateEvolutionItemInput): EvolutionItemWithConversation { return this.evolution.update(id, input); }
-  createKnowledgeLibraryEntry(input: CreateKnowledgeLibraryInput): KnowledgeLibraryEntry { return this.knowledgeLibrary.create(input); }
-  getKnowledgeLibraryEntry(id: string): KnowledgeLibraryEntry | null { return this.knowledgeLibrary.get(id); }
-  listKnowledgeLibrary(filters: KnowledgeLibraryListFilters = {}): KnowledgeLibrarySearchResult[] { return this.knowledgeLibrary.list(filters); }
-  searchKnowledgeLibrary(filters: KnowledgeLibraryListFilters): KnowledgeLibrarySearchResult[] { return this.knowledgeLibrary.search(filters); }
-  updateKnowledgeLibraryEntry(id: string, updates: UpdateKnowledgeLibraryInput): KnowledgeLibraryEntry { return this.knowledgeLibrary.update(id, updates); }
-  summaryKnowledgeLibrary(workspaceId?: string): { scope: string; count: number }[] { return this.knowledgeLibrary.summary(workspaceId); }
   createIssue(input: { id: string; workspaceId: string; title: string; summary?: string | null; taskAnchor?: string | null; sopSnapshot?: SopSnapshot; roleSnailMapping?: Record<string, Record<string, string>> }): Issue {
     const snapshot = input.sopSnapshot ?? { sop_id: "", name: "", description: null, first_stage: null, shared_handbook: null, stage_definitions: [], transitions: [] };
     this.db.prepare(

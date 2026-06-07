@@ -13,21 +13,21 @@ export function createEvolutionItem(
   input: Omit<CreateEvolutionItemInput, "id">,
   roleSnailMapping: Record<string, Record<string, string>>,
 ): EvolutionItemWithConversation {
-  return store.createEvolutionItem({ ...input, id: randomUUID() }, roleSnailMapping);
+  return store.evolution.create({ ...input, id: randomUUID() }, roleSnailMapping);
 }
 
 export function getEvolutionItem(
   store: ConversationStore,
   id: string,
 ): EvolutionItemWithConversation | null {
-  return store.getEvolutionItem(id);
+  return store.evolution.get(id);
 }
 
 export function listEvolutionItems(
   store: ConversationStore,
   filters: EvolutionItemListFilters = {},
 ): EvolutionItemSearchResult[] {
-  return store.listEvolutionItems(filters);
+  return store.evolution.list(filters);
 }
 
 export function updateEvolutionItem(
@@ -35,5 +35,5 @@ export function updateEvolutionItem(
   id: string,
   input: UpdateEvolutionItemInput,
 ): EvolutionItemWithConversation {
-  return store.updateEvolutionItem(id, input);
+  return store.evolution.update(id, input);
 }

@@ -149,9 +149,9 @@ async function testEvolutionAtMentionFallbackIncludesSyntheticRole(): Promise<vo
   const { store, conversation } = createEvolutionContext("governance-at-mention-fallback");
   const captured: Array<{ name: string }> = [];
   // role definitions 从 evolution SOP 获取，手动应用 role_bindings（模拟 config/evolution.json）
-  const sop = store.getSopByKey("platform", "evolution")!;
-  const stageDef = store.getSopStageDefinitionByKey(sop.id, "development")!;
-  const rawRoles = store.listSopStageRoleDefinitions(stageDef.id);
+  const sop = store.fileConfigStore.getSopByKey("platform", "evolution")!;
+  const stageDef = store.fileConfigStore.getSopStageDefinitionByKey(sop.id, "development")!;
+  const rawRoles = store.fileConfigStore.listSopStageRoleDefinitions(stageDef.id);
   const evolutionRoleBindings: Record<string, string> = { "executor": "opencode-default" };
   const roles = rawRoles.map((r) => ({ ...r, snail_template_id: evolutionRoleBindings[r.key] ?? null }));
 
@@ -938,7 +938,7 @@ function createContext(suffix: string): { store: ConversationStore; conversation
   store.seedWorkspaceToCache({
     id: workspaceId, name: "Snail Shell", summary: "Collaboration test", workspaceRoot: process.cwd(),
   });
-  const workspace = store.getWorkspace(workspaceId)!;
+  const workspace = store.fileConfigStore.getWorkspace(workspaceId)!;
   const issue = store.createIssue({ id: `issue-collaboration-${suffix}`, workspaceId: workspace.id, title: "Collaboration", summary: "test" });
   const stage = store.createStage({ id: `stage-collaboration-${suffix}`, workspaceId: workspace.id, issueId: issue.id, stageDefinitionId: `sd-${workspaceId}-sop-development`, type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
   const conversation = store.createConversation({ id: `conversation-collaboration-${suffix}`, workspaceId: workspace.id, issueId: issue.id, stageId: stage.id, title: "Collaboration", kind: "discussion", defaultRole: "Owner Snail", participatingRoles: ["项目负责人", "Owner Snail", "Product Snail", "Design Snail"], fromConversationIds: [] });
@@ -952,7 +952,7 @@ function createEvolutionContext(suffix: string): { store: ConversationStore; con
   const configDir = fs.mkdtempSync(path.join(TEST_DATA_DIR, `config-evo-${suffix}-`));
   fs.writeFileSync(path.join(configDir, "workspaces.json"), JSON.stringify([]));
   const store = new ConversationStore(dbPath, configDir);
-  const workspace = store.createWorkspace(`workspace-collaboration-${suffix}`, "Snail Shell", process.cwd(), "Collaboration test");
+  const workspace = store.fileConfigStore.createWorkspace({ id: `workspace-collaboration-${suffix}`, name: "Snail Shell", workspaceRoot: process.cwd(), summary: "Collaboration test" });
 
   /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
   store.seedSopToCache({ id: "evolution", source: "platform", sourceRef: null, key: "evolution", name: "Evolution Center SOP", description: null }, [
@@ -963,7 +963,7 @@ function createEvolutionContext(suffix: string): { store: ConversationStore; con
   store.seedWorkspaceToCache({
     id: `workspace-collaboration-${suffix}`, name: "Snail Shell", summary: "Collaboration test", workspaceRoot: process.cwd(),
   });
-  const evolutionItem = store.createEvolutionItem({ id: `evolution-collaboration-${suffix}`, workspaceId: workspace.id, title: "治理对话路由", content: "测试治理对话默认回复上一发言 Snail。", tags: ["constraint"] }, { development: { executor: "opencode-default" } });
+  const evolutionItem = store.evolution.create({ id: `evolution-collaboration-${suffix}`, workspaceId: workspace.id, title: "治理对话路由", content: "测试治理对话默认回复上一发言 Snail。", tags: ["constraint"] }, { development: { executor: "opencode-default" } });
   const evolutionConversation = evolutionItem.conversation;
   if (!evolutionConversation) throw new Error("evolution conversation should exist");
   const conversation = store.getConversation(evolutionConversation.id);

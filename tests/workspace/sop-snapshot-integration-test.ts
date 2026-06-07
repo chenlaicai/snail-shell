@@ -186,7 +186,7 @@ test("deletePlatformSop removes SOP", () => {
   );
   // SOP is now self-declared, no workspace binding needed
 
-  const affected = store.deletePlatformSop("snap-delete");
+  const affected = store.fileConfigStore.deletePlatformSop("snap-delete");
   assert.ok(Array.isArray(affected));
   // No workspace bindings to track affected workspaces
   assert.ok(affected.length === 0);

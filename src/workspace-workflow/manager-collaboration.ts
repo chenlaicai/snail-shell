@@ -60,7 +60,7 @@ function buildWorkflowSystemPrompt(
 function resolveWorkflowContext(deps: CollaborationDeps, conversationId: string, conversation: Conversation, options: CollaborationInvocationOptions) {
   const { store } = deps;
   if (!conversation.workspace_id || !conversation.issue_id || !conversation.stage_id) throw new Error("Conversation context is incomplete");
-  const workspace = store.getWorkspace(conversation.workspace_id);
+  const workspace = store.fileConfigStore.getWorkspace(conversation.workspace_id);
   const issue = store.getIssue(conversation.issue_id);
   const stage = store.getStage(conversation.stage_id);
   if (!workspace || !issue || !stage) throw new Error("Conversation context is incomplete");
@@ -80,7 +80,7 @@ function resolveWorkflowContext(deps: CollaborationDeps, conversationId: string,
       conversation, stageDefinition, roleDefinitions, activeRole, defaultRole,
       remainingCollaborationRounds: options.remainingRounds, mentionAllowed: options.mentionAllowed, forcedWrapUp: options.forcedWrapUp, runtime: options.runtime,
       snailDisplayName: resolveSnailDisplayName(deps, activeRole, options), participatingRoles,
-      knowledgeLibrarySummaries: store.summaryKnowledgeLibrary(workspace.id),
+      knowledgeLibrarySummaries: store.knowledgeLibrary.summary(workspace.id),
       sharedHandbook: reader.getSop().shared_handbook, workspacePrompts: workspaceContext.prompts, workspaceSkills: workspaceContext.skills,
     },
   };

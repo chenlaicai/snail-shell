@@ -40,9 +40,9 @@ store.seedSopToCache({ id: "count-test-sop", source: "platform", sourceRef: null
   ] },
 ]);
 
-const countTestStages = store.listSopStageDefinitions("count-test-sop");
+const countTestStages = store.fileConfigStore.listSopStageDefinitions("count-test-sop");
 assert(countTestStages.length === 1, "count-test should have 1 stage");
-const countTestRoles = store.listSopStageRoleDefinitions(countTestStages[0].id);
+const countTestRoles = store.fileConfigStore.listSopStageRoleDefinitions(countTestStages[0].id);
 assert(countTestRoles.length === 3, `count-test stage should have 3 role rows (1 developer + 2 reviewers), got ${countTestRoles.length}`);
 const reviewerInstances = countTestRoles.filter((r) => r.key === "reviewer");
 assert(reviewerInstances.length === 2, `should have 2 reviewer instances, got ${reviewerInstances.length}`);
@@ -63,7 +63,7 @@ store.seedWorkspaceToCache({
   id: "workspace-1", name: "Snail Shell", summary: "Self evolution", workspaceRoot: process.cwd(),
 });
 
-const workspace = store.getWorkspace("workspace-1")!;
+const workspace = store.fileConfigStore.getWorkspace("workspace-1")!;
 const issue = store.createIssue({ id: "issue-1", workspaceId: workspace.id, title: "Issue", summary: "Self evolution" });
 const stage = store.createStage({ id: "stage-1", workspaceId: workspace.id, issueId: issue.id, stageDefinitionId: "development", type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
 const conversation = store.createConversation({ id: "conversation-1", workspaceId: workspace.id, issueId: issue.id, stageId: stage.id, title: "Founding discussion", kind: "discussion", defaultRole: "Owner Snail", participatingRoles: ["项目负责人", "Owner Snail", "Product Snail"], summary: "Initial discussion", fromConversationIds: [] });
@@ -211,7 +211,7 @@ assert(!assistantContextMessage?.content.includes("recoverable-runtime-error"), 
 store.updateStage(stage.id, { output_artifacts: { pr_url: "PR #1 已合并" } });
 assert(store.getStage(stage.id)!.output_artifacts["pr_url"] === "PR #1 已合并", "output artifacts should be saved");
 
-const evolutionItem = store.createEvolutionItem({
+const evolutionItem = store.evolution.create({
   id: "evolution-1",
   workspaceId: "workspace-1",
   title: "演进工作区必须人工审批",
@@ -223,8 +223,8 @@ const persistedEvolutionConversation = store.getConversation(evolutionItem.conve
 assert(persistedEvolutionConversation.owner_type === "evolution", "evolution conversation should be exposed with evolution owner semantics");
 assert(persistedEvolutionConversation.workspace_id === "workspace-1" && persistedEvolutionConversation.issue_id !== null && persistedEvolutionConversation.stage_id !== null, "evolution conversation should own real source workspace issue and stage");
 assert(store.listConversationsByOwner("evolution", evolutionItem.id).some((item) => item.id === persistedEvolutionConversation.id), "evolution conversation should be persisted in the unified conversation table");
-assert(store.listEvolutionItems({ workspaceId: "workspace-1" }).some((item) => item.id === evolutionItem.id), "evolution item should be listable by workspace");
-assert(store.listEvolutionItems({ query: "approval-gate", workspaceId: "workspace-1" }).some((item) => item.id === evolutionItem.id), "evolution item should be searchable by FTS");
+assert(store.evolution.list({ workspaceId: "workspace-1" }).some((item) => item.id === evolutionItem.id), "evolution item should be listable by workspace");
+assert(store.evolution.list({ query: "approval-gate", workspaceId: "workspace-1" }).some((item) => item.id === evolutionItem.id), "evolution item should be searchable by FTS");
 const evolutionMessage = store.addMessage({ conversationId: persistedEvolutionConversation.id, fromRole: "项目负责人", toRoles: ["开发者"], role: "user", runtime: "system", status: "streaming" });
 assert(evolutionMessage.id > 0, "evolution messages should expose conversation-local positive ids");
 store.addMessageEvent(evolutionMessage.id, { kind: "start", payload: { role: "user", role_name: "项目负责人", runtime: "system" }, source: { runtime_name: "system" } });
@@ -272,29 +272,29 @@ assert(store.listDispatches(conversation.id).find((dispatch) => dispatch.id === 
 assert(store.listDispatches(persistedEvolutionConversation.id).find((dispatch) => dispatch.id === evolutionDispatch.id)?.status === "pending", "workspace dispatch updates must not affect evolution dispatches");
 store.skipConversationDispatches(persistedEvolutionConversation.id, [evolutionDispatch.id]);
 assert(store.listDispatches(persistedEvolutionConversation.id).find((dispatch) => dispatch.id === evolutionDispatch.id)?.status === "skipped", "evolution dispatch ids should route through explicit conversation ownership");
-const updatedEvolutionItem = store.updateEvolutionItem(evolutionItem.id, { title: "演进工作区必须人工审批（已更新）" });
+const updatedEvolutionItem = store.evolution.update(evolutionItem.id, { title: "演进工作区必须人工审批（已更新）" });
 assert(updatedEvolutionItem.title === "演进工作区必须人工审批（已更新）", "evolution item title should be updated");
 
 // ── Knowledge Library scope/workspace_id validation ──────────────────
 try {
-  store.createKnowledgeLibraryEntry({ id: "kl-bad", scope: "workspace", title: "t", content: "c" });
+  store.knowledgeLibrary.create({ id: "kl-bad", scope: "workspace", title: "t", content: "c" });
   throw new Error("should have thrown for scope=workspace without workspaceId");
 } catch (e: any) {
   assert(e.message === "workspace_id is required when scope is 'workspace'", "scope=workspace without workspaceId should throw");
 }
-store.createKnowledgeLibraryEntry({ id: "kl-global", scope: "global", title: "Global Rule", content: "Always do X" });
-const globalEntry = store.getKnowledgeLibraryEntry("kl-global");
+store.knowledgeLibrary.create({ id: "kl-global", scope: "global", title: "Global Rule", content: "Always do X" });
+const globalEntry = store.knowledgeLibrary.get("kl-global");
 assert(globalEntry?.scope === "global" && globalEntry?.workspace_id === null, "global entry should have null workspace_id");
-store.createKnowledgeLibraryEntry({ id: "kl-proj", scope: "workspace", workspaceId: "workspace-1", title: "Workspace Rule", content: "Do Y in workspace-1" });
-const projEntry = store.getKnowledgeLibraryEntry("kl-proj");
+store.knowledgeLibrary.create({ id: "kl-proj", scope: "workspace", workspaceId: "workspace-1", title: "Workspace Rule", content: "Do Y in workspace-1" });
+const projEntry = store.knowledgeLibrary.get("kl-proj");
 assert(projEntry?.scope === "workspace" && projEntry?.workspace_id === "workspace-1", "workspace entry should have workspace_id set");
-const summaryWithWorkspace = store.summaryKnowledgeLibrary("workspace-1");
+const summaryWithWorkspace = store.knowledgeLibrary.summary("workspace-1");
 const globalCount = summaryWithWorkspace.find((s) => s.scope === "global");
 const workspaceCount = summaryWithWorkspace.find((s) => s.scope === "workspace");
 assert(globalCount && globalCount.count >= 1, "summary for workspace-1 should include global knowledge");
 assert(workspaceCount && workspaceCount.count >= 1, "summary for workspace-1 should include workspace knowledge");
 try {
-  store.updateKnowledgeLibraryEntry("kl-global", { scope: "workspace" });
+  store.knowledgeLibrary.update("kl-global", { scope: "workspace" });
   throw new Error("should have thrown when updating global to workspace without workspaceId");
 } catch (e: any) {
   assert(e.message === "workspace_id is required when scope is 'workspace'", "updating to scope=workspace without workspaceId should throw");

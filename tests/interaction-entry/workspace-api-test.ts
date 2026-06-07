@@ -23,14 +23,14 @@ fs.writeFileSync(path.join(TEST_CONFIG_DIR, "workspaces.json"), JSON.stringify([
 const store = new ConversationStore(":memory:", TEST_CONFIG_DIR);
 
 /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
-store.createPlatformSop({ key: "test-sop", name: "Test SOP", description: undefined, stage_definitions: [
+store.fileConfigStore.createPlatformSop({ key: "test-sop", name: "Test SOP", description: undefined, stage_definitions: [
   { key: "design", title: "需求对齐与设计", sequence: 1, roles: [{ key: "designer", name: "架构师", description: "designer", is_primary: true }] },
   { key: "development", title: "研发实现", sequence: 2, roles: [{ key: "developer", name: "开发者", description: "dev", is_primary: true }] },
   { key: "review", title: "PR 检视", sequence: 3, roles: [{ key: "developer", name: "开发者", description: "dev", is_primary: true }, { key: "reviewer", name: "审查者", description: "rev" }] },
   { key: "merge", title: "合入", sequence: 4, roles: [{ key: "merger", name: "维护者", description: "merger", is_primary: true }] },
 ] });
 
-store.createPlatformSop({ key: "dev-only", name: "Dev Only SOP", description: undefined, stage_definitions: [
+store.fileConfigStore.createPlatformSop({ key: "dev-only", name: "Dev Only SOP", description: undefined, stage_definitions: [
   { key: "development", title: "执行", sequence: 1, roles: [{ key: "executor", name: "执行者", description: "exec", is_primary: true }] },
 ] });
 

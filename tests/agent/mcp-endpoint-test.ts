@@ -33,19 +33,19 @@ function postJson(app: express.Express, body: unknown): Promise<any> {
 // 使用已有的 snail-shell 工作区和 SOP 创建合法的 message 实例
 function createMessage(store: ConversationStore): { convId: string; msgId: number } {
   /* 直接在 FileConfigStore 中创建测试 SOP 和 workspace（模拟从 YAML 加载）。若已存在则跳过。 */
-  if (!store.getSopByKey("platform", "mcp-e2e-sop")) {
-    store.createPlatformSop({
+  if (!store.fileConfigStore.getSopByKey("platform", "mcp-e2e-sop")) {
+    store.fileConfigStore.createPlatformSop({
       key: "mcp-e2e-sop", name: "MCP E2E SOP",
       stage_definitions: [
         { key: "dev", title: "Dev", sequence: 1, input_description: null, output_description: null, acceptance_focus: [], roles: [{ key: "user", name: "用户", description: "", is_primary: true, handbook: "" }] },
       ],
     });
   }
-  if (!store.getWorkspace("mcp-e2e")) {
-    store.createWorkspace("mcp-e2e", "MCP E2E", process.cwd(), "");
+  if (!store.fileConfigStore.getWorkspace("mcp-e2e")) {
+    store.fileConfigStore.createWorkspace({ id: "mcp-e2e", name: "MCP E2E", workspaceRoot: process.cwd(), summary: "" });
   }
   const issue = store.createIssue({ id: "mcp-e2e-i", workspaceId: "mcp-e2e", title: "MCP E2E Issue" })!;
-  const sd = store.getStageDefinitionByKey("mcp-e2e", "dev")!;
+  const sd = store.fileConfigStore.getStageDefinitionByKey("mcp-e2e", "dev")!;
   const stage = store.createStage({ id: "mcp-e2e-stage", workspaceId: "mcp-e2e", issueId: issue.id, stageDefinitionId: sd.id, type: "development", sequence: 1, title: "Dev", status: "active" } as any)!;
   const conv = store.createConversation({ id: "mcp-e2e-conv", workspaceId: "mcp-e2e", issueId: issue.id, stageId: stage.id, title: "E2E Conv", kind: "discussion", defaultRole: "用户", participatingRoles: [] } as any)!;
   const msg = store.addMessage({ conversationId: conv.id, fromRole: "项目负责人", toRoles: ["开发者"], role: "assistant", runtime: "claude-code-cli" as any, status: "streaming" });

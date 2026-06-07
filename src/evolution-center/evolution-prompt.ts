@@ -18,11 +18,11 @@ function requireNonNull<T>(value: T | null | undefined, message: string): NonNul
 function resolveEvolutionDependencies(ctx: EvolutionContext) {
   const { store, conversation } = ctx;
   const evolutionItem = requireNonNull(
-    store.getEvolutionItem(requireNonNull(conversation.owner_id, "Evolution conversation is missing owner id")),
+    store.evolution.get(requireNonNull(conversation.owner_id, "Evolution conversation is missing owner id")),
     `Evolution item not found: ${conversation.owner_id}`,
   );
   const workspaceId = requireNonNull(conversation.workspace_id, "Evolution conversation is missing workspace_id");
-  const workspace = requireNonNull(store.getWorkspace(workspaceId), `Source workspace not found: ${workspaceId}`);
+  const workspace = requireNonNull(store.fileConfigStore.getWorkspace(workspaceId), `Source workspace not found: ${workspaceId}`);
   const issue = requireNonNull(
     conversation.issue_id ? store.getIssue(conversation.issue_id) : null,
     `Evolution issue not found for conversation ${conversation.id}`,
@@ -41,7 +41,7 @@ function resolveEvolutionDependencies(ctx: EvolutionContext) {
 export function buildEvolutionSystemPrompt(input: { store: ConversationStore; conversation: Conversation; options: CollaborationInvocationOptions }): { systemPrompt: string; capability: AgentCapability } {
   const ctx: EvolutionContext = { store: input.store, conversation: input.conversation, options: input.options };
   const deps = resolveEvolutionDependencies(ctx);
-  const roleDefinitions = input.store.listSopStageRoleDefinitions(deps.stageDefinition.id);
+  const roleDefinitions = input.store.fileConfigStore.listSopStageRoleDefinitions(deps.stageDefinition.id);
   const now = new Date().toISOString();
   return buildConversationSystemPrompt({
     workspace: deps.workspace,
@@ -58,7 +58,7 @@ export function buildEvolutionSystemPrompt(input: { store: ConversationStore; co
     remainingCollaborationRounds: input.options.remainingRounds,
     mentionAllowed: input.options.mentionAllowed,
     forcedWrapUp: input.options.forcedWrapUp,
-    knowledgeLibrarySummaries: input.store.summaryKnowledgeLibrary(deps.workspaceId),
+    knowledgeLibrarySummaries: input.store.knowledgeLibrary.summary(deps.workspaceId),
     participatingRoles: input.conversation.participating_roles.map((roleName: string) => roleDefinitions.find((role) => role.name === roleName)).filter(Boolean) as any,
   });
 }
