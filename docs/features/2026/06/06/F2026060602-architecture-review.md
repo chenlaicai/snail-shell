@@ -130,7 +130,7 @@ interaction-entry ← lobby (router.ts)
 | **严重** | Persistence 嵌入业务逻辑 | evolution-model.ts | **已修复** | 工作流逻辑上移到 evolution-center/evolution-service，复用 store 标准方法 |
 | **严重** | AgentRuntime 跨边界泄漏 | shared/types.ts → 8+ 模块 | **已修复** | prompt-center 改从 agent/interface 导入，snail-den-store 改用 MessageRuntime |
 | **中等** | message-bus 深入 agent 内部 | collaboration.ts | **已改善** | agent 调用编排提取到 role-invoker.ts，但 role-invoker.ts 仍依赖 agent 子模块 |
-| **中等** | message-protocol 层注入业务逻辑 | message-protocol.ts | **未修复** | MCP 指令块注入和 permission_store 写入仍在 message-protocol 层 |
+| **中等** | message-protocol 层注入业务逻辑 | message-protocol.ts | **部分修复** | MCP 注入已移至 role-invoker.ts；permissionStore 写入保留（测试依赖） |
 | **中等** | server.ts 内联业务逻辑 | server.ts | **已改善** | approve-tool handler 移入 conversation-routes.ts，但仍在 HTTP 路由层 |
 | **低** | Agent 反向依赖 Persistence | agent/guard-config.ts | **已修复** | GuardProfile 移入 shared/domain-types，agent 从 shared 导入 |
 | **低** | api-contracts 层泄漏 | lobby.dto.ts, ws-protocol.ts | **未修复** | 契约层仍从 lobby/types 和 agent/interface 导入 |
