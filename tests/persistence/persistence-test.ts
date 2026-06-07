@@ -249,7 +249,7 @@ const collidingProtocolMessage = createStreamingContext({
     store,
   },
   conversationId: persistedEvolutionConversation.id,
-  activeRole: { name: "开发者", key: "developer", description: "", snail_template_id: "opencode-default", is_primary: 1, count: 1, id: "sr-impl", stage_definition_id: "development", handbook: "" },
+  activeRole: { name: "开发者", key: "developer", description: "", snail_template_id: "opencode-default", is_primary: true, count: 1, id: "sr-impl", stage_definition_id: "development", handbook: "" },
   resolvedRuntime: "system",
   contextCutoffAt: String(evolutionAssistantMessage.id),
   snailAgentSessionId: "test-session-persist",

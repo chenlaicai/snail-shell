@@ -17,7 +17,7 @@ import type {
 export class EvolutionModel {
   constructor(private db: Database.Database, private fileConfigStore: FileConfigStore) {}
 
-  private buildEvolutionSnapshot(): { snapshot: SopSnapshot; firstStageKey: string; stageDef: { id: string; key: string }; roles: Array<{ key: string; name: string; is_primary: number }> } {
+  private buildEvolutionSnapshot(): { snapshot: SopSnapshot; firstStageKey: string; stageDef: { id: string; key: string }; roles: Array<{ key: string; name: string; is_primary: boolean }> } {
     const sop = this.fileConfigStore.getSop("evolution");
     if (!sop) throw new Error("Evolution SOP not found — ensure config/sop/evolution/evolution.yaml exists");
     const stageDefs = this.fileConfigStore.listSopStageDefinitionsWithRoles("evolution");
@@ -36,7 +36,7 @@ export class EvolutionModel {
         acceptance_focus: sd.acceptance_focus ?? [], acceptance_checklist: sd.acceptance_checklist ?? [],
         roles: (sd.roles ?? []).map((r) => ({
           key: r.key, name: r.name, description: r.description ?? "",
-          is_primary: Boolean(r.is_primary), count: r.count ?? 1, handbook: r.handbook ?? null,
+          is_primary: r.is_primary, count: r.count ?? 1, handbook: r.handbook ?? null,
         })),
       })),
       transitions: transitions.map((t) => ({ from: t.from_stage_key, to: t.to_stage_key, guard: t.guard ?? null })),

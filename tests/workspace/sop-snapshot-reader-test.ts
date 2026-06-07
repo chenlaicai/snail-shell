@@ -279,9 +279,9 @@ test("returns roles expanded by count", () => {
   assert.strictEqual(roles.length, 2);
   assert.strictEqual(roles[0].key, "designer");
   assert.strictEqual(roles[0].name, "架构师");
-  assert.strictEqual(roles[0].is_primary, 1);
+  assert.strictEqual(roles[0].is_primary, true);
   assert.strictEqual(roles[1].name, "架构师-2");
-  assert.strictEqual(roles[1].is_primary, 0);
+  assert.strictEqual(roles[1].is_primary, false);
 });
 
 test("returns roles with handbook content", () => {

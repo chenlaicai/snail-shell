@@ -137,7 +137,7 @@ export interface StageRoleDefinition {
   /** 引用的 snail den template ID，来自 issue.role_snail_mapping 运行时绑定。 */
   snail_template_id: string | null;
   /** 是否为该 Stage 的主角色。 */
-  is_primary: number;
+  is_primary: boolean;
   /** 该角色在本 Stage 的实例数（如 count=2 展开为 "审查者-1"、"审查者-2"）。 */
   count: number;
   /** 角色描述。 */

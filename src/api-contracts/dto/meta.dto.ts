@@ -54,7 +54,7 @@ export type RoleDto = {
   key: string;
   name: string;
   snail_template_id: string | null;
-  is_primary: number;
+  is_primary: boolean;
   count: number;
   description: string;
   handbook: string | null;

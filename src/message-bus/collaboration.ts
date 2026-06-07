@@ -230,7 +230,7 @@ function resolveInvocationSubject(deps: CollaborationDeps, conversation: Convers
       name: activeRole.name,
       description: activeRole.description,
       rules: [],
-      isPrimary: activeRole.is_primary === 1,
+      isPrimary: activeRole.is_primary,
     },
     runtimeBinding,
     gateArtifacts,

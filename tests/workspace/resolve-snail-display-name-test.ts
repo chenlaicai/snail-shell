@@ -29,7 +29,7 @@ function mockRole(snailTemplateId?: string): StageRoleDefinition {
     name: "开发者",
     description: "test role",
     snail_template_id: snailTemplateId ?? null,
-    is_primary: 1,
+    is_primary: true,
     count: 1,
     handbook: "",
   };

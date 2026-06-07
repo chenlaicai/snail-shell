@@ -1199,7 +1199,7 @@ function buildSnail(name: RoleName): StageRoleDefinition {
     key: name.toLowerCase().replace(/\s+/g, "-"),
     name,
     snail_template_id: "opencode-default",
-    is_primary: 1,
+    is_primary: true,
     count: 1,
     description: `${name} test snail`,
     handbook: "",

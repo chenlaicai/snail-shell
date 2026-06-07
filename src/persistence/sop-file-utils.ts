@@ -197,7 +197,7 @@ export function expandStageRoles(
       srds.push({
         id: `srd-${stageDefId}-${rd.key}${suffix}`, stage_definition_id: stageDefId, key: rd.key,
         name: `${rd.name}${suffix}`, snail_template_id: null,
-        is_primary: (rd.is_primary && i === 1) ? 1 : 0, count,
+        is_primary: Boolean(rd.is_primary && i === 1), count,
         description: rd.description ?? "", handbook: rd.handbook ?? null,
       });
     }

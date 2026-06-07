@@ -28,7 +28,7 @@ export function buildStageDetail(store: ConversationStore, stage: Stage): StageD
     role_definitions: roleDefinitions.map((rd) => ({
       name: rd.name,
       snail_template_id: mapping[rd.name] ?? rd.snail_template_id,
-      is_primary: Boolean(rd.is_primary),
+      is_primary: rd.is_primary,
       description: rd.description,
       handbook: rd.handbook,
     })),

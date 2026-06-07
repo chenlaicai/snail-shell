@@ -152,7 +152,7 @@ function createDefaultStageConversation(
   input: { workspace: Workspace; issue: Issue; stage: Stage; fromConversationIds: string[] }
 ): Conversation {
   const roles = reader.listRoleDefinitionsByStage(input.stage.type);
-  const primaryRole = roles.find((r) => r.is_primary === 1) ?? roles[0];
+  const primaryRole = roles.find((r) => r.is_primary) ?? roles[0];
   if (!primaryRole) {
     throw new Error(`No roles configured for stage definition: ${input.stage.type} in SOP snapshot`);
   }
@@ -200,7 +200,7 @@ export function buildSopSnapshot(deps: { store: Pick<FileConfigStore, "getSop" |
         key: r.key,
         name: r.name,
         description: r.description ?? "",
-        is_primary: Boolean(r.is_primary),
+        is_primary: r.is_primary,
         count: r.count ?? 1,
         handbook: r.handbook ?? null,
       })),

@@ -134,7 +134,7 @@ function expandRole(role: SopSnapshot["stage_definitions"][number]["roles"][numb
       key: role.key,
       name: `${role.name}${suffix}`,
       snail_template_id: null,
-      is_primary: (role.is_primary && i === 1) ? 1 : 0,
+      is_primary: Boolean(role.is_primary && i === 1),
       count,
       description: role.description ?? "",
       handbook: role.handbook ?? null,
