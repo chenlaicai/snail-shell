@@ -132,14 +132,17 @@ export interface SnailAgentSession {
 
 export class ConversationStore {
   private db: Database.Database;
-  private evolution: EvolutionModel;
-  private knowledgeLibrary: KnowledgeLibraryModel;
-  private fileConfigStore: FileConfigStore;
-  private guardProfileStore: GuardProfileStore;
-  private llmConfigStore: LlmConfigStore;
-  private loggingConfigStore: LoggingConfigStore;
-  private snailDenStore: SnailDenStore;
-  private feishuConfigStore: FeishuConfigStore;
+  /** 直接访问子 store，避免通过 ConversationStore 透传方法。 */
+  readonly evolution: EvolutionModel;
+  /** 直接访问子 store，避免通过 ConversationStore 透传方法。 */
+  readonly knowledgeLibrary: KnowledgeLibraryModel;
+  /** 直接访问子 store，避免通过 ConversationStore 透传方法。 */
+  readonly fileConfigStore: FileConfigStore;
+  readonly guardProfileStore: GuardProfileStore;
+  readonly llmConfigStore: LlmConfigStore;
+  readonly loggingConfigStore: LoggingConfigStore;
+  readonly snailDenStore: SnailDenStore;
+  readonly feishuConfigStore: FeishuConfigStore;
 
   constructor(dbPath?: string, configDir?: string) {
     const resolvedPath = dbPath ?? path.join(process.cwd(), "data", "snail-shell.db");
