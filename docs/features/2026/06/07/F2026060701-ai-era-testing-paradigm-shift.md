@@ -366,10 +366,9 @@ mock 是隔离手段，行为契约是断言约束——两者独立判定。一
 | 文件 | 改动类型 | 说明 |
 |---|---|---|
 | `docs/README.md`（Feature 文档模板） | 修改 | 新增"核心业务行为"章节模板：设计阶段由 AI 起草、人认可，实现阶段作为测试场景的唯一来源 |
-| `config/sop/code-delivery/development#developer.handbook.md` | 修改 | GATE-3 增加核心业务行为章节检查；新增行为列表使用规则章节；阶段四嵌入 AI 测试编写指令模板。注：文件名中的 `#` 是项目约定的 SOP 分隔符 |
-| `config/sop/code-delivery/review#reviewer.handbook.md` | 修改 | 对抗性检查增加测试质量审查项：行为契约 vs 实现绑定的判定、业务场景判定 |
-| `.meta/prompts/reference/测试.md` | 修改 | 新增行为契约测试范式章节；重写测试失败决策规则（替代原 S-03，实际文件路径已确认） |
-| `.meta/prompts/reference/检视.md` | 修改 | 扩展测试质量审查规则（替代原 S-04，实际文件路径已确认） |
+| `config/sop/code-delivery/design#designer.handbook.md` | 修改 | 阶段三：设计方案需包含核心业务行为列表初稿 + 对抗性审视要点增加行为列表完整性检查。阶段四：锁定前确认核心业务行为章节已填写 |
+| `config/sop/code-delivery/development#developer.handbook.md` | 修改 | GATE-3 增加核心业务行为检查；新增行为契约测试范式（定义、判定标准、分层、mock 边界）+ 行为列表使用规则 + 测试失败决策树；阶段四嵌入 AI 测试编写指令模板。注：文件名中的 `#` 是项目约定的 SOP 分隔符 |
+| `config/sop/code-delivery/review#reviewer.handbook.md` | 修改 | 对抗性检查增加测试质量审查项：行为契约 vs 实现绑定的判定、mock 边界 |
 
 ## 验证
 
