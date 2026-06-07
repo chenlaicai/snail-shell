@@ -8,6 +8,7 @@ import type { AgentEvent, AgentRuntime, SnailRuntimeMessageInput } from "../../s
 import type { SnailDen } from "../../src/snail-den";
 
 const TEST_DB = path.join(__dirname, "..", "..", "data", "test-stage-cycle.db");
+const TEST_WORKSPACE_ROOT = path.join(__dirname, "..", "..", "data", "test-workspace-stage-cycle");
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 function removeDbFiles(dbPath: string): void {
@@ -52,7 +53,7 @@ store.seedSopToCache({ id: "evolution", source: "platform", sourceRef: null, key
 
 // 将 evolution SOP 绑定到一个 workspace
 store.seedWorkspaceToCache({
-  id: "evolution-host", name: "Evolution Host", summary: "", workspaceRoot: process.cwd(),
+  id: "evolution-host", name: "Evolution Host", summary: "", workspaceRoot: TEST_WORKSPACE_ROOT,
 });
 const runtimeInputs: string[] = [];
 const systemPromptInputs: string[] = [];
@@ -108,7 +109,7 @@ run().catch((error) => {
 
 async function run(): Promise<void> {
   try {
-    const created = manager.createWorkspace("Stage Cycle Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-test", roleSnailMapping: { design: { designer: "opencode-default" }, development: { developer: "opencode-default" }, review: { developer: "opencode-default", reviewer: "opencode-default" }, merge: { merger: "opencode-default" } } });
+    const created = manager.createWorkspace("Stage Cycle Test", { summary: "test", workspaceRoot: TEST_WORKSPACE_ROOT, sopId: "sop-test", roleSnailMapping: { design: { designer: "opencode-default" }, development: { developer: "opencode-default" }, review: { developer: "opencode-default", reviewer: "opencode-default" }, merge: { merger: "opencode-default" } } });
     // SOP is now self-declared, no workspace binding needed
     assert.equal(created.stage.type, "design", "issue should start with design stage");
     assert.equal(created.conversation.default_role, "架构师", "design should start with designer");
@@ -180,7 +181,7 @@ async function run(): Promise<void> {
     ], [
       { from: "design", to: "merge" },
     ]);
-    const terminalWs = manager.createWorkspace("Terminal Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-terminal", roleSnailMapping: { design: { designer: "opencode-default" }, merge: { merger: "opencode-default" } } });
+    const terminalWs = manager.createWorkspace("Terminal Test", { summary: "test", workspaceRoot: TEST_WORKSPACE_ROOT, sopId: "sop-terminal", roleSnailMapping: { design: { designer: "opencode-default" }, merge: { merger: "opencode-default" } } });
     store.updateStage(terminalWs.stage.id, { output_artifacts: { done: "yes" } });
     const terminalMerge = manager.advanceIssue(terminalWs.issue.id);
     assert.equal(terminalMerge.next_stage?.type, "merge", "design should advance to merge");
@@ -199,7 +200,7 @@ async function run(): Promise<void> {
     ], [
       { from: "design", to: "development", guard: { type: "typo_guard", config: {} } },
     ]);
-    const guardWs = manager.createWorkspace("Guard Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-guard", roleSnailMapping: { design: { designer: "opencode-default" }, development: { developer: "opencode-default" } } });
+    const guardWs = manager.createWorkspace("Guard Test", { summary: "test", workspaceRoot: TEST_WORKSPACE_ROOT, sopId: "sop-guard", roleSnailMapping: { design: { designer: "opencode-default" }, development: { developer: "opencode-default" } } });
     store.updateStage(guardWs.stage.id, { output_artifacts: { done: "yes" } });
     assert.throws(
       () => manager.advanceIssue(guardWs.issue.id),
@@ -214,7 +215,7 @@ async function run(): Promise<void> {
     ], [
       { from: "design", to: "development", guard: { type: "requires_artifacts", config: { artifacts: ["issue_doc"] } } },
     ]);
-    const reqArtWs = manager.createWorkspace("Requires Artifacts Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-req-artifacts", roleSnailMapping: { design: { designer: "opencode-default" }, development: { developer: "opencode-default" } } });
+    const reqArtWs = manager.createWorkspace("Requires Artifacts Test", { summary: "test", workspaceRoot: TEST_WORKSPACE_ROOT, sopId: "sop-req-artifacts", roleSnailMapping: { design: { designer: "opencode-default" }, development: { developer: "opencode-default" } } });
     /* 设置 output_artifacts 让 assertStageCanAdvance 通过，但不包含 guard 要求的 issue_doc */
     store.updateStage(reqArtWs.stage.id, { output_artifacts: { some_other_artifact: "value" } });
     /* 缺失 issue_doc 时应抛错 */
@@ -334,7 +335,7 @@ async function run(): Promise<void> {
 
 async function testManagerSerializesConversationMessages(): Promise<void> {
   runtimeInputs.length = 0;
-  const created = manager.createWorkspace("Serialization Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-test", roleSnailMapping: { design: { designer: "opencode-default" }, development: { developer: "opencode-default" }, review: { developer: "opencode-default", reviewer: "opencode-default" }, merge: { merger: "opencode-default" } } });
+  const created = manager.createWorkspace("Serialization Test", { summary: "test", workspaceRoot: TEST_WORKSPACE_ROOT, sopId: "sop-test", roleSnailMapping: { design: { designer: "opencode-default" }, development: { developer: "opencode-default" }, review: { developer: "opencode-default", reviewer: "opencode-default" }, merge: { merger: "opencode-default" } } });
   const first = manager.sendMessage(created.conversation.id, "first");
   const second = manager.sendMessage(created.conversation.id, "second");
   await Promise.all([first, second]);
@@ -344,7 +345,7 @@ async function testManagerSerializesConversationMessages(): Promise<void> {
 }
 
 function testManagerMessagePaginationContracts(): void {
-  const created = manager.createWorkspace("Recent Messages Test", { summary: "test", workspaceRoot: process.cwd(), sopId: "sop-test", roleSnailMapping: { design: { designer: "opencode-default" }, development: { developer: "opencode-default" }, review: { developer: "opencode-default", reviewer: "opencode-default" }, merge: { merger: "opencode-default" } } });
+  const created = manager.createWorkspace("Recent Messages Test", { summary: "test", workspaceRoot: TEST_WORKSPACE_ROOT, sopId: "sop-test", roleSnailMapping: { design: { designer: "opencode-default" }, development: { developer: "opencode-default" }, review: { developer: "opencode-default", reviewer: "opencode-default" }, merge: { merger: "opencode-default" } } });
   const streaming = store.addMessage({ conversationId: created.conversation.id, fromRole: "Owner Snail", toRoles: [], role: "assistant", runtime: "system", status: "streaming", contextCutoffAt: "0" });
   const messageIds = Array.from({ length: 5 }, () => store.addMessage({ conversationId: created.conversation.id, fromRole: "项目负责人", toRoles: [], role: "user", runtime: "system", status: "completed", contextCutoffAt: String(store.getMessages(created.conversation.id).at(-1)?.id ?? 0) }).id);
   const firstPage = manager.getConversationMessages(created.conversation.id, 3, 0).map((message) => message.id);

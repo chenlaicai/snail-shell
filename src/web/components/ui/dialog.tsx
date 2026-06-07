@@ -1,4 +1,4 @@
-import { useRef, useEffect, type ReactNode } from "react";
+import { useRef, useEffect, useId, type ReactNode } from "react";
 
 interface DialogProps {
   open: boolean;
@@ -9,31 +9,36 @@ interface DialogProps {
 
 export function Dialog({ open, onClose, title, children }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if (open && !el.open) el.showModal();
+    if (open && !el.open) {
+      el.showModal();
+      // 延迟聚焦，确保动态内容已渲染
+      requestAnimationFrame(() => {
+        const autofocus = el.querySelector<HTMLElement>("[data-autofocus]");
+        const target = autofocus ?? el.querySelector<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        target?.focus();
+      });
+    }
     if (!open && el.open) el.close();
   }, [open]);
 
+  // Escape 关闭由原生 <dialog> 处理，onClose 通过 close 事件触发
   return (
     <dialog
       ref={ref}
       onClose={onClose}
       onClick={(e) => { if (e.target === ref.current) onClose(); }}
-      style={{
-        borderRadius: 8,
-        border: "1px solid var(--color-border, #1e293b)",
-        background: "var(--color-bg-card, #111827)",
-        color: "var(--color-text-primary, #f1f5f9)",
-        padding: 0,
-        maxWidth: 420,
-        width: "90vw",
-      }}
+      aria-labelledby={titleId}
+      className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-card)] text-[var(--color-text-primary)] p-0 max-w-[420px] w-[90vw] backdrop:bg-black/50"
     >
-      <div style={{ padding: "var(--space-lg, 16px)" }}>
-        <h3 style={{ margin: "0 0 var(--space-md, 12px)", fontSize: "var(--font-size-md, 14px)" }}>{title}</h3>
+      <div className="p-[var(--space-lg)]">
+        <h3 id={titleId} className="m-0 mb-[var(--space-md)] text-[var(--font-size-md)]">{title}</h3>
         {children}
       </div>
     </dialog>

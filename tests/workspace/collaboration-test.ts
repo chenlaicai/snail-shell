@@ -1,5 +1,9 @@
 import fs from "fs";
+import os from "os";
 import path from "path";
+
+/** 测试专用临时工作区根目录，避免 createWorkspace 写 .snail/init.json 污染项目目录 */
+const TEST_WORKSPACE_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), "snail-test-collab-"));
 import { AgentInvocationInterruptedError, AgentInvocationTerminatedError, type AgentEvent, type AgentInvocationOptions, type AgentStopDetail, type SnailRuntimeMessageInput } from "../../src/agent/interface";
 import { ConversationStore, type Conversation, type CreateMessageEventInput, type RoleName } from "../../src/persistence/store";
 import { sendStructuredMessage, structuredMentionsFromEvents, extractStageTransition, type MentionResolution } from "../../src/message-bus/collaboration";
@@ -936,7 +940,7 @@ function createContext(suffix: string): { store: ConversationStore; conversation
 
   /* Seed workspace — SOP is now self-declared */
   store.seedWorkspaceToCache({
-    id: workspaceId, name: "Snail Shell", summary: "Collaboration test", workspaceRoot: process.cwd(),
+    id: workspaceId, name: "Snail Shell", summary: "Collaboration test", workspaceRoot: TEST_WORKSPACE_ROOT,
   });
   const workspace = store.getWorkspace(workspaceId)!;
   const issue = store.createIssue({ id: `issue-collaboration-${suffix}`, workspaceId: workspace.id, title: "Collaboration", summary: "test" });
@@ -952,7 +956,7 @@ function createEvolutionContext(suffix: string): { store: ConversationStore; con
   const configDir = fs.mkdtempSync(path.join(TEST_DATA_DIR, `config-evo-${suffix}-`));
   fs.writeFileSync(path.join(configDir, "workspaces.json"), JSON.stringify([]));
   const store = new ConversationStore(dbPath, configDir);
-  const workspace = store.createWorkspace(`workspace-collaboration-${suffix}`, "Snail Shell", process.cwd(), "Collaboration test");
+  const workspace = store.createWorkspace(`workspace-collaboration-${suffix}`, "Snail Shell", TEST_WORKSPACE_ROOT, "Collaboration test");
 
   /* 直接在数据库中创建测试 SOP（模拟从 YAML 加载） */
   store.seedSopToCache({ id: "evolution", source: "platform", sourceRef: null, key: "evolution", name: "Evolution Center SOP", description: null }, [
@@ -961,7 +965,7 @@ function createEvolutionContext(suffix: string): { store: ConversationStore; con
 
   /* Seed workspace — SOP is now self-declared */
   store.seedWorkspaceToCache({
-    id: `workspace-collaboration-${suffix}`, name: "Snail Shell", summary: "Collaboration test", workspaceRoot: process.cwd(),
+    id: `workspace-collaboration-${suffix}`, name: "Snail Shell", summary: "Collaboration test", workspaceRoot: TEST_WORKSPACE_ROOT,
   });
   const evolutionItem = store.createEvolutionItem({ id: `evolution-collaboration-${suffix}`, workspaceId: workspace.id, title: "治理对话路由", content: "测试治理对话默认回复上一发言 Snail。", tags: ["constraint"] }, { development: { executor: "opencode-default" } });
   const evolutionConversation = evolutionItem.conversation;

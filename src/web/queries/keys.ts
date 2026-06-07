@@ -1,6 +1,6 @@
 // query key 工厂——queries/mutations/WebSocket handler 统一引用
 
-interface EvolutionFilters {
+export interface EvolutionFilters {
   workspace_id?: string;
   issue_id?: string;
   query?: string;
@@ -8,7 +8,7 @@ interface EvolutionFilters {
   offset?: number;
 }
 
-interface KnowledgeFilters {
+export interface KnowledgeFilters {
   scope?: "global" | "workspace";
   workspace_id?: string;
   query?: string;
@@ -32,6 +32,10 @@ export const queryKeys = {
     stages: (id: string) => ["issues", id, "stages"] as const,
     conversations: (id: string) => ["issues", id, "conversations"] as const,
   },
+  stages: {
+    detail: (stageId: string) => ["stages", stageId] as const,
+    conversations: (stageId: string) => ["stages", stageId, "conversations"] as const,
+  },
   conversations: {
     detail: (id: string) => ["conversations", id] as const,
     messages: (id: string) => ["conversations", id, "messages"] as const,
@@ -48,6 +52,7 @@ export const queryKeys = {
   knowledge: {
     list: (filters?: KnowledgeFilters) => ["knowledge", filters] as const,
     search: (q: string) => ["knowledge", "search", q] as const,
+    summary: ["knowledge", "summary"] as const,
   },
   lobby: {
     sessions: ["lobby", "sessions"] as const,

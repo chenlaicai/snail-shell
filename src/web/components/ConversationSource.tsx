@@ -33,9 +33,9 @@ export function ConversationSource({ conversationId }: { conversationId: string 
   if (sources.length === 0) return null;
 
   return (
-    <div className="context-note" style={{ padding: "var(--space-sm) var(--space-md)", fontSize: "var(--font-size-xs)", color: "var(--color-text-grey)" }}>
+    <div className="px-[var(--space-md)] py-[var(--space-sm)] text-[var(--font-size-xs)] text-[var(--color-text-grey)]">
       <span>来源 conversation</span>
-      <p style={{ margin: "4px 0 0" }}>
+      <p className="mt-1">
         {sources.map((s) => s.title).join(", ")}
       </p>
     </div>

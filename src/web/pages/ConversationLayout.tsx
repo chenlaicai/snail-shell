@@ -1,93 +1,81 @@
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../services/api-client";
+import { issueQueries } from "../queries/workspace.queries";
+import { sopQueries } from "../queries/sop.queries";
+import { queryKeys } from "../queries/keys";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { useConversationStore } from "../stores/conversationStore";
 import { ConversationView } from "./ConversationView";
 import { BossMentionsBanner } from "../components/BossMentionsBanner";
-import { StageActions, type Transition } from "../components/StageActions";
+import { StageActions } from "../components/StageActions";
 import { StageSuggestionBanner } from "../components/StageSuggestionBanner";
 import { showToast } from "../components/Toast";
 import { Button } from "@/components/ui/button";
-
-interface Stage {
-  id: string;
-  type: string;
-  status: string;
-  stage_definition?: { title?: string };
-}
-
-interface Conversation {
-  id: string;
-  title: string;
-  default_role: string;
-}
-
-interface Issue {
-  id: string;
-  title: string;
-  stages: Stage[];
-  current_stage?: Stage;
-  sop_snapshot?: { sop_id?: string };
-  closed_at?: string | null;
-}
-
 export function ConversationLayout() {
   const { workspaceId, issueId } = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [issue, setIssue] = useState<Issue | null>(null);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [transitions, setTransitions] = useState<Transition[]>([]);
-  const [loading, setLoading] = useState(true);
 
   const { currentStage, currentConversation, setCurrentStage, setCurrentConversation, clear } =
     useConversationStore();
 
-  // Use ref to avoid stale closure in effects
-  const searchParamsRef = useRef(searchParams);
-  searchParamsRef.current = searchParams;
+  // TanStack Query: issue detail
+  const { data: issue, isLoading } = useQuery({
+    ...issueQueries.detail(issueId || ""),
+    enabled: !!issueId,
+  });
 
-  // Load issue data — 只在 issueId 变化时清空并重新加载
-  const prevIssueRef = useRef<string | null>(null);
+  // TanStack Query: SOP transitions
+  const sopId = issue?.sop_snapshot?.sop_id;
+  const { data: transitions = [] } = useQuery({
+    ...sopQueries.detail(sopId || ""),
+    enabled: !!sopId,
+    select: (data) => data.transitions ?? [],
+  });
+
+  // 当前 stage 的 ID（来自 store 或 issue 默认值）
+  const activeStageId = currentStage?.id || issue?.current_stage?.id || issue?.stages?.at(-1)?.id;
+
+  // TanStack Query: stage conversations
+  const { data: conversations = [] } = useQuery({
+    ...issueQueries.stageConversations(activeStageId || ""),
+    enabled: !!activeStageId,
+  });
+
+  // 初始化：issueId 切换时清空 store 并设置默认 stage/conv
+  // 用单一 key 跟踪初始化状态，避免双 ref 隐式依赖
+  const initKey = issueId ? `${issueId}:${activeStageId ?? ""}` : null;
+  const lastInitRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (!issueId) return;
-    // 只在切换到不同 issue 时才清空
-    if (prevIssueRef.current !== issueId) {
-      clear();
-      prevIssueRef.current = issueId;
+    if (!issueId || !issue || !initKey) return;
+    const prevKey = lastInitRef.current;
+    if (prevKey === initKey) return;
+    lastInitRef.current = initKey;
+
+    // issueId 变化时清空 store
+    const prevIssue = prevKey?.split(":")[0];
+    if (prevIssue !== issueId) clear();
+
+    // 设置 stage（仅尚未设置时）
+    if (!currentStage) {
+      const stageId = searchParams.get("stage");
+      const stage = stageId
+        ? issue.stages.find((s) => s.id === stageId)
+        : issue.current_stage || issue.stages[issue.stages.length - 1];
+      setCurrentStage(stage || null);
     }
-    setLoading(true);
-    api("GET /api/issues/:issueId", { params: { issueId: issueId! } })
-      .then((data: Issue) => {
-        setIssue(data);
-        const stageId = searchParamsRef.current.get("stage");
-        const stage = stageId
-          ? data.stages.find((s) => s.id === stageId)
-          : data.current_stage || data.stages[data.stages.length - 1];
-        setCurrentStage(stage || null);
-        if (data.sop_snapshot?.sop_id) {
-          api("GET /api/sops/:sopId", { params: { sopId: data.sop_snapshot.sop_id } })
-            .then((sop: { transitions?: Transition[] }) => setTransitions(sop?.transitions ?? []))
-            .catch(() => {});
-        }
-      })
-      .catch((err) => showToast(`加载 Issue 失败：${err.message}`, true))
-      .finally(() => setLoading(false));
-  }, [issueId]);
 
-  // Load conversations when stage changes
-  useEffect(() => {
-    if (!currentStage) return;
-    api("GET /api/stages/:stageId/conversations", { params: { stageId: currentStage.id } })
-      .then((data: Conversation[]) => {
-        setConversations(data);
-        const convId = searchParamsRef.current.get("conv");
-        const conv = convId ? data.find((c) => c.id === convId) : data[0];
-        setCurrentConversation(conv || null);
-      })
-      .catch((err) => showToast(`加载 Conversation 失败：${err.message}`, true));
-  }, [currentStage?.id]);
+    // 设置 conversation（仅 conversations 已加载且尚未设置时）
+    if (!currentConversation && conversations.length) {
+      const convId = searchParams.get("conv");
+      const conv = convId ? conversations.find((c) => c.id === convId) : conversations[0];
+      setCurrentConversation(conv || null);
+    }
+  }, [initKey, conversations.length, currentConversation]);
 
   // Update URL when stage/conversation changes (one-way: store -> URL)
   useEffect(() => {
@@ -101,32 +89,50 @@ export function ConversationLayout() {
   // WebSocket connection
   useWebSocket(currentConversation?.id || null);
 
-  if (loading) return <div className="task-board-empty">加载中...</div>;
-  if (!issue) return <div className="task-board-empty">Issue 不存在</div>;
+  if (isLoading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
+  if (!issue) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">Issue 不存在</div>;
+
+  function handleStageChanged() {
+    queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(issueId!) });
+    // 用 getState() 获取最新 stage，避免闭包捕获 stale 值
+    const latestStage = useConversationStore.getState().currentStage;
+    if (latestStage) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.stages.conversations(latestStage.id) });
+    }
+    // 重置 store 和初始化跟踪，使 effect 重新设置 stage/conv
+    setCurrentStage(null);
+    setCurrentConversation(null);
+    lastInitRef.current = null;
+  }
 
   return (
-    <div className="workspace-main view-pane is-active" data-view-pane="workspaces">
-      <div className="top-workspace-state" />
-      <div className="conv-header">
-        <button className="conv-back" type="button" onClick={() => navigate(`/ws/${workspaceId}`)}>
+    <div className="flex flex-col h-full min-h-0 overflow-hidden" data-view-pane="workspaces">
+      {/* Header */}
+      <div className="flex items-center gap-[var(--space-md)] px-[var(--space-lg)] py-[var(--space-sm)] border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0">
+        <button className="p-[var(--space-xs)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]" type="button" onClick={() => navigate(`/ws/${workspaceId}`)}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
-        <div className="conv-title-area">
-          <div className="conv-title">{issue.title}</div>
-          <div className="conv-breadcrumb">
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{issue.title}</div>
+          <div className="text-[11px] text-[var(--color-text-grey)] truncate">
             {workspaceId} / <span>{issue.title}</span>
             {currentStage && ` / ${currentStage.stage_definition?.title || currentStage.type}`}
           </div>
         </div>
       </div>
 
-      <div className="conv-stage-tabs">
+      {/* Stage tabs */}
+      <div className="flex gap-[var(--space-xs)] px-[var(--space-lg)] py-[var(--space-sm)] border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0 overflow-x-auto">
         {issue.stages.map((stage) => (
           <button
             key={stage.id}
-            className={`secondary-button${currentStage?.id === stage.id ? " active" : ""}`}
+            className={`px-[var(--space-md)] py-[var(--space-xs)] rounded-[var(--radius-sm)] text-[12px] border transition-colors ${
+              currentStage?.id === stage.id
+                ? "border-[var(--color-accent)] bg-[rgba(108,141,250,0.08)] text-[var(--color-accent)]"
+                : "border-[var(--color-border-muted)] text-[var(--color-text-muted)] hover:border-[var(--color-border-default)] hover:text-[var(--color-text-primary)]"
+            }`}
             onClick={() => setCurrentStage(stage)}
           >
             {stage.stage_definition?.title || stage.type}
@@ -138,21 +144,20 @@ export function ConversationLayout() {
         issue={issue}
         currentStage={currentStage}
         transitions={transitions}
-        onStageChanged={() => {
-          api("GET /api/issues/:issueId", { params: { issueId: issueId! } }).then((data: Issue) => {
-            setIssue(data);
-            const stage = data.stages[data.stages.length - 1];
-            setCurrentStage(stage || null);
-          });
-        }}
+        onStageChanged={handleStageChanged}
       />
 
+      {/* Conversation tabs */}
       {conversations.length > 1 && (
-        <div className="conv-conv-tabs">
+        <div className="flex gap-[var(--space-xs)] px-[var(--space-lg)] py-[var(--space-xs)] border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0 overflow-x-auto">
           {conversations.map((conv) => (
             <button
               key={conv.id}
-              className={`ghost-button${currentConversation?.id === conv.id ? " active" : ""}`}
+              className={`px-[var(--space-md)] py-[var(--space-xs)] rounded-[var(--radius-sm)] text-[11px] transition-colors ${
+                currentConversation?.id === conv.id
+                  ? "bg-[var(--color-bg-active)] text-[var(--color-accent)]"
+                  : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)]"
+              }`}
               onClick={() => setCurrentConversation(conv)}
             >
               {conv.title}
@@ -166,7 +171,7 @@ export function ConversationLayout() {
               try {
                 const result = await api("POST /api/issues/:issueId/stages/:stageId/conversations", { params: { issueId: issueId!, stageId: currentStage.id }, body: {} });
                 const newConv = result.conversation || result;
-                setConversations((prev) => [...prev, newConv]);
+                queryClient.invalidateQueries({ queryKey: queryKeys.stages.conversations(currentStage.id) });
                 setCurrentConversation(newConv);
                 showToast("已创建新 Conversation");
               } catch (err: unknown) {
@@ -179,15 +184,9 @@ export function ConversationLayout() {
         </div>
       )}
 
-      <StageSuggestionBanner issueId={issueId || null} onAccepted={() => {
-        api("GET /api/issues/:issueId", { params: { issueId: issueId! } }).then((data: Issue) => {
-          setIssue(data);
-          const stage = data.stages[data.stages.length - 1];
-          setCurrentStage(stage || null);
-        });
-      }} />
+      <StageSuggestionBanner issueId={issueId || null} onAccepted={handleStageChanged} />
       <BossMentionsBanner conversationId={currentConversation?.id || null} />
-      <ConversationView />
+      <ConversationView conversationId={currentConversation?.id || null} />
     </div>
   );
 }
