@@ -1,14 +1,14 @@
 import { create } from "zustand";
-import type { StageDetailDto, ConversationDto } from "../types";
+import type { StageDetail, Conversation } from "../types";
 
-/** Store 中保存的 Stage 子集——从 StageDetailDto 提取，自动跟随 DTO 类型演进。 */
-type StageDef = NonNullable<StageDetailDto["stage_definition"]>;
-type CurrentStage = Pick<StageDetailDto, "id" | "type" | "status"> & {
+/** Store 中保存的 Stage 子集——从 StageDetail 提取，自动跟随 DTO 类型演进。 */
+type StageDef = NonNullable<StageDetail["stage_definition"]>;
+type CurrentStage = Pick<StageDetail, "id" | "type" | "status"> & {
   stage_definition?: Pick<StageDef, "key" | "title"> | null;
 };
 
 /** Store 中保存的 Conversation 子集。 */
-type CurrentConversation = Pick<ConversationDto, "id" | "title" | "default_role"> & {
+type CurrentConversation = Pick<Conversation, "id" | "title" | "default_role"> & {
   participating_roles?: string[];
 };
 

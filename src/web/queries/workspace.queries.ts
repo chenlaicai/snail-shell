@@ -2,7 +2,7 @@ import { queryOptions } from "@tanstack/react-query";
 import { api } from "../services/api-client";
 import { queryKeys } from "./keys";
 import { WorkspaceSummarySchema, IssueDetailSchema } from "../../api-contracts/validators";
-import type { IssueDetailDto, ConversationDto } from "../types";
+import type { IssueDetail, Conversation } from "../types";
 
 export const workspaceQueries = {
   list: (query?: { limit?: number; offset?: number }) =>
@@ -34,12 +34,12 @@ export const issueQueries = {
   detail: (issueId: string) =>
     queryOptions({
       queryKey: queryKeys.issues.detail(issueId),
-      queryFn: (): Promise<IssueDetailDto> => api("GET /api/issues/:issueId", { params: { issueId } }),
+      queryFn: (): Promise<IssueDetail> => api("GET /api/issues/:issueId", { params: { issueId } }),
     }),
 
   stageConversations: (stageId: string) =>
     queryOptions({
       queryKey: queryKeys.stages.conversations(stageId),
-      queryFn: (): Promise<ConversationDto[]> => api("GET /api/stages/:stageId/conversations", { params: { stageId } }),
+      queryFn: (): Promise<Conversation[]> => api("GET /api/stages/:stageId/conversations", { params: { stageId } }),
     }),
 };

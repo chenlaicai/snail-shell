@@ -11,7 +11,7 @@ import { showToast } from "../components/Toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import type { SopDto, SopDetailDto, SnailDenTemplateDto } from "../types";
+import type { Sop, SopDetailDto, SnailDenTemplateDto } from "../types";
 
 // 从 SopDetailDto 中提取的 stage definition 子类型
 type StageDefinition = NonNullable<SopDetailDto["stage_definitions"]>[number];
@@ -24,7 +24,7 @@ export function WorkspaceConfig() {
   const [workspaceRoot, setWorkspaceRoot] = useState("");
   const [selectedSopId, setSelectedSopId] = useState("");
   const [stages, setStages] = useState<StageDefinition[]>([]);
-  const [sops, setSops] = useState<SopDto[]>([]);
+  const [sops, setSops] = useState<Sop[]>([]);
   const [templates, setTemplates] = useState<SnailDenTemplateDto[]>([]);
   const [hasSnail, setHasSnail] = useState(false);
   const [detecting, setDetecting] = useState(false);
