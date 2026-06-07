@@ -10,10 +10,8 @@ import type {
 import { buildStatefulBootstrap, buildStatefulIncrementalMessages } from "./prompt-mapper";
 import { StatefulCLIAgent, type CLIConfig, type ParseState, type StreamEvent } from "./stateful-cli-agent";
 import { logger } from "../logger";
-import { ensureMcpServers } from "./mcp-config";
 import { writeOpenCodeGuardConfig } from "./guard-config";
-import { ensureSkillSymlinks } from "./skill-symlinks";
-import { buildContextEnv } from "./context-env";
+import { prepareAgentInvocation } from "./capability-injector";
 
 // OpenCode 安全机制：移除 --dangerously-skip-permissions 恢复默认权限模式。
 // OpenCode 项目级配置：<wsRoot>/opencode.json（CWD auto-discovery，以 workspaceRoot 为 CWD 启动）。
@@ -95,13 +93,7 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
       logger.warn("OpenCode GuardProfile 全部 domain（database/filesystem/git/network）均无参数级拦截：无 per-workspace 配置、无 sandbox、无 PreToolUse hooks");
     }
 
-    // 消费 ACP mcpServers：写入 <wsRoot>/opencode.json 的 mcp 字段
-    // OpenCode 以 workspaceRoot 作为 CWD 启动，从 CWD 自动发现 opencode.json
-    ensureMcpServers(input.capability.mcpServers, input.workspaceRoot, "opencode");
-
-    // 将 ACS skills 暴露为 OpenCode 原生 skill 目录（.claude/skills/ + .agents/skills/）
-    // OpenCode 同时扫描两个目录，agent 通过 skill tool 调用
-    ensureSkillSymlinks(input.workspaceRoot, input.capability.skills);
+    const { contextEnv } = prepareAgentInvocation(input, "opencode");
 
     const sessionId = input.externalSessionId;
     let bootstrap = sessionId ? null : buildStatefulBootstrap(input);
@@ -119,7 +111,7 @@ export class OpenCodeAgent extends StatefulCLIAgent implements SnailRuntime, Sta
         systemReminder: input.capability.systemReminder,
       },
       onEvent,
-      { ...options, contextEnv: buildContextEnv(input.conversation) },
+      { ...options, contextEnv },
       input.workspaceRoot,
     );
   }

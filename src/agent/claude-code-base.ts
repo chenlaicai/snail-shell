@@ -18,9 +18,7 @@ import { formatText } from "./log-preview";
 import { buildRuntimeUsageSignal, usageDetailFromClaudeResult } from "./runtime-usage";
 import { buildDisallowedToolsArgs } from "./guard-config";
 import type { GuardProfile } from "../shared/types";
-import { ensureMcpServers } from "./mcp-config";
-import { ensureSkillSymlinks } from "./skill-symlinks";
-import { buildContextEnv } from "./context-env";
+import { prepareAgentInvocation } from "./capability-injector";
 
 /** Claude Code stdout stream callbacks. */
 export interface ClaudeCodeOutputCallbacks {
@@ -303,9 +301,7 @@ export abstract class ClaudeCodeBase implements SnailRuntime {
   protected prepareInvocation(input: SnailRuntimeMessageInput): {
     contextEnv: Record<string, string>;
   } {
-    ensureMcpServers(input.capability.mcpServers, input.workspaceRoot, "claude");
-    ensureSkillSymlinks(input.workspaceRoot, input.capability.skills);
-    return { contextEnv: buildContextEnv(input.conversation) };
+    return prepareAgentInvocation(input, "claude");
   }
 
   /**

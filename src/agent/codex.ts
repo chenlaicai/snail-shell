@@ -15,9 +15,7 @@ import { logger } from "../logger";
 import { buildRuntimeUsageSignal, usageDetailFromCodexUsage } from "./runtime-usage";
 import { renderStatefulPrompt } from "./stateful-prompt-format";
 import { writeCodexGuardConfig } from "./guard-config";
-import { ensureMcpServers } from "./mcp-config";
-import { ensureSkillSymlinks } from "./skill-symlinks";
-import { buildContextEnv } from "./context-env";
+import { prepareAgentInvocation } from "./capability-injector";
 
 // Codex JSON event types observed from actual CLI output:
 // - {"type":"thread.started","thread_id":"..."}
@@ -63,14 +61,7 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
     // 将 ACS GuardProfile 翻译为 Codex config.toml（CODEX_HOME 指向 .codex/ 目录加载）
     writeCodexGuardConfig(input.capability.guardProfile, input.workspaceRoot);
 
-    // 消费 ACP mcpServers：确保 agent CWD 的 .mcp.json 包含 MCP server 配置
-    // Codex 以 workspaceRoot 作为 CWD 启动（codex.ts:209），.mcp.json 必须写入同一目录
-    // 同时写入 Codex 全局配置 ~/.codex/config.toml
-    ensureMcpServers(input.capability.mcpServers, input.workspaceRoot, "codex");
-
-    // 将 ACS skills 暴露为 Codex 原生 skill 目录（.agents/skills/）
-    // Codex 启动时自动扫描该目录，listing 注入 developer prompt，agent 通过 $SkillName 引用
-    ensureSkillSymlinks(input.workspaceRoot, input.capability.skills);
+    const { contextEnv } = prepareAgentInvocation(input, "codex");
 
     // Codex 能力缺口告警（仅首次）：
     // database/filesystem/git/network 的 GuardProfile domain 仅通过 sandbox_mode（filesystem）生效，
@@ -98,7 +89,7 @@ export class CodexAgent implements SnailRuntime, StatefulAgentInvoker {
         systemReminder: input.capability.systemReminder,
       },
       onEvent,
-      { ...options, contextEnv: buildContextEnv(input.conversation) },
+      { ...options, contextEnv },
       input.workspaceRoot,
     );
   }
