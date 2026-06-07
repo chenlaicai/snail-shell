@@ -1,7 +1,7 @@
 // barrel export — api-contracts 的唯一入口
 export type { ApiEndpoints, ApiEndpointDef } from "./endpoints";
 
-// DTO — re-export everything from the dto barrel
+// DTO
 export type * from "./dto";
 
 // WebSocket protocol

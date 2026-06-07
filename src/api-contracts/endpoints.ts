@@ -23,7 +23,7 @@ export type ApiEndpoints = {
     never,
     { limit?: number; offset?: number },
     never,
-    Dto.WorkspaceSummaryDto[]
+    Dto.WorkspaceSummary[]
   >;
   "POST /api/workspaces": ApiEndpointDef<
     never,
@@ -35,25 +35,25 @@ export type ApiEndpoints = {
     { workspaceId: string },
     never,
     never,
-    Dto.WorkspaceDetailDto | null
+    Dto.WorkspaceDetail | null
   >;
   "GET /api/workspaces/:workspaceId/stages": ApiEndpointDef<
     { workspaceId: string },
     never,
     never,
-    Dto.StageDetailDto[]
+    Dto.StageDetail[]
   >;
   "GET /api/workspaces/:workspaceId/issues": ApiEndpointDef<
     { workspaceId: string },
     never,
     never,
-    Dto.IssueDetailDto[]
+    Dto.IssueDetail[]
   >;
   "GET /api/workspaces/:workspaceId/conversations": ApiEndpointDef<
     { workspaceId: string },
     never,
     never,
-    Dto.ConversationDetailDto[]
+    Dto.ConversationDetail[]
   >;
 
   // ── Snail Config ──
@@ -75,7 +75,7 @@ export type ApiEndpoints = {
     never,
     { source?: "platform" | "workspace" },
     never,
-    Dto.SopDto[]
+    Dto.Sop[]
   >;
   "GET /api/sops/:sopId": ApiEndpointDef<
     { sopId: string },
@@ -86,14 +86,14 @@ export type ApiEndpoints = {
   "POST /api/sops": ApiEndpointDef<
     never,
     never,
-    { key: string; name: string; description?: string; first_stage?: string; shared_handbook?: string; stage_definitions: Dto.SopStageDefinitionInputDto[]; transitions?: Dto.SopTransitionDto[] },
-    Dto.SopDto
+    { key: string; name: string; description?: string; first_stage?: string; shared_handbook?: string; stage_definitions: Dto.SopStageDefinitionInputDto[]; transitions?: Dto.SopTransition[] },
+    Dto.Sop
   >;
   "PATCH /api/sops/:sopId": ApiEndpointDef<
     { sopId: string },
     never,
-    { name?: string; description?: string; first_stage?: string; shared_handbook?: string; stage_definitions?: Dto.SopStageDefinitionInputDto[]; transitions?: Dto.SopTransitionDto[] },
-    Dto.SopDto
+    { name?: string; description?: string; first_stage?: string; shared_handbook?: string; stage_definitions?: Dto.SopStageDefinitionInputDto[]; transitions?: Dto.SopTransition[] },
+    Dto.Sop
   >;
   "DELETE /api/sops/:sopId": ApiEndpointDef<
     { sopId: string },
@@ -113,19 +113,19 @@ export type ApiEndpoints = {
     { issueId: string },
     never,
     never,
-    Dto.IssueDetailDto
+    Dto.IssueDetail
   >;
   "GET /api/issues/:issueId/stages": ApiEndpointDef<
     { issueId: string },
     never,
     never,
-    Dto.StageDetailDto[]
+    Dto.StageDetail[]
   >;
   "GET /api/issues/:issueId/conversations": ApiEndpointDef<
     { issueId: string },
     never,
     never,
-    Dto.ConversationDetailDto[]
+    Dto.ConversationDetail[]
   >;
   "POST /api/issues/:issueId/advance": ApiEndpointDef<
     { issueId: string },
@@ -143,13 +143,13 @@ export type ApiEndpoints = {
     { issueId: string },
     never,
     { task_anchor: string },
-    Dto.IssueDto
+    Dto.Issue
   >;
   "PATCH /api/issues/:issueId/role-snail": ApiEndpointDef<
     { issueId: string },
     never,
     { stage_id: string; role_name: string; snail_template_id: string },
-    Dto.IssueDto
+    Dto.Issue
   >;
   "POST /api/issues/:issueId/complete": ApiEndpointDef<
     { issueId: string },
@@ -187,19 +187,19 @@ export type ApiEndpoints = {
     { stageId: string },
     never,
     never,
-    Dto.StageDetailDto
+    Dto.StageDetail
   >;
   "PATCH /api/stages/:stageId": ApiEndpointDef<
     { stageId: string },
     never,
     Dto.UpdateStageBody,
-    Dto.StageDetailDto
+    Dto.StageDetail
   >;
   "GET /api/stages/:stageId/conversations": ApiEndpointDef<
     { stageId: string },
     never,
     never,
-    Dto.ConversationDetailDto[]
+    Dto.ConversationDetail[]
   >;
 
   // ── Conversation ──
@@ -207,13 +207,13 @@ export type ApiEndpoints = {
     { issueId: string; stageId: string },
     never,
     { workspace_id: string; title: string; kind: Dto.ConversationKind; from_conversation_ids?: string[]; summary?: string },
-    Dto.ConversationDto
+    Dto.Conversation
   >;
   "GET /api/conversations/:conversationId": ApiEndpointDef<
     { conversationId: string },
     never,
     never,
-    Dto.ConversationDetailDto
+    Dto.ConversationDetail
   >;
 
   // ── Message ──
@@ -301,31 +301,31 @@ export type ApiEndpoints = {
     never,
     { workspace_id?: string; issue_id?: string; query?: string; limit?: number; offset?: number },
     never,
-    Dto.EvolutionItemSearchResultDto[]
+    Dto.EvolutionItemSearchResult[]
   >;
   "GET /api/workspaces/:workspaceId/evolution/items": ApiEndpointDef<
     { workspaceId: string },
     { issue_id?: string; query?: string; limit?: number; offset?: number },
     never,
-    Dto.EvolutionItemSearchResultDto[]
+    Dto.EvolutionItemSearchResult[]
   >;
   "GET /api/evolution/items/:itemId": ApiEndpointDef<
     { itemId: string },
     never,
     never,
-    Dto.EvolutionItemWithConversationDto | null
+    Dto.EvolutionItemWithConversation | null
   >;
   "POST /api/evolution/items": ApiEndpointDef<
     never,
     never,
     { title: string; content: string; workspace_id: string; tags?: string[]; metadata?: string },
-    Dto.EvolutionItemWithConversationDto
+    Dto.EvolutionItemWithConversation
   >;
   "PATCH /api/evolution/items/:itemId": ApiEndpointDef<
     { itemId: string },
     never,
     { issue_id?: string; title?: string; content?: string; tags?: string[]; metadata?: string },
-    Dto.EvolutionItemWithConversationDto
+    Dto.EvolutionItemWithConversation
   >;
 
   // ── Knowledge Library ──
@@ -334,40 +334,40 @@ export type ApiEndpoints = {
     never,
     { scope?: "global" | "workspace"; workspace_id?: string; limit?: number; offset?: number },
     never,
-    Dto.KnowledgeSearchResultDto[]
+    Dto.KnowledgeLibrarySearchResult[]
   >;
   "GET /api/knowledge/items/search": ApiEndpointDef<
     never,
     { q: string },
     never,
-    Dto.KnowledgeSearchResultDto[]
+    Dto.KnowledgeLibrarySearchResult[]
   >;
   "GET /api/knowledge/items/:id": ApiEndpointDef<
     { id: string },
     never,
     never,
-    Dto.KnowledgeEntryDto
+    Dto.KnowledgeLibraryEntry
   >;
 
   // ── Lobby ──
-  "GET /api/lobby/sessions": ApiEndpointDef<never, never, never, Dto.LobbySessionDto[]>;
+  "GET /api/lobby/sessions": ApiEndpointDef<never, never, never, Dto.LobbySession[]>;
   "GET /api/lobby/sessions/:sessionId": ApiEndpointDef<
     { sessionId: string },
     never,
     never,
-    { session: Dto.LobbySessionDto; messages: Dto.LobbyMessageDto[] }
+    { session: Dto.LobbySession; messages: Dto.LobbyMessage[] }
   >;
   "GET /api/lobby/sessions/:sessionId/messages": ApiEndpointDef<
     { sessionId: string },
     { limit?: number; offset?: number },
     never,
-    Dto.LobbyMessageDto[]
+    Dto.LobbyMessage[]
   >;
   "POST /api/lobby/sessions/:sessionId/reset": ApiEndpointDef<
     { sessionId: string },
     never,
     never,
-    Dto.LobbySessionDto
+    Dto.LobbySession
   >;
   "DELETE /api/lobby/sessions/:sessionId": ApiEndpointDef<
     { sessionId: string },

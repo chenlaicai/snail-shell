@@ -1,16 +1,13 @@
-import type { Workspace, WorkspaceSummary, WorkspaceDetail, StageDetail } from "../../shared";
-import type { IssueDto } from "./issue.dto";
-import type { ConversationDto } from "./conversation.dto";
+import type { Workspace, WorkspaceSummary, WorkspaceDetail, StageDetail, Issue, Conversation } from "../../shared";
 
-// Re-export enriched view types from shared (single source of truth)
-export type { WorkspaceSummary as WorkspaceSummaryDto, WorkspaceDetail as WorkspaceDetailDto };
+export type { WorkspaceSummary, WorkspaceDetail };
 
 // POST /api/workspaces — creation response
 export type CreateWorkspaceResult = {
   workspace: Workspace;
-  issue: IssueDto;
+  issue: Issue;
   stage: StageDetail;
-  conversation: ConversationDto;
+  conversation: Conversation;
 };
 
 // POST /api/workspaces/detect-snail

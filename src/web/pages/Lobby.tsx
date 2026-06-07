@@ -12,13 +12,13 @@ import { queryKeys } from "../queries/keys";
 import { showToast } from "../components/Toast";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "../components/ui/dialog";
-import type { LobbyMessageDto } from "../types";
+import type { LobbyMessage } from "../types";
 
 export function Lobby() {
   const queryClient = useQueryClient();
   const { data: sessions = [], isLoading } = useQuery(lobbyQueries.sessions());
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
-  const [sessionMessages, setSessionMessages] = useState<LobbyMessageDto[]>([]);
+  const [sessionMessages, setSessionMessages] = useState<LobbyMessage[]>([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmTarget, setConfirmTarget] = useState<string | null>(null);
   const [confirmAction, setConfirmAction] = useState<"reset" | "delete">("delete");

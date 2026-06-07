@@ -1,7 +1,6 @@
 import type { StageStatus, StageDetail, StageGateEvidence } from "../../shared";
 
-// Re-export enriched view types from shared (single source of truth)
-export type { StageDetail as StageDetailDto };
+export type { StageDetail };
 
 // PATCH /api/stages/:id request body
 export type UpdateStageBody = {

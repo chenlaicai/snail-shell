@@ -49,9 +49,6 @@ export type { ConversationDetail, WorkspaceDetail, WorkspaceSummary } from "./wo
 // snails
 export { buildConversationSystemPrompt, buildConversationCapability } from "./roles";
 export type { PromptBuildContext } from "./roles";
-import type { StageRoleDefinition as _StageRoleDefinition } from "./shared/types";
-/** @deprecated Use StageRoleDefinition from shared. Kept for backward compatibility. */
-export type RoleDefinition = _StageRoleDefinition;
 
 // agent capability
 export { collectActiveSkills } from "./agent/capability";

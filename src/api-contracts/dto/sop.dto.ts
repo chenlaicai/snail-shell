@@ -8,12 +8,7 @@ import type {
   SopStageDefinition,
 } from "../../shared";
 
-// Re-export Sop types directly (no zero-value aliases)
 export type { Sop, SopTransition, SopSnapshot, TransitionGuard, StageChecklistItem };
-
-// Backward-compatible aliases
-export type SopDto = Sop;
-export type SopTransitionDto = SopTransition;
 
 // GET /api/sops/:id — Sop + enrichment (stage_definitions with roles + transitions)
 export type SopDetailDto = Sop & {

@@ -1,24 +1,19 @@
-import type { Issue, IssueDetail, StageDetail } from "../../shared";
-import type { ConversationDto } from "./conversation.dto";
+import type { Issue, IssueDetail, StageDetail, Conversation } from "../../shared";
 
-// Re-export enriched view types from shared (single source of truth)
-export type { IssueDetail as IssueDetailDto };
-
-// Backward-compatible alias
-export type IssueDto = Issue;
+export type { Issue, IssueDetail };
 
 // POST /api/workspaces/:id/issues — creation response
 export type CreateIssueResult = {
   issue: Issue;
   stage: StageDetail;
-  conversation: ConversationDto;
+  conversation: Conversation;
 };
 
 // POST /api/issues/:id/advance, bounce-stage, confirm-stage-suggestion
 export type AdvanceIssueResult = {
   completed_stage: StageDetail;
   next_stage: StageDetail | null;
-  conversation: ConversationDto | null;
+  conversation: Conversation | null;
   issue: Issue;
 };
 

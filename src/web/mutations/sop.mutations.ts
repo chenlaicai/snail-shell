@@ -1,12 +1,12 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../services/api-client";
 import { queryKeys } from "../queries/keys";
-import type { SopStageDefinitionInputDto, SopTransitionDto } from "../types";
+import type { SopStageDefinitionInputDto, SopTransition } from "../types";
 
 export function useCreateSop() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { key: string; name: string; description?: string; first_stage?: string; shared_handbook?: string; stage_definitions: SopStageDefinitionInputDto[]; transitions?: SopTransitionDto[] }) =>
+    mutationFn: (body: { key: string; name: string; description?: string; first_stage?: string; shared_handbook?: string; stage_definitions: SopStageDefinitionInputDto[]; transitions?: SopTransition[] }) =>
       api("POST /api/sops", { body }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.sops.all }); },
   });
@@ -15,7 +15,7 @@ export function useCreateSop() {
 export function useUpdateSop(sopId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { name?: string; description?: string; first_stage?: string; shared_handbook?: string; stage_definitions?: SopStageDefinitionInputDto[]; transitions?: SopTransitionDto[] }) =>
+    mutationFn: (body: { name?: string; description?: string; first_stage?: string; shared_handbook?: string; stage_definitions?: SopStageDefinitionInputDto[]; transitions?: SopTransition[] }) =>
       api("PATCH /api/sops/:sopId", { params: { sopId }, body }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.sops.all });

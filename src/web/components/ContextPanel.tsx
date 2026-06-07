@@ -5,14 +5,14 @@ import { api } from "../services/api-client";
 import { metaQueries } from "../queries/meta.queries";
 import { queryKeys } from "../queries/keys";
 import { showToast } from "./Toast";
-import type { WorkspaceSummaryDto, IssueDto, Participant, RoleDefinition, StageDetailDto } from "../types";
+import type { WorkspaceSummary, Issue, Participant, StageRoleDefinition, StageDetail } from "../types";
 
 export function ContextPanel({
   workspace,
   issue,
 }: {
-  workspace: WorkspaceSummaryDto | null;
-  issue: IssueDto | null;
+  workspace: WorkspaceSummary | null;
+  issue: Issue | null;
 }) {
   const { currentStage, currentConversation, wsStatus } = useConversationStore();
   const [newArtifactKey, setNewArtifactKey] = useState("");
@@ -21,7 +21,7 @@ export function ContextPanel({
   // TanStack Query: stage detail
   const { data: stageDetail } = useQuery({
     queryKey: queryKeys.stages.detail(currentStage?.id ?? ""),
-    queryFn: (): Promise<StageDetailDto> => api("GET /api/stages/:stageId", { params: { stageId: currentStage!.id } }),
+    queryFn: (): Promise<StageDetail> => api("GET /api/stages/:stageId", { params: { stageId: currentStage!.id } }),
     enabled: !!currentStage?.id,
   });
 
@@ -34,7 +34,7 @@ export function ContextPanel({
     const roleDefs = stageDetail.role_definitions || [];
     const convRoles = currentConversation?.participating_roles || [];
     const participantMap = new Map<string, Participant>();
-    roleDefs.forEach((rd: RoleDefinition) => {
+    roleDefs.forEach((rd: StageRoleDefinition) => {
       participantMap.set(rd.name, { name: rd.name, roleDef: rd, isPrimary: rd.is_primary || false });
     });
     convRoles.forEach((name: string) => {

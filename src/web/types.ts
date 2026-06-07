@@ -8,29 +8,38 @@ export type {
   ConversationOwnerType, StageType,
   StageRoleDefinition,
 } from "../shared/domain-types";
-/** @deprecated Use StageRoleDefinition. Kept for backward compatibility. */
-export type RoleDefinition = StageRoleDefinition;
 
-// API DTO（API 响应的精确形状）
+// 领域实体 + 聚合视图（canonical name，无别名）
 export type {
-  WorkspaceSummaryDto, WorkspaceDetailDto, CreateWorkspaceResult, DetectSnailResult, LoadSnailResult,
-  IssueDto, IssueDetailDto, CreateIssueResult, AdvanceIssueResult, IssueCleanupResult,
-  RepoCleanupResult, RepoCleanupStep, StageSuggestion,
-  StageDetailDto, UpdateStageBody,
-  ConversationDetailDto,
+  Workspace, WorkspaceSummary, WorkspaceDetail,
+  Issue, IssueDetail,
+  Stage, StageDetail,
+  Conversation, ConversationDetail,
   ConversationMessagesPage,
   ConversationRecentMessagesSnapshot, ConversationHistoryWindow, ConversationHistorySearchPage,
-  MessageDto, MessageEvent, MessageEventSource, MessageContext,
-  ConversationEventWithMessage, ConversationDispatchState, BossMentionItem,
-  SendMessageResult, ApproveToolResult, InterruptMessageResult,
   MessageDispatch, DispatchInboxGroup, DispatchInboxPreviewItem,
-  Sop, SopDetailDto, SopStageDefinitionWithRolesDto, SopStageDefinitionInputDto,
-  SopTransition, DeleteSopResult,
+  ConversationDispatchState, BossMentionItem,
+  Sop, SopTransition, SopSnapshot,
   EvolutionItem, EvolutionItemWithConversation, EvolutionItemSearchResult,
   KnowledgeLibraryEntry, KnowledgeLibrarySearchResult, KnowledgeLibraryScope,
-  LobbySession, LobbyMessage,
+} from "../shared";
+
+// API DTO（有扩展字段的组合类型）
+export type {
+  CreateWorkspaceResult, DetectSnailResult, LoadSnailResult,
+  CreateIssueResult, AdvanceIssueResult, IssueCleanupResult,
+  RepoCleanupResult, RepoCleanupStep, StageSuggestion,
+  UpdateStageBody,
+  MessageDto, MessageEvent, MessageEventSource, MessageContext,
+  ConversationEventWithMessage,
+  SendMessageResult, ApproveToolResult, InterruptMessageResult,
+  SopDetailDto, SopStageDefinitionWithRolesDto, SopStageDefinitionInputDto,
+  DeleteSopResult, TransitionGuard, StageChecklistItem,
   PromptDto, SkillDto, SnailDenTemplateDto, McpServerDto, RoleDto,
 } from "../api-contracts/dto";
+
+// Lobby 类型
+export type { LobbySession, LobbyMessage } from "../lobby/types";
 
 // WebSocket 协议
 export type {

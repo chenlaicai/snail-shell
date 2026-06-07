@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { knowledgeQueries } from "../queries/knowledge.queries";
-import type { KnowledgeEntryDto } from "../types";
+import type { KnowledgeLibraryEntry } from "../types";
 
 export function KnowledgeLibrary() {
   const { data: globalData, isLoading: loadingGlobal } = useQuery(knowledgeQueries.list({ scope: "global", limit: 50 }));
@@ -39,7 +39,7 @@ export function KnowledgeLibrary() {
   );
 }
 
-function KnowledgeCard({ item }: { item: KnowledgeEntryDto }) {
+function KnowledgeCard({ item }: { item: KnowledgeLibraryEntry }) {
   return (
     <div className="flex gap-2.5 py-3 px-3.5 bg-[var(--color-bg-surface)] border border-[var(--color-border-muted)] rounded-[var(--radius-sm)] mb-1.5 cursor-pointer transition-all duration-150 relative hover:border-[var(--color-border-default)] hover:bg-[var(--color-bg-active)]">
       <div className="flex-1 min-w-0">
