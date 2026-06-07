@@ -143,9 +143,9 @@ interaction-entry ← lobby (router.ts)
 |--------|------|------|------|
 | buildWhere 助手 x2 | evolution-model.ts + knowledge-library-model.ts | **已修复** | 提取为 query-helpers.ts 共享实现 |
 | getMessageContext x2 | message-read-model.ts + message-context-model.ts | **已修复** | message-read-model 改为从 message-context-model 导入 |
-| Config store 模式 x7 | 7 个 config store | **部分修复**：logging-config-store 改用 JsonConfigStore 工厂；其余因错误处理差异保持现状 |
+| Config store 模式 x7 | 7 个 config store | **已修复**：全部改用 JsonConfigStore 泛型工厂 |
 | Feishu/WeCom config store x2 | 结构克隆 | **未修复** | 不同类型名但相同模式 |
-| sendMessage 三层包装 | manager.ts | **未修复** | sendMessage→sendStructuredMessage→sendConversationMessage，三入口一实现 |
+| sendMessage 三层包装 | message-service.ts | **已标注设计意图** | 三个方法服务于不同场景（纯文本/结构化/容错），已添加注释 |
 | `process.cwd()` 路径解析散射 | 15+ 文件、30+ 处调用 | **已修复** | 创建 shared/paths.ts 统一路径解析层，6 个高影响文件已迁移 |
 
 ### 核心业务场景审视
