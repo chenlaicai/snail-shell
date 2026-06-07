@@ -248,7 +248,7 @@ export function ConversationView({ conversationId }: Props) {
             </div>
           )}
         </div>
-        <div className="composer-actions flex gap-[var(--space-xs)] flex-wrap">
+        <div className="flex gap-[var(--space-xs)] flex-wrap">
           {streamingMessage ? (
             <Button variant="destructive" onClick={() => handleInterrupt(streamingMessage.id)}>中断 Snail</Button>
           ) : (

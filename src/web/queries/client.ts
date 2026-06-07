@@ -1,5 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
 import { showToast } from "../components/Toast";
+import { ApiError } from "../services/api-client";
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -30,10 +31,9 @@ if (!g.__snail_error_cleanup_interval) {
 
 queryClient.getQueryCache().subscribe((event) => {
   if (event.type !== "updated" || event.query.state.status !== "error") return;
-  const err = event.query.state.error as Record<string, unknown> | undefined;
+  const err = event.query.state.error;
   // 跳过 404 错误（资源不存在是正常业务状态，不需要 toast）
-  const status = err?.status;
-  if (status === 404) return;
+  if (err instanceof ApiError && err.status === 404) return;
   const msg = err instanceof Error ? err.message : String(err ?? "");
   if (!msg) return;
   const key = event.query.queryHash;

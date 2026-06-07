@@ -45,8 +45,15 @@ export function ContextPanel({
   }, [stageDetail, currentConversation?.participating_roles]);
 
   const queryClient = useQueryClient();
-  const outputArtifacts = useMemo(() => (stageDetail?.output_artifacts || {}) as Record<string, string>, [stageDetail?.output_artifacts]);
-  const inputArtifacts = useMemo(() => (stageDetail?.input_artifacts || {}) as Record<string, string>, [stageDetail?.input_artifacts]);
+  /** 将 Record<string, unknown> 安全转为 Record<string, string>，避免 as 断言 */
+  const toStringRecord = (r: Record<string, unknown> | undefined): Record<string, string> => {
+    if (!r) return {};
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(r)) out[k] = String(v ?? "");
+    return out;
+  };
+  const outputArtifacts = useMemo(() => toStringRecord(stageDetail?.output_artifacts), [stageDetail?.output_artifacts]);
+  const inputArtifacts = useMemo(() => toStringRecord(stageDetail?.input_artifacts), [stageDetail?.input_artifacts]);
 
   const stageQueryKey = ["stages", currentStage?.id];
 
