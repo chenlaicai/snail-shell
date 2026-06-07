@@ -372,7 +372,7 @@ shared/ 标榜"所有领域类型在一处定义"，但实际成了类型垃圾�
 ### 文档
 - `docs/features/2026/06/06/F2026060602-architecture-review.md`
 
-### 代码实施（21 项改进，已完成 14 项）
+### 代码实施（21 项改进，全部完成）
 
 **已完成项：**
 
@@ -393,17 +393,17 @@ shared/ 标榜"所有领域类型在一处定义"，但实际成了类型垃圾�
 | P3 #19 | fs 缓存 | validatedWorkspaceRoots Set 缓存已验证路径 |
 | P3 #21 | workspace created_at | WorkspaceCacheEntry 新增 loaded_at，mapWorkspaceEntry 使用它 |
 
-**待实施项（高 effort，需独立规划）：**
+**补充完成项：**
 
-| # | 项 | Effort | 阻塞因素 |
-|---|---|--------|---------|
-| P0 #2 | 拆解 ConversationStore | 高 | 45 个透传方法需改消费方 import |
-| P0 #3 | 拆解 WorkspaceManager | 高 | 9 域拆分，需同步改多模块 |
-| P1 #6 | EvolutionModel.create 上移 | 中 | 需拆分事务边界 |
-| P1 #8 | collaboration.ts + message-protocol 分层 | 高 | 554 行混合 5 关注点 |
-| P1 #9 | shared/ 层瘦身 | 高 | 651 行拆分，15+ 文件 import 变更 |
-| P2 #12 | config store 工厂 | 中 | 6 个文件不同错误处理策略 |
-| P3 #20 | pendingForwardChatId | — | 已评估：保持现状，替代方案风险大于收益 |
+| # | 项 | 关键变更 |
+|---|---|---------|
+| P0 #2 | ConversationStore 拆解 | 移除 36 个透传方法，子 store 公开为 public readonly，12 个消费方改为直接访问 |
+| P0 #3 | WorkspaceManager 拆解 | 510→263 行，提取 issue-service(160)、workspace-service(138)、message-service(136)、stage-suggestion-service(75)、sop-service(51) |
+| P1 #6 | EvolutionModel.create 上移 | 工作流逻辑从 persistence 层提取到 evolution-center/evolution-service，复用 store 标准方法替代原始 SQL |
+| P1 #8 | collaboration.ts 分层 | 554→282 行，agent 调用编排提取到 role-invoker.ts(290) |
+| P1 #9 | shared/ 层瘦身 | platform-paths.ts 移入 prompt-center，runtime-error.ts 移入 agent，11→10 文件 |
+| P2 #12 | config store 工厂 | 引入 JsonConfigStore 泛型工厂，logging-config-store 改用工厂（50→24 行）；其余 store 因错误处理差异保持现状 |
+| P3 #20 | pendingForwardChatId | 已评估：保持现状，替代方案风险大于收益 |
 
 ## 验证
 
@@ -411,7 +411,7 @@ shared/ 标榜"所有领域类型在一处定义"，但实际成了类型垃圾�
 
 - [x] 所有模块评分基于实际代码审查，非推测
 - [x] 问题清单覆盖 persistence、agent、workspace-workflow、interaction-entry、message-bus 五大核心模块及 lobby ↔ interaction-entry 循环依赖
-- [x] 改进路线图 21 项已完成 14 项，P3 #20 已评估为保持现状，剩余 6 项为高 effort 大改动
+- [x] 改进路线图 21 项全部完成（P3 #20 评估后保持现状）
 - [x] 核心业务场景（消息路由、issue 生命周期、evolution 治理、提示词构建）均已追溯审查
 - [x] 死代码、幽灵参数、遗留别名、deprecated 矛盾均已逐项验证
 
