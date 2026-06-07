@@ -1,5 +1,4 @@
-import fs from "fs";
-import path from "path";
+import { JsonConfigStore } from "./json-config-store";
 
 export interface WecomAllowedChatConfig {
   tenant_key?: string;
@@ -25,45 +24,30 @@ const DEFAULT_CONFIG: WecomConfig = {
   token: "",
   encoding_aes_key: "",
   allowed_chats: [],
-  message_push: {
-    max_text_length: 4000,
-  },
+  message_push: { max_text_length: 4000 },
 };
 
+function parseWecomConfig(raw: string): WecomConfig {
+  const parsed = JSON.parse(raw) as Partial<WecomConfig>;
+  return {
+    ...DEFAULT_CONFIG,
+    ...parsed,
+    allowed_chats: Array.isArray(parsed.allowed_chats)
+      ? parsed.allowed_chats.filter((v): v is WecomAllowedChatConfig =>
+          Boolean(v) && typeof v === "object" && !Array.isArray(v) && typeof (v as WecomAllowedChatConfig).chat_id === "string" && Boolean((v as WecomAllowedChatConfig).chat_id.trim()))
+      : [],
+    message_push: { ...DEFAULT_CONFIG.message_push, ...(parsed.message_push ?? {}) },
+  };
+}
+
 export class WecomConfigStore {
-  private readonly configPath: string;
-  private cachedConfig: WecomConfig | null = null;
+  private readonly store: JsonConfigStore<WecomConfig>;
 
   constructor(configDir: string) {
-    this.configPath = path.join(configDir, "wecom.json");
+    this.store = new JsonConfigStore(configDir, "wecom.json", { ...DEFAULT_CONFIG }, parseWecomConfig);
   }
 
   getConfig(): WecomConfig {
-    if (this.cachedConfig) return this.cachedConfig;
-
-    if (!fs.existsSync(this.configPath)) {
-      this.cachedConfig = { ...DEFAULT_CONFIG };
-      return this.cachedConfig;
-    }
-
-    const parsed = JSON.parse(fs.readFileSync(this.configPath, "utf8")) as Partial<WecomConfig>;
-    this.cachedConfig = {
-      ...DEFAULT_CONFIG,
-      ...parsed,
-      allowed_chats: Array.isArray(parsed.allowed_chats) ? parsed.allowed_chats.filter(isAllowedChatConfig) : [],
-      message_push: {
-        ...DEFAULT_CONFIG.message_push,
-        ...(parsed.message_push ?? {}),
-      },
-    };
-    return this.cachedConfig;
+    return this.store.get();
   }
-}
-
-function isAllowedChatConfig(value: unknown): value is WecomAllowedChatConfig {
-  return Boolean(value)
-    && typeof value === "object"
-    && !Array.isArray(value)
-    && typeof (value as WecomAllowedChatConfig).chat_id === "string"
-    && Boolean((value as WecomAllowedChatConfig).chat_id.trim());
 }
