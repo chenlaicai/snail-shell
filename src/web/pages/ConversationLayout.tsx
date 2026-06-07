@@ -9,7 +9,7 @@ import { useWebSocket } from "../hooks/useWebSocket";
 import { useConversationStore } from "../stores/conversationStore";
 import { ConversationView } from "./ConversationView";
 import { BossMentionsBanner } from "../components/BossMentionsBanner";
-import { StageActions, type Transition } from "../components/StageActions";
+import { StageActions } from "../components/StageActions";
 import { StageSuggestionBanner } from "../components/StageSuggestionBanner";
 import { showToast } from "../components/Toast";
 import { Button } from "@/components/ui/button";
@@ -33,7 +33,7 @@ export function ConversationLayout() {
   const { data: transitions = [] } = useQuery({
     ...sopQueries.detail(sopId || ""),
     enabled: !!sopId,
-    select: (data): Transition[] => (data as { transitions?: Transition[] } | undefined)?.transitions ?? [],
+    select: (data) => data.transitions,
   });
 
   // 当前 stage 的 ID（来自 store 或 issue 默认值）
