@@ -158,6 +158,10 @@ export default tseslint.config(
   {
     files: [
       "src/interaction-entry/api/server.ts",
+      "src/interaction-entry/api/meta-routes.ts",
+      "src/interaction-entry/api/workspace-routes.ts",
+      "src/interaction-entry/api/sop-routes.ts",
+      "src/interaction-entry/api/conversation-routes.ts",
       "src/agent/claude-code.ts",
       "src/agent/claude-code-stateful.ts",
       "src/message-bus/collaboration.ts",
