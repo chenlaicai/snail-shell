@@ -372,47 +372,38 @@ shared/ 标榜"所有领域类型在一处定义"，但实际成了类型垃圾�
 ### 文档
 - `docs/features/2026/06/06/F2026060602-architecture-review.md`
 
-### 代码实施（全部 21 项改进）
+### 代码实施（21 项改进，已完成 14 项）
 
-**P0 #1 提取 ClaudeCodeBase（已完成）**
-- `src/agent/claude-code-base.ts` 新增 344 行
-- `src/agent/claude-code.ts` 350→124 行
-- `src/agent/claude-code-stateful.ts` 500→181 行
-- 净减 201 行
+**已完成项：**
 
-**P0 #2 拆解 ConversationStore（待实施）**
-- `src/persistence/store.ts` 移除 45 个透传方法
-- 消费方直接注入 `FileConfigStore`、`EvolutionModel`、`KnowledgeLibraryModel`
+| # | 项 | 关键变更 |
+|---|---|---------|
+| P0 #1 | ClaudeCodeBase 提取 | 新增 claude-code-base.ts 344 行，claude-code 350→124，claude-code-stateful 500→181 |
+| P1 #4 | GuardProfile → shared | GuardProfile 接口从 persistence/guard-profile-store 移入 shared/domain-types |
+| P1 #5 | FeishuStreamingSession → im-channel | 文件重命名，类名改为 StreamingSession |
+| P1 #7 | server.ts 拆分 | 677→171 行，提取 meta-routes(38)、workspace-routes(134)、sop-routes(51)、conversation-routes(209) |
+| P2 #10 | JSONC parser 合并 | 新增 jsonc-utils.ts 62 行，guard-config 和 mcp-config 各减 ~65 行 |
+| P2 #11 | CapabilityInjector 提取 | 新增 capability-injector.ts，统一 4 处注入序列 |
+| P2 #13 | re-export 链消除 | 删除 persistence/types.ts 和 message-types.ts，消费方直接从 shared/types 导入 |
+| P2 #14 | 零调用方法清理 | 移除 seedWorkspaceConfigs、addMessageDispatch、findWorkspaceByName、getRoleDefinition、listRoleDefinitions、touchWorkspace |
+| P2 #15 | 幽灵参数清理 | 7 个 _conversationId 参数移除，同步更新所有调用方 |
+| P2 #16 | 遗留代码清理 | _ignoredInputArtifacts 剥离、DEFAULT_GUARD_PROFILE 移除、log-preview 恒等函数、3 个 .js 文件删除 |
+| P2 #17 | roles re-export 移除 | roles/index.ts 不再 re-export prompt-center 函数 |
+| P3 #18 | drainMessageBus 终止条件 | remainingRounds < 0 时不再允许 agent batch |
+| P3 #19 | fs 缓存 | validatedWorkspaceRoots Set 缓存已验证路径 |
+| P3 #21 | workspace created_at | WorkspaceCacheEntry 新增 loaded_at，mapWorkspaceEntry 使用它 |
 
-**P0 #3 拆解 WorkspaceManager（待实施）**
-- `src/workspace-workflow/manager.ts` 按业务域提取 Service 类
-- 消费方（interaction-entry、lobby）按需依赖具体 Service
+**待实施项（高 effort，需独立规划）：**
 
-**P1 #4-#10 边界修正（待实施）**
-- GuardProfile 移入 agent/capability/
-- FeishuStreamingSession 移到 im-channel/
-- EvolutionModel.create 上移到 evolution-center
-- api/server.ts 按域拆分
-- collaboration.ts + message-protocol.ts 分层
-- shared/ 层瘦身（含 AgentRuntime 封装）
-
-**P2 #11-#18 DRY 清理与死代码清除**
-
-P2 #14 清理零调用方法（已完成）：
-- 从 ConversationStore 移除 seedWorkspaceConfigs（@deprecated）、addMessageDispatch（内联到 rebuildDispatchesForMessage）、findWorkspaceByName、getRoleDefinition、listRoleDefinitions
-- 从 FileConfigStore 移除 touchWorkspace（no-op）
-- 保留 seedSopToCache、seedWorkspaceToCache（测试辅助方法）、createKnowledgeLibraryEntry、updateKnowledgeLibraryEntry、listConversationsByOwner（测试使用）
-
-其余 P2 项待实施：
-- JSONC parser 合并、CapabilityInjector 提取、config store 工厂
-- re-export 链消除、零调用方法清理、幽灵参数清理、遗留代码清理
-- roles re-export 移除
-
-**P3 #19-#21 运行时健壮性（待实施）**
-- drainMessageBus 终止条件修复
-- resolveWorkspaceRootForInvocation fs 缓存
-- pendingForwardChatId 时序 hack 根治
-- workspace created_at 数据完整性修复
+| # | 项 | Effort | 阻塞因素 |
+|---|---|--------|---------|
+| P0 #2 | 拆解 ConversationStore | 高 | 45 个透传方法需改消费方 import |
+| P0 #3 | 拆解 WorkspaceManager | 高 | 9 域拆分，需同步改多模块 |
+| P1 #6 | EvolutionModel.create 上移 | 中 | 需拆分事务边界 |
+| P1 #8 | collaboration.ts + message-protocol 分层 | 高 | 554 行混合 5 关注点 |
+| P1 #9 | shared/ 层瘦身 | 高 | 651 行拆分，15+ 文件 import 变更 |
+| P2 #12 | config store 工厂 | 中 | 6 个文件不同错误处理策略 |
+| P3 #20 | pendingForwardChatId | — | 已评估：保持现状，替代方案风险大于收益 |
 
 ## 验证
 
@@ -420,7 +411,7 @@ P2 #14 清理零调用方法（已完成）：
 
 - [x] 所有模块评分基于实际代码审查，非推测
 - [x] 问题清单覆盖 persistence、agent、workspace-workflow、interaction-entry、message-bus 五大核心模块及 lobby ↔ interaction-entry 循环依赖
-- [x] 改进路线图 P0-P3 分级合理（21 项），P0 按 ROI 排序，P1 按 effort 从小到大排列
+- [x] 改进路线图 21 项已完成 14 项，P3 #20 已评估为保持现状，剩余 6 项为高 effort 大改动
 - [x] 核心业务场景（消息路由、issue 生命周期、evolution 治理、提示词构建）均已追溯审查
 - [x] 死代码、幽灵参数、遗留别名、deprecated 矛盾均已逐项验证
 
