@@ -71,7 +71,7 @@ export interface RuntimeUsage {
 /** ContextPanel 参与者展示项。 */
 export interface Participant {
   name: string;
-  roleDef?: { name: string; description?: string; snail_template_id?: string } | null;
+  roleDef?: StageRoleDefinition | null;
   isPrimary: boolean;
 }
 

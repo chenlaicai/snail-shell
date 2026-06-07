@@ -20,7 +20,7 @@ export const MESSAGE_ROLES: readonly [MessageRole, ...MessageRole[]] = [
 export const MessageRoleSchema = z.enum(MESSAGE_ROLES);
 
 // 核心 DTO 的 zod schema——用于 API 响应的运行时校验
-export const MessageDtoSchema = z.object({
+export const MessageSchema = z.object({
   id: z.number(),
   conversation_id: z.string(),
   client_id: z.string().nullable(),
@@ -38,7 +38,7 @@ export const MessageDtoSchema = z.object({
   quoted_message: z.object({ speaker: z.string().optional(), preview: z.string().optional() }).nullable().optional(),
 });
 
-export const StageDetailDtoSchema = z.object({
+export const StageDetailSchema = z.object({
   id: z.string(),
   workspace_id: z.string(),
   issue_id: z.string(),
@@ -56,19 +56,19 @@ export const StageDetailDtoSchema = z.object({
   }).nullable(),
 });
 
-export const IssueDetailDtoSchema = z.object({
+export const IssueDetailSchema = z.object({
   id: z.string(),
   workspace_id: z.string(),
   title: z.string(),
   summary: z.string().nullable(),
   closed_at: z.string().nullable(),
-  stages: z.array(StageDetailDtoSchema),
-  current_stage: StageDetailDtoSchema.nullable(),
+  stages: z.array(StageDetailSchema),
+  current_stage: StageDetailSchema.nullable(),
   conversation_count: z.number(),
   boss_pending_count: z.number(),
 });
 
-export const WorkspaceSummaryDtoSchema = z.object({
+export const WorkspaceSummarySchema = z.object({
   id: z.string(),
   name: z.string(),
   module: z.string(),
