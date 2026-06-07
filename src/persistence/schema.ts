@@ -261,9 +261,10 @@ export const SCHEMA_SQL = `
 export function getSchemaVersion(): string {
   try {
     const { execSync } = require("child_process");
+    const { SERVER_ROOT } = require("../shared/paths");
     const result = execSync(
       'git log -1 --format="%h %ad" --date=short -- src/persistence/schema.ts',
-      { cwd: process.cwd(), encoding: "utf8", timeout: 5000 }
+      { cwd: SERVER_ROOT, encoding: "utf8", timeout: 5000 }
     ).trim();
     return result || "UNKNOWN";
   } catch {

@@ -26,6 +26,7 @@ import { LoggingConfigStore } from "./logging-config-store";
 import { SnailDenStore } from "./snail-den-store";
 import { FeishuConfigStore } from "./feishu-config-store";
 import { rebuildFeatureChainIndex } from "../feature-chain/indexer";
+import { SERVER_ROOT, CONFIG_DIR, dataPath } from "../shared/paths";
 
 export type {
   ContentBlockEventPayload,
@@ -137,17 +138,17 @@ export class ConversationStore {
   readonly feishuConfigStore: FeishuConfigStore;
 
   constructor(dbPath?: string, configDir?: string) {
-    const resolvedPath = dbPath ?? path.join(process.cwd(), "data", "snail-shell.db");
+    const resolvedPath = dbPath ?? dataPath("snail-shell.db");
     const dir = path.dirname(resolvedPath);
     const fs = require("fs");
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
 
-    const resolvedConfigDir = configDir ?? path.join(process.cwd(), "config");
+    const resolvedConfigDir = configDir ?? CONFIG_DIR;
 
     this.db = new Database(resolvedPath);
-    this.fileConfigStore = new FileConfigStore(process.cwd(), configDir);
+    this.fileConfigStore = new FileConfigStore(SERVER_ROOT, configDir);
     this.fileConfigStore.loadAll();
     this.guardProfileStore = new GuardProfileStore(resolvedConfigDir);
     this.llmConfigStore = new LlmConfigStore(resolvedConfigDir);

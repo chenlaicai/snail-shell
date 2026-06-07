@@ -14,6 +14,7 @@ import { WorkspaceManager } from "./workspace-workflow/manager";
 import { createServer } from "./interaction-entry/api/server";
 import { SnailDen } from "./snail-den";
 import { logger } from "./logger";
+import { dataPath } from "./shared/paths";
 import { ConversationGateway } from "./interaction-entry/gateway";
 import { FeishuSdkTransport, loadFeishuConfig } from "./interaction-entry/feishu";
 import { WecomSdkTransport, loadWecomConfig } from "./interaction-entry/wecom";
@@ -22,7 +23,7 @@ import { LobbySessionStore, LobbyRouter, LobbyCommandExecutor, PlainTextLobbyRen
 import { startMcpServer } from "./mcp";
 
 const PORT = Number(process.env.PORT) || 3000;
-const DB_PATH = process.env.DB_PATH || path.join(process.cwd(), "data", "snail-shell.db");
+const DB_PATH = process.env.DB_PATH || dataPath("snail-shell.db");
 
 async function initializeAgents(): Promise<SnailRuntime[]> {
 	  const agents: SnailRuntime[] = [

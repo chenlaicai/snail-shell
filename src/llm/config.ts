@@ -1,10 +1,10 @@
 import fs from "fs";
-import path from "path";
 
 import type { LlmConfig } from "../persistence/llm-config-store";
+import { configPath } from "../shared/paths";
 
 export function loadLlmConfig(): LlmConfig {
-  const filePath = path.join(process.cwd(), "config", "llm.json");
+  const filePath = configPath("llm.json");
   if (!fs.existsSync(filePath)) {
     throw new Error("Missing config/llm.json. Create it from config/llm.json.example before starting the server.");
   }

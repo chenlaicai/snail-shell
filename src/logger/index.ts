@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 
 import type { LoggingConfig, LogLevel } from "../persistence/logging-config-store";
+import { CONFIG_DIR, LOG_DIR } from "../shared/paths";
 
 const LEVEL_WEIGHT: Record<LogLevel, number> = {
   debug: 10,
@@ -11,7 +12,7 @@ const LEVEL_WEIGHT: Record<LogLevel, number> = {
 };
 
 function loadLoggingConfig(): LoggingConfig {
-  const filePath = path.join(process.cwd(), "config", "logging.json");
+  const filePath = path.join(CONFIG_DIR, "logging.json");
   try {
     const raw = fs.readFileSync(filePath, "utf8");
     return JSON.parse(raw) as LoggingConfig;
@@ -36,15 +37,14 @@ function buildLogFilename(config: LoggingConfig, day: string, index: number): st
 }
 
 function resolveLogFilePath(config: LoggingConfig, day: string, index: number): string {
-  return path.join(process.cwd(), config.directory, buildLogFilename(config, day, index));
+  return path.join(LOG_DIR, buildLogFilename(config, day, index));
 }
 
-export function ensureLoggingDirectory(config = loadLoggingConfig()): string {
-  const dir = path.join(process.cwd(), config.directory);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
+export function ensureLoggingDirectory(_config = loadLoggingConfig()): string {
+  if (!fs.existsSync(LOG_DIR)) {
+    fs.mkdirSync(LOG_DIR, { recursive: true });
   }
-  return dir;
+  return LOG_DIR;
 }
 
 export function getCurrentLogFilePath(config = loadLoggingConfig(), date = new Date()): string {

@@ -1,6 +1,6 @@
 import fs from "fs";
-import path from "path";
 import type { AgentRuntime, SnailRuntime } from "../agent/interface";
+import { configPath } from "../shared/paths";
 import type { SnailAgentResolver } from "../agent/resolver";
 
 export interface SnailTemplate {
@@ -82,7 +82,7 @@ export class SnailDen {
 }
 
 function loadSnailDen(): SnailTemplate[] {
-  const filePath = path.join(process.cwd(), "config", "snail-den.json");
+  const filePath = configPath("snail-den.json");
 
   let raw: string;
   try {
