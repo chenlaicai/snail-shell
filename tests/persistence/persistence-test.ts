@@ -6,6 +6,7 @@ import { buildDeterministicMessageContext, formatMessageContextForPrompt } from 
 import { buildContentBlockEvent, buildPlainTextEvent, buildTextEvent, renderMessageEventsForDisplay } from "../../src/message-bus/message-events";
 import { stringifyMessageOutPart } from "../../src/message-bus/message-out";
 import { createStreamingContext, finalizeMessageLifecycle } from "../../src/message-bus/message-protocol";
+import { createEvolutionItem } from "../../src/evolution-center/evolution-service";
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);
@@ -211,8 +212,7 @@ assert(!assistantContextMessage?.content.includes("recoverable-runtime-error"), 
 store.updateStage(stage.id, { output_artifacts: { pr_url: "PR #1 已合并" } });
 assert(store.getStage(stage.id)!.output_artifacts["pr_url"] === "PR #1 已合并", "output artifacts should be saved");
 
-const evolutionItem = store.evolution.create({
-  id: "evolution-1",
+const evolutionItem = createEvolutionItem(store, {
   workspaceId: "workspace-1",
   title: "演进工作区必须人工审批",
   content: "演进工作区不得自动反哺，必须经过人工审批后才能进入 resolved 状态。approval-gate",

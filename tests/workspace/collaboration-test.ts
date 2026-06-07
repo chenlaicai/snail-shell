@@ -9,6 +9,7 @@ import type { RoleDefinition } from "../../src/roles";
 import type { AgentCapability } from "../../src/agent/capability";
 import { getDefaultGuardProfile } from "../../src/agent/guard-config";
 import { permissionStore } from "../../src/agent/permission-store";
+import { createEvolutionItem } from "../../src/evolution-center/evolution-service";
 
 function mockCapability(): { systemPrompt: string; capability: AgentCapability } {
   return {
@@ -963,7 +964,7 @@ function createEvolutionContext(suffix: string): { store: ConversationStore; con
   store.seedWorkspaceToCache({
     id: `workspace-collaboration-${suffix}`, name: "Snail Shell", summary: "Collaboration test", workspaceRoot: process.cwd(),
   });
-  const evolutionItem = store.evolution.create({ id: `evolution-collaboration-${suffix}`, workspaceId: workspace.id, title: "治理对话路由", content: "测试治理对话默认回复上一发言 Snail。", tags: ["constraint"] }, { development: { executor: "opencode-default" } });
+  const evolutionItem = createEvolutionItem(store, { workspaceId: workspace.id, title: "治理对话路由", content: "测试治理对话默认回复上一发言 Snail。", tags: ["constraint"] }, { development: { executor: "opencode-default" } });
   const evolutionConversation = evolutionItem.conversation;
   if (!evolutionConversation) throw new Error("evolution conversation should exist");
   const conversation = store.getConversation(evolutionConversation.id);

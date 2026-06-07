@@ -1,10 +1,7 @@
-import { randomUUID } from "crypto";
 import type Database from "better-sqlite3";
 import { buildFtsQuery, mapConversation, normalizeSnippet } from "./helpers";
 import type { Conversation } from "../shared/types";
 import type { FileConfigStore } from "./file-config-store";
-import { HUMAN_ROLE_NAME } from "../shared/domain-types";
-import type { SopSnapshot } from "../shared/sop-snapshot";
 import type {
   CreateEvolutionItemInput,
   EvolutionItem,
@@ -17,61 +14,11 @@ import type {
 export class EvolutionModel {
   constructor(private db: Database.Database, private fileConfigStore: FileConfigStore) {}
 
-  private buildEvolutionSnapshot(): { snapshot: SopSnapshot; firstStageKey: string; stageDef: { id: string; key: string }; roles: Array<{ key: string; name: string; is_primary: number }> } {
-    const sop = this.fileConfigStore.getSop("evolution");
-    if (!sop) throw new Error("Evolution SOP not found — ensure config/sop/evolution/evolution.yaml exists");
-    const stageDefs = this.fileConfigStore.listSopStageDefinitionsWithRoles("evolution");
-    const transitions = this.fileConfigStore.getSopTransitions("evolution");
-    const snapshot: SopSnapshot = {
-      sop_id: sop.id,
-      source: sop.source,
-      source_ref: sop.source_ref,
-      name: sop.name,
-      description: sop.description ?? null,
-      first_stage: sop.first_stage ?? null,
-      shared_handbook: sop.shared_handbook ?? null,
-      stage_definitions: stageDefs.map((sd) => ({
-        key: sd.key, title: sd.title, sequence: sd.sequence,
-        input_description: sd.input_description ?? null, output_description: sd.output_description ?? null,
-        acceptance_focus: sd.acceptance_focus ?? [], acceptance_checklist: sd.acceptance_checklist ?? [],
-        roles: (sd.roles ?? []).map((r) => ({
-          key: r.key, name: r.name, description: r.description ?? "",
-          is_primary: Boolean(r.is_primary), count: r.count ?? 1, handbook: r.handbook ?? null,
-        })),
-      })),
-      transitions: transitions.map((t) => ({ from: t.from_stage_key, to: t.to_stage_key, guard: t.guard ?? null })),
-    };
-    const firstStageKey = snapshot.first_stage ?? stageDefs[0]?.key;
-    if (!firstStageKey) throw new Error("Evolution SOP has no stage definitions");
-    const stageDef = stageDefs.find((sd) => sd.key === firstStageKey);
-    if (!stageDef) throw new Error(`Evolution stage definition '${firstStageKey}' not found in SOP`);
-    const roles = stageDef.roles ?? [];
-    return { snapshot, firstStageKey, stageDef: { id: stageDef.id, key: stageDef.key }, roles };
-  }
-
-  create(input: CreateEvolutionItemInput, roleSnailMapping: Record<string, Record<string, string>>): EvolutionItemWithConversation {
-    const tx = this.db.transaction(() => {
-      this.db.prepare(`INSERT INTO evolution_item (id, workspace_id, title, content, tags, metadata) VALUES (?, ?, ?, ?, ?, ?)`)
-        .run(input.id, input.workspaceId, input.title, input.content, JSON.stringify(input.tags ?? []), input.metadata ?? null);
-
-      const { snapshot, firstStageKey, stageDef, roles } = this.buildEvolutionSnapshot();
-      const primaryRole = roles.find(r => r.is_primary) ?? roles[0];
-      const participatingRoles = JSON.stringify([HUMAN_ROLE_NAME, ...roles.map(r => r.name)]);
-
-      const issueId = randomUUID();
-      this.db.prepare("INSERT INTO issue (id, workspace_id, title, summary, task_anchor, sop_snapshot, role_snail_mapping) VALUES (?, ?, ?, NULL, NULL, ?, ?)")
-        .run(issueId, input.workspaceId, input.title, JSON.stringify(snapshot), JSON.stringify(roleSnailMapping));
-      const stageId = randomUUID();
-      this.db.prepare("INSERT INTO stage (id, workspace_id, issue_id, stage_definition_id, type, sequence, status, output_artifacts, entered_at) VALUES (?, ?, ?, ?, ?, 1, 'in_progress', '{}', datetime('now'))")
-        .run(stageId, input.workspaceId, issueId, stageDef.id, firstStageKey);
-      const convId = randomUUID();
-      this.db.prepare(`INSERT INTO conversation (id, workspace_id, issue_id, stage_id, kind, title, owner_type, owner_id, summary, status, default_role, participating_roles, from_conversation_ids) VALUES (?, ?, ?, ?, 'discussion', ?, 'evolution', ?, '治理对话', 'active', ?, ?, '[]')`)
-        .run(convId, input.workspaceId, issueId, stageId, input.title, input.id, primaryRole.name, participatingRoles);
-      this.db.prepare("UPDATE evolution_item SET issue_id = ? WHERE id = ?").run(issueId, input.id);
-      this.reindex(input.id);
-    });
-    tx();
-    return this.mustGet(input.id);
+  create(input: CreateEvolutionItemInput): EvolutionItem {
+    this.db.prepare(`INSERT INTO evolution_item (id, workspace_id, title, content, tags, metadata) VALUES (?, ?, ?, ?, ?, ?)`)
+      .run(input.id, input.workspaceId, input.title, input.content, JSON.stringify(input.tags ?? []), input.metadata ?? null);
+    this.reindex(input.id);
+    return this.mustGetRaw(input.id);
   }
 
   get(id: string): EvolutionItemWithConversation | null {

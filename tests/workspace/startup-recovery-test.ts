@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { ConversationStore, type Message } from "../../src/persistence/store";
 import { recoverOrphanedStreamingAssistantMessages } from "../../src/workspace-workflow/startup-recovery";
+import { createEvolutionItem } from "../../src/evolution-center/evolution-service";
 import { buildPlainTextEvent } from "../../src/message-bus/message-events";
 
 function assert(condition: unknown, message: string): void {
@@ -37,7 +38,7 @@ async function main(): Promise<void> {
   const issue = store.createIssue({ id: "startup-recovery-issue", workspaceId: workspace.id, title: "Issue" });
   const stage = store.createStage({ id: "startup-recovery-stage", workspaceId: workspace.id, issueId: issue.id, stageDefinitionId: "development", type: "development", sequence: 1, status: "in_progress", enteredAt: new Date().toISOString() });
   const conversation = store.createConversation({ id: "startup-recovery-conversation", workspaceId: workspace.id, issueId: issue.id, stageId: stage.id, title: "Conversation", kind: "discussion", defaultRole: "开发者", participatingRoles: ["项目负责人", "开发者"], fromConversationIds: [] });
-  const evolutionItem = store.evolution.create({ id: "startup-recovery-evolution", workspaceId: workspace.id, title: "启动恢复治理消息", content: "治理 conversation 的 streaming assistant 也需要恢复。", tags: ["constraint"] }, { development: { executor: "opencode-default" } });
+  const evolutionItem = createEvolutionItem(store, { workspaceId: workspace.id, title: "启动恢复治理消息", content: "治理 conversation 的 streaming assistant 也需要恢复。", tags: ["constraint"] }, { development: { executor: "opencode-default" } });
   const evolutionConversationId = evolutionItem.conversation?.id;
   if (!evolutionConversationId) throw new Error("evolution conversation should exist");
 
