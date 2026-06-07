@@ -1,6 +1,4 @@
-import type { Issue, IssueDetail, StageDetail, Conversation } from "../../shared";
-
-export type { Issue, IssueDetail };
+import type { Issue, StageDetail, Conversation } from "../../shared";
 
 // POST /api/workspaces/:id/issues — creation response
 export type CreateIssueResult = {

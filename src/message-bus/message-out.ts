@@ -1,5 +1,5 @@
-import type { MessageContentBlock, RoleName } from "../persistence/store";
-import type { QuestionOptionPayload } from "../persistence/types";
+import type { MessageContentBlock, RoleName } from "../shared/types";
+import type { QuestionOptionPayload } from "../shared/types";
 import { buildContentBlockEvent, buildPlainTextEvent, buildStructuredTextEvent, type MessageInputEvent } from "./message-events";
 
 interface MentionRecord { role: RoleName }

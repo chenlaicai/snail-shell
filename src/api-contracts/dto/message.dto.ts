@@ -1,20 +1,8 @@
 import type {
   Message,
   MessageEvent,
-  MessageEventSource,
-  MessageContext,
-  MessageDispatch,
-  DispatchInboxGroup,
-  DispatchInboxPreviewItem,
   RoleName,
-  MessageRole,
-  MessageStatus,
-  BossMentionItem,
-  ConversationDispatchState,
 } from "../../shared";
-
-// Re-export enriched view types from shared (single source of truth)
-export type { MessageEvent, MessageEventSource, MessageContext, BossMentionItem, ConversationDispatchState };
 
 // Message entity + API enrichment (content 便捷字段、quoted_message 反规范化)
 export type MessageDto = Message & {
@@ -43,4 +31,3 @@ export type InterruptMessageResult = {
   interrupted: boolean;
 };
 
-export type { MessageDispatch, DispatchInboxGroup, DispatchInboxPreviewItem, RoleName, MessageRole, MessageStatus };

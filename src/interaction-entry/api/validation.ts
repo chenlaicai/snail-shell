@@ -1,4 +1,4 @@
-import type { ConversationKind, RoleName, StageStatus } from "../../persistence/store";
+import type { ConversationKind, RoleName, StageStatus } from "../../shared/types";
 
 export function isConversationKind(value: string): value is ConversationKind {
   return ["discussion", "planning", "design", "implementation", "review", "bugfix"].includes(value);

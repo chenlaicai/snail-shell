@@ -1,6 +1,8 @@
 export { WorkspaceManager } from "./manager";
+export type { WorkspaceManagerDeps, SummaryGenerationInput } from "./manager-types";
+
+// Domain types — 直接从 shared 导出
 export type {
-  WorkspaceManagerDeps,
   WorkspaceSummary,
   WorkspaceDetail,
   IssueDetail,
@@ -12,26 +14,8 @@ export type {
   ConversationHistorySearchPage,
   BossMentionItem,
   ConversationDispatchState,
-  SummaryGenerationInput,
-} from "./manager-types";
+} from "../shared/types";
 
 export { createInitialWorkflow, createIssueWorkflow, transitionIssueStage } from "./workflow";
 export type { IssueWorkflowResult, IssueTransitionResult } from "./workflow";
-
-export { buildBossMentionItem, buildConversationBadgePayload, sumBossPendingCount } from "./manager-events";
-
-export { ConversationQueue } from "./conversation-queue";
-
-export { cleanupIssueRepoContext } from "./repo-cleanup";
-export type { RepoCleanupStep, RepoCleanupResult } from "./repo-cleanup";
-
-export { recoverOrphanedStreamingAssistantMessages } from "./startup-recovery";
-export type { StartupRecoveryResult } from "./startup-recovery";
-
-export { refreshConversationSummary, buildSummaryGenerationInput } from "./summary-input";
-
-export { describeToolUse } from "./tool-use";
-
-export { hasSnailDirectory, loadWorkspaceContext, loadWorkspaceConfigOnly, loadSopYamlDefinitions, initializeSnailDirectory, snailPaths, SNAIL_DIR_NAME } from "./snail-loader";
-export type { WorkspaceContext, SopYamlDefinition } from "./snail-loader";
-export type { SnailWorkspaceConfig } from "../shared/types";
+export { hasSnailDirectory, loadWorkspaceContext } from "./snail-loader";

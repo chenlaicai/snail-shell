@@ -1,4 +1,4 @@
-import type { RoleName } from "../persistence/store";
+import type { RoleName } from "../shared/types";
 import type { ResolvedMention } from "./collaboration";
 
 export function dedupeMentions(mentions: ResolvedMention[]): ResolvedMention[] {

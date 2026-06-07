@@ -1,5 +1,5 @@
 import { renderMessageEventsForDisplay } from "../../message-bus/message-events";
-import type { MessageEvent } from "../../persistence/store";
+import type { MessageEvent } from "../../shared/types";
 
 export function renderFeishuTextMessage(input: { roleName: string; events: MessageEvent[]; maxLength: number }): string {
   const body = renderMessageEventsForDisplay({ events: input.events }).trim();

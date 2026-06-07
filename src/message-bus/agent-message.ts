@@ -1,5 +1,5 @@
 import type { AgentMessage } from "../agent/interface";
-import type { Conversation, MessageWithEvents } from "../persistence/store";
+import type { Conversation, MessageWithEvents } from "../shared/types";
 import { formatMessageContextForPrompt } from "./message-context";
 
 export function buildAgentMessages(conversation: Conversation | undefined, history: MessageWithEvents[]): AgentMessage[] {

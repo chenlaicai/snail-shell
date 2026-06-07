@@ -4,7 +4,7 @@ import { summarizeRuntimeError } from "../shared/runtime-error";
 import { logger } from "../logger";
 import type { WorkspaceManager } from "../workspace-workflow/manager";
 import { buildPlainTextEvent, type MessageInputEvent } from "../message-bus/message-events";
-import type { RoleName } from "../persistence/store";
+import type { RoleName } from "../shared/types";
 
 const VALID_EVENT_KINDS = ["text", "content_block"];
 

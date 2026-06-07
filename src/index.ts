@@ -1,5 +1,7 @@
 // persistence
 export { ConversationStore } from "./persistence/store";
+
+// domain types — 直接从 shared 导出
 export type {
   Conversation,
   ConversationKind,
@@ -22,7 +24,7 @@ export type {
   Stage,
   StageStatus,
   StageType,
-} from "./persistence/store";
+} from "./shared/types";
 
 // agent
 export { type AgentMessage, type AgentEvent, type ToolPermissionRequest, type PermissionDecision } from "./agent/interface";

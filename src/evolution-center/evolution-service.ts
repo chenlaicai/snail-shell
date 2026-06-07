@@ -1,12 +1,12 @@
 import { randomUUID } from "crypto";
 import type {
-  ConversationStore,
   CreateEvolutionItemInput,
   EvolutionItemListFilters,
   EvolutionItemSearchResult,
   EvolutionItemWithConversation,
   UpdateEvolutionItemInput,
-} from "../persistence/store";
+} from "../shared/types";
+import type { ConversationStore } from "../persistence/store";
 
 export function createEvolutionItem(
   store: ConversationStore,

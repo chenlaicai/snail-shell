@@ -2,13 +2,9 @@ import type {
   Sop,
   SopTransition,
   StageRoleDefinition,
-  SopSnapshot,
-  StageChecklistItem,
-  TransitionGuard,
   SopStageDefinition,
+  StageChecklistItem,
 } from "../../shared";
-
-export type { Sop, SopTransition, SopSnapshot, TransitionGuard, StageChecklistItem };
 
 // GET /api/sops/:id — Sop + enrichment (stage_definitions with roles + transitions)
 export type SopDetailDto = Sop & {

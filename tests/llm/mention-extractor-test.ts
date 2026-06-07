@@ -1,7 +1,7 @@
 import { OpenAIMentionExtractor } from "../../src/llm/mention-extractor";
 import type { MentionExtractionInput } from "../../src/llm/mention-extractor";
 import { OpenAIClient } from "../../src/llm/openai";
-import type { RoleName } from "../../src/persistence/store";
+import type { RoleName } from "../../src/shared/types";
 
 // Mock OpenAIClient for testing
 class MockOpenAIClient extends OpenAIClient {

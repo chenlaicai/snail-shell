@@ -19,12 +19,13 @@ import type {
 import type { ConversationStore } from "../persistence/store";
 import { logger } from "../logger";
 import type { CollaborationInvocationOptions } from "../message-bus/collaboration";
-import type { BossMentionItem, ConversationDetail, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, IssueDetail, ConversationRecentMessagesSnapshot, WorkspaceDetail, WorkspaceManagerDeps, WorkspaceSummary, StageDetail } from "./manager-types";
+import type { BossMentionItem, ConversationDetail, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, IssueDetail, ConversationRecentMessagesSnapshot, WorkspaceDetail, WorkspaceSummary, StageDetail } from "../shared/types";
+import type { WorkspaceManagerDeps } from "./manager-types";
 import { buildConversationBadgePayload, sumBossPendingCount } from "./manager-events";
 import * as managerQueries from "./manager-queries";
 export type { BossMentionItem, ConversationDetail, ConversationDispatchState, ConversationHistorySearchPage, ConversationHistoryWindow, ConversationMessagesPage, WorkspaceDetail, WorkspaceSummary, StageDetail, IssueDetail } from "../shared/types";
 export type { WorkspaceManagerDeps } from "./manager-types";
-import type { ConversationDispatchState } from "./manager-types";
+import type { ConversationDispatchState } from "../shared/types";
 import { sendStructuredMessage as sendStructuredMessageWithCollaboration } from "../message-bus/collaboration";
 import { ConversationQueue } from "./conversation-queue";
 import { MessageInterruptRegistry } from "../message-bus/message-interrupt";

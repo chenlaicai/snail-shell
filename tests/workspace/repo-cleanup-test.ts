@@ -8,7 +8,7 @@ const TEST_WORKSPACE_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), "snail-test-re
 import { execFileSync, spawnSync } from "child_process";
 import { WorkspaceManager } from "../../src/workspace-workflow/manager";
 import { cleanupIssueRepoContext } from "../../src/workspace-workflow/repo-cleanup";
-import type { Stage } from "../../src/persistence/store";
+import type { Stage } from "../../src/shared/types";
 import { ConversationStore } from "../../src/persistence/store";
 import type { AgentRuntime } from "../../src/agent/interface";
 import type { SnailDen } from "../../src/snail-den";
