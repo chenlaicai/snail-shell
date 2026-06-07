@@ -3,6 +3,36 @@ import type { SopSnapshot } from "./sop-snapshot";
 /** 人类操作者角色名称——系统级常量，所有模块统一引用。 */
 export const HUMAN_ROLE_NAME = "项目负责人";
 
+/** Lobby 导航层级。 */
+export type NavigationLevel = "lobby" | "workspace_list" | "issue_list" | "in_conversation";
+
+/** Lobby 会话（IM 通道的用户会话状态）。 */
+export interface LobbySession {
+  id: string;
+  channel_type: string;
+  channel_chat_id: string;
+  channel_tenant_key: string | null;
+  navigation_level: NavigationLevel;
+  current_workspace_id: string | null;
+  current_issue_id: string | null;
+  current_stage_id: string | null;
+  current_conversation_id: string | null;
+  last_command_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Lobby 消息记录。 */
+export interface LobbyMessage {
+  id: number;
+  lobby_session_id: string;
+  direction: "inbound" | "outbound";
+  command: string | null;
+  content: string;
+  response_content: string | null;
+  created_at: string;
+}
+
 /** 安全策略配置：工具调用的放行/拒绝列表。 */
 export interface GuardProfile {
   /** 放行列表：匹配的工具调用直接放行，不触发审批 */

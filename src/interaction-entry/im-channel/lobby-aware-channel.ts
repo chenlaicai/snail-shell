@@ -2,7 +2,7 @@ import { logger } from "../../logger";
 import { HUMAN_ROLE_NAME } from "../../shared/domain-types";
 import type { LobbyRouter } from "../../lobby/router";
 import type { LobbyResponseRenderer } from "../../lobby/response-renderer";
-import type { LobbySession } from "../../lobby/types";
+import type { LobbySession } from "../../shared/domain-types";
 import type { LobbySessionStore } from "../../lobby/session-store";
 import type { ConversationGateway, ConversationOutboundEvent } from "../gateway";
 import type { IMInboundMessage, IMTransport } from "./types";

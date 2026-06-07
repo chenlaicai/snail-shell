@@ -1,29 +1,5 @@
-export type NavigationLevel = "lobby" | "workspace_list" | "issue_list" | "in_conversation";
-
-export interface LobbySession {
-  id: string;
-  channel_type: string;
-  channel_chat_id: string;
-  channel_tenant_key: string | null;
-  navigation_level: NavigationLevel;
-  current_workspace_id: string | null;
-  current_issue_id: string | null;
-  current_stage_id: string | null;
-  current_conversation_id: string | null;
-  last_command_at: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface LobbyMessage {
-  id: number;
-  lobby_session_id: string;
-  direction: "inbound" | "outbound";
-  command: string | null;
-  content: string;
-  response_content: string | null;
-  created_at: string;
-}
+import type { NavigationLevel } from "../shared/domain-types";
+export type { NavigationLevel, LobbySession, LobbyMessage } from "../shared/domain-types";
 
 export type LobbyCommandType = "workspaces" | "issues" | "enter" | "back" | "lobby" | "status" | "unknown" | "help";
 

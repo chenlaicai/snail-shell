@@ -16,7 +16,7 @@ import { registerMetaRoutes } from "./meta-routes";
 import { registerWorkspaceRoutes } from "./workspace-routes";
 import { registerConversationRoutes } from "./conversation-routes";
 import type { LobbySessionStore } from "../../lobby/session-store";
-import type { LobbySession } from "../../lobby/types";
+import type { LobbySession } from "../../shared/domain-types";
 
 interface LobbyIntegration {
   sessionStore: LobbySessionStore;
