@@ -1,4 +1,4 @@
-import type { LobbySession, LobbyMessage } from "../../lobby/types";
+import type { LobbySession, LobbyMessage } from "../../shared/domain-types";
 
 // LobbySession entity
 export type LobbySessionDto = LobbySession;
