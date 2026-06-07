@@ -196,7 +196,7 @@ export function ConversationView({ conversationId }: Props) {
                     <span>Snail is starting</span>
                   </div>
                 )}
-                {!hasContent && !msgContent.isStreaming && <span className="meta">(空消息)</span>}
+                {!hasContent && !msgContent.isStreaming && <span className="text-[var(--color-text-grey)] text-[var(--font-size-xs)]">(空消息)</span>}
                 {msgContent.processBlocks.length > 0 && (
                   <EventStreamView blocks={msgContent.processBlocks} defaultOpen={!shouldFoldProcess || msgContent.containsQuestion}
                     onApprove={() => handlePermissionApprove(conversationId, msg.id)} onDeny={() => handlePermissionDeny(conversationId, msg.id)} />

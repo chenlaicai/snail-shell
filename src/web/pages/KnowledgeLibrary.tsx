@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { knowledgeQueries } from "../queries/knowledge.queries";
+import type { KnowledgeEntryDto } from "../types";
 
 export function KnowledgeLibrary() {
   const { data: globalData, isLoading: loadingGlobal } = useQuery(knowledgeQueries.list({ scope: "global", limit: 50 }));

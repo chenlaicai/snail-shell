@@ -74,19 +74,21 @@ describe("ConversationLayout", () => {
   });
 
   it("renders conversation breadcrumb", async () => {
-    mockApi.mockResolvedValueOnce({
+    const issueData = {
       id: "i1",
       title: "My Issue",
       stages: [
         { id: "s1", type: "design", status: "in_progress", stage_definition: { title: "Design" } },
       ],
       current_stage: { id: "s1", type: "design", status: "in_progress", stage_definition: { title: "Design" } },
+    };
+    mockApi.mockImplementation((endpoint: string) => {
+      if (endpoint === "GET /api/issues/:issueId") return Promise.resolve(issueData);
+      if (endpoint === "GET /api/stages/:stageId/conversations") return Promise.resolve([]);
+      return Promise.resolve([]);
     });
-    mockApi.mockResolvedValueOnce([]);
-    mockApi.mockResolvedValueOnce([]);
     renderAt("/ws/my-workspace/issue/i1");
     await waitFor(() => {
-      // breadcrumb contains workspaceId and issue title in a text-[11px] div
       const breadcrumbEl = screen.getByText(/my-workspace/);
       expect(breadcrumbEl.textContent).toContain("My Issue");
     });
