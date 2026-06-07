@@ -11,6 +11,7 @@ import fs from "fs";
 import * as path from "path";
 import { logger } from "../logger";
 import type { MCPServerCapability } from "./capability";
+import { parseJsonc } from "./jsonc-utils";
 
 /**
  * 构建 mcp-remote 桥接配置条目。
@@ -318,63 +319,3 @@ function rebuildCodexConfig(
  * - 尾随逗号：JSONC 允许但 JSON.parse 不允许，用正则移除
  *   （正则可能误匹配字符串内的逗号+括号组合，但配置文件中此场景极罕见，可接受）
  */
-/** 从 pos 处的 `"` 开始扫描到闭合引号，处理 `\\` 转义，返回 token 和结束位置。 */
-function scanJsoncString(jsonc: string, pos: number): { token: string; end: number } {
-  const chars = ['"'];
-  let i = pos + 1;
-  while (i < jsonc.length) {
-    const c = jsonc[i];
-    chars.push(c);
-    if (c === "\\") {
-      i++;
-      if (i < jsonc.length) chars.push(jsonc[i]);
-    } else if (c === "\u0022") {
-      break;
-    }
-    i++;
-  }
-  return { token: chars.join(""), end: i + 1 };
-}
-
-/** 尝试跳过 pos 处的 JSONC 注释（// 或 /* * /），返回新位置；非注释返回 -1。 */
-function skipJsoncComment(jsonc: string, pos: number): number {
-  if (jsonc[pos] !== "/" || pos + 1 >= jsonc.length) return -1;
-  const next = jsonc[pos + 1];
-  if (next === "/") {
-    const lineEnd = jsonc.indexOf("\n", pos);
-    return lineEnd === -1 ? jsonc.length : lineEnd;
-  }
-  if (next === "*") {
-    const commentEnd = jsonc.indexOf("*/", pos + 2);
-    return commentEnd === -1 ? jsonc.length : commentEnd + 2;
-  }
-  return -1;
-}
-
-function parseJsonc(jsonc: string): string {
-  const tokens: string[] = [];
-  let pos = 0;
-
-  while (pos < jsonc.length) {
-    const ch = jsonc[pos];
-
-    // 字符串：原样复制到结束引号
-    if (ch === '"') {
-      const { token, end } = scanJsoncString(jsonc, pos);
-      tokens.push(token);
-      pos = end;
-      continue;
-    }
-
-    // 注释：跳过到行尾或块结束
-    const afterComment = skipJsoncComment(jsonc, pos);
-    if (afterComment >= 0) { pos = afterComment; continue; }
-
-    // 普通字符
-    tokens.push(ch);
-    pos++;
-  }
-
-  // 移除尾随逗号（JSONC 允许但 JSON.parse 不允许）
-  return tokens.join("").replace(/,(\s*[}\]])/g, "$1");
-}

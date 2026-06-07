@@ -20,6 +20,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import type { GuardProfile } from "../shared/types";
+import { parseJsonc } from "./jsonc-utils";
 
 /** 系统默认 GuardProfile——延迟加载，首次访问时从 GuardProfileStore 获取。 */
 let _defaultGuardProfile: GuardProfile | null = null;
@@ -243,7 +244,7 @@ export function writeOpenCodeGuardConfig(guard: GuardProfile): void {
     try {
       // JSONC 解析：使用简单状态机移除注释，避免误伤 URL 中的 "//"
       const raw = fs.readFileSync(configPath, "utf-8");
-      const cleaned = removeJsonComments(raw);
+      const cleaned = parseJsonc(raw);
       existing = JSON.parse(cleaned);
     } catch {
       // 解析失败时从头生成
@@ -261,80 +262,6 @@ export function writeOpenCodeGuardConfig(guard: GuardProfile): void {
 }
 
 /**
- * 移除 JSONC 中的注释（// 和 /* * /）和尾随逗号。
- * 使用状态机避免误伤字符串内的 "//" 或 "/*"。
- *
- * JSONC 允许尾随逗号（如 `[1, 2, 3,]`），但标准 JSON 不允许。
- * 移除注释后，需要进一步清理尾随逗号以确保输出是合法 JSON。
- */
-function removeJsonComments(jsonc: string): string {
-  const tokens: string[] = [];
-  let pos = 0;
-
-  while (pos < jsonc.length) {
-    const { token, nextPos } = nextToken(jsonc, pos);
-    tokens.push(token);
-    pos = nextPos;
-  }
-
-  // 移除尾随逗号：逗号后只有空白和 ] 或 } 时，移除该逗号
-  let result = tokens.join("");
-  result = result.replace(/,(\s*[}\]])/g, "$1");
-  return result;
-}
-
-/** 读取下一个 token（字符或注释） */
-function nextToken(jsonc: string, pos: number): { token: string; nextPos: number } {
-  const ch = jsonc[pos];
-
-  // 字符串：原样复制到结束引号
-  if (ch === '"') {
-    return readString(jsonc, pos);
-  }
-
-  // // 注释：跳过到行尾
-  if (ch === "/" && jsonc[pos + 1] === "/") {
-    const lineEnd = jsonc.indexOf("\n", pos);
-    return { token: "", nextPos: lineEnd === -1 ? jsonc.length : lineEnd };
-  }
-
-  // /* */ 注释：跳过到 */
-  if (ch === "/" && jsonc[pos + 1] === "*") {
-    const commentEnd = jsonc.indexOf("*/", pos + 2);
-    return { token: "", nextPos: commentEnd === -1 ? jsonc.length : commentEnd + 2 };
-  }
-
-  // 普通字符
-  return { token: ch, nextPos: pos + 1 };
-}
-
-/** 读取字符串 token（处理转义） */
-function readString(jsonc: string, pos: number): { token: string; nextPos: number } {
-  const chars: string[] = ['"'];
-  let i = pos + 1;
-
-  while (i < jsonc.length) {
-    const ch = jsonc[i];
-    chars.push(ch);
-
-    if (ch === "\\") {
-      // 转义字符：复制下一个字符
-      i++;
-      if (i < jsonc.length) {
-        chars.push(jsonc[i]);
-      }
-    } else if (ch === '"') {
-      // 字符串结束
-      return { token: chars.join(""), nextPos: i + 1 };
-    }
-
-    i++;
-  }
-
-  // 未闭合的字符串
-  return { token: chars.join(""), nextPos: i };
-}
-
 // ═══════════════════════════════════════════════════════════════════
 // 配置文件写入
 // ═══════════════════════════════════════════════════════════════════
