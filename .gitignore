@@ -1,3 +1,6 @@
+# V1 archived code (reference only, not part of V2)
+legacy/
+
 # Dependencies
 node_modules/
 
@@ -8,32 +11,10 @@ dist/
 .env
 .env.local
 
-# Local config (keep *.example tracked)
-config/*.json
-config/sop/*.yaml
-
 # IDE
 .vscode/
 .idea/
 .claude/settings.local.json
-
-# Local agent config (managed by user, not part of snail shell)
-CLAUDE.md
-AGENTS.md
-agents.md
-KIMI.md
-GEMINI.md
-.cat-cafe/
-.claude/
-.agents/
-.codex/
-.gemini/
-.kimi/
-docs/SOP.md
-BACKLOG.md
-review-notes/
-docs/decisions/
-docs/discussions/
 
 # OS
 .DS_Store
@@ -46,66 +27,36 @@ npm-debug.log*
 # Runtime data
 data/
 logs/
-pids
+pids/
 *.pid
 *.seed
 *.pid.lock
 
-# Coverage directory used by tools like istanbul
+# Coverage
 coverage/
 *.lcov
-
-# nyc test coverage
 .nyc_output
-
-# Dependency directories
-jspm_packages/
 
 # TypeScript cache
 *.tsbuildinfo
 
-# Optional npm cache directory
+# Optional caches
 .npm
-
-# Optional eslint cache
 .eslintcache
-
-# Microbundle cache
 .rpt2_cache/
 .rts2_cache_cjs/
 .rts2_cache_es/
 .rts2_cache_umd/
-
-# Optional REPL history
 .node_repl_history
+.cache
+.parcel-cache
 
 # Output of 'npm pack'
 *.tgz
 
-# Yarn Integrity file
-.yarn-integrity
-
-# parcel-bundler cache (https://parceljs.org/)
-.cache
-.parcel-cache
-
-# Next.js build output
-.next
-
-# Nuxt.js build / generate output
-.nuxt
-
-# Gatsby files
-.cache/
-
-# Storybook build outputs
-.out
-.storybook-out
-
 # Temporary folders
 tmp/
 temp/
+
+# MCP config (local)
 .mcp.json
-config/sop/mcp-e2e-sop/
-config/sop/mcp-e2e-sop/
-data/

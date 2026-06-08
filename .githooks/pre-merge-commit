@@ -1,5 +1,0 @@
-#!/bin/sh
-
-set -e
-
-npx tsx scripts/check-issue-doc-numbering.ts
