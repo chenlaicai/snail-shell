@@ -10,7 +10,7 @@ Snail Shell orchestrates specialized AI roles (architect, developer, reviewer) t
 
 - **Runtime:** Node.js 22 + TypeScript 6 (ESM)
 - **HTTP:** Hono (built-in SSE/WebSocket)
-- **Database:** SQLite via Drizzle ORM
+- **Database:** SQLite (better-sqlite3)
 - **Frontend:** React 19 + Vite 8 + Tailwind CSS 4
 - **State:** Zustand + TanStack Query
 - **Validation:** Zod
@@ -29,8 +29,6 @@ npm run test        # Run tests
 npm run lint        # Lint code
 npm run check       # Lint + test
 npm run build       # Build for production
-npm run db:generate # Generate DB migrations
-npm run db:migrate  # Apply migrations
 ```
 
 ## License
