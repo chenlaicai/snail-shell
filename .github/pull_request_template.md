@@ -10,6 +10,18 @@ Explain the motivation for this change.
 
 -
 
+## Affected Areas
+
+- [ ] `src/workspace/*`
+- [ ] `src/sop/*`
+- [ ] `src/issue/*`
+- [ ] `src/snail/*`
+- [ ] `src/conversation/*`
+- [ ] `src/evolution/*`
+- [ ] `src/db/*`
+- [ ] `src/server/*`
+- [ ] `src/web/*`
+
 ## Verification
 
 - [ ] `npm run lint`

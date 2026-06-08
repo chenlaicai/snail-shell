@@ -9,7 +9,7 @@ All commits must follow this template:
 ```
 
 - `FYYYYMMDDNN`: Feature/Issue ID (e.g. F2026060801)
-- `module`: lowercase hyphen-separated (e.g. workflow, persistence, web, agent)
+- `module`: lowercase hyphen-separated (e.g. issue, sop, snail, conversation, db, server, web)
 - `[Incompatible]`: only when there are breaking changes
 
 ## Branch Workflow
@@ -18,24 +18,50 @@ All commits must follow this template:
 - Create a branch, develop, push, and open a PR
 - PRs require CI to pass
 
-## Project Structure
+## Architecture: Domain-Driven Design
+
+Each module is a bounded context with clear boundaries:
 
 ```
-src/
-  types/          # Domain types (no runtime deps)
-  config/         # Configuration loading + Zod schemas
-  db/             # Drizzle ORM schema, migrations, repos
-  workflow/       # SOP engine, stage machine, gate checks
-  agent/          # Runtime adapters (Claude Code, etc.)
-  collaboration/  # Multi-role message orchestration
-  server/         # Hono API + WebSocket
-  web/            # React frontend
+<module>/
+  api.ts              # 🟢 Public API — exports for external use
+  types.ts            # 🟢 Public types — structs exposed externally
+  _internal/
+    *.ts              # 🔴 Internal implementation — external import forbidden
 ```
 
-## Layer Rules
+### Import Rules
 
-Dependencies flow downward only. ESLint enforces this:
+```typescript
+import { createIssue } from '@/issue/api';           // ✅ Public API
+import type { Issue } from '@/issue/types';           // ✅ Public types
+import { parseYaml } from '@/sop/_internal/loader';   // ❌ ESLint error
+```
+
+### Domain Modules
+
+| Module | Business Concept | Owns |
+|--------|-----------------|------|
+| `workspace/` | Project space | Workspace, GuardProfile |
+| `sop/` | Workflow template | SOP, StageDefinition, Transition |
+| `issue/` | Work item | Issue, Stage, GateEvidence |
+| `snail/` | Agent runtime | SnailTemplate, SnailRuntime, AgentEvent |
+| `conversation/` | Dialogue | Conversation, Message, MessageEvent |
+| `evolution/` | Governance | EvolutionItem, KnowledgeEntry |
+
+### Dependency Direction
 
 ```
-types/config → db → workflow/agent → collaboration → server → web
+workspace ──→ sop ──→ issue ──→ conversation
+                │                   ↑
+                └───────────────────┘
+                        │
+                       snail
 ```
+
+### Config vs Data
+
+- **Config** (no business logic) → `config/`
+- **Domain data** (business semantics) → belongs to its domain module
+
+See `docs/v2-design-decisions.md` for full design rationale.
