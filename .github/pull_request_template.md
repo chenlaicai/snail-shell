@@ -10,17 +10,6 @@ Explain the motivation for this change.
 
 -
 
-## Affected Areas
-
-- [ ] `src/types/*`
-- [ ] `src/db/*`
-- [ ] `src/workflow/*`
-- [ ] `src/agent/*`
-- [ ] `src/collaboration/*`
-- [ ] `src/server/*`
-- [ ] `src/web/*`
-- [ ] Database schema or migration
-
 ## Verification
 
 - [ ] `npm run lint`
