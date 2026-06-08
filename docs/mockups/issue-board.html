@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Snail Shell - Issue Board</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          colors: {
+            shell: {
+              50: '#fdf8f0',
+              100: '#f9eddb',
+              200: '#f2d8b4',
+              300: '#e9be83',
+              400: '#dfa05a',
+              500: '#d68a3e',
+              600: '#c87234',
+              700: '#a6592c',
+              800: '#86482a',
+              900: '#6d3c25',
+              950: '#3b1e12',
+            },
+            surface: {
+              0: '#0c0c0e',
+              1: '#111114',
+              2: '#18181c',
+              3: '#1f1f24',
+              4: '#26262c',
+            },
+          },
+        },
+      },
+    }
+  </script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: #0c0c0e; color: #e8e8ec; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
+    .board-scroll::-webkit-scrollbar { height: 6px; }
+    .sidebar-item { transition: background 150ms, color 150ms; }
+    .sidebar-item:hover { background: rgba(255,255,255,0.05); }
+    .sidebar-item.active { background: rgba(255,255,255,0.07); color: #e8e8ec; }
+    .kanban-card { transition: background 150ms, border-color 150ms; }
+    .kanban-card:hover { background: #1f1f24; border-color: rgba(255,255,255,0.10); }
+    .filter-chip { transition: background 150ms, border-color 150ms; }
+    .filter-chip:hover { background: rgba(255,255,255,0.06); }
+  </style>
+</head>
+<body class="bg-surface-0 text-[#e8e8ec] text-sm antialiased overflow-hidden h-screen">
+
+  <!-- App Shell -->
+  <div class="flex h-screen">
+
+    <!-- ============ Sidebar ============ -->
+    <aside class="w-[240px] flex-shrink-0 bg-surface-1 border-r border-white/[0.06] flex flex-col">
+      <!-- Workspace Header -->
+      <div class="h-14 flex items-center px-4 gap-3 border-b border-white/[0.06]">
+        <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-shell-500 to-shell-700 flex items-center justify-center">
+          <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/>
+            <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+            <circle cx="9" cy="10" r="1" fill="currentColor"/>
+            <circle cx="15" cy="10" r="1" fill="currentColor"/>
+          </svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-medium truncate">Snail Shell</div>
+          <div class="text-xs text-[#8b8b95]">Workspace</div>
+        </div>
+        <svg class="w-4 h-4 text-[#5c5c66]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+
+      <!-- Nav Items -->
+      <nav class="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
+        <!-- Primary Nav -->
+        <div class="space-y-0.5">
+          <a href="#" class="sidebar-item flex items-center gap-3 px-3 py-1.5 rounded-md text-[#8b8b95] text-[13px]">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            My Issues
+          </a>
+          <a href="#" class="sidebar-item flex items-center gap-3 px-3 py-1.5 rounded-md text-[#8b8b95] text-[13px]">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            Inbox
+            <span class="ml-auto bg-shell-600/20 text-shell-400 text-[11px] font-medium px-1.5 py-0.5 rounded-full">3</span>
+          </a>
+          <a href="#" class="sidebar-item active flex items-center gap-3 px-3 py-1.5 rounded-md text-[13px] font-medium">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            Board
+          </a>
+          <a href="#" class="sidebar-item flex items-center gap-3 px-3 py-1.5 rounded-md text-[#8b8b95] text-[13px]">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            List
+          </a>
+          <a href="#" class="sidebar-item flex items-center gap-3 px-3 py-1.5 rounded-md text-[#8b8b95] text-[13px]">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            Roadmap
+          </a>
+        </div>
+
+        <!-- Teams Section -->
+        <div class="pt-4">
+          <div class="px-3 py-1 text-[11px] font-medium text-[#5c5c66] uppercase tracking-wider">Teams</div>
+          <div class="space-y-0.5 mt-1">
+            <a href="#" class="sidebar-item flex items-center gap-3 px-3 py-1.5 rounded-md text-[#8b8b95] text-[13px]">
+              <div class="w-4 h-4 rounded bg-blue-500/20 flex items-center justify-center">
+                <div class="w-1.5 h-1.5 rounded-full bg-blue-400"></div>
+              </div>
+              Engineering
+            </a>
+            <a href="#" class="sidebar-item flex items-center gap-3 px-3 py-1.5 rounded-md text-[#8b8b95] text-[13px]">
+              <div class="w-4 h-4 rounded bg-purple-500/20 flex items-center justify-center">
+                <div class="w-1.5 h-1.5 rounded-full bg-purple-400"></div>
+              </div>
+              Design
+            </a>
+            <a href="#" class="sidebar-item flex items-center gap-3 px-3 py-1.5 rounded-md text-[#8b8b95] text-[13px]">
+              <div class="w-4 h-4 rounded bg-emerald-500/20 flex items-center justify-center">
+                <div class="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>
+              </div>
+              Product
+            </a>
+          </div>
+        </div>
+
+        <!-- Projects Section -->
+        <div class="pt-4">
+          <div class="px-3 py-1 text-[11px] font-medium text-[#5c5c66] uppercase tracking-wider">Projects</div>
+          <div class="space-y-0.5 mt-1">
+            <a href="#" class="sidebar-item flex items-center gap-3 px-3 py-1.5 rounded-md text-[#8b8b95] text-[13px]">
+              <div class="w-4 h-4 rounded bg-shell-500/20 flex items-center justify-center">
+                <svg class="w-2.5 h-2.5 text-shell-400" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+              </div>
+              V2 Genesis
+            </a>
+            <a href="#" class="sidebar-item flex items-center gap-3 px-3 py-1.5 rounded-md text-[#8b8b95] text-[13px]">
+              <div class="w-4 h-4 rounded bg-amber-500/20 flex items-center justify-center">
+                <svg class="w-2.5 h-2.5 text-amber-400" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
+              </div>
+              Prompt Center
+            </a>
+          </div>
+        </div>
+      </nav>
+
+      <!-- Sidebar Footer -->
+      <div class="px-2 py-3 border-t border-white/[0.06]">
+        <div class="sidebar-item flex items-center gap-3 px-3 py-1.5 rounded-md text-[#8b8b95] text-[13px]">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6m-7-3.5 5.2-3m1.6-1 5.2-3M5 5.5l5.2 3m1.6 1 5.2 3"/></svg>
+          Settings
+        </div>
+        <div class="sidebar-item flex items-center gap-3 px-3 py-1.5 rounded-md text-[#8b8b95] text-[13px]">
+          <div class="w-5 h-5 rounded-full bg-shell-600 flex items-center justify-center text-[10px] font-medium text-white">O</div>
+          <span class="flex-1">Orca</span>
+          <svg class="w-4 h-4 text-[#5c5c66]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ============ Main Content ============ -->
+    <main class="flex-1 flex flex-col min-w-0">
+
+      <!-- Top Bar -->
+      <header class="h-14 flex items-center px-6 gap-4 border-b border-white/[0.06] flex-shrink-0">
+        <!-- Breadcrumb -->
+        <div class="flex items-center gap-2 text-[13px]">
+          <span class="text-[#8b8b95]">V2 Genesis</span>
+          <svg class="w-3.5 h-3.5 text-[#5c5c66]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+          <span class="font-medium">Board</span>
+        </div>
+
+        <div class="flex-1"></div>
+
+        <!-- Search -->
+        <div class="flex items-center gap-2 bg-surface-2 border border-white/[0.06] rounded-md px-3 h-8 w-64">
+          <svg class="w-3.5 h-3.5 text-[#5c5c66]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <span class="text-xs text-[#5c5c66]">Search issues...</span>
+          <span class="ml-auto text-[11px] text-[#3e3e46] border border-white/[0.06] rounded px-1 py-px">/</span>
+        </div>
+
+        <!-- Quick Actions -->
+        <button class="w-8 h-8 rounded-md flex items-center justify-center text-[#8b8b95] hover:text-[#e8e8ec] hover:bg-white/[0.05] transition-colors">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        </button>
+      </header>
+
+      <!-- Board Toolbar -->
+      <div class="flex items-center px-6 py-3 gap-3 border-b border-white/[0.04] flex-shrink-0">
+        <!-- View Toggle -->
+        <div class="flex items-center bg-surface-2 rounded-md border border-white/[0.06] p-0.5">
+          <button class="px-2.5 py-1 rounded text-xs text-[#8b8b95] hover:text-[#e8e8ec] transition-colors flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            List
+          </button>
+          <button class="px-2.5 py-1 rounded text-xs bg-white/[0.08] text-[#e8e8ec] font-medium flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            Board
+          </button>
+        </div>
+
+        <div class="w-px h-5 bg-white/[0.06]"></div>
+
+        <!-- Filters -->
+        <button class="filter-chip flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-white/[0.06] text-xs text-[#8b8b95]">
+          <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+          Filter
+        </button>
+        <button class="filter-chip flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-white/[0.06] text-xs text-[#8b8b95]">
+          <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
+          Assignee
+          <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <button class="filter-chip flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-white/[0.06] text-xs text-[#8b8b95]">
+          Priority
+          <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+
+        <div class="flex-1"></div>
+
+        <!-- Group By -->
+        <div class="flex items-center gap-1.5 text-xs text-[#8b8b95]">
+          <span>Group by</span>
+          <button class="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-white/[0.05] text-[#e8e8ec] transition-colors">
+            Status
+            <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+        </div>
+
+        <!-- New Issue Button -->
+        <button class="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-shell-600 hover:bg-shell-500 text-white text-xs font-medium transition-colors">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          New Issue
+        </button>
+      </div>
+
+      <!-- ============ Kanban Board ============ -->
+      <div class="flex-1 overflow-x-auto overflow-y-hidden board-scroll px-6 py-4">
+        <div class="flex gap-4 h-full min-w-max">
+
+          <!-- Column: Backlog -->
+          <div class="w-[280px] flex flex-col flex-shrink-0">
+            <div class="flex items-center gap-2 px-2 py-2 mb-2">
+              <div class="w-2.5 h-2.5 rounded-full bg-[#6b6b76]"></div>
+              <span class="text-xs font-medium text-[#8b8b95]">Backlog</span>
+              <span class="text-xs text-[#5c5c66] ml-0.5">4</span>
+              <div class="flex-1"></div>
+              <button class="w-5 h-5 rounded flex items-center justify-center text-[#5c5c66] hover:text-[#8b8b95] hover:bg-white/[0.05] transition-colors">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </button>
+              <button class="w-5 h-5 rounded flex items-center justify-center text-[#5c5c66] hover:text-[#8b8b95] hover:bg-white/[0.05] transition-colors">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+              </button>
+            </div>
+            <div class="flex-1 space-y-2 overflow-y-auto pr-1" style="scrollbar-width: thin;">
+              <!-- Card 1 -->
+              <div class="kanban-card bg-surface-2 rounded-lg border border-white/[0.06] p-3 cursor-pointer">
+                <div class="flex items-start gap-2 mb-2">
+                  <span class="text-[11px] text-[#5c5c66] font-medium mt-0.5">SN-042</span>
+                  <div class="flex-1 text-[13px] font-medium leading-snug">Add MCP module integration layer</div>
+                </div>
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-purple-500/15 text-purple-400">
+                    <svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/></svg>
+                    infra
+                  </span>
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-500/15 text-blue-400">feature</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-1">
+                    <svg class="w-3 h-3 text-[#5c5c66]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <span class="text-[11px] text-[#5c5c66]">Low</span>
+                  </div>
+                  <div class="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-[9px] font-medium text-white">L</div>
+                </div>
+              </div>
+              <!-- Card 2 -->
+              <div class="kanban-card bg-surface-2 rounded-lg border border-white/[0.06] p-3 cursor-pointer">
+                <div class="flex items-start gap-2 mb-2">
+                  <span class="text-[11px] text-[#5c5c66] font-medium mt-0.5">SN-039</span>
+                  <div class="flex-1 text-[13px] font-medium leading-snug">Design role-based permission model</div>
+                </div>
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-500/15 text-emerald-400">design</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-1">
+                    <svg class="w-3 h-3 text-[#f2c94c]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <span class="text-[11px] text-[#5c5c66]">Medium</span>
+                  </div>
+                  <div class="w-5 h-5 rounded-full bg-amber-600 flex items-center justify-center text-[9px] font-medium text-white">K</div>
+                </div>
+              </div>
+              <!-- Card 3 -->
+              <div class="kanban-card bg-surface-2 rounded-lg border border-white/[0.06] p-3 cursor-pointer">
+                <div class="flex items-start gap-2 mb-2">
+                  <span class="text-[11px] text-[#5c5c66] font-medium mt-0.5">SN-035</span>
+                  <div class="flex-1 text-[13px] font-medium leading-snug">Migrate legacy prompt templates to v2 format</div>
+                </div>
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-amber-500/15 text-amber-400">migration</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-1">
+                    <svg class="w-3 h-3 text-[#4da5a5]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    <span class="text-[11px] text-[#5c5c66]">Low</span>
+                  </div>
+                  <div class="w-5 h-5 rounded-full bg-emerald-600 flex items-center justify-center text-[9px] font-medium text-white">M</div>
+                </div>
+              </div>
+              <!-- Card 4 -->
+              <div class="kanban-card bg-surface-2 rounded-lg border border-white/[0.06] p-3 cursor-pointer">
+                <div class="flex items-start gap-2 mb-2">
+                  <span class="text-[11px] text-[#5c5c66] font-medium mt-0.5">SN-031</span>
+                  <div class="flex-1 text-[13px] font-medium leading-snug">Write unit tests for conversation repo</div>
+                </div>
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-purple-500/15 text-purple-400">test</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-1">
+                    <svg class="w-3 h-3 text-[#5c5c66]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <span class="text-[11px] text-[#5c5c66]">No priority</span>
+                  </div>
+                  <div class="w-5 h-5 rounded-full bg-slate-600 flex items-center justify-center text-[9px] font-medium text-white">J</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Column: Todo -->
+          <div class="w-[280px] flex flex-col flex-shrink-0">
+            <div class="flex items-center gap-2 px-2 py-2 mb-2">
+              <div class="w-2.5 h-2.5 rounded-full bg-[#e8e8ec]"></div>
+              <span class="text-xs font-medium text-[#8b8b95]">Todo</span>
+              <span class="text-xs text-[#5c5c66] ml-0.5">3</span>
+              <div class="flex-1"></div>
+              <button class="w-5 h-5 rounded flex items-center justify-center text-[#5c5c66] hover:text-[#8b8b95] hover:bg-white/[0.05] transition-colors">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </button>
+              <button class="w-5 h-5 rounded flex items-center justify-center text-[#5c5c66] hover:text-[#8b8b95] hover:bg-white/[0.05] transition-colors">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+              </button>
+            </div>
+            <div class="flex-1 space-y-2 overflow-y-auto pr-1" style="scrollbar-width: thin;">
+              <!-- Card -->
+              <div class="kanban-card bg-surface-2 rounded-lg border border-white/[0.06] p-3 cursor-pointer">
+                <div class="flex items-start gap-2 mb-2">
+                  <span class="text-[11px] text-[#5c5c66] font-medium mt-0.5">SN-041</span>
+                  <div class="flex-1 text-[13px] font-medium leading-snug">Implement issue conversation API endpoints</div>
+                </div>
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-500/15 text-blue-400">feature</span>
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-purple-500/15 text-purple-400">api</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-1">
+                    <svg class="w-3 h-3 text-[#eb5757]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg>
+                    <span class="text-[11px] text-[#5c5c66]">High</span>
+                  </div>
+                  <div class="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-[9px] font-medium text-white">L</div>
+                </div>
+              </div>
+              <!-- Card -->
+              <div class="kanban-card bg-surface-2 rounded-lg border border-white/[0.06] p-3 cursor-pointer">
+                <div class="flex items-start gap-2 mb-2">
+                  <span class="text-[11px] text-[#5c5c66] font-medium mt-0.5">SN-040</span>
+                  <div class="flex-1 text-[13px] font-medium leading-snug">Set up Hono server with middleware stack</div>
+                </div>
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-purple-500/15 text-purple-400">infra</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-1">
+                    <svg class="w-3 h-3 text-[#eb5757]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg>
+                    <span class="text-[11px] text-[#5c5c66]">High</span>
+                  </div>
+                  <div class="w-5 h-5 rounded-full bg-emerald-600 flex items-center justify-center text-[9px] font-medium text-white">M</div>
+                </div>
+              </div>
+              <!-- Card -->
+              <div class="kanban-card bg-surface-2 rounded-lg border border-white/[0.06] p-3 cursor-pointer">
+                <div class="flex items-start gap-2 mb-2">
+                  <span class="text-[11px] text-[#5c5c66] font-medium mt-0.5">SN-037</span>
+                  <div class="flex-1 text-[13px] font-medium leading-snug">Create workspace settings page layout</div>
+                </div>
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-500/15 text-emerald-400">ui</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-1">
+                    <svg class="w-3 h-3 text-[#f2c94c]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <span class="text-[11px] text-[#5c5c66]">Medium</span>
+                  </div>
+                  <div class="w-5 h-5 rounded-full bg-rose-600 flex items-center justify-center text-[9px] font-medium text-white">S</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Column: In Progress -->
+          <div class="w-[280px] flex flex-col flex-shrink-0">
+            <div class="flex items-center gap-2 px-2 py-2 mb-2">
+              <div class="w-2.5 h-2.5 rounded-full bg-[#3e63dd]"></div>
+              <span class="text-xs font-medium text-[#8b8b95]">In Progress</span>
+              <span class="text-xs text-[#5c5c66] ml-0.5">2</span>
+              <div class="flex-1"></div>
+              <button class="w-5 h-5 rounded flex items-center justify-center text-[#5c5c66] hover:text-[#8b8b95] hover:bg-white/[0.05] transition-colors">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </button>
+              <button class="w-5 h-5 rounded flex items-center justify-center text-[#5c5c66] hover:text-[#8b8b95] hover:bg-white/[0.05] transition-colors">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+              </button>
+            </div>
+            <div class="flex-1 space-y-2 overflow-y-auto pr-1" style="scrollbar-width: thin;">
+              <!-- Card - Active -->
+              <div class="kanban-card bg-surface-2 rounded-lg border border-shell-600/40 p-3 cursor-pointer ring-1 ring-shell-600/20">
+                <div class="flex items-start gap-2 mb-2">
+                  <span class="text-[11px] text-shell-400 font-medium mt-0.5">SN-043</span>
+                  <div class="flex-1 text-[13px] font-medium leading-snug">Build issue board Kanban UI</div>
+                </div>
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-500/15 text-emerald-400">ui</span>
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-500/15 text-blue-400">feature</span>
+                </div>
+                <div class="flex items-center gap-2 mb-2">
+                  <div class="flex-1 h-1 rounded-full bg-white/[0.06] overflow-hidden">
+                    <div class="h-full w-[65%] rounded-full bg-shell-500"></div>
+                  </div>
+                  <span class="text-[11px] text-[#5c5c66]">65%</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-1">
+                    <svg class="w-3 h-3 text-[#eb5757]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" fill="currentColor" opacity="0.2"/><path d="M12 8v4m0 4h.01"/></svg>
+                    <span class="text-[11px] text-[#5c5c66]">Urgent</span>
+                  </div>
+                  <div class="w-5 h-5 rounded-full bg-shell-600 flex items-center justify-center text-[9px] font-medium text-white">O</div>
+                </div>
+              </div>
+              <!-- Card -->
+              <div class="kanban-card bg-surface-2 rounded-lg border border-white/[0.06] p-3 cursor-pointer">
+                <div class="flex items-start gap-2 mb-2">
+                  <span class="text-[11px] text-[#5c5c66] font-medium mt-0.5">SN-038</span>
+                  <div class="flex-1 text-[13px] font-medium leading-snug">Implement SOP snapshot storage</div>
+                </div>
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-purple-500/15 text-purple-400">infra</span>
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-amber-500/15 text-amber-400">db</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-1">
+                    <svg class="w-3 h-3 text-[#eb5757]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg>
+                    <span class="text-[11px] text-[#5c5c66]">High</span>
+                  </div>
+                  <div class="w-5 h-5 rounded-full bg-amber-600 flex items-center justify-center text-[9px] font-medium text-white">K</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Column: In Review -->
+          <div class="w-[280px] flex flex-col flex-shrink-0">
+            <div class="flex items-center gap-2 px-2 py-2 mb-2">
+              <div class="w-2.5 h-2.5 rounded-full bg-[#f2c94c]"></div>
+              <span class="text-xs font-medium text-[#8b8b95]">In Review</span>
+              <span class="text-xs text-[#5c5c66] ml-0.5">1</span>
+              <div class="flex-1"></div>
+              <button class="w-5 h-5 rounded flex items-center justify-center text-[#5c5c66] hover:text-[#8b8b95] hover:bg-white/[0.05] transition-colors">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </button>
+              <button class="w-5 h-5 rounded flex items-center justify-center text-[#5c5c66] hover:text-[#8b8b95] hover:bg-white/[0.05] transition-colors">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+              </button>
+            </div>
+            <div class="flex-1 space-y-2 overflow-y-auto pr-1" style="scrollbar-width: thin;">
+              <div class="kanban-card bg-surface-2 rounded-lg border border-white/[0.06] p-3 cursor-pointer">
+                <div class="flex items-start gap-2 mb-2">
+                  <span class="text-[11px] text-[#5c5c66] font-medium mt-0.5">SN-036</span>
+                  <div class="flex-1 text-[13px] font-medium leading-snug">Refactor repo layer for better-sqlite3</div>
+                </div>
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-purple-500/15 text-purple-400">infra</span>
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-rose-500/15 text-rose-400">refactor</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-1">
+                    <svg class="w-3 h-3 text-[#f2c94c]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <span class="text-[11px] text-[#5c5c66]">Medium</span>
+                  </div>
+                  <div class="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-[9px] font-medium text-white">L</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Column: Done -->
+          <div class="w-[280px] flex flex-col flex-shrink-0">
+            <div class="flex items-center gap-2 px-2 py-2 mb-2">
+              <div class="w-2.5 h-2.5 rounded-full bg-[#3ecf8e]"></div>
+              <span class="text-xs font-medium text-[#8b8b95]">Done</span>
+              <span class="text-xs text-[#5c5c66] ml-0.5">2</span>
+              <div class="flex-1"></div>
+              <button class="w-5 h-5 rounded flex items-center justify-center text-[#5c5c66] hover:text-[#8b8b95] hover:bg-white/[0.05] transition-colors">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </button>
+              <button class="w-5 h-5 rounded flex items-center justify-center text-[#5c5c66] hover:text-[#8b8b95] hover:bg-white/[0.05] transition-colors">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+              </button>
+            </div>
+            <div class="flex-1 space-y-2 overflow-y-auto pr-1" style="scrollbar-width: thin;">
+              <div class="kanban-card bg-surface-2 rounded-lg border border-white/[0.06] p-3 cursor-pointer opacity-70">
+                <div class="flex items-start gap-2 mb-2">
+                  <span class="text-[11px] text-[#5c5c66] font-medium mt-0.5">SN-034</span>
+                  <div class="flex-1 text-[13px] font-medium leading-snug line-through decoration-[#5c5c66]/50">Remove Drizzle ORM dependency</div>
+                </div>
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-purple-500/15 text-purple-400">infra</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-1">
+                    <svg class="w-3 h-3 text-[#3ecf8e]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                    <span class="text-[11px] text-[#3ecf8e]">Done</span>
+                  </div>
+                  <div class="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-[9px] font-medium text-white">L</div>
+                </div>
+              </div>
+              <div class="kanban-card bg-surface-2 rounded-lg border border-white/[0.06] p-3 cursor-pointer opacity-70">
+                <div class="flex items-start gap-2 mb-2">
+                  <span class="text-[11px] text-[#5c5c66] font-medium mt-0.5">SN-033</span>
+                  <div class="flex-1 text-[13px] font-medium leading-snug line-through decoration-[#5c5c66]/50">V2 design decision docs</div>
+                </div>
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-500/15 text-emerald-400">docs</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-1">
+                    <svg class="w-3 h-3 text-[#3ecf8e]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                    <span class="text-[11px] text-[#3ecf8e]">Done</span>
+                  </div>
+                  <div class="w-5 h-5 rounded-full bg-emerald-600 flex items-center justify-center text-[9px] font-medium text-white">M</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </main>
+  </div>
+
+</body>
+</html>
