@@ -12,10 +12,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "check": "npm run lint && npm run test",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx src/db/migrate.ts",
-    "dev:web": "vite",
-    "db:studio": "drizzle-kit studio"
+    "dev:web": "vite"
   },
   "keywords": [],
   "author": "",
@@ -50,7 +47,6 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
     "autoprefixer": "^10.5.0",
-    "drizzle-kit": "^0.31.0",
     "eslint": "^10.3.0",
     "jsdom": "^29.1.1",
     "postcss": "^8.5.15",
