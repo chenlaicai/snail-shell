@@ -4,7 +4,7 @@
  * 定义工作区级 Stage 配置和角色定义。
  */
 
-import type { StageChecklistItem } from "../../sop";
+import type { StageChecklistItem } from "./index";
 
 /** 工作区级 Stage 定义，描述一个 Stage 的配置。 */
 export interface WorkspaceStageDefinition {

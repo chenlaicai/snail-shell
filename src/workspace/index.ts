@@ -23,6 +23,7 @@ export type {
   CreateIssueInput,
   CreateStageInput,
   StageStatus,
+  StageChecklistItem,
 } from "./types";
 
 // ═══ Gate 证据类型 ═══

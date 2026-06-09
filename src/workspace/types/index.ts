@@ -15,6 +15,15 @@
 export type StageStatus = "in_progress" | "completed" | "cancelled";
 
 /**
+ * 验收清单项（Stage 验收条件定义）
+ */
+export interface StageChecklistItem {
+  id: string;
+  description: string;
+  required: boolean;
+}
+
+/**
  * 工作区实体
  */
 export interface Workspace {

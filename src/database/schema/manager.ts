@@ -214,6 +214,58 @@ export class SqliteSchemaManager implements SchemaManager {
           CREATE INDEX IF NOT EXISTS idx_evolution_item_issue ON evolution_item(issue_id);
           CREATE INDEX IF NOT EXISTS idx_knowledge_library_scope_workspace ON knowledge_library(scope, workspace_id, updated_at);
           CREATE INDEX IF NOT EXISTS idx_knowledge_library_source ON knowledge_library(source_evolution_item_id);
+
+          -- SOP 配置表
+          CREATE TABLE IF NOT EXISTS sop (
+            id TEXT PRIMARY KEY,
+            source TEXT NOT NULL,
+            source_ref TEXT,
+            key TEXT NOT NULL,
+            name TEXT NOT NULL,
+            description TEXT,
+            first_stage TEXT,
+            shared_handbook TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+          );
+
+          CREATE TABLE IF NOT EXISTS sop_stage_definition (
+            id TEXT PRIMARY KEY,
+            sop_id TEXT NOT NULL,
+            key TEXT NOT NULL,
+            title TEXT NOT NULL,
+            sequence INTEGER NOT NULL,
+            input_description TEXT,
+            output_description TEXT,
+            acceptance_focus TEXT NOT NULL DEFAULT '[]',
+            acceptance_checklist TEXT NOT NULL DEFAULT '[]',
+            FOREIGN KEY (sop_id) REFERENCES sop(id) ON DELETE CASCADE
+          );
+
+          CREATE TABLE IF NOT EXISTS sop_stage_role_definition (
+            id TEXT PRIMARY KEY,
+            stage_definition_id TEXT NOT NULL,
+            key TEXT NOT NULL,
+            name TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            handbook TEXT,
+            is_primary INTEGER NOT NULL DEFAULT 0,
+            count INTEGER NOT NULL DEFAULT 1,
+            FOREIGN KEY (stage_definition_id) REFERENCES sop_stage_definition(id) ON DELETE CASCADE
+          );
+
+          CREATE TABLE IF NOT EXISTS sop_transition (
+            id TEXT PRIMARY KEY,
+            sop_id TEXT NOT NULL,
+            from_stage_key TEXT NOT NULL,
+            to_stage_key TEXT NOT NULL,
+            guard TEXT,
+            FOREIGN KEY (sop_id) REFERENCES sop(id) ON DELETE CASCADE
+          );
+
+          CREATE UNIQUE INDEX IF NOT EXISTS idx_sop_source_key ON sop(source, key);
+          CREATE INDEX IF NOT EXISTS idx_sop_stage_definition_sop ON sop_stage_definition(sop_id, sequence);
+          CREATE INDEX IF NOT EXISTS idx_sop_transition_sop ON sop_transition(sop_id, from_stage_key);
         `,
       },
       {

@@ -2,6 +2,7 @@
  * SQLite SOP Repository 实现
  *
  * 基于 better-sqlite3 实现 SOP Repository 接口。
+ * SOP 配置存储在 SQLite 数据库中，确保重启后数据持久化。
  */
 
 import type { DatabaseConnection } from "../../connection/types";
@@ -21,157 +22,198 @@ import type {
 /**
  * SQLite SOP Repository 实现
  *
- * 注意：SOP 配置目前存储在文件系统中（YAML 文件），
- * 此实现提供基本的内存缓存和文件系统操作。
+ * 使用 SQLite 表存储 SOP 配置，确保数据持久化。
  */
 export class SqliteSopRepository implements SopRepository {
-  private sopCache: Map<string, Sop> = new Map();
-  private stageDefinitionCache: Map<string, SopStageDefinition> = new Map();
-  private roleDefinitionCache: Map<string, SopStageRoleDefinition> = new Map();
-  private transitionCache: Map<string, SopTransition[]> = new Map();
-
   constructor(private connection: DatabaseConnection) {}
 
   // ═══ Sop CRUD ═══
 
   async getSop(id: string): Promise<Sop | null> {
-    return this.sopCache.get(id) ?? null;
+    const result = await this.connection.query<Sop>(
+      "SELECT * FROM sop WHERE id = ?",
+      [id]
+    );
+    return result.rows[0] ?? null;
   }
 
   async getSopByKey(source: SopSource, key: string): Promise<Sop | null> {
-    for (const sop of this.sopCache.values()) {
-      if (sop.source === source && sop.key === key) {
-        return sop;
-      }
-    }
-    return null;
+    const result = await this.connection.query<Sop>(
+      "SELECT * FROM sop WHERE source = ? AND key = ?",
+      [source, key]
+    );
+    return result.rows[0] ?? null;
   }
 
   async listSops(source?: SopSource): Promise<Sop[]> {
-    const sops = Array.from(this.sopCache.values());
     if (source) {
-      return sops.filter((s) => s.source === source);
+      const result = await this.connection.query<Sop>(
+        "SELECT * FROM sop WHERE source = ? ORDER BY name",
+        [source]
+      );
+      return result.rows;
     }
-    return sops;
+    const result = await this.connection.query<Sop>(
+      "SELECT * FROM sop ORDER BY name"
+    );
+    return result.rows;
   }
 
   async saveSop(input: CreateSopInput): Promise<Sop> {
     const id = `sop-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const sop: Sop = {
-      id,
-      source: input.source,
-      source_ref: input.source_ref ?? null,
-      key: input.key,
-      name: input.name,
-      description: input.description ?? null,
-      first_stage: input.first_stage ?? null,
-      shared_handbook: input.shared_handbook ?? null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    this.sopCache.set(id, sop);
+    await this.connection.execute(
+      `INSERT INTO sop (id, source, source_ref, key, name, description, first_stage, shared_handbook)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        input.source,
+        input.source_ref ?? null,
+        input.key,
+        input.name,
+        input.description ?? null,
+        input.first_stage ?? null,
+        input.shared_handbook ?? null,
+      ]
+    );
+    const sop = await this.getSop(id);
+    if (!sop) throw new Error("Failed to save sop");
     return sop;
   }
 
   async deleteSop(id: string): Promise<void> {
-    this.sopCache.delete(id);
-    // 清理相关的 stage definition 和 transition
-    for (const [key, def] of this.stageDefinitionCache.entries()) {
-      if (def.sop_id === id) {
-        this.stageDefinitionCache.delete(key);
-      }
-    }
-    for (const [key, transitions] of this.transitionCache.entries()) {
-      if (key.startsWith(`${id}:`)) {
-        this.transitionCache.delete(key);
-      }
-    }
+    await this.connection.execute(
+      "DELETE FROM sop WHERE id = ?",
+      [id]
+    );
   }
 
   // ═══ SopStageDefinition CRUD ═══
 
   async getSopStageDefinition(id: string): Promise<SopStageDefinition | null> {
-    return this.stageDefinitionCache.get(id) ?? null;
+    const result = await this.connection.query<SopStageDefinition>(
+      "SELECT * FROM sop_stage_definition WHERE id = ?",
+      [id]
+    );
+    if (result.rows[0]) {
+      return {
+        ...result.rows[0],
+        acceptance_focus: JSON.parse(result.rows[0].acceptance_focus as unknown as string),
+        acceptance_checklist: JSON.parse(result.rows[0].acceptance_checklist as unknown as string),
+      };
+    }
+    return null;
   }
 
   async listSopStageDefinitions(sopId: string): Promise<SopStageDefinition[]> {
-    const definitions: SopStageDefinition[] = [];
-    for (const def of this.stageDefinitionCache.values()) {
-      if (def.sop_id === sopId) {
-        definitions.push(def);
-      }
-    }
-    return definitions.sort((a, b) => a.sequence - b.sequence);
+    const result = await this.connection.query<SopStageDefinition>(
+      "SELECT * FROM sop_stage_definition WHERE sop_id = ? ORDER BY sequence ASC",
+      [sopId]
+    );
+    return result.rows.map((row) => ({
+      ...row,
+      acceptance_focus: JSON.parse(row.acceptance_focus as unknown as string),
+      acceptance_checklist: JSON.parse(row.acceptance_checklist as unknown as string),
+    }));
   }
 
   async saveSopStageDefinition(input: CreateSopStageDefinitionInput): Promise<SopStageDefinition> {
     const id = `stage-def-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const definition: SopStageDefinition = {
-      id,
-      sop_id: input.sop_id,
-      key: input.key,
-      title: input.title,
-      sequence: input.sequence,
-      input_description: input.input_description ?? null,
-      output_description: input.output_description ?? null,
-      acceptance_focus: input.acceptance_focus ?? [],
-      acceptance_checklist: input.acceptance_checklist ?? [],
-    };
-    this.stageDefinitionCache.set(id, definition);
+    await this.connection.execute(
+      `INSERT INTO sop_stage_definition (id, sop_id, key, title, sequence, input_description, output_description, acceptance_focus, acceptance_checklist)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        input.sop_id,
+        input.key,
+        input.title,
+        input.sequence,
+        input.input_description ?? null,
+        input.output_description ?? null,
+        JSON.stringify(input.acceptance_focus ?? []),
+        JSON.stringify(input.acceptance_checklist ?? []),
+      ]
+    );
+    const definition = await this.getSopStageDefinition(id);
+    if (!definition) throw new Error("Failed to save sop stage definition");
     return definition;
   }
 
   // ═══ SopStageRoleDefinition CRUD ═══
 
   async getSopStageRoleDefinition(id: string): Promise<SopStageRoleDefinition | null> {
-    return this.roleDefinitionCache.get(id) ?? null;
+    const result = await this.connection.query<SopStageRoleDefinition>(
+      "SELECT * FROM sop_stage_role_definition WHERE id = ?",
+      [id]
+    );
+    return result.rows[0] ?? null;
   }
 
   async listSopStageRoleDefinitions(stageDefinitionId: string): Promise<SopStageRoleDefinition[]> {
-    const definitions: SopStageRoleDefinition[] = [];
-    for (const def of this.roleDefinitionCache.values()) {
-      if (def.stage_definition_id === stageDefinitionId) {
-        definitions.push(def);
-      }
-    }
-    return definitions;
+    const result = await this.connection.query<SopStageRoleDefinition>(
+      "SELECT * FROM sop_stage_role_definition WHERE stage_definition_id = ?",
+      [stageDefinitionId]
+    );
+    return result.rows;
   }
 
   async saveSopStageRoleDefinition(input: CreateSopStageRoleDefinitionInput): Promise<SopStageRoleDefinition> {
     const id = `role-def-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const definition: SopStageRoleDefinition = {
-      id,
-      stage_definition_id: input.stage_definition_id,
-      key: input.key,
-      name: input.name,
-      description: input.description ?? "",
-      handbook: input.handbook ?? null,
-      is_primary: input.is_primary ?? false,
-      count: input.count ?? 1,
-    };
-    this.roleDefinitionCache.set(id, definition);
+    await this.connection.execute(
+      `INSERT INTO sop_stage_role_definition (id, stage_definition_id, key, name, description, handbook, is_primary, count)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        input.stage_definition_id,
+        input.key,
+        input.name,
+        input.description ?? "",
+        input.handbook ?? null,
+        input.is_primary ? 1 : 0,
+        input.count ?? 1,
+      ]
+    );
+    const definition = await this.getSopStageRoleDefinition(id);
+    if (!definition) throw new Error("Failed to save sop stage role definition");
     return definition;
   }
 
   // ═══ SopTransition CRUD ═══
 
   async getSopTransitions(sopId: string): Promise<SopTransition[]> {
-    const transitions: SopTransition[] = [];
-    for (const [key, transitionList] of this.transitionCache.entries()) {
-      if (key.startsWith(`${sopId}:`)) {
-        transitions.push(...transitionList);
-      }
-    }
-    return transitions;
+    const result = await this.connection.query<SopTransition>(
+      "SELECT * FROM sop_transition WHERE sop_id = ?",
+      [sopId]
+    );
+    return result.rows.map((row) => ({
+      ...row,
+      guard: row.guard ? JSON.parse(row.guard as unknown as string) : null,
+    }));
   }
 
   async getForwardTransitions(sopId: string, fromStageKey: string): Promise<SopTransition[]> {
-    const key = `${sopId}:${fromStageKey}`;
-    return this.transitionCache.get(key) ?? [];
+    const result = await this.connection.query<SopTransition>(
+      "SELECT * FROM sop_transition WHERE sop_id = ? AND from_stage_key = ?",
+      [sopId, fromStageKey]
+    );
+    return result.rows.map((row) => ({
+      ...row,
+      guard: row.guard ? JSON.parse(row.guard as unknown as string) : null,
+    }));
   }
 
   async saveSopTransition(input: CreateSopTransitionInput): Promise<SopTransition> {
     const id = `transition-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    await this.connection.execute(
+      `INSERT INTO sop_transition (id, sop_id, from_stage_key, to_stage_key, guard)
+       VALUES (?, ?, ?, ?, ?)`,
+      [
+        id,
+        input.sop_id,
+        input.from_stage_key,
+        input.to_stage_key,
+        input.guard ? JSON.stringify(input.guard) : null,
+      ]
+    );
     const transition: SopTransition = {
       id,
       sop_id: input.sop_id,
@@ -179,12 +221,6 @@ export class SqliteSopRepository implements SopRepository {
       to_stage_key: input.to_stage_key,
       guard: input.guard ?? null,
     };
-
-    const key = `${input.sop_id}:${input.from_stage_key}`;
-    const existing = this.transitionCache.get(key) ?? [];
-    existing.push(transition);
-    this.transitionCache.set(key, existing);
-
     return transition;
   }
 
@@ -197,11 +233,11 @@ export class SqliteSopRepository implements SopRepository {
 
   async listSopStageDefinitionsWithRoles(sopId: string): Promise<Array<SopStageDefinition & { roles: SopStageRoleDefinition[] }>> {
     const definitions = await this.listSopStageDefinitions(sopId);
-    return definitions.map((def) => ({
-      ...def,
-      roles: Array.from(this.roleDefinitionCache.values()).filter(
-        (role) => role.stage_definition_id === def.id
-      ),
-    }));
+    const result: Array<SopStageDefinition & { roles: SopStageRoleDefinition[] }> = [];
+    for (const def of definitions) {
+      const roles = await this.listSopStageRoleDefinitions(def.id);
+      result.push({ ...def, roles });
+    }
+    return result;
   }
 }

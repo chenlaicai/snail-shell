@@ -9,22 +9,13 @@
  * - 通过 Repository 接口访问数据
  */
 
+// 从 workspace 模块导入 StageChecklistItem（验收清单项属于 workspace 领域）
+export type { StageChecklistItem } from "../../workspace";
+
 /**
  * SOP 来源类型
  */
 export type SopSource = "platform" | "workspace";
-
-/**
- * 验收清单项
- */
-export interface StageChecklistItem {
-  /** 清单项 ID */
-  id: string;
-  /** 清单项描述 */
-  description: string;
-  /** 是否必填 */
-  required: boolean;
-}
 
 /**
  * 转移守卫类型
