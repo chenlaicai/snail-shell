@@ -10,6 +10,7 @@ import type { Express } from "express";
 import type { ConversationStore } from "../persistence/store";
 import { registerMcpServer } from "./registry";
 import { registerMcpEndpoint } from "./endpoint";
+import { registerRednoteEndpoint } from "./rednote-research/endpoint";
 
 export function startMcpServer(app: Express, store: ConversationStore, port: number): void {
   /**
@@ -22,6 +23,12 @@ export function startMcpServer(app: Express, store: ConversationStore, port: num
     url: `http://localhost:${port}/snail-final-response`,
   });
 
-  // 注册 MCP JSON-RPC endpoint
+  registerMcpServer({
+    name: "rednote-research",
+    url: `http://localhost:${port}/rednote-research`,
+  });
+
+  // 注册 MCP JSON-RPC endpoints
   registerMcpEndpoint(app, store);
+  registerRednoteEndpoint(app);
 }
