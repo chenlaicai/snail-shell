@@ -1,5 +1,6 @@
 import type { ConversationGateway } from "../interaction-entry/gateway";
-import { HUMAN_ROLE_NAME } from "../shared/domain-types";
+// HUMAN_ROLE_NAME 已迁移到 roles 模块，暂时内联定义
+const HUMAN_ROLE_NAME = "项目负责人";
 import type { LobbyCommandExecutor } from "./command-executor";
 import type { LobbyResponseRenderer } from "./response-renderer";
 import type { LobbySessionStore } from "./session-store";

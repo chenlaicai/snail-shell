@@ -1,10 +1,11 @@
-import type { RealtimeConversationEvent } from "../agent/interface";
-import { HUMAN_ROLE_NAME } from "../shared/domain-types";
-import { summarizeRuntimeError } from "../shared/runtime-error";
+import type { RealtimeConversationEvent } from "../agent-runtime/types";
+// HUMAN_ROLE_NAME 已迁移到 roles 模块，暂时内联定义
+const HUMAN_ROLE_NAME = "项目负责人";
+import { summarizeRuntimeError } from "../agent-runtime/errors";
 import { logger } from "../logger";
-import type { WorkspaceManager } from "../workspace-workflow/manager";
-import { buildPlainTextEvent, type MessageInputEvent } from "../message-bus/message-events";
-import type { RoleName } from "../persistence/store";
+import type { WorkspaceManager } from "../issue-conversation/orchestrator";
+import { buildPlainTextEvent, type MessageInputEvent } from "../conversation/utils/event-content";
+import type { RoleName } from "../conversation/types";
 
 const VALID_EVENT_KINDS = ["text", "content_block"];
 

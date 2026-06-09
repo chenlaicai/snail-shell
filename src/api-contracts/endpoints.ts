@@ -1,7 +1,7 @@
 // endpoints.ts — 编译期完整描述每个 endpoint 的输入输出
 // DTO 字段从 handler 的 res.json() 逆向提取，不允许凭空设计
 import type * as Dto from "./dto";
-import type { MessageWithEvents } from "../shared";
+import type { MessageWithEvents } from "../conversation/types";
 
 // 每个 endpoint 的契约类型
 export interface ApiEndpointDef<

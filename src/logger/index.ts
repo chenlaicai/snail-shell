@@ -1,7 +1,16 @@
 import fs from "fs";
 import path from "path";
 
-import type { LoggingConfig, LogLevel } from "../persistence/logging-config-store";
+// LoggingConfig 和 LogLevel 类型定义（原从 persistence/logging-config-store 导入）
+export type LogLevel = "debug" | "info" | "warn" | "error";
+
+export interface LoggingConfig {
+  level: LogLevel;
+  directory: string;
+  filename_prefix: string;
+  max_file_size_mb: number;
+  max_files: number;
+}
 
 const LEVEL_WEIGHT: Record<LogLevel, number> = {
   debug: 10,

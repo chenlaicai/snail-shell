@@ -1,7 +1,8 @@
 // validators.ts — 共享的运行时校验 schema
-// 类型统一从 shared 导入，不重复定义
+// 类型从 conversation 和 workspace 模块导入
 import { z } from "zod";
-import type { ConversationKind, StageStatus, MessageRole } from "../shared";
+import type { ConversationKind, MessageRole } from "../conversation/types";
+import type { StageStatus } from "../workspace/types";
 
 // 运行时值数组——与 shared 类型的字面量值一一对应
 export const CONVERSATION_KINDS: readonly [ConversationKind, ...ConversationKind[]] = [
