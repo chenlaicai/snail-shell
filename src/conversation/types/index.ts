@@ -165,6 +165,11 @@ export interface Conversation {
 }
 
 /**
+ * 消息派发状态
+ */
+export type MessageDispatchStatus = "pending" | "seen" | "consumed" | "skipped";
+
+/**
  * 消息派发实体
  */
 export interface MessageDispatch {
@@ -177,7 +182,7 @@ export interface MessageDispatch {
   /** 目标角色 */
   to_role: string;
   /** 派发状态 */
-  status: string;
+  status: MessageDispatchStatus;
   /** 消费消息 ID */
   consumed_by_message_id: number | null;
   /** 创建时间 */

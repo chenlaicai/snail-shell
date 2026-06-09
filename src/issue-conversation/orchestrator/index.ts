@@ -94,15 +94,17 @@ export class IssueConversationOrchestratorImpl implements IssueConversationOrche
       latestUserEvents: [],
     });
 
-    // 5. 获取历史消息（从 MessageEvent 中提取内容）
+    // 5. 获取历史消息（从 MessageEvent 中提取内容，过滤掉 system 消息）
     const history = await this.conversationRepo.getRecentMessages(conversation.id, 10);
     const historyWithContent = await Promise.all(
-      history.map(async (m) => {
-        const events = await this.conversationRepo.getMessageEvents(m.id);
-        const textEvent = events.find((e) => e.kind === "text");
-        const content = textEvent ? (textEvent.payload.text as string || "") : "";
-        return { role: m.role as "user" | "assistant", content };
-      })
+      history
+        .filter((m) => m.role === "user" || m.role === "assistant") // 过滤掉 system 消息
+        .map(async (m) => {
+          const events = await this.conversationRepo.getMessageEvents(m.id);
+          const textEvent = events.find((e) => e.kind === "text");
+          const content = textEvent ? (textEvent.payload.text as string || "") : "";
+          return { role: m.role as "user" | "assistant", content };
+        })
     );
 
     // 6. 调用 Agent
@@ -116,9 +118,12 @@ export class IssueConversationOrchestratorImpl implements IssueConversationOrche
     let responseContent = "";
     await runtime.invokeMessage(agentInput, (event: AgentEvent) => {
       if (event.type === "message_event") {
-        const data = event.data as Record<string, unknown>;
-        if (data.kind === "text") {
-          responseContent += (data.payload as Record<string, unknown>).text || "";
+        const data = event.data;
+        if (data && typeof data === "object" && "kind" in data && data.kind === "text") {
+          const payload = data.payload;
+          if (payload && typeof payload === "object" && "text" in payload) {
+            responseContent += String(payload.text || "");
+          }
         }
       }
     });

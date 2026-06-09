@@ -34,17 +34,17 @@ function getContentBlockText(payload: Record<string, unknown>): string {
   return (payload.fallback_text as string) ?? extractTextFromBlocks(payload.blocks as MessageContentBlock[]);
 }
 
-const blockTextExtractors: Record<MessageContentBlock["type"], (block: any) => string> = {
-  text: (block) => block.text,
-  rich_text: (block) => block.text,
-  markdown: (block) => block.text,
-  question: (block) => [block.title, block.question, block.reason ?? ""].filter(Boolean).join("\n"),
-  question_response: (block) => block.summary,
-  image: (block) => block.alt ?? "",
-  icon: (block) => block.label ?? block.name,
-  chart: (block) => block.title ?? "",
-  table: (block) => [block.title ?? "", block.columns.join(" ")].filter(Boolean).join("\n"),
-  tool_call_card: (block) => block.summary ?? block.detail ?? block.tool_name,
-  artifact_card: (block) => [block.title, block.summary ?? ""].filter(Boolean).join("\n"),
-  reference_card: (block) => [block.title, block.summary ?? ""].filter(Boolean).join("\n"),
+const blockTextExtractors: Record<MessageContentBlock["type"], (block: MessageContentBlock) => string> = {
+  text: (block) => block.type === "text" ? block.text : "",
+  rich_text: (block) => block.type === "rich_text" ? block.text : "",
+  markdown: (block) => block.type === "markdown" ? block.text : "",
+  question: (block) => block.type === "question" ? [block.title, block.question, block.reason ?? ""].filter(Boolean).join("\n") : "",
+  question_response: (block) => block.type === "question_response" ? block.summary : "",
+  image: (block) => block.type === "image" ? block.alt ?? "" : "",
+  icon: (block) => block.type === "icon" ? block.label ?? block.name : "",
+  chart: (block) => block.type === "chart" ? block.title ?? "" : "",
+  table: (block) => block.type === "table" ? [block.title ?? "", block.columns.join(" ")].filter(Boolean).join("\n") : "",
+  tool_call_card: (block) => block.type === "tool_call_card" ? block.summary ?? block.detail ?? block.tool_name : "",
+  artifact_card: (block) => block.type === "artifact_card" ? [block.title, block.summary ?? ""].filter(Boolean).join("\n") : "",
+  reference_card: (block) => block.type === "reference_card" ? [block.title, block.summary ?? ""].filter(Boolean).join("\n") : "",
 };
