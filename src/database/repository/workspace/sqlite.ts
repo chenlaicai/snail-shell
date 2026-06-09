@@ -14,7 +14,7 @@ import type {
   CreateIssueInput,
   CreateStageInput,
   StageStatus,
-} from "./types";
+} from "../../../workspace";
 
 /**
  * SQLite Workspace Repository 实现

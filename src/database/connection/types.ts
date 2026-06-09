@@ -45,9 +45,9 @@ export interface DatabaseConnection {
    * 执行更新语句
    * @param sql SQL 语句
    * @param params 查询参数
-   * @returns 影响的行数
+   * @returns 查询结果（包含 changes 和 lastInsertRowid）
    */
-  execute(sql: string, params?: unknown[]): Promise<number>;
+  execute(sql: string, params?: unknown[]): Promise<QueryResult>;
 
   /**
    * 在事务中执行操作

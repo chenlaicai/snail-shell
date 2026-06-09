@@ -55,11 +55,15 @@ export class SqliteConnection implements DatabaseConnection {
     }
   }
 
-  async execute(sql: string, params: unknown[] = []): Promise<number> {
+  async execute(sql: string, params: unknown[] = []): Promise<QueryResult> {
     try {
       const stmt = this.db.prepare(sql);
       const result = stmt.run(...params);
-      return result.changes;
+      return {
+        rows: [],
+        changes: result.changes,
+        lastInsertRowid: result.lastInsertRowid,
+      };
     } catch (error) {
       throw new Error(`Execute failed: ${error instanceof Error ? error.message : String(error)}`);
     }

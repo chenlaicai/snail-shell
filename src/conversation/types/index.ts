@@ -193,6 +193,7 @@ export interface CreateMessageInput {
   from_role?: string;
   to_roles?: string[];
   role: MessageRole;
+  content?: string;
   quoted_message_id?: number;
   runtime?: string;
   status: MessageStatus;

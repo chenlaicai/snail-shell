@@ -5,39 +5,15 @@
  *
  * 设计原则：
  * - 只定义本模块的领域类型
- * - 不依赖其他模块的类型
  * - 通过 Builder 接口构建能力
+ * - 复用其他原子模块的类型
  */
 
-/**
- * Skill 定义
- */
-export interface SkillDefinition {
-  /** Skill ID */
-  id: string;
-  /** Skill 名称 */
-  name: string;
-  /** Skill 描述 */
-  description: string;
-  /** Skill 路径 */
-  path: string;
-  /** Skill 内容 */
-  content: string;
-}
+import type { SkillDefinition } from "../../skill-new";
+import type { McpServerConfig } from "../../mcp-new";
 
-/**
- * MCP Server 配置
- */
-export interface McpServerConfig {
-  /** Server 名称 */
-  name: string;
-  /** 启动命令 */
-  command: string;
-  /** 命令参数 */
-  args: string[];
-  /** 环境变量 */
-  env: Record<string, string>;
-}
+// 重新导出其他原子模块的类型
+export type { SkillDefinition, McpServerConfig };
 
 /**
  * Hook 配置

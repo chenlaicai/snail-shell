@@ -29,7 +29,7 @@ export type { SchemaManager, SchemaVersion } from "./schema/types";
 
 export { SqliteSchemaManager } from "./schema";
 
-// ═══ Repository 接口 ═══
+// ═══ Repository 类型（从原子模块重新导出）═══
 export type {
   // Conversation Repository
   Message,
@@ -48,7 +48,7 @@ export type {
   MessageEventKind,
   MessageEventCategory,
   ConversationRepository,
-} from "./repository/conversation";
+} from "../conversation";
 
 export type {
   // Workspace Repository
@@ -60,11 +60,29 @@ export type {
   CreateStageInput,
   StageStatus,
   WorkspaceRepository,
-} from "./repository/workspace";
+} from "../workspace";
+
+export type {
+  // SOP Repository
+  Sop,
+  SopStageDefinition,
+  SopStageRoleDefinition,
+  SopTransition,
+  CreateSopInput,
+  CreateSopStageDefinitionInput,
+  CreateSopStageRoleDefinitionInput,
+  CreateSopTransitionInput,
+  SopSource,
+  StageChecklistItem,
+  TransitionGuard,
+  TransitionGuardType,
+  SopRepository,
+} from "../sop";
 
 // ═══ Repository 实现 ═══
 export { SqliteConversationRepository } from "./repository/conversation";
 export { SqliteWorkspaceRepository } from "./repository/workspace";
+export { SqliteSopRepository } from "./repository/sop";
 
 // ═══ 工厂函数 ═══
 
@@ -72,9 +90,11 @@ import { SqliteConnectionFactory } from "./connection";
 import { SqliteSchemaManager } from "./schema";
 import { SqliteConversationRepository } from "./repository/conversation";
 import { SqliteWorkspaceRepository } from "./repository/workspace";
+import { SqliteSopRepository } from "./repository/sop";
 import type { DatabaseConfig, DatabaseConnection } from "./connection/types";
-import type { ConversationRepository } from "./repository/conversation";
-import type { WorkspaceRepository } from "./repository/workspace";
+import type { ConversationRepository } from "../conversation";
+import type { WorkspaceRepository } from "../workspace";
+import type { SopRepository } from "../sop";
 
 /**
  * 数据库管理器
@@ -86,6 +106,7 @@ export class DatabaseManager {
   private schemaManager: SqliteSchemaManager | null = null;
   private conversationRepo: ConversationRepository | null = null;
   private workspaceRepo: WorkspaceRepository | null = null;
+  private sopRepo: SopRepository | null = null;
 
   /**
    * 初始化数据库
@@ -103,6 +124,7 @@ export class DatabaseManager {
     // 初始化 Repository
     this.conversationRepo = new SqliteConversationRepository(this.connection);
     this.workspaceRepo = new SqliteWorkspaceRepository(this.connection);
+    this.sopRepo = new SqliteSopRepository(this.connection);
   }
 
   /**
@@ -123,6 +145,16 @@ export class DatabaseManager {
       throw new Error("Database not initialized. Call initialize() first.");
     }
     return this.workspaceRepo;
+  }
+
+  /**
+   * 获取 SOP Repository
+   */
+  getSopRepository(): SopRepository {
+    if (!this.sopRepo) {
+      throw new Error("Database not initialized. Call initialize() first.");
+    }
+    return this.sopRepo;
   }
 
   /**
@@ -154,6 +186,7 @@ export class DatabaseManager {
       this.connection = null;
       this.conversationRepo = null;
       this.workspaceRepo = null;
+      this.sopRepo = null;
       this.schemaManager = null;
     }
   }

@@ -17,7 +17,7 @@ import type {
   CreateConversationInput,
   CreateMessageDispatchInput,
   MessageStatus,
-} from "./types";
+} from "../../../conversation";
 
 /**
  * SQLite Conversation Repository 实现
@@ -61,7 +61,7 @@ export class SqliteConversationRepository implements ConversationRepository {
     );
 
     // 获取插入的消息
-    const message = await this.getMessage(result as number);
+    const message = await this.getMessage(Number(result.lastInsertRowid));
     if (!message) {
       throw new Error("Failed to save message");
     }
@@ -102,7 +102,7 @@ export class SqliteConversationRepository implements ConversationRepository {
     // 获取插入的事件
     const event = await this.connection.query<MessageEvent>(
       "SELECT * FROM message_event WHERE id = ?",
-      [result as number]
+      [Number(result.lastInsertRowid)]
     );
     if (!event.rows[0]) {
       throw new Error("Failed to save message event");
@@ -195,7 +195,7 @@ export class SqliteConversationRepository implements ConversationRepository {
 
     const dispatch = await this.connection.query<MessageDispatch>(
       "SELECT * FROM message_dispatch WHERE id = ?",
-      [result as number]
+      [Number(result.lastInsertRowid)]
     );
     if (!dispatch.rows[0]) {
       throw new Error("Failed to save message dispatch");
