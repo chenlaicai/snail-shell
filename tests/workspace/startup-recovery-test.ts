@@ -1,5 +1,9 @@
 import fs from "fs";
+import os from "os";
 import path from "path";
+
+/** 测试专用临时工作区根目录，避免 seedWorkspaceToCache 写 .snail/init.json 污染项目目录 */
+const TEST_WORKSPACE_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), "snail-test-startup-"));
 import { ConversationStore, type Message } from "../../src/persistence/store";
 import { recoverOrphanedStreamingAssistantMessages } from "../../src/workspace-workflow/startup-recovery";
 import { buildPlainTextEvent } from "../../src/message-bus/message-events";
@@ -31,7 +35,7 @@ async function main(): Promise<void> {
 
   /* Seed workspace — SOP is now self-declared */
   store.seedWorkspaceToCache({
-    id: "startup-recovery-workspace",  name: "Snail Shell", summary: "test", workspaceRoot: process.cwd(),
+    id: "startup-recovery-workspace",  name: "Snail Shell", summary: "test", workspaceRoot: TEST_WORKSPACE_ROOT,
   });
   const workspace = store.getWorkspace("startup-recovery-workspace")!;
   const issue = store.createIssue({ id: "startup-recovery-issue", workspaceId: workspace.id, title: "Issue" });

@@ -4,6 +4,14 @@ import type { z } from "zod";
 
 type EndpointKey = keyof ApiEndpoints;
 
+/** API 错误，携带 HTTP status code 供全局错误处理区分 404 等业务状态 */
+export class ApiError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 /** 替换路径参数 :param → value */
 function resolvePath(path: string, params?: unknown): string {
   if (!params || typeof params !== "object") return path;
@@ -32,7 +40,7 @@ async function handleResponse<R>(
 ): Promise<R> {
   if (response.status === 204) return undefined as R;
   const data = await response.json();
-  if (!response.ok) throw new Error(data?.error || data?.message || "Request failed");
+  if (!response.ok) throw new ApiError(data?.error || data?.message || "Request failed", response.status);
   return schema ? schema.parse(data) : data;
 }
 

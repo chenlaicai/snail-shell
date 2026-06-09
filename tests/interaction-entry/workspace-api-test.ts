@@ -1,6 +1,10 @@
 import assert from "assert";
 import fs from "fs";
+import os from "os";
 import path from "path";
+
+/** 测试专用临时工作区根目录，避免 createWorkspace 写 .snail/init.json 污染项目目录 */
+const TEST_WORKSPACE_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), "snail-test-ws-api-"));
 import { createServer } from "../../src/interaction-entry/api/server";
 import { WorkspaceManager } from "../../src/workspace-workflow/manager";
 import { ConversationStore } from "../../src/persistence/store";
@@ -59,7 +63,7 @@ async function postWorkspace(baseUrl: string, overrides: Record<string, unknown>
   const payload = JSON.stringify({
     name: `Workspace ${Date.now()}`,
     summary: "test",
-    workspace_root: process.cwd(),
+    workspace_root: TEST_WORKSPACE_ROOT,
     sop_id: "test-sop",
     role_snail_mapping: { design: { designer: "template-valid" }, development: { developer: "template-valid" }, review: { developer: "template-valid", reviewer: "template-valid" }, merge: { merger: "template-valid" } },
     ...overrides,

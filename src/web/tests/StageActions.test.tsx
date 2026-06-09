@@ -28,14 +28,14 @@ describe("StageActions", () => {
     render(
       <StageActions issue={mockIssue} currentStage={mockStage} transitions={[]} onStageChanged={() => {}} />
     );
-    expect(screen.getByText("推进阶段")).toBeInTheDocument();
+    expect(screen.getByText("推进")).toBeInTheDocument();
   });
 
   it("disables advance when no transitions", () => {
     render(
       <StageActions issue={mockIssue} currentStage={mockStage} transitions={[]} onStageChanged={() => {}} />
     );
-    expect(screen.getByText("推进阶段")).toBeDisabled();
+    expect(screen.getByText("推进")).toBeDisabled();
   });
 
   it("enables advance when forward transitions exist", () => {
@@ -43,7 +43,7 @@ describe("StageActions", () => {
     render(
       <StageActions issue={mockIssue} currentStage={mockStage} transitions={transitions} onStageChanged={() => {}} />
     );
-    expect(screen.getByText("推进阶段")).not.toBeDisabled();
+    expect(screen.getByText("推进")).not.toBeDisabled();
   });
 
   it("shows target selector when multiple forward transitions", () => {

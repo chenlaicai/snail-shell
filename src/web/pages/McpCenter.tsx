@@ -2,23 +2,13 @@
  * MCP Center - MCP 服务器管理
  */
 
-import { useEffect, useState } from "react";
-import { api } from "../services/api-client";
-import { showToast } from "../components/Toast";
-import type { McpServerDto } from "../types";
+import { useQuery } from "@tanstack/react-query";
+import { metaQueries } from "../queries/meta.queries";
 
 export function McpCenter() {
-  const [mcps, setMcps] = useState<McpServerDto[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: mcps = [], isLoading } = useQuery(metaQueries.mcps());
 
-  useEffect(() => {
-    api("GET /api/meta/mcps")
-      .then(setMcps)
-      .catch((err) => showToast(`加载 MCP 列表失败：${err.message}`, true))
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
+  if (isLoading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
 
   return (
     <div className="flex flex-col h-full min-h-0" data-view-pane="mcps">

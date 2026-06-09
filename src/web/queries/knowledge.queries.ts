@@ -18,7 +18,7 @@ export const knowledgeQueries = {
 
   summary: () =>
     queryOptions({
-      queryKey: ["knowledge", "summary"],
+      queryKey: queryKeys.knowledge.summary,
       queryFn: () => api("GET /api/knowledge/items/summary"),
     }),
 };

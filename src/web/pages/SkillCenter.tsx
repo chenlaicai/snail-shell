@@ -4,25 +4,17 @@
  * 功能：技能列表、详情查看、搜索
  */
 
-import { useEffect, useState } from "react";
-import { api } from "../services/api-client";
-import { showToast } from "../components/Toast";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { metaQueries } from "../queries/meta.queries";
 import { Input } from "@/components/ui/input";
 import type { SkillDto } from "../types";
 
 export function SkillCenter() {
-  const [skills, setSkills] = useState<SkillDto[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: skills = [], isLoading } = useQuery(metaQueries.skills());
   const [selected, setSelected] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSkill, setSelectedSkill] = useState<SkillDto | null>(null);
-
-  useEffect(() => {
-    api("GET /api/meta/skills")
-      .then(setSkills)
-      .catch((err) => showToast(`加载 Skill 失败：${err.message}`, true))
-      .finally(() => setLoading(false));
-  }, []);
 
   const filteredSkills = skills.filter((s) =>
     s.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -34,7 +26,7 @@ export function SkillCenter() {
     setSelectedSkill(skill || null);
   }
 
-  if (loading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
+  if (isLoading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
 
   return (
     <div className="flex flex-col h-full min-h-0" data-view-pane="skills">
@@ -45,10 +37,10 @@ export function SkillCenter() {
             <span className="text-[11px] text-[var(--color-text-grey)]">{skills.length} 个</span>
           </div>
         </div>
-        <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+        <div className="flex flex-1 overflow-hidden min-h-0">
           {/* 左侧列表 */}
-          <div style={{ width: 260, borderRight: "1px solid var(--color-border-muted)", overflow: "auto", padding: "var(--space-md)" }}>
-            <div style={{ marginBottom: "var(--space-sm)" }}>
+          <div className="w-[260px] shrink-0 border-r border-[var(--color-border-muted)] overflow-auto p-[var(--space-md)]">
+            <div className="mb-[var(--space-sm)]">
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -61,9 +53,12 @@ export function SkillCenter() {
               filteredSkills.map((s) => (
                 <div
                   key={s.name}
-                  className={`nav-item${selected === s.name ? " active" : ""}`}
+                  className={`cursor-pointer px-[var(--space-sm)] py-[5px] rounded-[var(--radius-sm)] mb-px text-[var(--font-size-sm)] transition-colors ${
+                    selected === s.name
+                      ? "bg-[var(--color-bg-active)] text-[var(--color-accent)]"
+                      : "text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]"
+                  }`}
                   onClick={() => selectSkill(s.name)}
-                  style={{ cursor: "pointer", padding: "6px 8px", borderRadius: 6, marginBottom: 2, fontSize: "var(--font-size-sm)" }}
                 >
                   {s.name}
                 </div>
@@ -71,14 +66,14 @@ export function SkillCenter() {
             )}
           </div>
           {/* 右侧详情 */}
-          <div style={{ flex: 1, overflow: "auto", padding: "var(--space-xl)" }}>
+          <div className="flex-1 overflow-auto p-[var(--space-xl)]">
             {selectedSkill ? (
               <div>
-                <h2 style={{ marginBottom: "var(--space-sm)", fontSize: "var(--font-size-md)" }}>{selectedSkill.name}</h2>
+                <h2 className="mb-[var(--space-sm)] text-[var(--font-size-md)]">{selectedSkill.name}</h2>
                 {selectedSkill.description && (
-                  <p style={{ color: "var(--color-text-secondary)", marginBottom: "var(--space-lg)" }}>{selectedSkill.description}</p>
+                  <p className="text-[var(--color-text-secondary)] mb-[var(--space-lg)]">{selectedSkill.description}</p>
                 )}
-                <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-grey)" }}>
+                <div className="text-[var(--font-size-xs)] text-[var(--color-text-grey)]">
                   路径：{selectedSkill.filePath}
                 </div>
               </div>

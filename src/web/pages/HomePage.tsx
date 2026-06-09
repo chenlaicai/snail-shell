@@ -28,15 +28,15 @@ export function HomePage() {
   return (
     <div className="flex flex-col h-full min-h-0" data-view-pane="workspaces">
       <div className="flex flex-col flex-1 overflow-hidden min-w-0 items-center justify-center">
-        <div style={{ textAlign: "center", maxWidth: 480 }}>
-          <div style={{ fontSize: 48, marginBottom: "var(--space-lg)" }}>🐌</div>
-          <h1 style={{ fontSize: "var(--font-size-xl)", marginBottom: "var(--space-md)" }}>
+        <div className="text-center max-w-[480px]">
+          <div className="text-[48px] mb-[var(--space-lg)]">🐌</div>
+          <h1 className="text-[var(--font-size-xl)] mb-[var(--space-md)]">
             欢迎使用 Snail Shell
           </h1>
-          <p style={{ color: "var(--color-text-secondary)", marginBottom: "var(--space-xl)", lineHeight: 1.6 }}>
+          <p className="text-[var(--color-text-secondary)] mb-[var(--space-xl)] leading-[1.6]">
             Snail Shell 是一个 AI 协作平台，帮助你管理项目、跟踪进度、与 AI 助手高效协作。
           </p>
-          <div style={{ display: "flex", gap: "var(--space-md)", justifyContent: "center" }}>
+          <div className="flex gap-[var(--space-md)] justify-center">
             <button className="bg-[var(--color-bg-elevated)] text-[var(--color-accent)] border border-[var(--color-accent)] rounded-md px-2.5 py-1 text-xs font-medium cursor-pointer transition-all hover:bg-[rgba(108,141,250,0.08)]" onClick={handleEnterWorkspace}>
               进入工作区
             </button>

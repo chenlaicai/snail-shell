@@ -11,7 +11,7 @@ import { showToast } from "../components/Toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import type { SopDetailDto, SnailDenTemplateDto } from "../types";
+import type { SopDto, SopDetailDto, SnailDenTemplateDto } from "../types";
 
 // 从 SopDetailDto 中提取的 stage definition 子类型
 type StageDefinition = NonNullable<SopDetailDto["stage_definitions"]>[number];
@@ -24,7 +24,7 @@ export function WorkspaceConfig() {
   const [workspaceRoot, setWorkspaceRoot] = useState("");
   const [selectedSopId, setSelectedSopId] = useState("");
   const [stages, setStages] = useState<StageDefinition[]>([]);
-  const [sops, setSops] = useState<Sop[]>([]);
+  const [sops, setSops] = useState<SopDto[]>([]);
   const [templates, setTemplates] = useState<SnailDenTemplateDto[]>([]);
   const [hasSnail, setHasSnail] = useState(false);
   const [detecting, setDetecting] = useState(false);
@@ -162,38 +162,38 @@ export function WorkspaceConfig() {
           </div>
         </div>
 
-        <div className="p-6 overflow-auto flex-1" style={{ maxWidth: 720 }}>
+        <div className="p-6 overflow-auto flex-1 max-w-[720px]">
           {/* 基本信息 */}
-          <section style={{ marginBottom: "var(--space-xl)" }}>
-            <h3 style={{ marginBottom: "var(--space-md)" }}>基本信息</h3>
-            <div style={{ marginBottom: "var(--space-md)" }}>
-              <label style={{ display: "block", marginBottom: 4, fontSize: "var(--font-size-sm)" }}>名称 *</label>
+          <section className="mb-[var(--space-xl)]">
+            <h3 className="mb-[var(--space-md)]">基本信息</h3>
+            <div className="mb-[var(--space-md)]">
+              <label className="block mb-1 text-[var(--font-size-sm)]">名称 *</label>
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="工作区名称" />
             </div>
-            <div style={{ marginBottom: "var(--space-md)" }}>
-              <label style={{ display: "block", marginBottom: 4, fontSize: "var(--font-size-sm)" }}>摘要</label>
+            <div className="mb-[var(--space-md)]">
+              <label className="block mb-1 text-[var(--font-size-sm)]">摘要</label>
               <Textarea value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="可选摘要" rows={2} />
             </div>
-            <div style={{ marginBottom: "var(--space-md)" }}>
-              <label style={{ display: "block", marginBottom: 4, fontSize: "var(--font-size-sm)" }}>工作区根目录 *</label>
-              <div style={{ display: "flex", gap: "var(--space-sm)" }}>
-                <Input value={workspaceRoot} onChange={(e) => setWorkspaceRoot(e.target.value)} placeholder="绝对路径，如 /Users/you/project" style={{ flex: 1 }} />
+            <div className="mb-[var(--space-md)]">
+              <label className="block mb-1 text-[var(--font-size-sm)]">工作区根目录 *</label>
+              <div className="flex gap-[var(--space-sm)]">
+                <Input value={workspaceRoot} onChange={(e) => setWorkspaceRoot(e.target.value)} placeholder="绝对路径，如 /Users/you/project" className="flex-1" />
                 <Button variant="outline" onClick={handleDetectSnail} disabled={detecting}>
                   {detecting ? "检测中..." : "检测 .snail"}
                 </Button>
               </div>
-              {hasSnail && <div style={{ marginTop: 4, fontSize: "var(--font-size-xs)", color: "var(--color-accent-cyan)" }}>已检测到 .snail 目录，将从文件加载配置</div>}
+              {hasSnail && <div className="mt-1 text-[var(--font-size-xs)] text-[var(--color-accent-cyan)]">已检测到 .snail 目录，将从文件加载配置</div>}
             </div>
           </section>
 
           {/* SOP 选择 */}
           {!hasSnail && (
-            <section style={{ marginBottom: "var(--space-xl)" }}>
-              <h3 style={{ marginBottom: "var(--space-md)" }}>SOP 模板</h3>
+            <section className="mb-[var(--space-xl)]">
+              <h3 className="mb-[var(--space-md)]">SOP 模板</h3>
               <select
                 value={selectedSopId}
                 onChange={(e) => setSelectedSopId(e.target.value)}
-                style={{ width: "100%", padding: "var(--space-sm)", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border-default)", background: "var(--color-bg-input)", color: "var(--color-text-primary)" }}
+                className="w-full p-[var(--space-sm)] rounded-[var(--radius-sm)] border border-[var(--color-border-default)] bg-[var(--color-bg-input)] text-[var(--color-text-primary)]"
               >
                 <option value="">自定义（手动编辑 Stage）</option>
                 {sops.map((sop) => (
@@ -206,42 +206,42 @@ export function WorkspaceConfig() {
           {/* Stage 定义 */}
           {!hasSnail && (
             <section>
-              <h3 style={{ marginBottom: "var(--space-md)" }}>阶段定义</h3>
+              <h3 className="mb-[var(--space-md)]">阶段定义</h3>
               {stages.map((stage, stageIndex) => (
-                <div key={stageIndex} style={{ border: "1px solid var(--color-border-muted)", borderRadius: "var(--radius-sm)", padding: "var(--space-md)", marginBottom: "var(--space-md)" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-sm)" }}>
+                <div key={stageIndex} className="border border-[var(--color-border-muted)] rounded-[var(--radius-sm)] p-[var(--space-md)] mb-[var(--space-md)]">
+                  <div className="flex justify-between items-center mb-[var(--space-sm)]">
                     <Input
                       value={stage.title}
                       onChange={(e) => updateStage(stageIndex, { title: e.target.value })}
                       placeholder="阶段标题"
-                      style={{ flex: 1, marginRight: "var(--space-sm)" }}
+                      className="flex-1 mr-[var(--space-sm)]"
                     />
                     <Button variant="ghost" size="sm" onClick={() => removeStage(stageIndex)}>删除</Button>
                   </div>
-                  <div style={{ display: "grid", gap: "var(--space-sm)", gridTemplateColumns: "1fr 1fr", marginBottom: "var(--space-sm)" }}>
+                  <div className="grid gap-[var(--space-sm)] grid-cols-2 mb-[var(--space-sm)]">
                     <Input value={stage.key} onChange={(e) => updateStage(stageIndex, { key: e.target.value })} placeholder="阶段 key" />
                     <Input value={String(stage.sequence)} onChange={(e) => updateStage(stageIndex, { sequence: Number(e.target.value) })} placeholder="序号" type="number" />
                   </div>
-                  <Textarea value={stage.input_description} onChange={(e) => updateStage(stageIndex, { input_description: e.target.value })} placeholder="输入说明" rows={1} style={{ marginBottom: "var(--space-sm)" }} />
-                  <Textarea value={stage.output_description} onChange={(e) => updateStage(stageIndex, { output_description: e.target.value })} placeholder="输出说明" rows={1} style={{ marginBottom: "var(--space-sm)" }} />
+                  <Textarea value={stage.input_description} onChange={(e) => updateStage(stageIndex, { input_description: e.target.value })} placeholder="输入说明" rows={1} className="mb-[var(--space-sm)]" />
+                  <Textarea value={stage.output_description} onChange={(e) => updateStage(stageIndex, { output_description: e.target.value })} placeholder="输出说明" rows={1} className="mb-[var(--space-sm)]" />
 
                   {/* 角色列表 */}
-                  <div style={{ marginTop: "var(--space-md)" }}>
-                    <div style={{ fontSize: "var(--font-size-xs)", fontWeight: 600, marginBottom: "var(--space-xs)" }}>角色</div>
+                  <div className="mt-[var(--space-md)]">
+                    <div className="text-[var(--font-size-xs)] font-semibold mb-[var(--space-xs)]">角色</div>
                     {stage.roles.map((role, roleIndex) => (
-                      <div key={roleIndex} style={{ display: "flex", gap: "var(--space-xs)", marginBottom: "var(--space-xs)", alignItems: "center" }}>
-                        <Input value={role.name} onChange={(e) => updateRole(stageIndex, roleIndex, { name: e.target.value })} placeholder="角色名" style={{ flex: 1 }} />
+                      <div key={roleIndex} className="flex gap-[var(--space-xs)] mb-[var(--space-xs)] items-center">
+                        <Input value={role.name} onChange={(e) => updateRole(stageIndex, roleIndex, { name: e.target.value })} placeholder="角色名" className="flex-1" />
                         <select
                           value={role.snail_template_id}
                           onChange={(e) => updateRole(stageIndex, roleIndex, { snail_template_id: e.target.value })}
-                          style={{ padding: "var(--space-xs)", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border-default)", background: "var(--color-bg-input)", color: "var(--color-text-primary)", fontSize: "var(--font-size-xs)" }}
+                          className="p-[var(--space-xs)] rounded-[var(--radius-sm)] border border-[var(--color-border-default)] bg-[var(--color-bg-input)] text-[var(--color-text-primary)] text-[var(--font-size-xs)]"
                         >
                           <option value="">选择模板</option>
                           {templates.map((t) => (
                             <option key={t.id} value={t.id}>{t.name}</option>
                           ))}
                         </select>
-                        <label style={{ fontSize: "var(--font-size-xs)", display: "flex", alignItems: "center", gap: 4 }}>
+                        <label className="text-[var(--font-size-xs)] flex items-center gap-1">
                           <input type="checkbox" checked={role.is_primary} onChange={(e) => updateRole(stageIndex, roleIndex, { is_primary: e.target.checked })} />
                           主
                         </label>

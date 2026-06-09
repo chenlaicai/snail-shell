@@ -51,7 +51,7 @@ describe("ConversationLayout", () => {
   });
 
   it("renders issue title and stage tabs", async () => {
-    mockApi.mockResolvedValueOnce({
+    const issueData = {
       id: "i1",
       title: "Fix login bug",
       stages: [
@@ -59,34 +59,38 @@ describe("ConversationLayout", () => {
         { id: "s2", type: "review", status: "pending", stage_definition: { title: "Review" } },
       ],
       current_stage: { id: "s1", type: "development", status: "in_progress", stage_definition: { title: "Development" } },
+    };
+    mockApi.mockImplementation((endpoint: string) => {
+      if (endpoint === "GET /api/issues/:issueId") return Promise.resolve(issueData);
+      if (endpoint === "GET /api/stages/:stageId/conversations") return Promise.resolve([]);
+      return Promise.resolve([]);
     });
-    mockApi.mockResolvedValueOnce([]); // conversations
-    mockApi.mockResolvedValueOnce([]); // boss-mentions
     renderAt("/ws/ws1/issue/i1");
     await waitFor(() => {
-      const title = document.querySelector(".conv-title");
-      expect(title?.textContent).toBe("Fix login bug");
+      expect(screen.getAllByText("Fix login bug").length).toBeGreaterThan(0);
       expect(screen.getByText("Development")).toBeInTheDocument();
       expect(screen.getByText("Review")).toBeInTheDocument();
     });
   });
 
   it("renders conversation breadcrumb", async () => {
-    mockApi.mockResolvedValueOnce({
+    const issueData = {
       id: "i1",
       title: "My Issue",
       stages: [
         { id: "s1", type: "design", status: "in_progress", stage_definition: { title: "Design" } },
       ],
       current_stage: { id: "s1", type: "design", status: "in_progress", stage_definition: { title: "Design" } },
+    };
+    mockApi.mockImplementation((endpoint: string) => {
+      if (endpoint === "GET /api/issues/:issueId") return Promise.resolve(issueData);
+      if (endpoint === "GET /api/stages/:stageId/conversations") return Promise.resolve([]);
+      return Promise.resolve([]);
     });
-    mockApi.mockResolvedValueOnce([]);
-    mockApi.mockResolvedValueOnce([]);
     renderAt("/ws/my-workspace/issue/i1");
     await waitFor(() => {
-      const breadcrumb = document.querySelector(".conv-breadcrumb");
-      expect(breadcrumb?.textContent).toContain("my-workspace");
-      expect(breadcrumb?.textContent).toContain("My Issue");
+      const breadcrumbEl = screen.getByText(/my-workspace/);
+      expect(breadcrumbEl.textContent).toContain("My Issue");
     });
   });
 });

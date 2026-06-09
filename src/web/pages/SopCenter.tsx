@@ -4,24 +4,27 @@
  * 功能：列表、详情、创建、编辑、删除 SOP
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../services/api-client";
+import { sopQueries } from "../queries/sop.queries";
+import { queryKeys } from "../queries/keys";
 import { showToast } from "../components/Toast";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "../components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import type { SopDto, SopDetailDto } from "../types";
+import type { SopDetailDto } from "../types";
 
 type Mode = "list" | "detail" | "create" | "edit";
 
 export function SopCenter() {
-  const [sops, setSops] = useState<SopDto[]>([]);
+  const queryClient = useQueryClient();
+  const { data: sops = [], isLoading } = useQuery(sopQueries.list());
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<SopDetailDto | null>(null);
   const [mode, setMode] = useState<Mode>("list");
-  const [loading, setLoading] = useState(true);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmTarget, setConfirmTarget] = useState<string | null>(null);
 
@@ -29,22 +32,6 @@ export function SopCenter() {
   const [formName, setFormName] = useState("");
   const [formDescription, setFormDescription] = useState("");
   const [formKey, setFormKey] = useState("");
-
-  // 加载 SOP 列表
-  useEffect(() => {
-    loadSops();
-  }, []);
-
-  async function loadSops() {
-    setLoading(true);
-    try {
-      const data = await api("GET /api/sops");
-      setSops(data);
-    } catch (err: unknown) {
-      showToast(`加载 SOP 列表失败：${err instanceof Error ? err.message : String(err)}`, true);
-    }
-    setLoading(false);
-  }
 
   // 选择 SOP 查看详情
   async function selectSop(sopId: string) {
@@ -76,7 +63,7 @@ export function SopCenter() {
       showToast("SOP 已创建");
       setMode("list");
       resetForm();
-      loadSops();
+      queryClient.invalidateQueries({ queryKey: queryKeys.sops.all });
     } catch (err: unknown) {
       showToast(`创建失败：${err instanceof Error ? err.message : String(err)}`, true);
     }
@@ -115,7 +102,7 @@ export function SopCenter() {
     try {
       await api("DELETE /api/sops/:sopId", { params: { sopId } });
       showToast("SOP 已删除");
-      setSops((prev) => prev.filter((s) => s.id !== sopId));
+      queryClient.invalidateQueries({ queryKey: queryKeys.sops.all });
       if (selectedId === sopId) {
         setSelectedId(null);
         setDetail(null);
@@ -148,7 +135,7 @@ export function SopCenter() {
     setFormKey("");
   }
 
-  if (loading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
+  if (isLoading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
 
   return (
     <div className="flex flex-col h-full min-h-0" data-view-pane="sops">
@@ -163,21 +150,24 @@ export function SopCenter() {
           </div>
         </div>
 
-        <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+        <div className="flex flex-1 overflow-hidden min-h-0">
           {/* 左侧：SOP 列表 */}
-          <div style={{ width: 280, borderRight: "1px solid var(--color-border-muted)", overflow: "auto", padding: "var(--space-md)" }}>
+          <div className="w-[280px] shrink-0 border-r border-[var(--color-border-muted)] overflow-auto p-[var(--space-md)]">
             {sops.length === 0 ? (
               <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">暂无 SOP</div>
             ) : (
               sops.map((sop) => (
                 <div
                   key={sop.id}
-                  className={`nav-item${selectedId === sop.id ? " active" : ""}`}
+                  className={`cursor-pointer p-[var(--space-sm)] rounded-[var(--radius-sm)] mb-1 transition-colors ${
+                    selectedId === sop.id
+                      ? "bg-[var(--color-bg-active)] text-[var(--color-accent)]"
+                      : "text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]"
+                  }`}
                   onClick={() => selectSop(sop.id)}
-                  style={{ cursor: "pointer", padding: "8px", borderRadius: 6, marginBottom: 4 }}
                 >
-                  <div style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>{sop.name}</div>
-                  <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-grey)" }}>
+                  <div className="font-semibold text-[var(--font-size-sm)]">{sop.name}</div>
+                  <div className="text-[var(--font-size-xs)] text-[var(--color-text-grey)]">
                     {sop.source === "platform" ? "Platform" : "Workspace"} · {sop.key}
                   </div>
                 </div>
@@ -186,7 +176,7 @@ export function SopCenter() {
           </div>
 
           {/* 右侧：详情/编辑/创建 */}
-          <div style={{ flex: 1, overflow: "auto", padding: "var(--space-xl)" }}>
+          <div className="flex-1 overflow-auto p-[var(--space-xl)]">
             {mode === "create" && (
               <SopForm
                 name={formName}
@@ -218,24 +208,24 @@ export function SopCenter() {
 
             {mode === "detail" && detail && (
               <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-lg)" }}>
+                <div className="flex justify-between items-center mb-[var(--space-lg)]">
                   <div>
-                    <h2 style={{ margin: 0, fontSize: "var(--font-size-lg)" }}>{detail.name}</h2>
-                    <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-grey)", marginTop: 4 }}>
+                    <h2 className="m-0 text-[var(--font-size-lg)]">{detail.name}</h2>
+                    <div className="text-[var(--font-size-xs)] text-[var(--color-text-grey)] mt-1">
                       {detail.source} · {detail.key}
                     </div>
                   </div>
-                  <div style={{ display: "flex", gap: "var(--space-sm)" }}>
+                  <div className="flex gap-[var(--space-sm)]">
                     <Button variant="outline" size="sm" onClick={startEdit}>编辑</Button>
                     <Button variant="destructive" size="sm" onClick={() => confirmDelete(detail.id)}>删除</Button>
                   </div>
                 </div>
                 {detail.description && (
-                  <p style={{ color: "var(--color-text-secondary)", marginBottom: "var(--space-lg)" }}>{detail.description}</p>
+                  <p className="text-[var(--color-text-secondary)] mb-[var(--space-lg)]">{detail.description}</p>
                 )}
-                <h3 style={{ fontSize: "var(--font-size-md)", marginBottom: "var(--space-md)" }}>阶段定义</h3>
+                <h3 className="text-[var(--font-size-md)] mb-[var(--space-md)]">阶段定义</h3>
                 {detail.stage_definitions && detail.stage_definitions.length > 0 ? (
-                  <div style={{ display: "grid", gap: "var(--space-md)" }}>
+                  <div className="grid gap-[var(--space-md)]">
                     {detail.stage_definitions.map((stage) => (
                       <div key={stage.key} className="flex gap-2.5 py-3 px-3.5 bg-[var(--color-bg-surface)] border border-[var(--color-border-muted)] rounded-[var(--radius-sm)] mb-1.5 cursor-pointer transition-all duration-150 relative hover:border-[var(--color-border-default)] hover:bg-[var(--color-bg-active)]">
                         <div className="flex-1 min-w-0">
@@ -243,13 +233,13 @@ export function SopCenter() {
                             <span className="text-[13px] font-semibold text-[var(--color-text-primary)] flex-1 whitespace-nowrap overflow-hidden text-ellipsis">{stage.title}</span>
                             <Badge variant="outline">#{stage.sequence}</Badge>
                           </div>
-                          <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-grey)", marginTop: 4 }}>
+                          <div className="text-[var(--font-size-xs)] text-[var(--color-text-grey)] mt-1">
                             {stage.key}
                           </div>
                           {stage.roles && stage.roles.length > 0 && (
-                            <div style={{ marginTop: "var(--space-sm)" }}>
+                            <div className="mt-[var(--space-sm)]">
                               {stage.roles.map((role) => (
-                                <span key={role.key} style={{ fontSize: "var(--font-size-xs)", marginRight: "var(--space-sm)" }}>
+                                <span key={role.key} className="text-[var(--font-size-xs)] mr-[var(--space-sm)]">
                                   {role.name}{role.is_primary ? " (主)" : ""}
                                 </span>
                               ))}
@@ -273,7 +263,7 @@ export function SopCenter() {
       </div>
       <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)} title="确认删除">
         <p>确定删除此 SOP？</p>
-        <div style={{ display: "flex", gap: "var(--space-sm, 8px)", justifyContent: "flex-end" }}>
+        <div className="flex gap-2 justify-end">
           <Button variant="outline" onClick={() => setConfirmOpen(false)}>取消</Button>
           <Button variant="destructive" onClick={handleConfirmDelete}>确定</Button>
         </div>
@@ -300,21 +290,21 @@ function SopForm({
   disableKey?: boolean;
 }) {
   return (
-    <div style={{ maxWidth: 480 }}>
-      <h2 style={{ marginBottom: "var(--space-lg)" }}>{submitLabel === "创建" ? "新建 SOP" : "编辑 SOP"}</h2>
-      <div style={{ marginBottom: "var(--space-md)" }}>
-        <label style={{ display: "block", marginBottom: 4, fontSize: "var(--font-size-sm)" }}>名称</label>
+    <div className="max-w-[480px]">
+      <h2 className="mb-[var(--space-lg)]">{submitLabel === "创建" ? "新建 SOP" : "编辑 SOP"}</h2>
+      <div className="mb-[var(--space-md)]">
+        <label className="block mb-1 text-[var(--font-size-sm)]">名称</label>
         <Input value={name} onChange={(e) => onNameChange(e.target.value)} placeholder="SOP 名称" />
       </div>
-      <div style={{ marginBottom: "var(--space-md)" }}>
-        <label style={{ display: "block", marginBottom: 4, fontSize: "var(--font-size-sm)" }}>Key</label>
+      <div className="mb-[var(--space-md)]">
+        <label className="block mb-1 text-[var(--font-size-sm)]">Key</label>
         <Input value={sopKey} onChange={(e) => onKeyChange(e.target.value)} placeholder="唯一标识" disabled={disableKey} />
       </div>
-      <div style={{ marginBottom: "var(--space-lg)" }}>
-        <label style={{ display: "block", marginBottom: 4, fontSize: "var(--font-size-sm)" }}>描述</label>
+      <div className="mb-[var(--space-lg)]">
+        <label className="block mb-1 text-[var(--font-size-sm)]">描述</label>
         <Textarea value={description} onChange={(e) => onDescriptionChange(e.target.value)} placeholder="可选描述" rows={3} />
       </div>
-      <div style={{ display: "flex", gap: "var(--space-sm)" }}>
+      <div className="flex gap-[var(--space-sm)]">
         <Button onClick={onSubmit}>{submitLabel}</Button>
         <Button variant="outline" onClick={onCancel}>取消</Button>
       </div>

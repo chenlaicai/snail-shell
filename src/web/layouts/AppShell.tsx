@@ -5,7 +5,7 @@ import { ContextPanel } from "../components/ContextPanel";
 import { api } from "../services/api-client";
 
 import { Button } from "@/components/ui/button";
-import type { WorkspaceSummaryDto, IssueDto } from "../../types";
+import type { WorkspaceSummaryDto, IssueDto } from "../types";
 
 const NAV_ITEMS = [
   { path: "/", label: "Workspaces" },
@@ -102,29 +102,35 @@ export function AppShell() {
   return (
     <>
       <div id="app-notice" className="hidden" />
-      <div className="app-shell" data-primary-view={currentView} data-workspace-view={dataWorkspaceView} data-layout={layout}>
+      <div className="flex h-screen min-h-0 bg-[var(--color-bg-base)]" data-primary-view={currentView} data-workspace-view={dataWorkspaceView} data-layout={layout}>
         {/* LEFT SIDEBAR */}
-        <aside className="sidebar">
-          <header className="brand-bar">
-            <div className="brand-mark">S</div>
-            <div className="brand-title"><span>Snail</span> Shell</div>
+        <aside className={`flex flex-col w-[var(--sidebar-width)] shrink-0 bg-[var(--color-bg-surface)] border-r border-[var(--color-border-muted)] overflow-hidden transition-[width] duration-200 ${layout === "compact" ? (sidebarExpanded ? "fixed inset-0 z-50 w-screen" : "w-0") : ""}`}>
+          <header className="flex items-center gap-[var(--space-sm)] p-[var(--space-md)] border-b border-[var(--color-border-muted)]">
+            <div className="w-7 h-7 rounded-[var(--radius-md)] bg-[var(--color-accent)] text-[var(--color-background)] font-bold text-sm flex items-center justify-center">S</div>
+            <div className="text-sm font-semibold text-[var(--color-text-primary)]"><span className="text-[var(--color-accent)]">Snail</span> Shell</div>
           </header>
 
-          <button className="sidebar-toggle" type="button" aria-label="Toggle navigation" onClick={() => setSidebarExpanded(!sidebar-expanded)}>
-            ☰
-          </button>
-          <div className="sidebar-backdrop" onClick={() => setSidebarExpanded(false)} />
-
-          <section className="directory-switcher" id="directory-switcher">
-            <button className="directory-summary" type="button" onClick={() => document.getElementById("directory-switcher")?.classList.toggle("is-collapsed")}>
-              <span><span className="directory-title">导航</span></span>
-              <span className="directory-chevron">▴</span>
+          {(layout === "compact" || layout === "narrow") && (
+            <button className="p-[var(--space-sm)] text-[var(--color-text-muted)]" type="button" aria-label="Toggle navigation" onClick={() => setSidebarExpanded(!sidebarExpanded)}>
+              ☰
             </button>
-            <div className="primary-nav" id="primary-nav">
+          )}
+          {sidebarExpanded && (layout === "compact" || layout === "narrow") && <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setSidebarExpanded(false)} />}
+
+          <section className="flex flex-col min-h-0">
+            <button className="flex items-center justify-between px-[var(--space-md)] py-[var(--space-sm)] text-[var(--color-text-muted)] text-xs" type="button">
+              <span className="font-semibold text-[var(--color-text-secondary)]">导航</span>
+              <span className="text-[10px]">▴</span>
+            </button>
+            <div className="flex flex-col gap-px px-[var(--space-xs)]">
               {NAV_ITEMS.map((item) => (
                 <button
                   key={item.path}
-                  className={`primary-nav-button${isActive(item.path) ? " active" : ""}`}
+                  className={`px-[var(--space-md)] py-[var(--space-xs)] rounded-[var(--radius-sm)] text-[12px] text-left transition-colors ${
+                    isActive(item.path)
+                      ? "bg-[var(--color-bg-active)] text-[var(--color-accent)] font-semibold"
+                      : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)]"
+                  }`}
                   aria-current={isActive(item.path) ? "page" : undefined}
                   onClick={() => handleNav(item.path)}
                 >
@@ -134,20 +140,19 @@ export function AppShell() {
             </div>
           </section>
 
-          <div className="sidebar-main">
+          <div className="flex-1 min-h-0 overflow-auto">
             {renderSidebarContent(path, navigate)}
           </div>
         </aside>
 
         {/* MAIN PANEL */}
-        <main className="main-panel">
-          <div className="boss-mentions-banner" id="boss-mentions-banner" />
+        <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
           <Outlet />
         </main>
 
         {/* CONTEXT PANEL — 只在对话页显示 */}
         {isConversation && (
-          <aside className="context-panel view-related" data-view-related={currentView}>
+          <aside className="w-[var(--context-panel-width)] shrink-0 bg-[var(--color-bg-surface)] border-l border-[var(--color-border-muted)] overflow-auto">
             <ContextPanel workspace={workspace} issue={issue} />
           </aside>
         )}
@@ -160,18 +165,14 @@ function renderSidebarContent(path: string, navigate: (path: string) => void) {
   // 工作区路由显示工作区树（首页不显示）
   if (path.startsWith("/ws")) {
     return (
-      <div className="view-related workspace-tree" data-view-related="workspaces">
+      <div className="flex flex-col min-h-0" data-view-related="workspaces">
         <div id="workspace-summary-card" hidden />
-        <div className="tree-toolbar">
-          <div className="panel-title">Workspaces</div>
-          <div className="button-row">
-            <Button size="sm" onClick={() => navigate("/ws/new")}>新建</Button>
-          </div>
+        <div className="flex items-center justify-between px-[var(--space-md)] py-[var(--space-sm)]">
+          <div className="text-xs font-semibold text-[var(--color-text-muted)]">Workspaces</div>
+          <Button size="sm" onClick={() => navigate("/ws/new")}>新建</Button>
         </div>
-        <section className="tree-card">
-          <div className="tree-workspace-list">
-            <WorkspaceTree />
-          </div>
+        <section className="flex-1 min-h-0 overflow-auto px-[var(--space-sm)]">
+          <WorkspaceTree />
         </section>
       </div>
     );
@@ -180,12 +181,12 @@ function renderSidebarContent(path: string, navigate: (path: string) => void) {
   // 演进中心
   if (path === "/evolution") {
     return (
-      <div className="view-related workspace-tree" data-view-related="evolution">
-        <div className="tree-toolbar">
-          <div className="panel-title">Evolution Directory</div>
+      <div className="flex flex-col min-h-0" data-view-related="evolution">
+        <div className="px-[var(--space-md)] py-[var(--space-sm)]">
+          <div className="text-xs font-semibold text-[var(--color-text-muted)]">Evolution Directory</div>
         </div>
-        <section className="tree-card">
-          <div className="empty-state" style={{ padding: "var(--space-md)" }}>
+        <section className="flex-1 min-h-0 overflow-auto px-[var(--space-sm)]">
+          <div className="p-[var(--space-md)] text-[var(--color-text-muted)] text-[var(--font-size-sm)]">
             演进工作区、治理进度和已沉淀知识
           </div>
         </section>

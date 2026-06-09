@@ -6,7 +6,7 @@ import { Dialog } from "../components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import type { WorkspaceDetailDto, IssueDetailDto } from "../../types";
+import type { WorkspaceDetailDto, IssueDetailDto } from "../types";
 
 const STATUS_GROUPS = [
   { key: "pending", label: "待处理" },
@@ -38,19 +38,19 @@ function stageLabel(issue: IssueDetailDto): string {
   return "pending";
 }
 
-const PRIORITY_BG: Record<string, string> = {
-  design: "var(--color-accent-purple)",
-  development: "var(--color-accent-blue)",
-  review: "var(--color-warning-soft)",
-  done: "var(--color-accent-cyan)",
-  low: "var(--color-text-grey)",
+const PRIORITY_BG_CLASS: Record<string, string> = {
+  design: "bg-[var(--color-accent-purple)]",
+  development: "bg-[var(--color-accent-blue)]",
+  review: "bg-[var(--color-warning-soft)]",
+  done: "bg-[var(--color-accent-cyan)] opacity-40",
+  low: "bg-[var(--color-text-grey)]",
 };
 
-const STAGE_TAG_STYLE: Record<string, React.CSSProperties> = {
-  design: { background: "rgba(167, 139, 250, 0.15)", color: "var(--color-accent-purple)" },
-  development: { background: "rgba(96, 165, 250, 0.12)", color: "var(--color-accent-blue)" },
-  review: { background: "rgba(251, 191, 36, 0.12)", color: "var(--color-warning-soft)" },
-  done: { background: "rgba(6, 182, 212, 0.12)", color: "var(--color-accent-cyan)" },
+const STAGE_TAG_CLASS: Record<string, string> = {
+  design: "bg-[rgba(167,139,250,0.15)] text-[var(--color-accent-purple)]",
+  development: "bg-[rgba(96,165,250,0.12)] text-[var(--color-accent-blue)]",
+  review: "bg-[rgba(251,191,36,0.12)] text-[var(--color-warning-soft)]",
+  done: "bg-[rgba(6,182,212,0.12)] text-[var(--color-accent-cyan)]",
 };
 
 function formatWaitTime(dateStr?: string): string {
@@ -181,7 +181,7 @@ export function WorkspaceBoard() {
       </div>
 
       <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} title="新建 Issue">
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm, 8px)" }}>
+        <div className="flex flex-col gap-2">
           <Input
             placeholder="Issue 标题"
             value={newTitle}
@@ -194,7 +194,7 @@ export function WorkspaceBoard() {
             onChange={(e) => setNewSummary(e.target.value)}
             rows={3}
           />
-          <div style={{ display: "flex", gap: "var(--space-sm, 8px)", justifyContent: "flex-end" }}>
+          <div className="flex gap-2 justify-end">
             <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>取消</Button>
             <Button onClick={handleCreateIssue}>创建</Button>
           </div>
@@ -202,10 +202,10 @@ export function WorkspaceBoard() {
       </Dialog>
 
       <Dialog open={archiveDialogOpen} onClose={() => setArchiveDialogOpen(false)} title="归档 Issue">
-        <p style={{ margin: "0 0 var(--space-md, 12px)" }}>
+        <p className="mb-3">
           确定归档 Issue「{archiveTarget?.title}」？
         </p>
-        <div style={{ display: "flex", gap: "var(--space-sm, 8px)", justifyContent: "flex-end" }}>
+        <div className="flex gap-2 justify-end">
           <Button variant="outline" onClick={() => setArchiveDialogOpen(false)}>取消</Button>
           <Button variant="destructive" onClick={handleArchiveIssue}>归档</Button>
         </div>
@@ -235,8 +235,7 @@ function TaskCard({ issue, onClick, onArchive }: { issue: IssueDetailDto; onClic
         </div>
       ) : (
         <div
-          className="w-[3px] rounded-sm shrink-0 self-stretch"
-          style={{ background: PRIORITY_BG[priorityKey], opacity: priorityKey === "done" ? 0.4 : undefined }}
+          className={`w-[3px] rounded-sm shrink-0 self-stretch ${PRIORITY_BG_CLASS[priorityKey]}`}
         />
       )}
       <div className="flex-1 min-w-0">
@@ -249,8 +248,7 @@ function TaskCard({ issue, onClick, onArchive }: { issue: IssueDetailDto; onClic
         )}
         <div className="flex items-center gap-2.5 text-[11px] text-[var(--color-text-grey)]">
           <span
-            className="text-[9px] py-px px-1 rounded-[3px] font-medium"
-            style={STAGE_TAG_STYLE[stageKey]}
+            className={`text-[9px] py-px px-1 rounded-[3px] font-medium ${STAGE_TAG_CLASS[stageKey]}`}
           >{stageLabel(issue)}</span>
           {!isCompleted && (
             <button
