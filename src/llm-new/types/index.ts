@@ -47,7 +47,7 @@ export interface ChatChoice {
   /** 消息 */
   message: ChatMessage;
   /** 完成原因 */
-  finish_reason: string;
+  finish_reason: "stop" | "length" | "tool_calls" | "content_filter" | null;
 }
 
 /**
@@ -70,8 +70,8 @@ export interface ChatCompletionResponse {
   id: string;
   /** 选择列表 */
   choices: ChatChoice[];
-  /** Usage 信息 */
-  usage: Usage;
+  /** Usage 信息（部分 LLM 提供商在 streaming 或错误时不返回） */
+  usage?: Usage;
 }
 
 /**

@@ -42,6 +42,9 @@ export class SqliteConnection implements DatabaseConnection {
     sql: string,
     params: unknown[] = []
   ): Promise<QueryResult<T>> {
+    if (!this.connected) {
+      throw new Error("Database connection is closed");
+    }
     try {
       const stmt = this.db.prepare(sql);
       const rows = stmt.all(...params) as T[];
@@ -56,13 +59,16 @@ export class SqliteConnection implements DatabaseConnection {
   }
 
   async execute(sql: string, params: unknown[] = []): Promise<QueryResult> {
+    if (!this.connected) {
+      throw new Error("Database connection is closed");
+    }
     try {
       const stmt = this.db.prepare(sql);
       const result = stmt.run(...params);
       return {
         rows: [],
         changes: result.changes,
-        lastInsertRowid: result.lastInsertRowid,
+        lastInsertRowid: Number(result.lastInsertRowid),
       };
     } catch (error) {
       throw new Error(`Execute failed: ${error instanceof Error ? error.message : String(error)}`);
