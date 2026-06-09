@@ -28,6 +28,9 @@ export type {
   SnailRuntime,
 } from "./types";
 
+// ═══ 运行时绑定类型 ═══
+export type { RuntimeBinding, InvocationSubject } from "./types/binding";
+
 // ═══ Resolver 接口 ═══
 export type { RuntimeResolver } from "./resolver";
 

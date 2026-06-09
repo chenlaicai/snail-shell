@@ -6,6 +6,7 @@
  * 架构说明：
  * - types: 公开类型定义
  * - repository: Repository 接口定义
+ * - utils: 工具函数
  * - internal: 私有实现（在 database 模块中）
  *
  * 依赖倒置：
@@ -51,6 +52,10 @@ export type {
   MessageQuestionResponseBlock,
   MessageContentBlock,
 } from "./types/content-blocks";
+
+// ═══ 工具函数 ═══
+export { extractTextFromBlocks, extractEventText } from "./utils/event-content";
+export { formatMessageContextForPrompt } from "./utils/message-context";
 
 // ═══ Repository 接口 ═══
 export type { ConversationRepository } from "./repository";

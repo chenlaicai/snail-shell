@@ -25,5 +25,8 @@ export type {
   StageStatus,
 } from "./types";
 
+// ═══ Gate 证据类型 ═══
+export type { StageGateArtifact, StageGateEvidence } from "./types/gate";
+
 // ═══ Repository 接口 ═══
 export type { WorkspaceRepository } from "./repository";
