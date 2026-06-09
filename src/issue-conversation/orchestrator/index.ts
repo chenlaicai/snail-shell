@@ -73,19 +73,24 @@ export class IssueConversationOrchestratorImpl implements IssueConversationOrche
     });
 
     // 4. 构建系统提示词
+    // TODO: 从 Stage 的角色定义（StageRoleDefinition）中获取角色信息
+    // TODO: 从历史消息中获取 latestUserEvents
     const systemPrompt = await this.promptBuilder.buildSystemPrompt({
       workspaceRoot: issue.workspace_id,
       issueId,
       stageId: currentStage.id,
       conversationId: conversation.id,
       role: {
-        key: "assistant",
-        name: "Assistant",
-        description: "AI Assistant",
+        key: currentStage.type || "assistant",
+        name: currentStage.type || "Assistant",
+        description: `Stage ${currentStage.type} role`,
         rules: [],
         isPrimary: true,
       },
-      history: [],
+      history: history.map((m) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content || "",
+      })),
       latestUserEvents: [],
     });
 
@@ -194,7 +199,9 @@ export class IssueConversationOrchestratorImpl implements IssueConversationOrche
       return undefined;
     }
 
-    const sopId = (issue.sop_snapshot as Record<string, unknown>).sop_id as string;
+    // 类型安全地获取 sop_id
+    const sopSnapshot = issue.sop_snapshot as Record<string, unknown>;
+    const sopId = sopSnapshot.sop_id as string | undefined;
     if (!sopId) {
       return undefined;
     }

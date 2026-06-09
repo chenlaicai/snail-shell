@@ -1,6 +1,12 @@
-import type { ConversationGateway } from "../interaction-entry/gateway";
-// HUMAN_ROLE_NAME 已迁移到 roles 模块，暂时内联定义
+// ConversationGateway 接口定义（原从 interaction-entry/gateway 导入）
+// 为了避免循环依赖，在 lobby 模块内联定义所需接口
+interface ConversationGateway {
+  sendMessage(conversationId: string, input: unknown): Promise<unknown>;
+}
+
+// HUMAN_ROLE_NAME 常量
 const HUMAN_ROLE_NAME = "项目负责人";
+
 import type { LobbyCommandExecutor } from "./command-executor";
 import type { LobbyResponseRenderer } from "./response-renderer";
 import type { LobbySessionStore } from "./session-store";
