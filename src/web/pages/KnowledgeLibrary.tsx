@@ -1,16 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/services/api-client";
 import { TopBar } from "@/components/TopBar";
 import { QueryState } from "@/components/QueryState";
-import { queryKeys } from "@/queries/keys";
+import { knowledgeQueries } from "@/queries/knowledge.queries";
 import { formatRelativeTime } from "@/lib/utils";
 import type { KnowledgeSearchResultDto } from "@/types";
 
 export function KnowledgeLibrary() {
-  const query = useQuery({
-    queryKey: queryKeys.knowledge.items(),
-    queryFn: () => api("GET /api/knowledge/items"),
-  });
+  const query = useQuery(knowledgeQueries.items());
 
   return (
     <>
@@ -34,7 +30,7 @@ function KnowledgeCard({ item }: { item: KnowledgeSearchResultDto }) {
   return (
     <div className="bg-surface-2 rounded-lg border border-white/6 p-4 hover:bg-surface-3 transition-colors cursor-pointer">
       <div className="flex items-center gap-2 mb-2">
-        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${item.scope === "global" ? "bg-purple-500/15 text-purple-400" : "bg-blue-500/15 text-blue-400"}`}>{item.scope}</span>
+        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${item.scope === "global" ? "bg-shell-600/20 text-shell-400" : "bg-status-blue/15 text-blue-400"}`}>{item.scope}</span>
         <span className="text-[11px] text-text-muted">{formatRelativeTime(item.updated_at)}</span>
       </div>
       <h3 className="text-[13px] font-medium mb-1">{item.title}</h3>

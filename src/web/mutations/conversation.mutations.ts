@@ -14,6 +14,7 @@ export function useSendMessage(conversationId: string) {
     }) => api("POST /api/conversations/:conversationId/messages", { params: { conversationId }, body }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.conversations.messages(conversationId) });
+      qc.invalidateQueries({ queryKey: queryKeys.conversations.detail(conversationId) });
     },
   });
 }

@@ -1,16 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/services/api-client";
 import { TopBar } from "@/components/TopBar";
 import { QueryState } from "@/components/QueryState";
-import { queryKeys } from "@/queries/keys";
+import { evolutionQueries } from "@/queries/evolution.queries";
 import { formatRelativeTime } from "@/lib/utils";
 import type { EvolutionItemSearchResultDto } from "@/types";
 
 export function EvolutionCenter() {
-  const query = useQuery({
-    queryKey: queryKeys.evolution.items(),
-    queryFn: () => api("GET /api/evolution/items"),
-  });
+  const query = useQuery(evolutionQueries.items());
 
   return (
     <>

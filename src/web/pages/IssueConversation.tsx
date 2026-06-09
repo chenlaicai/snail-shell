@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import { issueQueries } from "@/queries/issue.queries";
 import { conversationQueries } from "@/queries/conversation.queries";
-import { useSendMessage, useInterruptMessage } from "@/mutations/conversation.mutations";
+import { useSendMessage } from "@/mutations/conversation.mutations";
 import { useAdvanceIssue, useCompleteIssue, useArchiveIssue, useConfirmStageSuggestion, useRejectStageSuggestion } from "@/mutations/issue.mutations";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { TopBar } from "@/components/TopBar";
@@ -29,8 +29,8 @@ export function IssueConversation() {
     });
   }, []);
 
-  const issueQ = useQuery(issueQueries.detail(issueId!));
-  const conversationsQ = useQuery(issueQueries.conversations(issueId!));
+  const issueQ = useQuery({ ...issueQueries.detail(issueId!), enabled: !!issueId });
+  const conversationsQ = useQuery({ ...issueQueries.conversations(issueId!), enabled: !!issueId });
   const stageSuggestionQ = useQuery({ ...issueQueries.stageSuggestion(issueId!), enabled: !!issueId });
 
   const activeConversationId = conversationsQ.data?.[0]?.id ?? null;
@@ -50,95 +50,91 @@ export function IssueConversation() {
     sendMessage.mutate({ content });
   }, [activeConversationId, sendMessage]);
 
-  const handleInterrupt = useCallback((messageId: number) => {
-    if (!activeConversationId) return;
-    // Send interrupt via WebSocket for immediate effect
+  const handleInterrupt = useCallback(() => {
     send({ type: "send_message", content: "/interrupt", from_role: "项目负责人" });
-  }, [activeConversationId, send]);
-
-  if (issueQ.isLoading) return <div className="flex items-center justify-center h-full text-text-muted text-sm">Loading...</div>;
-  if (issueQ.isError) return <div className="flex items-center justify-center h-full text-status-red text-sm">{issueQ.error?.message ?? "Failed to load issue"}</div>;
-  if (!issueQ.data) return <div className="flex items-center justify-center h-full text-text-muted text-sm">Issue not found</div>;
+  }, [send]);
 
   const issue = issueQ.data;
-  const stage = issue.current_stage;
+  const stage = issue?.current_stage;
   const suggestion = stageSuggestionQ.data;
 
   return (
     <div className="flex flex-col h-full">
-      <TopBar breadcrumbs={[{ label: issue.title, to: `/ws/${workspaceId}/board` }, { label: issue.id.slice(0, 8) }]} />
+      <TopBar breadcrumbs={[{ label: issue?.title ?? "Issue", to: `/ws/${workspaceId}/board` }, { label: issueId?.slice(0, 8) ?? "" }]} />
 
       <div className="flex flex-1 min-h-0">
         <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
           <div className="px-6 py-6">
-            {/* Header */}
-            <div className="mb-6">
-              <div className="flex items-center gap-3 mb-3">
-                <span className="text-xs text-text-muted font-medium font-mono">{issue.id.slice(0, 8)}</span>
-                {stage && <StatusBadge status={stage.status} />}
-              </div>
-              <h1 className="text-xl font-semibold leading-tight mb-2">{issue.title}</h1>
-              {issue.summary && <p className="text-[14px] text-text-secondary leading-relaxed">{issue.summary}</p>}
-            </div>
-
-            {/* Properties */}
-            <div className="bg-surface-2 rounded-lg border border-white/6 mb-6 overflow-hidden">
-              <div className="grid grid-cols-2 divide-x divide-white/6">
-                <div>
-                  <PropRow label="Status">{stage ? <StatusBadge status={stage.status} /> : <span className="text-[13px] text-text-muted">—</span>}</PropRow>
-                  <PropRow label="Stage"><span className="text-[13px]">{stage?.stage_definition?.title ?? "—"}</span></PropRow>
-                  <PropRow label="SOP" last><span className="text-[13px] text-text-secondary">{issue.sop_snapshot?.title ?? "—"}</span></PropRow>
+            <QueryState query={issueQ}>
+              {/* Header */}
+              <div className="mb-6">
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="text-xs text-text-muted font-medium font-mono">{issue!.id.slice(0, 8)}</span>
+                  {stage && <StatusBadge status={stage.status} />}
                 </div>
-                <div>
-                  <PropRow label="Created"><span className="text-[13px] text-text-secondary">{formatDate(issue.created_at)}</span></PropRow>
-                  <PropRow label="Updated"><span className="text-[13px] text-text-secondary">{formatRelativeTime(issue.updated_at)}</span></PropRow>
-                  <PropRow label="Conversations" last><span className="text-[13px] text-text-secondary">{issue.conversation_count}</span></PropRow>
-                </div>
+                <h1 className="text-xl font-semibold leading-tight mb-2">{issue!.title}</h1>
+                {issue!.summary && <p className="text-[14px] text-text-secondary leading-relaxed">{issue!.summary}</p>}
               </div>
-            </div>
 
-            {/* Stage Suggestion */}
-            {suggestion && (
-              <div className="bg-shell-600/10 border border-shell-600/30 rounded-lg p-4 mb-6">
-                <div className="flex items-center justify-between">
+              {/* Properties */}
+              <div className="bg-surface-2 rounded-lg border border-white/6 mb-6 overflow-hidden">
+                <div className="grid grid-cols-2 divide-x divide-white/6">
                   <div>
-                    <p className="text-[13px] font-medium text-shell-400">Stage Suggestion</p>
-                    <p className="text-[12px] text-text-secondary mt-1">
-                      {suggestion.fromStageKey} → {suggestion.toStageKey}
-                      {suggestion.reason && `: ${suggestion.reason}`}
-                    </p>
+                    <PropRow label="Status">{stage ? <StatusBadge status={stage.status} /> : <span className="text-[13px] text-text-muted">—</span>}</PropRow>
+                    <PropRow label="Stage"><span className="text-[13px]">{stage?.stage_definition?.title ?? "—"}</span></PropRow>
+                    <PropRow label="SOP" last><span className="text-[13px] text-text-secondary">{issue!.sop_snapshot?.title ?? "—"}</span></PropRow>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => confirmSuggestion.mutate()} disabled={confirmSuggestion.isPending}
-                      className="px-3 py-1.5 rounded-md bg-shell-600 hover:bg-shell-500 text-white text-xs font-medium transition-colors disabled:opacity-50">
-                      Confirm
-                    </button>
-                    <button onClick={() => rejectSuggestion.mutate()} disabled={rejectSuggestion.isPending}
-                      className="px-3 py-1.5 rounded-md border border-white/6 text-text-secondary hover:text-text-primary text-xs transition-colors disabled:opacity-50">
-                      Reject
-                    </button>
+                  <div>
+                    <PropRow label="Created"><span className="text-[13px] text-text-secondary">{formatDate(issue!.created_at)}</span></PropRow>
+                    <PropRow label="Updated"><span className="text-[13px] text-text-secondary">{formatRelativeTime(issue!.updated_at)}</span></PropRow>
+                    <PropRow label="Conversations" last><span className="text-[13px] text-text-secondary">{issue!.conversation_count}</span></PropRow>
                   </div>
                 </div>
               </div>
-            )}
 
-            {/* Stage Actions */}
-            {stage?.status === "in_progress" && (
-              <div className="flex items-center gap-2 mb-6">
-                <button onClick={() => advanceIssue.mutate()} disabled={advanceIssue.isPending}
-                  className="px-3 py-1.5 rounded-md bg-shell-600 hover:bg-shell-500 text-white text-xs font-medium transition-colors disabled:opacity-50">
-                  Advance Stage
-                </button>
-                <button onClick={() => completeIssue.mutate()} disabled={completeIssue.isPending}
-                  className="px-3 py-1.5 rounded-md border border-status-green/30 text-status-green hover:bg-status-green/10 text-xs font-medium transition-colors disabled:opacity-50">
-                  Complete
-                </button>
-                <button onClick={() => archiveIssue.mutate()} disabled={archiveIssue.isPending}
-                  className="px-3 py-1.5 rounded-md border border-white/6 text-text-secondary hover:text-text-primary text-xs transition-colors disabled:opacity-50">
-                  Archive
-                </button>
-              </div>
-            )}
+              {/* Stage Suggestion */}
+              {suggestion && (
+                <div className="bg-shell-600/10 border border-shell-600/30 rounded-lg p-4 mb-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[13px] font-medium text-shell-400">Stage Suggestion</p>
+                      <p className="text-[12px] text-text-secondary mt-1">
+                        {suggestion.fromStageKey} → {suggestion.toStageKey}
+                        {suggestion.reason && `: ${suggestion.reason}`}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => confirmSuggestion.mutate()} disabled={confirmSuggestion.isPending}
+                        className="px-3 py-1.5 rounded-md bg-shell-600 hover:bg-shell-500 text-white text-xs font-medium transition-colors disabled:opacity-50">
+                        Confirm
+                      </button>
+                      <button onClick={() => rejectSuggestion.mutate()} disabled={rejectSuggestion.isPending}
+                        className="px-3 py-1.5 rounded-md border border-white/6 text-text-secondary hover:text-text-primary text-xs transition-colors disabled:opacity-50">
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Stage Actions */}
+              {stage?.status === "in_progress" && (
+                <div className="flex items-center gap-2 mb-6">
+                  <button onClick={() => advanceIssue.mutate()} disabled={advanceIssue.isPending}
+                    className="px-3 py-1.5 rounded-md bg-shell-600 hover:bg-shell-500 text-white text-xs font-medium transition-colors disabled:opacity-50">
+                    Advance Stage
+                  </button>
+                  <button onClick={() => completeIssue.mutate()} disabled={completeIssue.isPending}
+                    className="px-3 py-1.5 rounded-md border border-status-green/30 text-status-green hover:bg-status-green/10 text-xs font-medium transition-colors disabled:opacity-50">
+                    Complete
+                  </button>
+                  <button onClick={() => archiveIssue.mutate()} disabled={archiveIssue.isPending}
+                    className="px-3 py-1.5 rounded-md border border-white/6 text-text-secondary hover:text-text-primary text-xs transition-colors disabled:opacity-50">
+                    Archive
+                  </button>
+                </div>
+              )}
+            </QueryState>
 
             <div className="h-px bg-white/6 mb-6" />
 
@@ -148,16 +144,14 @@ export function IssueConversation() {
                 {messagesQ.data?.map((msg) => (
                   <div key={msg.id}>
                     <ChatMessage message={msg} />
-                    {/* Interrupt button for streaming messages */}
                     {msg.status === "streaming" && (
                       <div className="ml-9 mt-1">
-                        <button onClick={() => handleInterrupt(msg.id)}
+                        <button onClick={handleInterrupt}
                           className="px-2 py-1 rounded text-[11px] text-status-red hover:bg-status-red/10 transition-colors">
                           Interrupt
                         </button>
                       </div>
                     )}
-                    {/* Tool approval cards */}
                     {msg.status === "pending_approval" && pendingPermissions
                       .filter((p) => p.messageId === msg.id)
                       .map((perm) => (
@@ -182,7 +176,7 @@ export function IssueConversation() {
           </div>
         </div>
 
-        <PropertiesPanel issue={issue} />
+        {issue && <PropertiesPanel issue={issue} />}
       </div>
     </div>
   );

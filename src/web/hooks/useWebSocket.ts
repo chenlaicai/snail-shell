@@ -52,7 +52,7 @@ export function useWebSocket(
         connect();
       }, backoffRef.current);
     };
-    ws.onerror = () => ws.close();
+    ws.onerror = (e) => { console.error("[WS] Connection error:", e); ws.close(); };
   }, [conversationId, qc, onPermissionRequired]);
 
   useEffect(() => {

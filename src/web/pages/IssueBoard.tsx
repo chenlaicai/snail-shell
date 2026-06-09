@@ -6,30 +6,14 @@ import { TopBar } from "@/components/TopBar";
 import { IssueCard } from "@/components/IssueCard";
 import { QueryState } from "@/components/QueryState";
 import { NewIssueDialog } from "@/components/NewIssueDialog";
-import type { IssueDetailDto, StageStatus } from "@/types";
-
-const columns: { status: StageStatus; label: string; dot: string }[] = [
-  { status: "in_progress", label: "In Progress", dot: "bg-status-blue" },
-  { status: "completed", label: "Done", dot: "bg-status-green" },
-  { status: "cancelled", label: "Cancelled", dot: "bg-status-gray" },
-];
-
-function groupByStatus(issues: IssueDetailDto[]): Record<string, IssueDetailDto[]> {
-  const groups: Record<string, IssueDetailDto[]> = {};
-  for (const issue of issues) {
-    const status = issue.current_stage?.status ?? "in_progress";
-    if (!groups[status]) groups[status] = [];
-    groups[status].push(issue);
-  }
-  return groups;
-}
+import { groupByStatus, statusColumns } from "@/lib/issue-utils";
 
 export function IssueBoard() {
   const { workspaceId } = useParams();
   const navigate = useNavigate();
   const [showNewIssue, setShowNewIssue] = useState(false);
-  const workspaceQ = useQuery(workspaceQueries.detail(workspaceId!));
-  const issuesQ = useQuery(workspaceQueries.issues(workspaceId!));
+  const workspaceQ = useQuery({ ...workspaceQueries.detail(workspaceId!), enabled: !!workspaceId });
+  const issuesQ = useQuery({ ...workspaceQueries.issues(workspaceId!), enabled: !!workspaceId });
   const grouped = groupByStatus(issuesQ.data ?? []);
 
   return (
@@ -62,7 +46,7 @@ export function IssueBoard() {
       <QueryState query={issuesQ} emptyText="No issues in this workspace">
         <div className="flex-1 overflow-x-auto overflow-y-hidden px-6 py-4">
           <div className="flex gap-4 h-full min-w-max">
-            {columns.map((col) => {
+            {statusColumns.map((col) => {
               const colIssues = grouped[col.status] ?? [];
               return (
                 <div key={col.status} className="w-[280px] flex flex-col shrink-0">

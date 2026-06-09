@@ -1,12 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/services/api-client";
 import { TopBar } from "@/components/TopBar";
 import { QueryState } from "@/components/QueryState";
-import { queryKeys } from "@/queries/keys";
+import { metaQueries } from "@/queries/meta.queries";
 import type { PromptDto, SkillDto, SnailDenTemplateDto, McpServerDto } from "@/types";
 
 export function PromptCenter() {
-  const query = useQuery({ queryKey: queryKeys.meta.prompts, queryFn: () => api("GET /api/meta/prompts") });
+  const query = useQuery(metaQueries.prompts());
   return (
     <>
       <TopBar breadcrumbs={[{ label: "Prompt Center" }]} />
@@ -29,7 +28,7 @@ function PromptRow({ prompt }: { prompt: PromptDto }) {
           <span className="text-[11px] text-text-muted font-mono">{prompt.filePath}</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${prompt.layer === "platform" ? "bg-purple-500/15 text-purple-400" : "bg-blue-500/15 text-blue-400"}`}>{prompt.layer}</span>
+          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${prompt.layer === "platform" ? "bg-shell-600/20 text-shell-400" : "bg-status-blue/15 text-blue-400"}`}>{prompt.layer}</span>
           <span className="text-[11px] text-text-muted">priority: {prompt.priority}</span>
         </div>
       </div>
@@ -38,7 +37,7 @@ function PromptRow({ prompt }: { prompt: PromptDto }) {
 }
 
 export function SkillCenter() {
-  const query = useQuery({ queryKey: queryKeys.meta.skills, queryFn: () => api("GET /api/meta/skills") });
+  const query = useQuery(metaQueries.skills());
   return (
     <>
       <TopBar breadcrumbs={[{ label: "Skill Center" }]} />
@@ -60,14 +59,14 @@ function SkillRow({ skill }: { skill: SkillDto }) {
           <h3 className="text-[13px] font-medium">{skill.title}</h3>
           <p className="text-[12px] text-text-secondary mt-1">{skill.description}</p>
         </div>
-        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${skill.source === "platform" ? "bg-purple-500/15 text-purple-400" : "bg-blue-500/15 text-blue-400"}`}>{skill.source}</span>
+        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${skill.source === "platform" ? "bg-shell-600/20 text-shell-400" : "bg-status-blue/15 text-blue-400"}`}>{skill.source}</span>
       </div>
     </div>
   );
 }
 
 export function SnailDen() {
-  const query = useQuery({ queryKey: queryKeys.meta.snailDen, queryFn: () => api("GET /api/snail-den") });
+  const query = useQuery(metaQueries.snailDen());
   return (
     <>
       <TopBar breadcrumbs={[{ label: "Snail Den" }]} />
@@ -101,7 +100,7 @@ function TemplateRow({ template }: { template: SnailDenTemplateDto }) {
 }
 
 export function McpCenter() {
-  const query = useQuery({ queryKey: queryKeys.meta.mcps(), queryFn: () => api("GET /api/meta/mcps") });
+  const query = useQuery(metaQueries.mcps());
   return (
     <>
       <TopBar breadcrumbs={[{ label: "MCP Servers" }]} />

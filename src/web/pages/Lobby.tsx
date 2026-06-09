@@ -1,16 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/services/api-client";
 import { TopBar } from "@/components/TopBar";
 import { QueryState } from "@/components/QueryState";
-import { queryKeys } from "@/queries/keys";
+import { lobbyQueries } from "@/queries/lobby.queries";
 import { formatRelativeTime } from "@/lib/utils";
 import type { LobbySessionDto } from "@/types";
 
 export function Lobby() {
-  const query = useQuery({
-    queryKey: queryKeys.lobby.sessions,
-    queryFn: () => api("GET /api/lobby/sessions"),
-  });
+  const query = useQuery(lobbyQueries.sessions());
 
   return (
     <>

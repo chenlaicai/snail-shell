@@ -1,26 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/services/api-client";
 import { TopBar } from "@/components/TopBar";
 import { QueryState } from "@/components/QueryState";
-import { queryKeys } from "@/queries/keys";
+import { sopQueries } from "@/queries/sop.queries";
 import { formatRelativeTime } from "@/lib/utils";
 import type { SopDto } from "@/types";
 
 export function SopCenter() {
-  const query = useQuery({
-    queryKey: queryKeys.sops.all,
-    queryFn: () => api("GET /api/sops"),
-  });
+  const query = useQuery(sopQueries.all());
 
   return (
     <>
       <TopBar breadcrumbs={[{ label: "SOP Center" }]} />
       <div className="flex-1 overflow-y-auto px-6 py-6">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-xl font-semibold">SOP Center</h1>
-            <p className="text-[13px] text-text-secondary mt-1">Standard Operating Procedures</p>
-          </div>
+        <div className="mb-6">
+          <h1 className="text-xl font-semibold">SOP Center</h1>
+          <p className="text-[13px] text-text-secondary mt-1">Standard Operating Procedures</p>
         </div>
         <QueryState query={query} emptyText="No SOPs">
           <div className="space-y-2">
@@ -37,7 +31,7 @@ function SopRow({ sop }: { sop: SopDto }) {
     <div className="bg-surface-2 rounded-lg border border-white/6 p-4 hover:bg-surface-3 transition-colors cursor-pointer">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${sop.source === "platform" ? "bg-purple-500/15 text-purple-400" : "bg-blue-500/15 text-blue-400"}`}>
+          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${sop.source === "platform" ? "bg-shell-600/20 text-shell-400" : "bg-status-blue/15 text-blue-400"}`}>
             {sop.source}
           </span>
           <div>

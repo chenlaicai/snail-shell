@@ -6,30 +6,14 @@ import { TopBar } from "@/components/TopBar";
 import { IssueRow } from "@/components/IssueRow";
 import { QueryState } from "@/components/QueryState";
 import { NewIssueDialog } from "@/components/NewIssueDialog";
-import type { IssueDetailDto, StageStatus } from "@/types";
-
-const statusGroups: { status: StageStatus; label: string; dot: string }[] = [
-  { status: "in_progress", label: "In Progress", dot: "bg-status-blue" },
-  { status: "completed", label: "Done", dot: "bg-status-green" },
-  { status: "cancelled", label: "Cancelled", dot: "bg-status-gray" },
-];
-
-function groupByStatus(issues: IssueDetailDto[]): Record<string, IssueDetailDto[]> {
-  const groups: Record<string, IssueDetailDto[]> = {};
-  for (const issue of issues) {
-    const status = issue.current_stage?.status ?? "in_progress";
-    if (!groups[status]) groups[status] = [];
-    groups[status].push(issue);
-  }
-  return groups;
-}
+import { groupByStatus, statusColumns } from "@/lib/issue-utils";
 
 export function IssueList() {
   const { workspaceId } = useParams();
   const navigate = useNavigate();
   const [showNewIssue, setShowNewIssue] = useState(false);
-  const workspaceQ = useQuery(workspaceQueries.detail(workspaceId!));
-  const issuesQ = useQuery(workspaceQueries.issues(workspaceId!));
+  const workspaceQ = useQuery({ ...workspaceQueries.detail(workspaceId!), enabled: !!workspaceId });
+  const issuesQ = useQuery({ ...workspaceQueries.issues(workspaceId!), enabled: !!workspaceId });
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const grouped = groupByStatus(issuesQ.data ?? []);
 
@@ -79,7 +63,7 @@ export function IssueList() {
 
       <QueryState query={issuesQ} emptyText="No issues in this workspace">
         <div className="flex-1 overflow-y-auto">
-          {statusGroups.map((group) => {
+          {statusColumns.map((group) => {
             const groupIssues = grouped[group.status] ?? [];
             if (groupIssues.length === 0) return null;
             const isCollapsed = collapsed.has(group.status);
