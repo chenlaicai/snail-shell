@@ -114,11 +114,4 @@ export interface WorkspaceRepository {
    * @returns 工作区实体，不存在返回 null
    */
   findWorkspaceByName(name: string): Promise<Workspace | null>;
-
-  /**
-   * 获取 Issue 的所有 Stage
-   * @param issueId Issue ID
-   * @returns Stage 列表
-   */
-  getIssueStages(issueId: string): Promise<Stage[]>;
 }

@@ -260,10 +260,11 @@ export class IssueConversationOrchestratorImpl implements IssueConversationOrche
       return requiredArtifacts.length === 0;
     }
 
-    return false;
+    // 未知的 guard 类型应该抛出错误，而不是静默返回 false
+    throw new Error(`Unknown guard type: ${guardType}`);
   }
 
   private generateId(): string {
-    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
   }
 }
