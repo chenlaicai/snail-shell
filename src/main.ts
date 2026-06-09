@@ -239,7 +239,6 @@ async function main() {
 
   await imChannels.startWecom(app);
 
-  app.use(express.static(path.join(__dirname, "web")));
   registerHealthRoute(app, agentResolver);
   registerServerDiagnostics(server);
   registerShutdownHandlers(server, store, workspaceManager, imChannels.shutdownTasks);
