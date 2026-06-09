@@ -1,3 +1,1 @@
-{
-  "type": "module"
-}
+{ "name": "snail-shell-web", "private": true, "version": "0.0.0", "type": "module" }

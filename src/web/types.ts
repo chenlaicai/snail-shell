@@ -1,77 +1,48 @@
-// src/web/types.ts — 前端唯一的类型来源
-// 所有组件从这里导入，不从 ../shared/ 或自行定义
-
-// 实体枚举类型（不退化为 string）
 export type {
-  RoleName, MessageRole, MessageStatus, StageStatus,
-  ConversationKind, ConversationStatus, WorkspaceModule,
-  ConversationOwnerType, StageType,
-} from "../shared/domain-types";
-
-// API DTO（API 响应的精确形状）
+  WorkspaceSummaryDto, WorkspaceDetailDto, CreateWorkspaceResult,
+} from "../api-contracts/dto/workspace.dto";
 export type {
-  WorkspaceDto, WorkspaceSummaryDto, WorkspaceDetailDto, CreateWorkspaceResult, DetectSnailResult, LoadSnailResult,
-  IssueDto, IssueDetailDto, CreateIssueResult, AdvanceIssueResult, IssueCleanupResult,
-  RepoCleanupResult, RepoCleanupStep, StageSuggestion,
-  StageDto, StageDetailDto, UpdateStageBody,
+  StageDto, StageDetailDto, UpdateStageBody, StageStatus,
+} from "../api-contracts/dto/stage.dto";
+export type {
+  IssueDto, IssueDetailDto, CreateIssueResult, AdvanceIssueResult, IssueCleanupResult, StageSuggestion,
+} from "../api-contracts/dto/issue.dto";
+export type {
   ConversationDto, ConversationDetailDto, ConversationMessagesPage,
-  ConversationRecentMessagesSnapshot, ConversationHistoryWindow, ConversationHistorySearchPage,
+  ConversationRecentMessagesSnapshot, ConversationHistoryWindow,
+  ConversationKind, ConversationStatus, ConversationOwnerType,
+} from "../api-contracts/dto/conversation.dto";
+export type {
   MessageDto, MessageEvent, MessageEventSource, MessageContext,
   ConversationEventWithMessage, ConversationDispatchState, BossMentionItem,
   SendMessageResult, ApproveToolResult, InterruptMessageResult,
-  MessageDispatch, DispatchInboxGroup, DispatchInboxPreviewItem,
+  RoleName, MessageRole, MessageStatus,
+} from "../api-contracts/dto/message.dto";
+export type {
   SopDto, SopDetailDto, SopStageDefinitionWithRolesDto, SopStageDefinitionInputDto,
   SopTransitionDto, DeleteSopResult,
-  EvolutionItemDto, EvolutionItemWithConversationDto, EvolutionItemSearchResultDto,
-  KnowledgeEntryDto, KnowledgeSearchResultDto, KnowledgeLibraryScope,
-  LobbySessionDto, LobbyMessageDto,
-  PromptDto, SkillDto, SnailDenTemplateDto, McpServerDto, RoleDto,
-} from "../api-contracts/dto";
-
-// WebSocket 协议
+} from "../api-contracts/dto/sop.dto";
 export type {
-  WsServerMessage, WsClientMessage,
+  EvolutionItemDto, EvolutionItemWithConversationDto, EvolutionItemSearchResultDto,
+} from "../api-contracts/dto/evolution.dto";
+export type {
+  KnowledgeEntryDto, KnowledgeSearchResultDto,
+} from "../api-contracts/dto/knowledge.dto";
+export type {
+  LobbySessionDto, LobbyMessageDto,
+} from "../api-contracts/dto/lobby.dto";
+export type {
+  PromptDto, SkillDto, SnailDenTemplateDto, McpServerDto, RoleDto,
+} from "../api-contracts/dto/meta.dto";
+export type {
+  WsSendMessage, WsClientMessage, WsServerMessage,
   WsAgentEvent, WsError, WsConversationBadge, WsStageSuggestion,
 } from "../api-contracts/ws-protocol";
+export type { MessageWithEvents } from "../shared";
 
-// 前端 UI 专用类型（纯展示逻辑，不来自 API）
-export interface ToastMessage {
-  id: number;
-  message: string;
-  isError: boolean;
-}
-
-/** @mention 角色建议项，从 participating_roles 名称列表构造。 */
-export interface Role {
-  name: string;
-  description?: string;
-}
-
-/** 运行时用量展示信息，从消息事件计算得出。 */
-export interface RuntimeUsage {
-  label: string;
-  percentLabel: string;
-  title: string;
-  isPlaceholder: boolean;
-}
-
-/** ContextPanel 参与者展示项。 */
-export interface Participant {
-  name: string;
-  roleDef?: { name: string; description?: string; snail_template_id?: string } | null;
-  isPrimary: boolean;
-}
-
-/** ContextPanel 角色定义展示项。 */
-export interface RoleDefinition {
-  name: string;
-  description?: string;
-  snail_template_id?: string;
-  is_primary?: boolean;
-}
-
-/** ConversationSource 展示项。 */
-export interface ConversationSource {
-  id: string;
-  title: string;
+// Agent types needed for tool approval
+export interface ToolPermissionRequest {
+  tool_use_id: string;
+  tool_name: string;
+  tool_input: Record<string, unknown>;
 }

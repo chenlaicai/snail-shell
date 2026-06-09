@@ -1,136 +1,154 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useConversationStore } from "../stores/conversationStore";
 import { queryKeys } from "../queries/keys";
-import type { WsServerMessage, MessageDto } from "../types";
+import type { MessageWithEvents, WsAgentEvent, WsServerMessage, ToolPermissionRequest } from "../types";
 
-/** 创建占位 MessageDto——用于 WebSocket message_started 和乐观发送 */
-export function createPlaceholderMessage(
-  conversationId: string,
-  opts: { id: number; role: MessageDto["role"]; from_role?: string | null; client_id?: string | null; status?: MessageDto["status"]; content?: string }
-): MessageDto {
-  return {
-    id: opts.id,
-    conversation_id: conversationId,
-    client_id: opts.client_id ?? null,
-    from_role: opts.from_role ?? null,
-    to_roles: [],
-    role: opts.role,
-    quoted_message_id: null,
-    context_cutoff_at: "",
-    runtime: null,
-    status: opts.status ?? "streaming",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    content: opts.content,
-    events: [],
-    quoted_message: null,
-  };
+interface PendingPermission {
+  messageId: number;
+  roleName: string;
+  request: ToolPermissionRequest;
 }
 
-/** 处理 WebSocket 消息，更新 TanStack Query 缓存 */
+export function useWebSocket(
+  conversationId: string | null,
+  onPermissionRequired?: (perm: PendingPermission) => void,
+) {
+  const wsRef = useRef<WebSocket | null>(null);
+  const qc = useQueryClient();
+  const reconnectRef = useRef<ReturnType<typeof setTimeout>>();
+  const backoffRef = useRef(1000);
+  const maxRetries = 20;
+  const retriesRef = useRef(0);
+  const statusRef = useRef<"connected" | "disconnected" | "reconnecting">("disconnected");
+
+  const connect = useCallback(() => {
+    if (!conversationId) return;
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const ws = new WebSocket(`${protocol}//${window.location.host}/ws?conversation_id=${conversationId}`);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      backoffRef.current = 1000;
+      retriesRef.current = 0;
+      statusRef.current = "connected";
+    };
+    ws.onmessage = (e) => {
+      try {
+        const msg: WsServerMessage = JSON.parse(e.data);
+        handleMessage(msg, qc, conversationId, onPermissionRequired);
+      } catch (err) {
+        console.error("[WS] Failed to parse message:", err);
+      }
+    };
+    ws.onclose = () => {
+      statusRef.current = "reconnecting";
+      if (retriesRef.current >= maxRetries) {
+        statusRef.current = "disconnected";
+        return;
+      }
+      retriesRef.current++;
+      reconnectRef.current = setTimeout(() => {
+        backoffRef.current = Math.min(backoffRef.current * 2, 30000);
+        connect();
+      }, backoffRef.current);
+    };
+    ws.onerror = () => ws.close();
+  }, [conversationId, qc, onPermissionRequired]);
+
+  useEffect(() => {
+    connect();
+    return () => {
+      clearTimeout(reconnectRef.current);
+      wsRef.current?.close();
+    };
+  }, [connect]);
+
+  const send = useCallback((data: Record<string, unknown>) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify(data));
+    }
+  }, []);
+
+  return { wsRef, send, getStatus: () => statusRef.current };
+}
+
 function handleMessage(
   msg: WsServerMessage,
+  qc: ReturnType<typeof useQueryClient>,
   conversationId: string,
-  queryClient: ReturnType<typeof useQueryClient>,
+  onPermissionRequired?: (perm: PendingPermission) => void,
 ) {
-  if (msg.type !== "agent_event") return;
-  const { event } = msg;
-
-  if (event.type === "message_started") {
-    queryClient.setQueryData(
-      queryKeys.conversations.messages(conversationId),
-      (old: MessageDto[] | undefined) => {
-        // 去重：相同 message_id 已存在则跳过
-        if (old?.some((m) => m.id === event.message_id)) return old;
-        return [...(old ?? []), createPlaceholderMessage(conversationId, {
-          id: event.message_id,
-          role: event.role,
-          from_role: event.role_name,
-          client_id: event.client_id,
-          status: event.status,
-        })];
-      },
-    );
-  } else if (event.type === "message_event_appended") {
-    queryClient.setQueryData(
-      queryKeys.conversations.messages(conversationId),
-      (old: MessageDto[] | undefined) => old?.map((m) =>
-        m.id === event.message_id
-          ? { ...m, events: [...(m.events ?? []), event.event] }
-          : m
-      ),
-    );
-  } else if (event.type === "message_status_changed") {
-    queryClient.setQueryData(
-      queryKeys.conversations.messages(conversationId),
-      (old: MessageDto[] | undefined) => old?.map((m) =>
-        m.id === event.message_id ? { ...m, status: event.status } : m
-      ),
-    );
+  switch (msg.type) {
+    case "agent_event":
+      handleAgentEvent(msg, qc, conversationId, onPermissionRequired);
+      break;
+    case "error":
+      console.error("[WS Error]", msg.error, msg.hint);
+      break;
+    case "conversation_badge":
+      qc.invalidateQueries({ queryKey: queryKeys.conversations.detail(msg.payload.conversation_id) });
+      if (msg.payload.issue_id) {
+        qc.invalidateQueries({ queryKey: queryKeys.issues.detail(msg.payload.issue_id) });
+      }
+      break;
+    case "stage_suggestion":
+      qc.invalidateQueries({ queryKey: queryKeys.issues.stageSuggestion(msg.payload.issueId) });
+      break;
   }
 }
 
-interface WsHandlers {
-  mounted: () => boolean;
-  onOpen: () => void;
-  onMessage: (msg: WsServerMessage) => void;
-  onClose: () => void;
-}
+function handleAgentEvent(
+  event: WsAgentEvent,
+  qc: ReturnType<typeof useQueryClient>,
+  conversationId: string,
+  onPermissionRequired?: (perm: PendingPermission) => void,
+) {
+  const { event: inner } = event;
+  const msgKey = queryKeys.conversations.messages(conversationId);
 
-function createWsConnection(url: string, handlers: WsHandlers): WebSocket {
-  const ws = new WebSocket(url);
-  ws.onopen = () => { if (handlers.mounted()) handlers.onOpen(); };
-  ws.onmessage = (e) => {
-    if (!handlers.mounted()) return;
-    try { handlers.onMessage(JSON.parse(e.data)); }
-    catch (err) { console.warn("[WebSocket] 消息解析失败:", err, e.data); }
-  };
-  ws.onclose = () => { if (handlers.mounted()) handlers.onClose(); };
-  ws.onerror = () => ws.close();
-  return ws;
-}
-
-export function useWebSocket(conversationId: string | null) {
-  const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const reconnectDelay = useRef(1000);
-  const queryClient = useQueryClient();
-  const { setWsStatus } = useConversationStore();
-
-  useEffect(() => {
-    if (!conversationId) return;
-    let mounted = true;
-
-    function connect() {
-      if (!mounted) return;
-      const proto = location.protocol === "https:" ? "wss:" : "ws:";
-      setWsStatus("reconnecting");
-      wsRef.current = createWsConnection(
-        `${proto}//${location.host}/ws?conversation_id=${conversationId}`,
-        {
-          mounted: () => mounted,
-          onOpen: () => { setWsStatus("connected"); reconnectDelay.current = 1000; },
-          onMessage: (msg) => handleMessage(msg, conversationId, queryClient),
-          onClose: () => {
-            setWsStatus("disconnected");
-            console.log(`[WebSocket] 连接关闭，${reconnectDelay.current}ms 后重连`);
-            reconnectTimer.current = setTimeout(() => {
-              reconnectDelay.current = Math.min(reconnectDelay.current * 2, 30000);
-              connect();
-            }, reconnectDelay.current);
-          },
-        },
-      );
+  switch (inner.type) {
+    case "message_started": {
+      qc.setQueryData<MessageWithEvents[]>(msgKey, (old) => {
+        if (!old) return old;
+        if (old.some((m) => m.id === inner.message_id)) return old;
+        return [...old, {
+          id: inner.message_id, conversation_id: conversationId, client_id: inner.client_id ?? null,
+          from_role: inner.role_name, to_roles: [], role: inner.role, quoted_message_id: null,
+          context_cutoff_at: "0", runtime: null, status: inner.status,
+          created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+          events: [], context: null,
+        }];
+      });
+      break;
     }
-
-    connect();
-    return () => {
-      mounted = false;
-      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
-      if (wsRef.current) wsRef.current.close();
-    };
-  }, [conversationId]);
-
-  return wsRef;
+    case "message_event_appended": {
+      qc.setQueryData<MessageWithEvents[]>(msgKey, (old) =>
+        old?.map((m) => m.id === inner.message_id ? { ...m, events: [...m.events, inner.event] } : m)
+      );
+      break;
+    }
+    case "message_context_updated": {
+      qc.setQueryData<MessageWithEvents[]>(msgKey, (old) =>
+        old?.map((m) => m.id === inner.message_id ? { ...m, context: inner.context } : m)
+      );
+      break;
+    }
+    case "message_status_changed": {
+      qc.setQueryData<MessageWithEvents[]>(msgKey, (old) =>
+        old?.map((m) => m.id === inner.message_id
+          ? { ...m, status: inner.status, ...(inner.context != null ? { context: inner.context } : {}) }
+          : m
+        )
+      );
+      break;
+    }
+    case "permission_required": {
+      onPermissionRequired?.({
+        messageId: inner.message_id,
+        roleName: inner.role_name,
+        request: inner.request,
+      });
+      break;
+    }
+  }
 }

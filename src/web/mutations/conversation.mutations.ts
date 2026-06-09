@@ -1,33 +1,43 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../services/api-client";
 import { queryKeys } from "../queries/keys";
-import { createPlaceholderMessage } from "../hooks/useWebSocket";
-import type { MessageDto } from "../types";
+import type { ConversationKind } from "@/types";
 
 export function useSendMessage(conversationId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { content?: string; events?: Array<{ kind: "text" | "content_block"; payload: unknown }>; from_role?: string; quoted_message_id?: number; client_id?: string }) =>
-      api("POST /api/conversations/:conversationId/messages", { params: { conversationId }, body }),
-
-    onMutate: async (body) => {
-      await qc.cancelQueries({ queryKey: queryKeys.conversations.messages(conversationId) });
-      const previous = qc.getQueryData<MessageDto[]>(queryKeys.conversations.messages(conversationId));
-      const optimisticId = Date.now();
-      qc.setQueryData(queryKeys.conversations.messages(conversationId), (old: MessageDto[] | undefined) => [
-        ...(old ?? []),
-        createPlaceholderMessage(conversationId, { id: optimisticId, role: "user", content: body.content }),
-      ]);
-      return { previous, optimisticId };
+    mutationFn: (body: {
+      content?: string;
+      events?: Array<{ kind: "text" | "content_block"; payload: unknown }>;
+      from_role?: string; producer_role?: string;
+      quoted_message_id?: number; asker_role?: string; client_id?: string;
+    }) => api("POST /api/conversations/:conversationId/messages", { params: { conversationId }, body }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.conversations.messages(conversationId) });
     },
+  });
+}
 
-    onError: (_err, _body, context) => {
-      if (context?.previous) {
-        qc.setQueryData(queryKeys.conversations.messages(conversationId), context.previous);
-      }
+export function useInterruptMessage(conversationId: string, messageId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api("POST /api/conversations/:conversationId/messages/:messageId/interrupt", {
+      params: { conversationId, messageId },
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.conversations.messages(conversationId) });
     },
+  });
+}
 
-    onSettled: () => {
+export function useApproveTool(conversationId: string, messageId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { approved: boolean }) =>
+      api("POST /api/conversations/:conversationId/messages/:messageId/approve-tool", {
+        params: { conversationId, messageId }, body,
+      }),
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.conversations.messages(conversationId) });
     },
   });
@@ -36,8 +46,26 @@ export function useSendMessage(conversationId: string) {
 export function useCreateConversation(issueId: string, stageId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { workspace_id: string; title: string; kind: string }) =>
-      api("POST /api/issues/:issueId/stages/:stageId/conversations", { params: { issueId, stageId }, body }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.issues.conversations(issueId) }); },
+    mutationFn: (body: {
+      workspace_id: string; title: string; kind: ConversationKind;
+      from_conversation_ids?: string[]; summary?: string;
+    }) => api("POST /api/issues/:issueId/stages/:stageId/conversations", {
+      params: { issueId, stageId }, body,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.issues.conversations(issueId) });
+    },
+  });
+}
+
+export function useAckBossMentions(conversationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api("POST /api/conversations/:conversationId/boss-mentions/ack", {
+      params: { conversationId },
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.conversations.bossMentions(conversationId) });
+    },
   });
 }

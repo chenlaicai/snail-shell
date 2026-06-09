@@ -1,20 +1,15 @@
 import { createRoot } from "react-dom/client";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { RouterProvider } from "react-router-dom";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { queryClient } from "./queries/client";
 import { router } from "./router";
-import { Toast } from "./components/Toast";
+import "./globals.css";
 
-export function App() {
-  return (
+createRoot(document.getElementById("app-root")!).render(
+  <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
-      <Toast />
       <RouterProvider router={router} />
-      <ReactQueryDevtools />
     </QueryClientProvider>
-  );
-}
-
-const root = createRoot(document.getElementById("app-root")!);
-root.render(<App />);
+  </ErrorBoundary>
+);

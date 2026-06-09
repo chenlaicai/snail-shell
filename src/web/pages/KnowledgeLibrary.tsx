@@ -1,54 +1,44 @@
 import { useQuery } from "@tanstack/react-query";
-import { knowledgeQueries } from "../queries/knowledge.queries";
-import type { KnowledgeEntryDto } from "../types";
+import { api } from "@/services/api-client";
+import { TopBar } from "@/components/TopBar";
+import { QueryState } from "@/components/QueryState";
+import { queryKeys } from "@/queries/keys";
+import { formatRelativeTime } from "@/lib/utils";
+import type { KnowledgeSearchResultDto } from "@/types";
 
 export function KnowledgeLibrary() {
-  const { data: globalData, isLoading: loadingGlobal } = useQuery(knowledgeQueries.list({ scope: "global", limit: 50 }));
-  const { data: workspaceData, isLoading: loadingWorkspace } = useQuery(knowledgeQueries.list({ scope: "workspace", limit: 50 }));
-  const globalItems = globalData ?? [];
-  const workspaceItems = workspaceData ?? [];
-  const loading = loadingGlobal || loadingWorkspace;
-
-  if (loading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
+  const query = useQuery({
+    queryKey: queryKeys.knowledge.items(),
+    queryFn: () => api("GET /api/knowledge/items"),
+  });
 
   return (
-    <div className="flex flex-col h-full min-h-0" data-view-pane="knowledge">
-      <div className="flex flex-col flex-1 overflow-hidden min-w-0">
-        <div className="flex items-center gap-4 p-3 px-6 border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0">
-          <div className="flex items-baseline gap-2 flex-1 min-w-0">
-            <span className="text-sm font-semibold text-[var(--color-text-primary)]">知识库</span>
-            <span className="text-[11px] text-[var(--color-text-grey)]">{globalItems.length + workspaceItems.length} 条</span>
+    <>
+      <TopBar breadcrumbs={[{ label: "Knowledge Library" }]} />
+      <div className="flex-1 overflow-y-auto px-6 py-6">
+        <div className="mb-6">
+          <h1 className="text-xl font-semibold">Knowledge Library</h1>
+          <p className="text-[13px] text-text-secondary mt-1">Published knowledge from evolution governance</p>
+        </div>
+        <QueryState query={query} emptyText="No knowledge entries">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {query.data?.map((item) => <KnowledgeCard key={item.id} item={item} />)}
           </div>
-        </div>
-        <div className="p-6 overflow-auto flex-1">
-          <h3 className="text-xs text-[var(--color-text-muted)] mb-3">Global</h3>
-          {globalItems.length === 0 ? <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">暂无全局知识</div> : (
-            <div className="grid gap-2 mb-6">
-              {globalItems.map((item) => <KnowledgeCard key={item.id} item={item} />)}
-            </div>
-          )}
-          <h3 className="text-xs text-[var(--color-text-muted)] mb-3">Workspace</h3>
-          {workspaceItems.length === 0 ? <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">暂无工作区知识</div> : (
-            <div className="grid gap-2">
-              {workspaceItems.map((item) => <KnowledgeCard key={item.id} item={item} />)}
-            </div>
-          )}
-        </div>
+        </QueryState>
       </div>
-    </div>
+    </>
   );
 }
 
-function KnowledgeCard({ item }: { item: KnowledgeEntryDto }) {
+function KnowledgeCard({ item }: { item: KnowledgeSearchResultDto }) {
   return (
-    <div className="flex gap-2.5 py-3 px-3.5 bg-[var(--color-bg-surface)] border border-[var(--color-border-muted)] rounded-[var(--radius-sm)] mb-1.5 cursor-pointer transition-all duration-150 relative hover:border-[var(--color-border-default)] hover:bg-[var(--color-bg-active)]">
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1.5">
-          <span className="text-[13px] font-semibold text-[var(--color-text-primary)] flex-1 whitespace-nowrap overflow-hidden text-ellipsis">{item.title}</span>
-          <span className="text-[10px] text-[var(--color-text-grey)] font-mono shrink-0">{item.scope}</span>
-        </div>
-        <div className="text-xs text-[var(--color-text-muted)] leading-normal mb-2 line-clamp-2">{item.content.slice(0, 100)}</div>
+    <div className="bg-surface-2 rounded-lg border border-white/6 p-4 hover:bg-surface-3 transition-colors cursor-pointer">
+      <div className="flex items-center gap-2 mb-2">
+        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${item.scope === "global" ? "bg-purple-500/15 text-purple-400" : "bg-blue-500/15 text-blue-400"}`}>{item.scope}</span>
+        <span className="text-[11px] text-text-muted">{formatRelativeTime(item.updated_at)}</span>
       </div>
+      <h3 className="text-[13px] font-medium mb-1">{item.title}</h3>
+      <p className="text-[12px] text-text-secondary line-clamp-3">{item.snippet || item.content}</p>
     </div>
   );
 }

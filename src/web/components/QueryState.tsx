@@ -1,16 +1,37 @@
-import type { ReactNode } from "react";
+import type { UseQueryResult } from "@tanstack/react-query";
 
-interface QueryStateProps<T> {
-  data: T | undefined;
-  isLoading: boolean;
-  error: Error | null;
-  children: (data: T) => ReactNode;
-  skeleton?: ReactNode;
+interface QueryStateProps {
+  query: UseQueryResult;
+  loadingText?: string;
+  errorText?: string;
+  emptyText?: string;
+  isEmpty?: boolean;
+  children: React.ReactNode;
 }
 
-export function QueryState<T>({ data, isLoading, error, children, skeleton }: QueryStateProps<T>) {
-  if (isLoading) return <>{skeleton ?? <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>}</>;
-  if (error) return <div className="flex items-center justify-center h-full text-[var(--color-danger-text)] text-[13px]">加载失败：{error.message}</div>;
-  if (data === undefined || data === null) return null;
-  return <>{children(data)}</>;
+export function QueryState({ query, loadingText = "Loading...", errorText, emptyText = "No data", isEmpty, children }: QueryStateProps) {
+  if (query.isLoading) {
+    return <div className="text-center text-text-muted text-sm py-16">{loadingText}</div>;
+  }
+
+  if (query.isError) {
+    const msg = errorText ?? (query.error instanceof Error ? query.error.message : "Failed to load data");
+    return (
+      <div className="text-center py-16">
+        <p className="text-[13px] text-status-red mb-2">{msg}</p>
+        <button
+          onClick={() => query.refetch()}
+          className="text-[12px] text-text-secondary hover:text-text-primary underline transition-colors"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (isEmpty ?? (query.data && Array.isArray(query.data) && query.data.length === 0)) {
+    return <div className="text-center text-text-muted text-sm py-16">{emptyText}</div>;
+  }
+
+  return <>{children}</>;
 }

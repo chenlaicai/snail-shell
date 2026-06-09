@@ -1,17 +1,24 @@
-import { queryOptions } from "@tanstack/react-query";
 import { api } from "../services/api-client";
 import { queryKeys } from "./keys";
 
 export const lobbyQueries = {
-  sessions: () =>
-    queryOptions({
-      queryKey: queryKeys.lobby.sessions,
-      queryFn: () => api("GET /api/lobby/sessions"),
-    }),
+  sessions: () => ({
+    queryKey: queryKeys.lobby.sessions,
+    queryFn: () => api("GET /api/lobby/sessions"),
+  }),
+  session: (id: string) => ({
+    queryKey: queryKeys.lobby.session(id),
+    queryFn: () => api("GET /api/lobby/sessions/:sessionId", { params: { sessionId: id } }),
+  }),
+  messages: (id: string) => ({
+    queryKey: queryKeys.lobby.messages(id),
+    queryFn: () => api("GET /api/lobby/sessions/:sessionId/messages", { params: { sessionId: id } }),
+  }),
+};
 
-  detail: (sessionId: string) =>
-    queryOptions({
-      queryKey: queryKeys.lobby.detail(sessionId),
-      queryFn: () => api("GET /api/lobby/sessions/:sessionId", { params: { sessionId } }),
-    }),
+export const roleQueries = {
+  all: () => ({
+    queryKey: queryKeys.meta.roles,
+    queryFn: () => api("GET /api/roles"),
+  }),
 };
