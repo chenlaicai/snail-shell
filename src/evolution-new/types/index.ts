@@ -30,22 +30,22 @@ export type EvolutionItemType =
 export type EvolutionItemStatus = "pending" | "approved" | "rejected" | "archived";
 
 /**
- * Evolution Item 实体
+ * Evolution Item 实体（新架构）
  */
 export interface EvolutionItem {
   /** Item ID */
   id: string;
-  **会话 ID
+  /** 会话 ID */
   conversation_id: string;
-  **Item 类型
+  /** Item 类型 */
   type: EvolutionItemType;
-  **Item 内容
+  /** Item 内容 */
   content: string;
-  **Item 状态
+  /** Item 状态 */
   status: EvolutionItemStatus;
-  **创建时间
+  /** 创建时间 */
   created_at: string;
-  **更新时间
+  /** 更新时间 */
   updated_at: string;
 }
 
@@ -73,4 +73,36 @@ export interface EvolutionItemListFilters {
   conversation_id?: string;
   type?: EvolutionItemType;
   status?: EvolutionItemStatus;
+}
+
+// ═══ 兼容旧架构的类型 ═══
+
+/**
+ * Evolution Item 实体（旧架构兼容）
+ */
+export interface LegacyEvolutionItem {
+  id: string;
+  workspace_id: string;
+  issue_id: string | null;
+  title: string;
+  content: string;
+  tags: string[];
+  metadata: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Evolution Item 搜索结果
+ */
+export interface EvolutionItemSearchResult {
+  id: string;
+  workspace_id: string;
+  issue_id: string | null;
+  title: string;
+  content: string;
+  tags: string[];
+  snippet: string;
+  conversation: unknown | null;
+  updated_at: string;
 }

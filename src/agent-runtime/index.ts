@@ -6,6 +6,7 @@
  * 架构说明：
  * - types: 公开类型定义
  * - resolver: Resolver 接口定义
+ * - errors: 错误处理工具
  * - internal: 私有实现（在 database 模块中）
  *
  * 依赖倒置：
@@ -29,3 +30,6 @@ export type {
 
 // ═══ Resolver 接口 ═══
 export type { RuntimeResolver } from "./resolver";
+
+// ═══ 错误处理 ═══
+export { summarizeRuntimeError, classifyRuntimeError } from "./errors";

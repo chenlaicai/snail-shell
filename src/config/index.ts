@@ -7,6 +7,7 @@
  * - loader: 配置文件加载器
  * - validator: 配置校验器
  * - schema: Schema 定义
+ * - paths: 平台路径常量
  *
  * 依赖倒置：
  * - 原子模块通过 ConfigLoader 加载配置
@@ -26,6 +27,9 @@ export { ZodConfigValidator, ZodConfigValidatorFactory } from "./validator";
 
 // ═══ Schema 定义 ═══
 export type { FieldType, FieldDefinition, SchemaDefinition } from "./schema/types";
+
+// ═══ 平台路径 ═══
+export { PLATFORM_ROOT, PLATFORM_META } from "./paths";
 
 // ═══ 配置管理器 ═══
 
