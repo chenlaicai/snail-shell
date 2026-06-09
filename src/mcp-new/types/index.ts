@@ -19,7 +19,7 @@ export interface McpServer {
   command: string;
   /** 命令参数 */
   args: string[];
-  **环境变量
+  /** 环境变量 */
   env: Record<string, string>;
 }
 
@@ -27,11 +27,11 @@ export interface McpServer {
  * MCP Tool 实体
  */
 export interface McpTool {
-  **工具名称
+  /** 工具名称 */
   name: string;
-  **工具描述
+  /** 工具描述 */
   description: string;
-  **输入 Schema
+  /** 输入 Schema */
   inputSchema: Record<string, unknown>;
 }
 
@@ -39,14 +39,14 @@ export interface McpTool {
  * MCP Server 配置
  */
 export interface McpServerConfig {
-  **Server 名称
+  /** Server 名称 */
   name: string;
-  **启动命令
+  /** 启动命令 */
   command: string;
-  **命令参数
+  /** 命令参数 */
   args: string[];
-  **环境变量
+  /** 环境变量 */
   env: Record<string, string>;
-  **是否为内置 Server
+  /** 是否为内置 Server */
   builtin?: boolean;
 }

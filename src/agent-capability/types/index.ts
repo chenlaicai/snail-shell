@@ -6,14 +6,37 @@
  * 设计原则：
  * - 只定义本模块的领域类型
  * - 通过 Builder 接口构建能力
- * - 复用其他原子模块的类型
  */
 
-import type { SkillDefinition } from "../../skill-new";
-import type { McpServerConfig } from "../../mcp-new";
+/**
+ * Skill 定义（本模块自包含）
+ */
+export interface SkillDefinition {
+  /** Skill ID */
+  id: string;
+  /** Skill 名称 */
+  name: string;
+  /** Skill 描述 */
+  description: string;
+  /** Skill 路径 */
+  path: string;
+  /** Skill 内容 */
+  content: string;
+}
 
-// 重新导出其他原子模块的类型
-export type { SkillDefinition, McpServerConfig };
+/**
+ * MCP Server 配置（本模块自包含）
+ */
+export interface McpServerConfig {
+  /** Server 名称 */
+  name: string;
+  /** 启动命令 */
+  command: string;
+  /** 命令参数 */
+  args: string[];
+  /** 环境变量 */
+  env: Record<string, string>;
+}
 
 /**
  * Hook 配置
@@ -91,9 +114,9 @@ export interface AgentCapability {
   permissions: PermissionConfig;
   /** 工具列表 */
   tools: ToolConfig[];
-  **子 Agent 列表
+  /** 子 Agent 列表 */
   subAgents: SubAgentConfig[];
-  **Guard Profile
+  /** Guard Profile */
   guardProfile: GuardProfile | null;
 }
 
@@ -101,15 +124,15 @@ export interface AgentCapability {
  * Capability 构建上下文
  */
 export interface CapabilityBuildContext {
-  **工作区根目录
+  /** 工作区根目录 */
   workspaceRoot: string;
-  **Issue ID
+  /** Issue ID */
   issueId: string;
-  **Stage ID
+  /** Stage ID */
   stageId: string;
-  **会话 ID
+  /** 会话 ID */
   conversationId: string;
-  **角色信息
+  /** 角色信息 */
   role: {
     key: string;
     name: string;

@@ -33,7 +33,7 @@ export interface PromptDocument {
   path: string;
   /** 文档内容 */
   content: string;
-  **文档元数据
+  /** 文档元数据 */
   metadata: PromptMetadata;
 }
 
@@ -41,15 +41,15 @@ export interface PromptDocument {
  * Prompt 构建上下文
  */
 export interface PromptBuildContext {
-  **工作区根目录
+  /** 工作区根目录 */
   workspaceRoot: string;
-  **Issue ID
+  /** Issue ID */
   issueId: string;
-  **Stage ID
+  /** Stage ID */
   stageId: string;
-  **会话 ID
+  /** 会话 ID */
   conversationId: string;
-  **角色信息
+  /** 角色信息 */
   role: {
     key: string;
     name: string;
@@ -57,12 +57,12 @@ export interface PromptBuildContext {
     rules: string[];
     isPrimary: boolean;
   };
-  **历史消息列表
+  /** 历史消息列表 */
   history: Array<{
     role: "user" | "assistant";
     content: string;
   }>;
-  **最新用户事件列表
+  /** 最新用户事件列表 */
   latestUserEvents: Array<{
     kind: string;
     payload: Record<string, unknown>;

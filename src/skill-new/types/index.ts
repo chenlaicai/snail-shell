@@ -17,10 +17,10 @@ export interface SkillDefinition {
   id: string;
   /** Skill 名称 */
   name: string;
-  **Skill 描述
+  /** Skill 描述 */
   description: string;
-  **Skill 路径
+  /** Skill 路径 */
   path: string;
-  **Skill 内容
+  /** Skill 内容 */
   content: string;
 }

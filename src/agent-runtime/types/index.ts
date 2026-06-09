@@ -36,9 +36,9 @@ export interface AgentInvocationOptions {
   model?: string;
   /** 上下文窗口大小 */
   contextWindow?: number;
-  **调用超时（毫秒）
+  /** 调用超时（毫秒） */
   invocationTimeoutMs?: number;
-  **运行时上下文环境变量
+  /** 运行时上下文环境变量 */
   contextEnv?: Record<string, string>;
 }
 
@@ -46,9 +46,9 @@ export interface AgentInvocationOptions {
  * Agent 调用结果
  */
 export interface AgentInvocationResult {
-  **会话 ID
+  /** 会话 ID */
   sessionId?: string | null;
-  **等待停止函数
+  /** 等待停止函数 */
   waitForStop?: () => Promise<void>;
 }
 

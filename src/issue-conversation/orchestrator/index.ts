@@ -171,7 +171,7 @@ export class IssueConversationOrchestratorImpl implements IssueConversationOrche
     if (issue.sop_snapshot && currentStage) {
       const sopId = (issue.sop_snapshot as Record<string, unknown>).sop_id as string;
       if (sopId) {
-        const transitions = await this.sopRepo.getForwardTransitions(sopId, currentStage.key);
+        const transitions = await this.sopRepo.getForwardTransitions(sopId, currentStage.type);
         canTransition = transitions.length > 0;
       }
     }
@@ -199,13 +199,13 @@ export class IssueConversationOrchestratorImpl implements IssueConversationOrche
       return undefined;
     }
 
-    const transitions = await this.sopRepo.getForwardTransitions(sopId, currentStage.key);
+    const transitions = await this.sopRepo.getForwardTransitions(sopId, currentStage.type);
 
     for (const transition of transitions) {
       if (!transition.guard) {
         // 无条件转移
         return {
-          from: currentStage.key,
+          from: currentStage.type,
           to: transition.to_stage_key,
           reason: "No guard condition",
         };
@@ -215,7 +215,7 @@ export class IssueConversationOrchestratorImpl implements IssueConversationOrche
       const isSatisfied = await this.checkGuardCondition(transition, conversation);
       if (isSatisfied) {
         return {
-          from: currentStage.key,
+          from: currentStage.type,
           to: transition.to_stage_key,
           reason: "Guard condition satisfied",
         };

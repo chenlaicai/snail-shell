@@ -13,11 +13,11 @@
  * Feature 元数据
  */
 export interface FeatureMetadata {
-  **版本
+  /** 版本 */
   version: string;
-  **日期
+  /** 日期 */
   date: string;
-  **标签列表
+  /** 标签列表 */
   tags: string[];
 }
 
@@ -25,14 +25,14 @@ export interface FeatureMetadata {
  * Feature 文档
  */
 export interface FeatureDocument {
-  **文档 ID
+  /** 文档 ID */
   id: string;
-  **文档路径
+  /** 文档路径 */
   path: string;
-  **文档标题
+  /** 文档标题 */
   title: string;
-  **文档内容
+  /** 文档内容 */
   content: string;
-  **文档元数据
+  /** 文档元数据 */
   metadata: FeatureMetadata;
 }

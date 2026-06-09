@@ -83,11 +83,11 @@ export interface SopStageDefinition {
   sequence: number;
   /** 输入要求描述 */
   input_description: string | null;
-  **输出要求描述
+  /** 输出要求描述 */
   output_description: string | null;
-  **验收要点
+  /** 验收要点 */
   acceptance_focus: string[];
-  **验收清单
+  /** 验收清单 */
   acceptance_checklist: StageChecklistItem[];
 }
 
@@ -123,9 +123,9 @@ export interface SopTransition {
   sop_id: string;
   /** 源 Stage 标识符 */
   from_stage_key: string;
-  **目标 Stage 标识符
+  /** 目标 Stage 标识符 */
   to_stage_key: string;
-  **转移守卫
+  /** 转移守卫 */
   guard: TransitionGuard | null;
 }
 
