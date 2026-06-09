@@ -36,13 +36,13 @@ export function ChatInput({ onSend, disabled, placeholder = "Reply to this issue
           placeholder={placeholder}
           disabled={disabled}
           rows={1}
-          className="w-full bg-transparent border-none outline-none resize-none text-[13px] text-text-primary placeholder:text-text-muted leading-relaxed"
-          style={{ minHeight: "24px" }}
+          aria-label="Message input"
+          className="w-full bg-transparent border-none outline-none resize-none text-[13px] text-text-primary placeholder:text-text-muted leading-relaxed min-h-6"
         />
       </div>
       <div className="flex items-center justify-between px-3 py-2 border-t border-white/4">
         <div className="flex items-center gap-1">
-          <button className="w-7 h-7 rounded flex items-center justify-center text-text-muted hover:text-text-secondary hover:bg-white/5 transition-colors">
+          <button aria-label="Attach file" className="w-7 h-7 rounded flex items-center justify-center text-text-muted hover:text-text-secondary hover:bg-white/5 transition-colors">
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
           </button>
           <span className="text-[11px] text-text-grey ml-2">Markdown</span>
@@ -55,6 +55,7 @@ export function ChatInput({ onSend, disabled, placeholder = "Reply to this issue
           <button
             onClick={handleSend}
             disabled={!value.trim() || disabled}
+            aria-label="Send message"
             className="w-7 h-7 rounded-md bg-shell-600 hover:bg-shell-500 flex items-center justify-center text-white transition-colors disabled:opacity-50"
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>

@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import { issueQueries } from "@/queries/issue.queries";
 import { conversationQueries } from "@/queries/conversation.queries";
-import { useSendMessage } from "@/mutations/conversation.mutations";
+import { useSendMessage, useInterruptMessage } from "@/mutations/conversation.mutations";
 import { useAdvanceIssue, useCompleteIssue, useArchiveIssue, useConfirmStageSuggestion, useRejectStageSuggestion } from "@/mutations/issue.mutations";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { TopBar } from "@/components/TopBar";
@@ -37,6 +37,7 @@ export function IssueConversation() {
   const messagesQ = useQuery({ ...conversationQueries.messages(activeConversationId ?? ""), enabled: !!activeConversationId });
 
   const sendMessage = useSendMessage(activeConversationId ?? "");
+  const interruptMessage = useInterruptMessage(activeConversationId ?? "");
   const advanceIssue = useAdvanceIssue(issueId!, workspaceId);
   const completeIssue = useCompleteIssue(issueId!, workspaceId);
   const archiveIssue = useArchiveIssue(issueId!, workspaceId);
@@ -50,9 +51,13 @@ export function IssueConversation() {
     sendMessage.mutate({ content });
   }, [activeConversationId, sendMessage]);
 
-  const handleInterrupt = useCallback(() => {
-    send({ type: "send_message", content: "/interrupt", from_role: "项目负责人" });
-  }, [send]);
+  const handleInterrupt = useCallback((messageId: number) => {
+    if (!activeConversationId) return;
+    const sent = send({ type: "send_message", content: "/interrupt", from_role: "项目负责人" });
+    if (!sent) {
+      interruptMessage.mutate(messageId);
+    }
+  }, [activeConversationId, send, interruptMessage]);
 
   const issue = issueQ.data;
   const stage = issue?.current_stage;

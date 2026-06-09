@@ -30,9 +30,19 @@ function appendQuery(path: string, query?: unknown): string {
 
 async function handleResponse<R>(response: Response): Promise<R> {
   if (response.status === 204) return undefined as R;
-  const data = await response.json();
-  if (!response.ok) throw new ApiError(data?.error || data?.message || "Request failed", response.status);
-  return data;
+  let data: unknown;
+  try {
+    data = await response.json();
+  } catch {
+    throw new ApiError(`HTTP ${response.status}: empty or invalid response body`, response.status);
+  }
+  if (!response.ok) {
+    const msg = (data && typeof data === "object" && ("error" in data || "message" in data))
+      ? String((data as Record<string, unknown>).error ?? (data as Record<string, unknown>).message)
+      : `HTTP ${response.status}`;
+    throw new ApiError(msg, response.status);
+  }
+  return data as R;
 }
 
 function buildFetchOptions(method: string, body?: unknown): RequestInit {

@@ -19,10 +19,10 @@ export function useSendMessage(conversationId: string) {
   });
 }
 
-export function useInterruptMessage(conversationId: string, messageId: number) {
+export function useInterruptMessage(conversationId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => api("POST /api/conversations/:conversationId/messages/:messageId/interrupt", {
+    mutationFn: (messageId: number) => api("POST /api/conversations/:conversationId/messages/:messageId/interrupt", {
       params: { conversationId, messageId },
     }),
     onSuccess: () => {

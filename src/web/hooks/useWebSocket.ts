@@ -9,9 +9,12 @@ interface PendingPermission {
   request: ToolPermissionRequest;
 }
 
+export type WsStatus = "connected" | "disconnected" | "reconnecting";
+
 export function useWebSocket(
   conversationId: string | null,
   onPermissionRequired?: (perm: PendingPermission) => void,
+  onStatusChange?: (status: WsStatus) => void,
 ) {
   const wsRef = useRef<WebSocket | null>(null);
   const qc = useQueryClient();
@@ -19,10 +22,11 @@ export function useWebSocket(
   const backoffRef = useRef(1000);
   const maxRetries = 20;
   const retriesRef = useRef(0);
-  const statusRef = useRef<"connected" | "disconnected" | "reconnecting">("disconnected");
+  const intentionalCloseRef = useRef(false);
 
   const connect = useCallback(() => {
     if (!conversationId) return;
+    intentionalCloseRef.current = false;
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const ws = new WebSocket(`${protocol}//${window.location.host}/ws?conversation_id=${conversationId}`);
     wsRef.current = ws;
@@ -30,7 +34,7 @@ export function useWebSocket(
     ws.onopen = () => {
       backoffRef.current = 1000;
       retriesRef.current = 0;
-      statusRef.current = "connected";
+      onStatusChange?.("connected");
     };
     ws.onmessage = (e) => {
       try {
@@ -41,9 +45,10 @@ export function useWebSocket(
       }
     };
     ws.onclose = () => {
-      statusRef.current = "reconnecting";
+      if (intentionalCloseRef.current) return;
+      onStatusChange?.("reconnecting");
       if (retriesRef.current >= maxRetries) {
-        statusRef.current = "disconnected";
+        onStatusChange?.("disconnected");
         return;
       }
       retriesRef.current++;
@@ -53,11 +58,12 @@ export function useWebSocket(
       }, backoffRef.current);
     };
     ws.onerror = (e) => { console.error("[WS] Connection error:", e); ws.close(); };
-  }, [conversationId, qc, onPermissionRequired]);
+  }, [conversationId, qc, onPermissionRequired, onStatusChange]);
 
   useEffect(() => {
     connect();
     return () => {
+      intentionalCloseRef.current = true;
       clearTimeout(reconnectRef.current);
       wsRef.current?.close();
     };
@@ -66,10 +72,12 @@ export function useWebSocket(
   const send = useCallback((data: Record<string, unknown>) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(data));
+      return true;
     }
+    return false;
   }, []);
 
-  return { wsRef, send, getStatus: () => statusRef.current };
+  return { wsRef, send };
 }
 
 function handleMessage(
