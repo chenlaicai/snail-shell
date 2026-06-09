@@ -1,11 +1,38 @@
-import type { RealtimeConversationEvent } from "../agent-runtime/types";
-// HUMAN_ROLE_NAME 已迁移到 roles 模块，暂时内联定义
+// RealtimeConversationEvent 类型定义（原从 agent/interface 导入）
+type RealtimeConversationEvent =
+  | { type: "message_started"; message_id: number; status: string; role_name: string; role: string; client_id?: string }
+  | { type: "message_event_appended"; message_id: number; role_name: string; event: Record<string, unknown>; client_id?: string }
+  | { type: "message_context_updated"; message_id: number; role_name: string; context: Record<string, unknown> | null; client_id?: string }
+  | { type: "message_status_changed"; message_id: number; role_name: string; status: string; final_role?: string; client_id?: string; context?: Record<string, unknown> | null }
+  | { type: "permission_required"; message_id: number; role_name: string; request: Record<string, unknown> };
+
+// HUMAN_ROLE_NAME 常量
 const HUMAN_ROLE_NAME = "项目负责人";
+
 import { summarizeRuntimeError } from "../agent-runtime/errors";
 import { logger } from "../logger";
-import type { WorkspaceManager } from "../issue-conversation/orchestrator";
-import { buildPlainTextEvent, type MessageInputEvent } from "../conversation/utils/event-content";
-import type { RoleName } from "../conversation/types";
+
+// WorkspaceManager 接口定义（原从 workspace-workflow/manager 导入）
+interface WorkspaceManager {
+  on(event: string, listener: (...args: unknown[]) => void): void;
+  off(event: string, listener: (...args: unknown[]) => void): void;
+  sendStructuredMessage(conversationId: string, events: MessageInputEvent[], options: Record<string, unknown>): Promise<{ messageIds: number[] }>;
+  getLastConversationEventId(conversationId: string): number;
+  getConversationEventsBetween(conversationId: string, afterEventId: number, beforeEventId: number): Array<{ message_id: number; message_from_role?: string }>;
+}
+
+// MessageInputEvent 类型和 buildPlainTextEvent 函数（原从 message-bus/message-events 导入）
+interface MessageInputEvent {
+  kind: string;
+  payload: Record<string, unknown>;
+}
+
+function buildPlainTextEvent(text: string): MessageInputEvent {
+  return { kind: "text", payload: { text } };
+}
+
+// RoleName 类型
+type RoleName = string;
 
 const VALID_EVENT_KINDS = ["text", "content_block"];
 

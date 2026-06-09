@@ -29,56 +29,6 @@ export type { SchemaManager, SchemaVersion } from "./schema/types";
 
 export { SqliteSchemaManager } from "./schema";
 
-// ═══ Repository 类型（从原子模块重新导出）═══
-export type {
-  // Conversation Repository
-  Message,
-  MessageEvent,
-  MessageContext,
-  Conversation,
-  MessageDispatch,
-  CreateMessageInput,
-  CreateMessageEventInput,
-  CreateConversationInput,
-  CreateMessageDispatchInput,
-  MessageRole,
-  MessageStatus,
-  ConversationKind,
-  ConversationStatus,
-  MessageEventKind,
-  MessageEventCategory,
-  ConversationRepository,
-} from "../conversation";
-
-export type {
-  // Workspace Repository
-  Workspace,
-  Issue,
-  Stage,
-  CreateWorkspaceInput,
-  CreateIssueInput,
-  CreateStageInput,
-  StageStatus,
-  WorkspaceRepository,
-} from "../workspace";
-
-export type {
-  // SOP Repository
-  Sop,
-  SopStageDefinition,
-  SopStageRoleDefinition,
-  SopTransition,
-  CreateSopInput,
-  CreateSopStageDefinitionInput,
-  CreateSopStageRoleDefinitionInput,
-  CreateSopTransitionInput,
-  SopSource,
-  StageChecklistItem,
-  TransitionGuard,
-  TransitionGuardType,
-  SopRepository,
-} from "../sop";
-
 // ═══ Repository 实现 ═══
 export { SqliteConversationRepository } from "./repository/conversation";
 export { SqliteWorkspaceRepository } from "./repository/workspace";
