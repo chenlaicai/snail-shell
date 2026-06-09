@@ -56,13 +56,6 @@ export function Sidebar() {
         </div>
       </nav>
 
-      {/* Footer */}
-      <div className="px-2 py-3 border-t border-white/6">
-        <div className="flex items-center gap-3 px-3 py-1.5 rounded-md text-text-secondary text-[13px]">
-          <div className="w-5 h-5 rounded-full bg-shell-600 flex items-center justify-center text-[10px] font-medium text-white">O</div>
-          <span className="flex-1">Orca</span>
-        </div>
-      </div>
     </aside>
   );
 }
