@@ -1,5 +1,12 @@
 // ws-protocol.ts — WebSocket 消息类型（client→server / server→client）
-import type { RealtimeConversationEvent } from "../agent/interface";
+// RealtimeConversationEvent 已迁移到 agent-runtime 模块，暂时内联定义
+export type RealtimeConversationEvent =
+  | { type: "message_started"; message_id: number; status: string; role_name: string; role: string; client_id?: string }
+  | { type: "message_event_appended"; message_id: number; role_name: string; event: Record<string, unknown>; client_id?: string }
+  | { type: "message_context_updated"; message_id: number; role_name: string; context: Record<string, unknown> | null; client_id?: string }
+  | { type: "message_status_changed"; message_id: number; role_name: string; status: string; final_role?: string; client_id?: string; context?: Record<string, unknown> | null }
+  | { type: "permission_required"; message_id: number; role_name: string; request: Record<string, unknown> };
+
 import type { StageSuggestion } from "./dto/issue.dto";
 
 // ── Client → Server ──

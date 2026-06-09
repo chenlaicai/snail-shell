@@ -1,7 +1,22 @@
 import fs from "fs";
 import path from "path";
 
-import type { FeishuConfig, FeishuAllowedChatConfig } from "../../persistence/feishu-config-store";
+// FeishuConfig 和 FeishuAllowedChatConfig 类型已迁移到 config 模块，暂时内联定义
+export interface FeishuAllowedChatConfig {
+  chat_id: string;
+  chat_name?: string;
+}
+
+export interface FeishuConfig {
+  enabled: boolean;
+  app_id: string;
+  app_secret: string;
+  message_push: {
+    max_text_length: number;
+    streaming?: { enabled: boolean; flush_interval_ms?: number };
+  };
+  allowed_chats: FeishuAllowedChatConfig[];
+}
 
 const DEFAULT_CONFIG: FeishuConfig = {
   enabled: false,

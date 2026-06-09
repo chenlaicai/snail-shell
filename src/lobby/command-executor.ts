@@ -1,5 +1,17 @@
-import type { WorkspaceManager } from "../workspace-workflow/manager";
-import type { ConversationStore } from "../persistence/store";
+// WorkspaceManager 和 ConversationStore 已迁移到新架构
+// 暂时定义接口，后续从新模块导入
+interface WorkspaceManager {
+  listWorkspaces(): Array<{ id: string; name: string; issue_count: number }>;
+  getWorkspace(id: string): { id: string; name: string; issues: Array<{ id: string; title: string; closed_at: string | null }> } | null;
+  getIssue(id: string): { id: string; title: string; workspace_id: string; current_stage: { id: string; type: string } | null } | null;
+  getStage(id: string): { id: string; type: string } | null;
+}
+
+interface ConversationStore {
+  getConversationByStage(stageId: string): { id: string; title: string } | null;
+  getConversation(id: string): { id: string; title: string } | null;
+}
+
 import type { LobbySessionStore } from "./session-store";
 import type { LobbyResponseRenderer } from "./response-renderer";
 import type { LobbySession, LobbyResponse, NavigationContext } from "./types";

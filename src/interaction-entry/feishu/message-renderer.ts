@@ -1,5 +1,22 @@
-import { renderMessageEventsForDisplay } from "../../message-bus/message-events";
-import type { MessageEvent } from "../../persistence/store";
+// MessageEvent 类型已迁移到 conversation 模块，暂时内联定义
+interface MessageEvent {
+  id: number;
+  message_id: number;
+  seq: number;
+  category: string;
+  kind: string;
+  payload: Record<string, unknown>;
+  source: string;
+  created_at: string;
+}
+
+// renderMessageEventsForDisplay 已迁移到 conversation 模块，暂时内联实现
+function renderMessageEventsForDisplay(input: { events: MessageEvent[] }): string {
+  return input.events
+    .filter((e) => e.kind === "text")
+    .map((e) => (e.payload as Record<string, unknown>).text as string || "")
+    .join("\n");
+}
 
 export function renderFeishuTextMessage(input: { roleName: string; events: MessageEvent[]; maxLength: number }): string {
   const body = renderMessageEventsForDisplay({ events: input.events }).trim();
