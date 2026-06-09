@@ -22,7 +22,19 @@ export type {
   CreateEvolutionItemInput,
   UpdateEvolutionItemInput,
   EvolutionItemListFilters,
+  LegacyEvolutionItem,
+  EvolutionItemSearchResult,
 } from "./types";
+
+// ═══ 知识库类型 ═══
+export type {
+  KnowledgeLibraryScope,
+  KnowledgeLibraryEntry,
+  KnowledgeLibrarySearchResult,
+  CreateKnowledgeLibraryInput,
+  UpdateKnowledgeLibraryInput,
+  KnowledgeLibraryListFilters,
+} from "./types/knowledge-library";
 
 // ═══ Service 接口 ═══
 export type { EvolutionService } from "./service";

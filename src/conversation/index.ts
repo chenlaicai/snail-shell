@@ -33,5 +33,24 @@ export type {
   MessageEventCategory,
 } from "./types";
 
+// ═══ 消息内容块类型 ═══
+export type {
+  MessageTextBlock,
+  MessageRichTextBlock,
+  MessageMarkdownBlock,
+  MessageImageBlock,
+  MessageIconBlock,
+  MessageChartBlock,
+  MessageTableBlock,
+  MessageToolCallCardBlock,
+  MessageArtifactCardBlock,
+  MessageReferenceCardBlock,
+  QuestionOptionPayload,
+  QuestionResponseSelectedOptionPayload,
+  MessageQuestionBlock,
+  MessageQuestionResponseBlock,
+  MessageContentBlock,
+} from "./types/content-blocks";
+
 // ═══ Repository 接口 ═══
 export type { ConversationRepository } from "./repository";

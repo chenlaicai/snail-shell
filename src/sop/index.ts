@@ -30,5 +30,8 @@ export type {
   TransitionGuardType,
 } from "./types";
 
+// ═══ SOP 快照类型 ═══
+export type { SopSnapshot } from "./types/snapshot";
+
 // ═══ Repository 接口 ═══
 export type { SopRepository } from "./repository";
