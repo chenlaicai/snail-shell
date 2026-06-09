@@ -21,7 +21,7 @@ export interface SendMessageResult {
   message: Message;
   /** AI 响应 */
   response: Message;
-  **Stage 转移信息
+  /** Stage 转移信息 */
   stageTransition?: StageTransition;
 }
 
@@ -29,11 +29,11 @@ export interface SendMessageResult {
  * Stage 转移信息
  */
 export interface StageTransition {
-  **源 Stage 标识符
+  /** 源 Stage 标识符 */
   from: string;
-  **目标 Stage 标识符
+  /** 目标 Stage 标识符 */
   to: string;
-  **转移原因
+  /** 转移原因 */
   reason: string;
 }
 
@@ -41,15 +41,15 @@ export interface StageTransition {
  * 对话状态
  */
 export interface ConversationStatus {
-  **Issue ID
+  /** Issue ID */
   issueId: string;
-  **当前 Stage
+  /** 当前 Stage */
   currentStage: Stage | null;
-  **当前 Conversation
+  /** 当前 Conversation */
   currentConversation: Conversation | null;
-  **消息数量
+  /** 消息数量 */
   messageCount: number;
-  **是否可以转移 Stage
+  /** 是否可以转移 Stage */
   canTransition: boolean;
 }
 

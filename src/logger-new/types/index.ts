@@ -22,9 +22,9 @@ export interface LoggerConfig {
   level: LogLevel;
   /** 日志目录 */
   dir: string;
-  **最大文件大小（字节）
+  /** 最大文件大小（字节） */
   maxSize: number;
-  **最大文件数量
+  /** 最大文件数量 */
   maxFiles: number;
 }
 
