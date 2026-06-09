@@ -84,6 +84,8 @@ export interface Message {
   runtime: string | null;
   /** 消息状态 */
   status: MessageStatus;
+  /** 消息内容（从 MessageEvent 中提取的文本内容） */
+  content?: string;
   /** 创建时间 */
   created_at: string;
   /** 更新时间 */

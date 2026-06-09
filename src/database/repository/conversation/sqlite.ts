@@ -20,6 +20,20 @@ import type {
 } from "../../../conversation";
 
 /**
+ * 解析 JSON 字段，失败时返回默认值
+ */
+function parseJsonField<T>(value: unknown, defaultValue: T): T {
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value) as T;
+    } catch {
+      return defaultValue;
+    }
+  }
+  return (value as T) ?? defaultValue;
+}
+
+/**
  * SQLite Conversation Repository 实现
  */
 export class SqliteConversationRepository implements ConversationRepository {
@@ -32,7 +46,12 @@ export class SqliteConversationRepository implements ConversationRepository {
       "SELECT * FROM message WHERE id = ?",
       [id]
     );
-    return result.rows[0] ?? null;
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+      ...row,
+      to_roles: parseJsonField<string[]>(row.to_roles, []),
+    };
   }
 
   async getMessages(conversationId: string, limit?: number): Promise<Message[]> {
@@ -41,7 +60,10 @@ export class SqliteConversationRepository implements ConversationRepository {
       : "SELECT * FROM message WHERE conversation_id = ? ORDER BY created_at ASC";
     const params = limit ? [conversationId, limit] : [conversationId];
     const result = await this.connection.query<Message>(sql, params);
-    return result.rows;
+    return result.rows.map((row) => ({
+      ...row,
+      to_roles: parseJsonField<string[]>(row.to_roles, []),
+    }));
   }
 
   async saveMessage(input: CreateMessageInput): Promise<Message> {
@@ -82,7 +104,10 @@ export class SqliteConversationRepository implements ConversationRepository {
       "SELECT * FROM message_event WHERE message_id = ? ORDER BY seq ASC",
       [messageId]
     );
-    return result.rows;
+    return result.rows.map((row) => ({
+      ...row,
+      payload: parseJsonField<Record<string, unknown>>(row.payload, {}),
+    }));
   }
 
   async saveMessageEvent(input: CreateMessageEventInput): Promise<MessageEvent> {
@@ -107,7 +132,10 @@ export class SqliteConversationRepository implements ConversationRepository {
     if (!event.rows[0]) {
       throw new Error("Failed to save message event");
     }
-    return event.rows[0];
+    return {
+      ...event.rows[0],
+      payload: parseJsonField<Record<string, unknown>>(event.rows[0].payload, {}),
+    };
   }
 
   // ═══ MessageContext CRUD ═══
@@ -135,7 +163,13 @@ export class SqliteConversationRepository implements ConversationRepository {
       "SELECT * FROM conversation WHERE id = ?",
       [id]
     );
-    return result.rows[0] ?? null;
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+      ...row,
+      participating_roles: parseJsonField<string[]>(row.participating_roles, []),
+      from_conversation_ids: parseJsonField<string[]>(row.from_conversation_ids, []),
+    };
   }
 
   async getStageConversation(stageId: string): Promise<Conversation | null> {
@@ -143,7 +177,13 @@ export class SqliteConversationRepository implements ConversationRepository {
       "SELECT * FROM conversation WHERE stage_id = ?",
       [stageId]
     );
-    return result.rows[0] ?? null;
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+      ...row,
+      participating_roles: parseJsonField<string[]>(row.participating_roles, []),
+      from_conversation_ids: parseJsonField<string[]>(row.from_conversation_ids, []),
+    };
   }
 
   async saveConversation(input: CreateConversationInput): Promise<Conversation> {
@@ -225,7 +265,10 @@ export class SqliteConversationRepository implements ConversationRepository {
        LIMIT ?`,
       [conversationId, limit]
     );
-    return result.rows.reverse(); // 返回时间正序
+    return result.rows.reverse().map((row) => ({
+      ...row,
+      to_roles: parseJsonField<string[]>(row.to_roles, []),
+    }));
   }
 
   async searchMessages(query: string): Promise<Message[]> {
@@ -237,6 +280,9 @@ export class SqliteConversationRepository implements ConversationRepository {
        LIMIT 50`,
       [query]
     );
-    return result.rows;
+    return result.rows.map((row) => ({
+      ...row,
+      to_roles: parseJsonField<string[]>(row.to_roles, []),
+    }));
   }
 }

@@ -145,7 +145,12 @@ export class SqliteSopRepository implements SopRepository {
       "SELECT * FROM sop_stage_role_definition WHERE id = ?",
       [id]
     );
-    return result.rows[0] ?? null;
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+      ...row,
+      is_primary: Boolean(row.is_primary),
+    };
   }
 
   async listSopStageRoleDefinitions(stageDefinitionId: string): Promise<SopStageRoleDefinition[]> {
@@ -153,7 +158,10 @@ export class SqliteSopRepository implements SopRepository {
       "SELECT * FROM sop_stage_role_definition WHERE stage_definition_id = ?",
       [stageDefinitionId]
     );
-    return result.rows;
+    return result.rows.map((row) => ({
+      ...row,
+      is_primary: Boolean(row.is_primary),
+    }));
   }
 
   async saveSopStageRoleDefinition(input: CreateSopStageRoleDefinitionInput): Promise<SopStageRoleDefinition> {

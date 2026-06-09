@@ -69,9 +69,28 @@ export class SqliteConnection implements DatabaseConnection {
     }
   }
 
-  async transaction<T>(fn: () => Promise<T>): Promise<T> {
+  /**
+   * 执行同步事务
+   *
+   * better-sqlite3 的事务机制是同步的，不支持 async 函数。
+   * 如果需要在事务中执行异步操作，应该先完成所有异步操作，
+   * 然后在事务中执行同步的数据库操作。
+   */
+  transactionSync<T>(fn: () => T): T {
     const transaction = this.db.transaction(fn);
     return transaction();
+  }
+
+  /**
+   * 执行异步事务（兼容接口）
+   *
+   * 注意：better-sqlite3 的事务是同步的，此方法仅用于接口兼容。
+   * 实际的事务操作应该使用 transactionSync。
+   */
+  async transaction<T>(fn: () => Promise<T>): Promise<T> {
+    // better-sqlite3 不支持 async 事务，直接执行函数
+    // 调用者应确保在事务中只执行同步操作
+    return fn();
   }
 
   async close(): Promise<void> {

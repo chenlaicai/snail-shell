@@ -37,6 +37,16 @@ export class SqliteSchemaManager implements SchemaManager {
             applied_at TEXT NOT NULL DEFAULT (datetime('now'))
           );
 
+          CREATE TABLE IF NOT EXISTS workspace (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            summary TEXT,
+            workspace_root TEXT NOT NULL,
+            guard_profile TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+          );
+
           CREATE TABLE IF NOT EXISTS issue (
             id TEXT PRIMARY KEY,
             workspace_id TEXT NOT NULL,
@@ -47,7 +57,8 @@ export class SqliteSchemaManager implements SchemaManager {
             role_snail_mapping TEXT NOT NULL DEFAULT '{}',
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-            closed_at TEXT
+            closed_at TEXT,
+            FOREIGN KEY (workspace_id) REFERENCES workspace(id) ON DELETE CASCADE
           );
 
           CREATE TABLE IF NOT EXISTS stage (

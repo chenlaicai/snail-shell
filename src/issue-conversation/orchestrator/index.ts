@@ -94,18 +94,23 @@ export class IssueConversationOrchestratorImpl implements IssueConversationOrche
       latestUserEvents: [],
     });
 
-    // 5. 获取历史消息
+    // 5. 获取历史消息（从 MessageEvent 中提取内容）
     const history = await this.conversationRepo.getRecentMessages(conversation.id, 10);
+    const historyWithContent = await Promise.all(
+      history.map(async (m) => {
+        const events = await this.conversationRepo.getMessageEvents(m.id);
+        const textEvent = events.find((e) => e.kind === "text");
+        const content = textEvent ? (textEvent.payload.text as string || "") : "";
+        return { role: m.role as "user" | "assistant", content };
+      })
+    );
 
     // 6. 调用 Agent
     const runtime = this.agentRuntime.resolve("claude-code");
     const agentInput: AgentInvocationInput = {
       systemPrompt,
       systemReminder: "",
-      messages: history.map((m) => ({
-        role: m.role as "user" | "assistant",
-        content: m.content || "",
-      })),
+      messages: historyWithContent,
     };
 
     let responseContent = "";
