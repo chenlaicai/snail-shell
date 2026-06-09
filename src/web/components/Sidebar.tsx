@@ -1,10 +1,9 @@
-import { NavLink, useParams } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { workspaceQueries } from "@/queries/workspace.queries";
 import { cn } from "@/lib/utils";
 
 export function Sidebar() {
-  const { workspaceId } = useParams();
   const { data: workspaces } = useQuery(workspaceQueries.list());
 
   return (
