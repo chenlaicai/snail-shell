@@ -28,5 +28,8 @@ export type {
 // ═══ Gate 证据类型 ═══
 export type { StageGateArtifact, StageGateEvidence } from "./types/gate";
 
+// ═══ Stage 定义类型 ═══
+export type { WorkspaceStageDefinition, StageRoleDefinition } from "./types/stage-definition";
+
 // ═══ Repository 接口 ═══
 export type { WorkspaceRepository } from "./repository";

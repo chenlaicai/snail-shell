@@ -53,6 +53,31 @@ export type {
   MessageContentBlock,
 } from "./types/content-blocks";
 
+// ═══ 事件相关类型 ═══
+export type {
+  MessageRuntime,
+  MessageSignalType,
+  MessageContextKind,
+  MessageDispatchStatus,
+  ConversationOwnerType,
+  MessageEventSource,
+  StartEventPayload,
+  TextEventPayload,
+  ContentBlockEventPayload,
+  ToolCallEventPayload,
+  ToolResultEventPayload,
+  CommandEventPayload,
+  CommandResultEventPayload,
+  SignalEventPayload,
+  ErrorEventPayload,
+  MessageEventPayload,
+  DispatchInboxGroup,
+  DispatchInboxPreviewItem,
+  ConversationHistorySearchResult,
+  MessageContextSummaryInput,
+  MessageContextSummaryGenerator,
+} from "./types/events";
+
 // ═══ 工具函数 ═══
 export { extractTextFromBlocks, extractEventText } from "./utils/event-content";
 export { formatMessageContextForPrompt } from "./utils/message-context";

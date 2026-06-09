@@ -8,6 +8,7 @@
  * - validator: 配置校验器
  * - schema: Schema 定义
  * - paths: 平台路径常量
+ * - types: 配置类型定义
  *
  * 依赖倒置：
  * - 原子模块通过 ConfigLoader 加载配置
@@ -27,6 +28,9 @@ export { ZodConfigValidator, ZodConfigValidatorFactory } from "./validator";
 
 // ═══ Schema 定义 ═══
 export type { FieldType, FieldDefinition, SchemaDefinition } from "./schema/types";
+
+// ═══ 配置类型 ═══
+export type { EvolutionConfig, SnailWorkspaceConfig } from "./types";
 
 // ═══ 平台路径 ═══
 export { PLATFORM_ROOT, PLATFORM_META } from "./paths";
