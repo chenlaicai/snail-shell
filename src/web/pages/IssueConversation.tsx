@@ -31,22 +31,25 @@ export function IssueConversation() {
     });
   }, []);
 
-  const issueQ = useQuery({ ...issueQueries.detail(issueId!), enabled: !!issueId });
-  const conversationsQ = useQuery({ ...issueQueries.conversations(issueId!), enabled: !!issueId });
-  const stageSuggestionQ = useQuery({ ...issueQueries.stageSuggestion(issueId!), enabled: !!issueId });
+  const issueQ = useQuery({ ...issueQueries.detail(issueId ?? ""), enabled: !!issueId });
+  const conversationsQ = useQuery({ ...issueQueries.conversations(issueId ?? ""), enabled: !!issueId });
+  const stageSuggestionQ = useQuery({ ...issueQueries.stageSuggestion(issueId ?? ""), enabled: !!issueId });
 
   // Pick the most recently updated conversation
-  const sorted = conversationsQ.data?.slice().sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+  const sorted = useMemo(() =>
+    conversationsQ.data?.slice().sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()),
+    [conversationsQ.data],
+  );
   const activeConversationId = sorted?.[0]?.id ?? null;
   const messagesQ = useQuery({ ...conversationQueries.messages(activeConversationId ?? ""), enabled: !!activeConversationId });
 
   const sendMessage = useSendMessage(activeConversationId ?? "");
   const interruptMessage = useInterruptMessage(activeConversationId ?? "");
-  const advanceIssue = useAdvanceIssue(issueId!, workspaceId);
-  const completeIssue = useCompleteIssue(issueId!, workspaceId);
-  const archiveIssue = useArchiveIssue(issueId!, workspaceId);
-  const confirmSuggestion = useConfirmStageSuggestion(issueId!, workspaceId);
-  const rejectSuggestion = useRejectStageSuggestion(issueId!);
+  const advanceIssue = useAdvanceIssue(issueId ?? "", workspaceId);
+  const completeIssue = useCompleteIssue(issueId ?? "", workspaceId);
+  const archiveIssue = useArchiveIssue(issueId ?? "", workspaceId);
+  const confirmSuggestion = useConfirmStageSuggestion(issueId ?? "", workspaceId);
+  const rejectSuggestion = useRejectStageSuggestion(issueId ?? "");
 
   const [wsStatus, setWsStatus] = useState<"connected" | "disconnected" | "reconnecting">("disconnected");
   const { send } = useWebSocket(activeConversationId, handlePermissionRequired, setWsStatus);

@@ -29,7 +29,7 @@ export function QueryState({ query, loadingText = "Loading...", errorText, empty
     );
   }
 
-  if (query.data == null) {
+  if (query.data === undefined || query.data === null) {
     return <div className="text-center text-text-muted text-sm py-16">{emptyText}</div>;
   }
 

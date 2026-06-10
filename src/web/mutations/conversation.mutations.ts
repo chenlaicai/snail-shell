@@ -12,7 +12,34 @@ export function useSendMessage(conversationId: string) {
       from_role?: string; producer_role?: string;
       quoted_message_id?: number; asker_role?: string; client_id?: string;
     }) => api("POST /api/conversations/:conversationId/messages", { params: { conversationId }, body }),
-    onSuccess: () => {
+    onMutate: async (body) => {
+      await qc.cancelQueries({ queryKey: queryKeys.conversations.messages(conversationId) });
+      const prev = qc.getQueryData(queryKeys.conversations.messages(conversationId));
+      const clientId = body.client_id ?? `opt-${Date.now()}`;
+      const optimisticMsg = {
+        id: Date.now(), conversation_id: conversationId, client_id: clientId,
+        from_role: body.from_role ?? null, to_roles: [], role: "user" as const,
+        quoted_message_id: body.quoted_message_id ?? null, context_cutoff_at: "0",
+        runtime: "system" as const, status: "completed" as const,
+        created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+        events: body.content ? [{ id: Date.now(), message_id: 0, seq: 1, category: "content" as const, kind: "text" as const,
+          payload: { text: body.content, mentions: [] },
+          source: { runtime_name: "system" as const, runtime_event_type: null, runtime_message_id: null, runtime_item_id: null, runtime_call_id: null, raw_event: null, metadata: null },
+          created_at: new Date().toISOString(),
+        }] : [],
+        context: null,
+      };
+      qc.setQueryData(queryKeys.conversations.messages(conversationId), (old: unknown) => {
+        const page = old as { items?: unknown[] } | undefined;
+        if (!page?.items) return old;
+        return { ...page, items: [...page.items, optimisticMsg] };
+      });
+      return { prev };
+    },
+    onError: (_err, _body, ctx) => {
+      if (ctx?.prev) qc.setQueryData(queryKeys.conversations.messages(conversationId), ctx.prev);
+    },
+    onSettled: () => {
       qc.invalidateQueries({ queryKey: queryKeys.conversations.messages(conversationId) });
       qc.invalidateQueries({ queryKey: queryKeys.conversations.detail(conversationId) });
     },

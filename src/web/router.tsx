@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { workspaceQueries } from "./queries/workspace.queries";
 import { AppShell } from "./layouts/AppShell";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { IssueBoard } from "./pages/IssueBoard";
 import { IssueList } from "./pages/IssueList";
 import { IssueConversation } from "./pages/IssueConversation";
@@ -23,6 +24,7 @@ export const router = createBrowserRouter([
   {
     path: "/",
     element: <AppShell />,
+    errorElement: <ErrorBoundary />,
     children: [
       { index: true, element: <WorkspaceRedirect /> },
       { path: "ws/:workspaceId/board", element: <IssueBoard /> },

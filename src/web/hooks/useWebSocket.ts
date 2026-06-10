@@ -25,6 +25,11 @@ export function useWebSocket(
   const backoffRef = useRef(1000);
   const retriesRef = useRef(0);
   const intentionalCloseRef = useRef(false);
+  // Cache callbacks in refs to avoid reconnect on callback identity change
+  const onPermRef = useRef(onPermissionRequired);
+  const onStatusRef = useRef(onStatusChange);
+  onPermRef.current = onPermissionRequired;
+  onStatusRef.current = onStatusChange;
 
   const connect = useCallback(() => {
     if (!conversationId) return;
@@ -33,17 +38,17 @@ export function useWebSocket(
     const ws = new WebSocket(`${protocol}//${window.location.host}/ws?conversation_id=${conversationId}`);
     wsRef.current = ws;
 
-    ws.onopen = () => { backoffRef.current = 1000; retriesRef.current = 0; onStatusChange?.("connected"); };
-    ws.onmessage = (e) => { handleWsMessage(e, qc, conversationId, onPermissionRequired); };
+    ws.onopen = () => { backoffRef.current = 1000; retriesRef.current = 0; onStatusRef.current?.("connected"); };
+    ws.onmessage = (e) => { handleWsMessage(e, qc, conversationId, onPermRef.current); };
     ws.onclose = () => {
       if (intentionalCloseRef.current) return;
-      onStatusChange?.("reconnecting");
-      if (retriesRef.current >= MAX_RETRIES) { onStatusChange?.("disconnected"); return; }
+      onStatusRef.current?.("reconnecting");
+      if (retriesRef.current >= MAX_RETRIES) { onStatusRef.current?.("disconnected"); return; }
       retriesRef.current++;
       reconnectRef.current = setTimeout(() => { backoffRef.current = Math.min(backoffRef.current * 2, MAX_BACKOFF); connect(); }, backoffRef.current);
     };
     ws.onerror = (e) => { console.error("[WS] Connection error:", e); ws.close(); };
-  }, [conversationId, qc, onPermissionRequired, onStatusChange]);
+  }, [conversationId, qc]);
 
   useEffect(() => {
     connect();
@@ -55,7 +60,14 @@ export function useWebSocket(
     return false;
   }, []);
 
-  return { wsRef, send };
+  const reconnect = useCallback(() => {
+    retriesRef.current = 0;
+    backoffRef.current = 1000;
+    wsRef.current?.close();
+    connect();
+  }, [connect]);
+
+  return { wsRef, send, reconnect };
 }
 
 function handleWsMessage(e: MessageEvent, qc: ReturnType<typeof useQueryClient>, conversationId: string, onPermissionRequired?: (perm: PendingPermission) => void) {
@@ -90,7 +102,7 @@ function appendPlaceholderMessage(qc: ReturnType<typeof useQueryClient>, msgKey:
   qc.setQueryData<MessageWithEvents[]>(msgKey, (old) => {
     if (!old) return old;
     if (old.some((m) => m.id === inner.message_id)) return old;
-    // Client-side timestamp used as placeholder; server will replace with authoritative time on next fetch
+    // Client-side timestamp as placeholder; server replaces on next fetch
     const now = new Date().toISOString();
     return [...old, { id: inner.message_id, conversation_id: conversationId, client_id: inner.client_id ?? null, from_role: inner.role_name, to_roles: [], role: inner.role as MessageWithEvents["role"], quoted_message_id: null, context_cutoff_at: "0", runtime: null, status: inner.status as MessageWithEvents["status"], created_at: now, updated_at: now, events: [], context: null }];
   });
