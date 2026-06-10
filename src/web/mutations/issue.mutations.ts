@@ -50,6 +50,7 @@ export function useCompleteIssue(issueId: string, workspaceId?: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.issues.detail(issueId) });
       qc.invalidateQueries({ queryKey: queryKeys.issues.conversations(issueId) });
+      qc.invalidateQueries({ queryKey: queryKeys.issues.stageSuggestion(issueId) });
       if (workspaceId) qc.invalidateQueries({ queryKey: queryKeys.workspaces.issues(workspaceId) });
     },
   });
@@ -62,6 +63,7 @@ export function useArchiveIssue(issueId: string, workspaceId?: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.issues.detail(issueId) });
       qc.invalidateQueries({ queryKey: queryKeys.issues.conversations(issueId) });
+      qc.invalidateQueries({ queryKey: queryKeys.issues.stageSuggestion(issueId) });
       if (workspaceId) qc.invalidateQueries({ queryKey: queryKeys.workspaces.issues(workspaceId) });
     },
   });

@@ -83,12 +83,12 @@ export function IssueConversation() {
           </button>
         </div>
       )}
-      {msg.status === "pending_approval" && pendingPermissions
+      {msg.status === "pending_approval" && activeConversationId && pendingPermissions
         .filter((p) => p.messageId === msg.id)
         .map((perm) => (
           <div key={perm.request.tool_use_id} className="ml-9">
             <ToolApprovalCard
-              conversationId={activeConversationId!}
+              conversationId={activeConversationId}
               messageId={msg.id}
               request={perm.request}
               onDecide={() => setPendingPermissions((prev) => prev.filter((p) => p.request.tool_use_id !== perm.request.tool_use_id))}

@@ -54,6 +54,7 @@ export function useInterruptMessage(conversationId: string) {
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.conversations.messages(conversationId) });
+      qc.invalidateQueries({ queryKey: queryKeys.conversations.detail(conversationId) });
     },
   });
 }
@@ -67,6 +68,7 @@ export function useApproveTool(conversationId: string, messageId: number) {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.conversations.messages(conversationId) });
+      qc.invalidateQueries({ queryKey: queryKeys.conversations.detail(conversationId) });
     },
   });
 }

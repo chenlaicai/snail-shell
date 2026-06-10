@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "../queries/keys";
-import type { MessageWithEvents, WsAgentEvent, WsServerMessage, ToolPermissionRequest } from "../types";
+import type { MessageWithEvents, WsAgentEvent, WsServerMessage, ToolPermissionRequest, ConversationMessagesPage } from "../types";
 
 interface PendingPermission {
   messageId: number;
@@ -25,7 +25,6 @@ export function useWebSocket(
   const backoffRef = useRef(1000);
   const retriesRef = useRef(0);
   const intentionalCloseRef = useRef(false);
-  // Cache callbacks in refs to avoid reconnect on callback identity change
   const onPermRef = useRef(onPermissionRequired);
   const onStatusRef = useRef(onStatusChange);
   onPermRef.current = onPermissionRequired;
@@ -88,20 +87,55 @@ function handleMessage(msg: WsServerMessage, qc: ReturnType<typeof useQueryClien
   if (msg.type === "stage_suggestion") { qc.invalidateQueries({ queryKey: queryKeys.issues.stageSuggestion(msg.payload.issueId) }); }
 }
 
+/** Update items within a ConversationMessagesPage without corrupting the wrapper shape */
+function updatePageItems(qc: ReturnType<typeof useQueryClient>, msgKey: readonly unknown[], updater: (items: MessageWithEvents[]) => MessageWithEvents[]) {
+  qc.setQueryData<ConversationMessagesPage>(msgKey, (old) => {
+    if (!old?.items) return old;
+    return { ...old, items: updater(old.items) };
+  });
+}
+
 function handleAgentEvent(event: WsAgentEvent, qc: ReturnType<typeof useQueryClient>, conversationId: string, onPermissionRequired?: (perm: PendingPermission) => void) {
   const { event: inner } = event;
   const msgKey = queryKeys.conversations.messages(conversationId);
-  if (inner.type === "message_started") { appendPlaceholderMessage(qc, msgKey, inner, conversationId); return; }
-  if (inner.type === "message_event_appended") { qc.setQueryData<MessageWithEvents[]>(msgKey, (old) => old?.map((m) => m.id === inner.message_id ? { ...m, events: [...m.events, inner.event] } : m)); return; }
-  if (inner.type === "message_context_updated") { qc.setQueryData<MessageWithEvents[]>(msgKey, (old) => old?.map((m) => m.id === inner.message_id ? { ...m, context: inner.context } : m)); return; }
-  if (inner.type === "message_status_changed") { qc.setQueryData<MessageWithEvents[]>(msgKey, (old) => old?.map((m) => m.id === inner.message_id ? { ...m, status: inner.status, ...(inner.context != null ? { context: inner.context } : {}) } : m)); return; }
-  if (inner.type === "permission_required") { onPermissionRequired?.({ messageId: inner.message_id, roleName: inner.role_name, request: inner.request }); }
-}
 
-function appendPlaceholderMessage(qc: ReturnType<typeof useQueryClient>, msgKey: readonly unknown[], inner: { message_id: number; client_id?: string; role_name: string; role: string; status: string; created_at: string }, conversationId: string) {
-  qc.setQueryData<MessageWithEvents[]>(msgKey, (old) => {
-    if (!old) return old;
-    if (old.some((m) => m.id === inner.message_id)) return old;
-    return [...old, { id: inner.message_id, conversation_id: conversationId, client_id: inner.client_id ?? null, from_role: inner.role_name, to_roles: [], role: inner.role as MessageWithEvents["role"], quoted_message_id: null, context_cutoff_at: "0", runtime: null, status: inner.status as MessageWithEvents["status"], created_at: inner.created_at, updated_at: inner.created_at, events: [], context: null }];
-  });
+  switch (inner.type) {
+    case "message_started": {
+      updatePageItems(qc, msgKey, (items) => {
+        if (items.some((m) => m.id === inner.message_id)) return items;
+        return [...items, {
+          id: inner.message_id, conversation_id: conversationId, client_id: inner.client_id ?? null,
+          from_role: inner.role_name, to_roles: [], role: inner.role, quoted_message_id: null,
+          context_cutoff_at: "0", runtime: null, status: inner.status,
+          created_at: inner.created_at, updated_at: inner.created_at, events: [], context: null,
+        }];
+      });
+      break;
+    }
+    case "message_event_appended": {
+      updatePageItems(qc, msgKey, (items) =>
+        items.map((m) => m.id === inner.message_id ? { ...m, events: [...m.events, inner.event] } : m)
+      );
+      break;
+    }
+    case "message_context_updated": {
+      updatePageItems(qc, msgKey, (items) =>
+        items.map((m) => m.id === inner.message_id ? { ...m, context: inner.context } : m)
+      );
+      break;
+    }
+    case "message_status_changed": {
+      updatePageItems(qc, msgKey, (items) =>
+        items.map((m) => m.id === inner.message_id
+          ? { ...m, status: inner.status, ...(inner.context != null ? { context: inner.context } : {}) }
+          : m
+        )
+      );
+      break;
+    }
+    case "permission_required": {
+      onPermissionRequired?.({ messageId: inner.message_id, roleName: inner.role_name, request: inner.request });
+      break;
+    }
+  }
 }
