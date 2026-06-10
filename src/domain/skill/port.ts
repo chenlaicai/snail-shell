@@ -1,10 +1,11 @@
+import type { Workspace } from "@domain/workspace/model";
 import type { Skill } from "./model";
 
 /** Skill 端口定义 */
 export interface SkillPort {
-  /** 列出所有已加载的 skill */
+  /** 页面展示用，列出所有 skills */
   list(): Skill[];
 
-  /** 按 name 查找 */
-  findByName(name: string): Skill | undefined;
+  /** 获取指定 ws 的 skills（平台 + 该 ws） */
+  findByWorkspace(workspace: Workspace): Skill[];
 }

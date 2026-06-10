@@ -82,11 +82,10 @@ export class FileTenetPromptRepository implements TenetPromptRepository {
     const [, frontmatter, content] = match;
     const meta = this.parseFrontmatter(frontmatter);
 
-    if (!meta.id) throw new Error("Prompt frontmatter missing 'id'");
     if (!meta.title) throw new Error("Prompt frontmatter missing 'title'");
 
     return {
-      id: meta.id,
+      id: meta.title,  // 用 title 作为 id
       title: meta.title,
       content: content.trim(),
       tags: Array.isArray(meta.tags) ? meta.tags : [],

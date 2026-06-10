@@ -1,64 +1,89 @@
 import fs from "fs";
 import path from "path";
+import type { Workspace } from "@domain/workspace/model";
 import type { Skill } from "@domain/skill/model";
 import type { FileSystem } from "@infra/file-system";
 
 /** Skill 持久层接口 */
 export interface SkillRepository {
   list(): Skill[];
-  findByName(name: string): Skill | undefined;
+  findByWorkspace(workspace: Workspace): Skill[];
 }
 
 /** Skill 文件存储实现 */
 export class FileSkillRepository implements SkillRepository {
-  private cache = new Map<string, Skill>();
+  private platformSkills: Skill[] = [];
+  private workspaceSkills = new Map<string, Skill[]>();  // workspace_path -> skills
 
-  constructor(private fileSystem: FileSystem, repoRoot: string, workspacePaths: string[] = []) {
-    const platformDir = path.join(repoRoot, ".meta", "skills");
-    this.loadDir(platformDir, "platform");
-    for (const wsPath of workspacePaths) {
-      this.loadDir(path.join(wsPath, ".snail", "skills"), "workspace");
-    }
+  constructor(private fileSystem: FileSystem, repoRoot: string, workspacePaths: string[]) {
+    this.loadPlatformSkills(repoRoot);
+    this.loadWorkspaceSkills(workspacePaths);
   }
 
   list(): Skill[] {
-    return [...this.cache.values()];
+    return [...this.platformSkills, ...this.workspaceSkills.values()].flat();
   }
 
-  findByName(name: string): Skill | undefined {
-    return this.cache.get(name);
+  findByWorkspace(workspace: Workspace): Skill[] {
+    const wsSkills = this.workspaceSkills.get(workspace.path) ?? [];
+    return [...this.platformSkills, ...wsSkills];
   }
 
-  private loadDir(dir: string, layer: "platform" | "workspace"): void {
-    if (!this.fileSystem.exists(dir)) return;
+  private loadPlatformSkills(repoRoot: string): void {
+    const platformDir = path.join(repoRoot, ".meta", "skills");
+    this.platformSkills = this.loadSkillDir(platformDir, "platform");
+  }
+
+  private loadWorkspaceSkills(workspacePaths: string[]): void {
+    for (const wsPath of workspacePaths) {
+      const wsSkillDir = path.join(wsPath, ".snail", "skills");
+      const skills = this.loadSkillDir(wsSkillDir, "workspace");
+      this.workspaceSkills.set(wsPath, skills);
+    }
+  }
+
+  private loadSkillDir(dir: string, source: "platform" | "workspace"): Skill[] {
+    if (!this.fileSystem.exists(dir)) return [];
 
     const entries = this.fileSystem.listDirs(dir);
+    const skills: Skill[] = [];
+
     for (const entry of entries) {
-      const skillFile = path.join(dir, entry, "SKILL.md");
+      const skillDir = path.join(dir, entry);
+      const skillFile = path.join(skillDir, "SKILL.md");
+
+      if (!this.fileSystem.exists(skillFile)) continue;
+
       const raw = this.fileSystem.readFile(skillFile);
       if (!raw) continue;
 
-      const match = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
-      if (!match) {
-        console.warn(`Invalid skill format: ${skillFile}`);
-        continue;
+      try {
+        const skill = this.parseSkill(raw, skillDir, source);
+        skills.push(skill);
+      } catch (err) {
+        console.warn(`Failed to parse skill: ${skillFile}`, err);
       }
-
-      const [, frontmatter, content] = match;
-      const meta = this.parseFrontmatter(frontmatter);
-
-      if (!meta.name) {
-        console.warn(`Skill missing name: ${skillFile}`);
-        continue;
-      }
-
-      this.cache.set(meta.name, {
-        name: meta.name,
-        description: meta.description ?? "",
-        layer,
-        content: content.trim(),
-      });
     }
+
+    return skills;
+  }
+
+  private parseSkill(raw: string, dirPath: string, source: "platform" | "workspace"): Skill {
+    const match = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+    if (!match) throw new Error("Invalid skill format: missing frontmatter");
+
+    const [, frontmatter, content] = match;
+    const meta = this.parseFrontmatter(frontmatter);
+
+    if (!meta.name) throw new Error("Skill frontmatter missing 'name'");
+
+    return {
+      name: meta.name,
+      description: meta.description ?? "",
+      content: content.trim(),
+      source,
+      dir_path: dirPath,
+    };
   }
 
   private parseFrontmatter(raw: string): Record<string, string> {

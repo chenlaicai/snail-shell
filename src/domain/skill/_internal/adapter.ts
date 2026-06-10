@@ -1,3 +1,4 @@
+import type { Workspace } from "@domain/workspace/model";
 import type { Skill } from "@domain/skill/model";
 import type { SkillPort } from "@domain/skill/port";
 import type { SkillRepository } from "./repository";
@@ -13,7 +14,7 @@ export class SkillAdapter implements SkillPort {
     return this.repo.list();
   }
 
-  findByName(name: string): Skill | undefined {
-    return this.repo.findByName(name);
+  findByWorkspace(workspace: Workspace): Skill[] {
+    return this.repo.findByWorkspace(workspace);
   }
 }

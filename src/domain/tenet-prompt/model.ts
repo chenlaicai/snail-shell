@@ -1,4 +1,4 @@
-import type { Workspace } from "@domain/workspace/model";
+import type { Workspace, Scope } from "@domain/workspace/model";
 
 /** 原则性 Prompt 文档 */
 export interface PromptDocument {
@@ -10,8 +10,8 @@ export interface PromptDocument {
   content: string;
   /** 标签列表，用于条件匹配 */
   tags: string[];
-  /** 来源：platform 平台级，workspace 工作区级 */
-  source: "platform" | "workspace";
+  /** 作用域：platform 平台级，workspace 工作区级 */
+  scope: Scope;
   /** 来源 workspace（workspace 来源时有值） */
   workspace?: Workspace;
 }
