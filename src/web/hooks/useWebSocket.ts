@@ -98,12 +98,10 @@ function handleAgentEvent(event: WsAgentEvent, qc: ReturnType<typeof useQueryCli
   if (inner.type === "permission_required") { onPermissionRequired?.({ messageId: inner.message_id, roleName: inner.role_name, request: inner.request }); }
 }
 
-function appendPlaceholderMessage(qc: ReturnType<typeof useQueryClient>, msgKey: readonly unknown[], inner: { message_id: number; client_id?: string; role_name: string; role: string; status: string; created_at?: string }, conversationId: string) {
+function appendPlaceholderMessage(qc: ReturnType<typeof useQueryClient>, msgKey: readonly unknown[], inner: { message_id: number; client_id?: string; role_name: string; role: string; status: string; created_at: string }, conversationId: string) {
   qc.setQueryData<MessageWithEvents[]>(msgKey, (old) => {
     if (!old) return old;
     if (old.some((m) => m.id === inner.message_id)) return old;
-    // Use server-provided created_at if available, otherwise client time
-    const now = inner.created_at ?? new Date().toISOString();
-    return [...old, { id: inner.message_id, conversation_id: conversationId, client_id: inner.client_id ?? null, from_role: inner.role_name, to_roles: [], role: inner.role as MessageWithEvents["role"], quoted_message_id: null, context_cutoff_at: "0", runtime: null, status: inner.status as MessageWithEvents["status"], created_at: now, updated_at: now, events: [], context: null }];
+    return [...old, { id: inner.message_id, conversation_id: conversationId, client_id: inner.client_id ?? null, from_role: inner.role_name, to_roles: [], role: inner.role as MessageWithEvents["role"], quoted_message_id: null, context_cutoff_at: "0", runtime: null, status: inner.status as MessageWithEvents["status"], created_at: inner.created_at, updated_at: inner.created_at, events: [], context: null }];
   });
 }

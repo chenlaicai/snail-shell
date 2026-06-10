@@ -54,7 +54,7 @@ export type AgentEvent =
   | { type: "message_failure"; error: string };
 
 export type RealtimeConversationEvent =
-  | { type: "message_started"; message_id: number; status: MessageStatus; role_name: string; role: MessageRole; client_id?: string; created_at?: string }
+  | { type: "message_started"; message_id: number; status: MessageStatus; role_name: string; role: MessageRole; created_at: string; client_id?: string }
   | ({ type: "message_event_appended"; message_id: number; role_name: string; event: MessageEvent; client_id?: string })
   | { type: "message_context_updated"; message_id: number; role_name: string; context: MessageContext | null; client_id?: string }
   | {
