@@ -462,7 +462,7 @@ async function persistMessageContext(deps: CollaborationDeps, conversationId: st
 }
 
 function emitMessageStarted(deps: CollaborationDeps, conversationId: string, messageId: number, roleName: string, role: "user" | "assistant" | "system", clientId: string | null): void {
-  deps.emitAgentEvent(conversationId, { type: "message_started", message_id: messageId, status: "streaming", role_name: roleName, role, ...(clientId ? { client_id: clientId } : {}) });
+  deps.emitAgentEvent(conversationId, { type: "message_started", message_id: messageId, status: "streaming", role_name: roleName, role, created_at: new Date().toISOString(), ...(clientId ? { client_id: clientId } : {}) });
 }
 
 function appendEvent(deps: CollaborationDeps, conversationId: string, messageId: number, roleName: string, event: CreateMessageEventInput, clientId: string | null): void {

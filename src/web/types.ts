@@ -35,7 +35,7 @@ export type {
   PromptDto, SkillDto, SnailDenTemplateDto, McpServerDto, RoleDto,
 } from "../api-contracts/dto/meta.dto";
 export type {
-  WsSendMessage, WsClientMessage, WsServerMessage,
+  WsSendMessage, WsInterruptMessage, WsClientMessage, WsServerMessage,
   WsAgentEvent, WsError, WsConversationBadge, WsStageSuggestion,
 } from "../api-contracts/ws-protocol";
 export type { MessageWithEvents } from "../shared";

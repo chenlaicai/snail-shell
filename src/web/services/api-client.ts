@@ -1,3 +1,4 @@
+import type { z } from "zod";
 import type { ApiEndpoints } from "../../api-contracts";
 
 type EndpointKey = keyof ApiEndpoints;
@@ -28,7 +29,7 @@ function appendQuery(path: string, query?: unknown): string {
   return qsStr ? `${path}?${qsStr}` : path;
 }
 
-async function handleResponse<R>(response: Response): Promise<R> {
+async function handleResponse<R>(response: Response, schema?: z.ZodType<R>): Promise<R> {
   if (response.status === 204) return undefined as R;
   let data: unknown;
   try {
@@ -42,7 +43,7 @@ async function handleResponse<R>(response: Response): Promise<R> {
       : `HTTP ${response.status}`;
     throw new ApiError(msg, response.status);
   }
-  return data as R;
+  return schema ? schema.parse(data) : (data as R);
 }
 
 function buildFetchOptions(method: string, body?: unknown): RequestInit {
@@ -56,6 +57,7 @@ export async function api<K extends EndpointKey>(
     params?: ApiEndpoints[K]["params"] extends never ? never : ApiEndpoints[K]["params"];
     query?: ApiEndpoints[K]["query"] extends never ? never : ApiEndpoints[K]["query"];
     body?: ApiEndpoints[K]["body"] extends never ? never : ApiEndpoints[K]["body"];
+    schema?: z.ZodType<ApiEndpoints[K]["response"]>;
   }
 ): Promise<ApiEndpoints[K]["response"]> {
   const spaceIdx = endpoint.indexOf(" ");
@@ -63,5 +65,5 @@ export async function api<K extends EndpointKey>(
   const method = endpoint.slice(0, spaceIdx);
   const path = appendQuery(resolvePath(endpoint.slice(spaceIdx + 1), options?.params), options?.query);
   const response = await fetch(path, buildFetchOptions(method, options?.body));
-  return handleResponse(response);
+  return handleResponse(response, options?.schema);
 }

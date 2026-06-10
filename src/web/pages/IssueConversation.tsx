@@ -61,7 +61,7 @@ export function IssueConversation() {
 
   const handleInterrupt = useCallback((messageId: number) => {
     if (!activeConversationId) return;
-    const sent = send({ type: "send_message", content: "/interrupt", from_role: "项目负责人" });
+    const sent = send({ type: "interrupt", message_id: messageId });
     if (!sent) {
       interruptMessage.mutate(messageId);
     }

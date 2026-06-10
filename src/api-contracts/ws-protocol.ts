@@ -14,7 +14,12 @@ export interface WsSendMessage {
   client_id?: string;
 }
 
-export type WsClientMessage = WsSendMessage;
+export interface WsInterruptMessage {
+  type: "interrupt";
+  message_id: number;
+}
+
+export type WsClientMessage = WsSendMessage | WsInterruptMessage;
 
 // ── Server → Client ──
 export interface WsAgentEvent {

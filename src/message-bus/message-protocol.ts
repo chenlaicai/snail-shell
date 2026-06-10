@@ -71,7 +71,7 @@ export function createStreamingContext(input: { deps: MessageProtocolDeps; conve
     runtime: input.resolvedRuntime,
     status: "streaming",
   });
-  input.deps.emitAgentEvent(input.conversationId, { type: "message_started", message_id: message.id, status: "streaming", role_name: input.activeRole.name, role: "assistant" });
+  input.deps.emitAgentEvent(input.conversationId, { type: "message_started", message_id: message.id, status: "streaming", role_name: input.activeRole.name, role: "assistant", created_at: message.created_at });
   const startEvent = input.deps.store.addMessageEvent(message.id, { kind: "start", payload: { role: "assistant", role_name: input.activeRole.name, runtime: input.resolvedRuntime }, source: { runtime_name: input.resolvedRuntime } }, input.conversationId);
   emitEventAppended({ deps: input.deps, conversationId: input.conversationId, roleName: input.activeRole.name, messageId: message.id, event: startEvent });
   return {
