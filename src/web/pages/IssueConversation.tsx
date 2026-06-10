@@ -67,7 +67,7 @@ export function IssueConversation() {
   const issue = issueQ.data;
   const stage = issue?.current_stage ?? null;
   const suggestion = stageSuggestionQ.data ?? null;
-  const messages = messagesQ.data ?? [];
+  const messages = messagesQ.data?.items ?? [];
 
   const renderMessage = useCallback((_index: number, msg: MessageWithEvents) => (
     <div className="px-6 py-1">

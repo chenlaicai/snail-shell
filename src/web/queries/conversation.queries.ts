@@ -6,9 +6,12 @@ export const conversationQueries = {
     queryKey: queryKeys.conversations.detail(id),
     queryFn: () => api("GET /api/conversations/:conversationId", { params: { conversationId: id } }),
   }),
-  messages: (id: string) => ({
+  messages: (id: string, limit = 50) => ({
     queryKey: queryKeys.conversations.messages(id),
-    queryFn: () => api("GET /api/conversations/:conversationId/messages", { params: { conversationId: id } }),
+    queryFn: () => api("GET /api/conversations/:conversationId/messages/page", {
+      params: { conversationId: id },
+      query: { offset: 0, limit },
+    }),
   }),
   messagesPage: (id: string, offset: number, limit = 50) => ({
     queryKey: queryKeys.conversations.messagesPage(id, offset),
