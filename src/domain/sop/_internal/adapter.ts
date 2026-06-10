@@ -1,3 +1,4 @@
+import type { Workspace } from "@domain/workspace/model";
 import type { Sop } from "@domain/sop/model";
 import type { SopPort } from "@domain/sop/port";
 import type { SopRepository } from "./repository";
@@ -15,5 +16,9 @@ export class SopAdapter implements SopPort {
 
   findByKey(key: string): Sop | undefined {
     return this.repo.findByKey(key);
+  }
+
+  findByWorkspace(workspace: Workspace): Sop[] {
+    return this.repo.findByWorkspace(workspace);
   }
 }

@@ -1,36 +1,59 @@
 import fs from "fs";
 import path from "path";
 import { parse as parseYaml } from "yaml";
-import type { Sop, StageDefinition, RoleDefinition, Transition, TransitionGuard } from "@domain/sop/model";
+import type { Workspace, Scope } from "@domain/workspace/model";
+import type { Sop, StageDefinition, RoleDefinition, Transition } from "@domain/sop/model";
 import type { FileSystem } from "@infra/file-system";
 
 /** SOP 持久层接口 */
 export interface SopRepository {
   list(): Sop[];
   findByKey(key: string): Sop | undefined;
+  findByWorkspace(workspace: Workspace): Sop[];
 }
 
 /** SOP 文件存储实现 */
 export class FileSopRepository implements SopRepository {
-  private cache = new Map<string, Sop>();
+  private platformSops: Sop[] = [];
+  private workspaceSops = new Map<string, Sop[]>();  // workspace_path -> sops
 
-  constructor(private fileSystem: FileSystem, repoRoot: string) {
-    const sopDir = path.join(repoRoot, "config", "sop");
-    this.loadDir(sopDir);
+  constructor(private fileSystem: FileSystem, repoRoot: string, workspacePaths: string[]) {
+    this.loadPlatformSops(repoRoot);
+    this.loadWorkspaceSops(workspacePaths);
   }
 
   list(): Sop[] {
-    return [...this.cache.values()];
+    return [...this.platformSops, ...this.workspaceSops.values()].flat();
   }
 
   findByKey(key: string): Sop | undefined {
-    return this.cache.get(key);
+    return this.list().find(s => s.key === key);
   }
 
-  private loadDir(dir: string): void {
-    if (!this.fileSystem.exists(dir)) return;
+  findByWorkspace(workspace: Workspace): Sop[] {
+    const wsSops = this.workspaceSops.get(workspace.path) ?? [];
+    return [...this.platformSops, ...wsSops];
+  }
+
+  private loadPlatformSops(repoRoot: string): void {
+    const sopDir = path.join(repoRoot, "config", "sop");
+    this.platformSops = this.loadSopDir(sopDir, "platform");
+  }
+
+  private loadWorkspaceSops(workspacePaths: string[]): void {
+    for (const wsPath of workspacePaths) {
+      const wsSopDir = path.join(wsPath, ".snail", "config", "sop");
+      const sops = this.loadSopDir(wsSopDir, "workspace");
+      this.workspaceSops.set(wsPath, sops);
+    }
+  }
+
+  private loadSopDir(dir: string, scope: Scope): Sop[] {
+    if (!this.fileSystem.exists(dir)) return [];
 
     const entries = this.fileSystem.listDirs(dir);
+    const sops: Sop[] = [];
+
     for (const entry of entries) {
       const yamlFile = path.join(dir, entry, `${entry}.yaml`);
       const raw = this.fileSystem.readFile(yamlFile);
@@ -38,15 +61,17 @@ export class FileSopRepository implements SopRepository {
 
       try {
         const data = parseYaml(raw);
-        const sop = this.parseSop(entry, data, path.join(dir, entry));
-        this.cache.set(sop.key, sop);
+        const sop = this.parseSop(entry, data, path.join(dir, entry), scope);
+        sops.push(sop);
       } catch (err) {
         console.warn(`Failed to parse SOP: ${yamlFile}`, err);
       }
     }
+
+    return sops;
   }
 
-  private parseSop(key: string, data: Record<string, unknown>, sopDir: string): Sop {
+  private parseSop(key: string, data: Record<string, unknown>, sopDir: string, scope: Scope): Sop {
     if (!data.name) throw new Error(`SOP missing name: ${key}`);
 
     const stageDefinitions = (data.stage_definitions as Array<Record<string, unknown>>)?.map(sd =>
@@ -61,10 +86,10 @@ export class FileSopRepository implements SopRepository {
       key,
       name: data.name as string,
       description: (data.description as string) ?? null,
-      first_stage: (data.first_stage as string) ?? null,
       shared_handbook: this.resolveFileRef(data.shared_handbook as string | undefined, sopDir),
       stage_definitions: stageDefinitions,
       transitions,
+      scope,
     };
   }
 
@@ -79,15 +104,7 @@ export class FileSopRepository implements SopRepository {
     return {
       key: data.key as string,
       title: data.title as string,
-      sequence: (data.sequence as number) ?? 0,
-      input_description: (data.input_description as string) ?? null,
-      output_description: (data.output_description as string) ?? null,
-      acceptance_focus: (data.acceptance_focus as string[]) ?? [],
-      acceptance_checklist: (data.acceptance_checklist as Array<Record<string, unknown>>)?.map(c => ({
-        id: c.id as string,
-        description: c.description as string,
-        required: (c.required as boolean) ?? false,
-      })) ?? [],
+      description: (data.description as string) ?? "",
       roles,
     };
   }
@@ -110,19 +127,10 @@ export class FileSopRepository implements SopRepository {
     if (!data.from) throw new Error("Transition missing from");
     if (!data.to) throw new Error("Transition missing to");
 
-    let guard: TransitionGuard | null = null;
-    if (data.guard) {
-      const g = data.guard as Record<string, unknown>;
-      guard = {
-        type: g.type as string,
-        config: (g.config as Record<string, unknown>) ?? {},
-      };
-    }
-
     return {
       from: data.from as string,
       to: data.to as string,
-      guard,
+      guard: (data.guard as string) ?? null,
     };
   }
 
@@ -133,9 +141,7 @@ export class FileSopRepository implements SopRepository {
     const fileName = ref.slice(1);
     const filePath = path.join(sopDir, fileName);
     const content = this.fileSystem.readFile(filePath);
-    if (content) {
-      return content.trim();
-    }
+    if (content) return content.trim();
 
     console.warn(`File reference not found: ${filePath}`);
     return ref;

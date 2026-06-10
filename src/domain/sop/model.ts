@@ -1,3 +1,5 @@
+import type { Workspace, Scope } from "@domain/workspace/model";
+
 /** SOP (Standard Operating Procedure) 定义 */
 export interface Sop {
   /** SOP 唯一标识，来自目录名 */
@@ -6,14 +8,16 @@ export interface Sop {
   name: string;
   /** 描述 */
   description: string | null;
-  /** 首个 stage key */
-  first_stage: string | null;
-  /** 共享手册内容（@file 引用已解析） */
+  /** SOP 级共享手册内容（@file 引用已解析） */
   shared_handbook: string | null;
   /** 阶段定义 */
   stage_definitions: StageDefinition[];
   /** 转移边 */
   transitions: Transition[];
+  /** 作用域：platform 平台级，workspace 工作区级 */
+  scope: Scope;
+  /** 来源 workspace（workspace 来源时有值） */
+  workspace?: Workspace;
 }
 
 /** 阶段定义 */
@@ -22,25 +26,10 @@ export interface StageDefinition {
   key: string;
   /** 显示标题 */
   title: string;
-  /** 排序序号 */
-  sequence: number;
-  /** 输入描述 */
-  input_description: string | null;
-  /** 输出描述 */
-  output_description: string | null;
-  /** 验收要点 */
-  acceptance_focus: string[];
-  /** 验收清单 */
-  acceptance_checklist: ChecklistItem[];
+  /** 阶段描述 */
+  description: string;
   /** 角色定义 */
   roles: RoleDefinition[];
-}
-
-/** 验收清单项 */
-export interface ChecklistItem {
-  id: string;
-  description: string;
-  required: boolean;
 }
 
 /** 角色定义 */
@@ -65,12 +54,6 @@ export interface Transition {
   from: string;
   /** 目标 stage key */
   to: string;
-  /** 守卫条件 */
-  guard: TransitionGuard | null;
-}
-
-/** 转移守卫 */
-export interface TransitionGuard {
-  type: string;
-  config: Record<string, unknown>;
+  /** 状态转移的判断标准描述 */
+  guard: string | null;
 }
