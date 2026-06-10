@@ -9,19 +9,11 @@ import type { WorkspaceRepository } from "./repository";
 export class WorkspaceAdapter implements WorkspacePort {
   constructor(private repo: WorkspaceRepository) {}
 
-  findByPath(path: string): Workspace | undefined {
-    return this.repo.findByPath(path);
-  }
-
   list(limit?: number, offset?: number): Workspace[] {
     return this.repo.list(limit, offset);
   }
 
-  create(input: CreateWorkspaceInput): Workspace {
-    return this.repo.create(input);
-  }
-
-  delete(path: string): void {
-    this.repo.delete(path);
+  add(input: CreateWorkspaceInput): Workspace {
+    return this.repo.add(input);
   }
 }

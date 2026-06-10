@@ -5,10 +5,8 @@ import type { FileSystem } from "@infra/file-system";
 
 /** Workspace 持久层接口 */
 export interface WorkspaceRepository {
-  findByPath(path: string): Workspace | undefined;
   list(limit?: number, offset?: number): Workspace[];
-  create(input: CreateWorkspaceInput): Workspace;
-  delete(path: string): void;
+  add(input: CreateWorkspaceInput): Workspace;
 }
 
 /** Workspace 文件存储实现 */
@@ -21,16 +19,12 @@ export class FileWorkspaceRepository implements WorkspaceRepository {
     this.load();
   }
 
-  findByPath(workspacePath: string): Workspace | undefined {
-    return this.cache.get(workspacePath);
-  }
-
   list(limit = 50, offset = 0): Workspace[] {
     const all = [...this.cache.values()];
     return all.slice(offset, offset + limit);
   }
 
-  create(input: CreateWorkspaceInput): Workspace {
+  add(input: CreateWorkspaceInput): Workspace {
     if (this.cache.has(input.path)) {
       throw new Error(`Workspace already exists: ${input.path}`);
     }
@@ -43,14 +37,6 @@ export class FileWorkspaceRepository implements WorkspaceRepository {
     this.cache.set(workspace.path, workspace);
     this.save();
     return workspace;
-  }
-
-  delete(workspacePath: string): void {
-    if (!this.cache.has(workspacePath)) {
-      throw new Error(`Workspace not found: ${workspacePath}`);
-    }
-    this.cache.delete(workspacePath);
-    this.save();
   }
 
   private load(): void {
