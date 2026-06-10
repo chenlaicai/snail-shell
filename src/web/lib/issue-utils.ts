@@ -1,17 +1,7 @@
 import type { IssueDetailDto, StageStatus } from "@/types";
 
-export function groupByStatus(issues: IssueDetailDto[]): Record<StageStatus, IssueDetailDto[]> {
-  const groups: Record<string, IssueDetailDto[]> = {};
-  for (const issue of issues) {
-    const status = issue.current_stage?.status ?? "in_progress";
-    if (!groups[status]) groups[status] = [];
-    groups[status].push(issue);
-  }
-  return groups as Record<StageStatus, IssueDetailDto[]>;
-}
-
-/** Group issues, placing those with no current_stage into a separate "unknown" bucket */
-export function groupByStatusSafe(issues: IssueDetailDto[]): Record<string, IssueDetailDto[]> {
+/** Group issues by stage status, placing those with no current_stage into "unknown" */
+export function groupByStatus(issues: IssueDetailDto[]): Record<string, IssueDetailDto[]> {
   const groups: Record<string, IssueDetailDto[]> = {};
   for (const issue of issues) {
     const status = issue.current_stage?.status ?? "unknown";
