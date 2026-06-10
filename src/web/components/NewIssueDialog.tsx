@@ -28,7 +28,7 @@ export function NewIssueDialog({ workspaceId, open, onClose }: NewIssueDialogPro
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface-0/80" onClick={onClose}>
       <div className="bg-surface-2 border border-white/6 rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-lg font-semibold mb-4">New Issue</h2>
         <form onSubmit={handleSubmit} className="space-y-4">

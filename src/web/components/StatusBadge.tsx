@@ -1,8 +1,8 @@
 import type { StageStatus } from "@/types";
 
 const statusConfig: Record<string, { label: string; dot: string; bg: string; text: string }> = {
-  in_progress: { label: "In Progress", dot: "bg-status-blue", bg: "bg-status-blue/15", text: "text-blue-400" },
-  completed: { label: "Done", dot: "bg-status-green", bg: "bg-status-green/15", text: "text-emerald-400" },
+  in_progress: { label: "In Progress", dot: "bg-status-blue", bg: "bg-status-blue/15", text: "text-status-blue" },
+  completed: { label: "Done", dot: "bg-status-green", bg: "bg-status-green/15", text: "text-status-green" },
   cancelled: { label: "Cancelled", dot: "bg-status-gray", bg: "bg-white/6", text: "text-text-muted" },
 };
 

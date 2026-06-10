@@ -28,7 +28,7 @@ function PromptRow({ prompt }: { prompt: PromptDto }) {
           <span className="text-[11px] text-text-muted font-mono">{prompt.filePath}</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${prompt.layer === "platform" ? "bg-shell-600/20 text-shell-400" : "bg-status-blue/15 text-blue-400"}`}>{prompt.layer}</span>
+          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${prompt.layer === "platform" ? "bg-shell-600/20 text-shell-400" : "bg-status-blue/15 text-status-blue"}`}>{prompt.layer}</span>
           <span className="text-[11px] text-text-muted">priority: {prompt.priority}</span>
         </div>
       </div>
@@ -59,7 +59,7 @@ function SkillRow({ skill }: { skill: SkillDto }) {
           <h3 className="text-[13px] font-medium">{skill.title}</h3>
           <p className="text-[12px] text-text-secondary mt-1">{skill.description}</p>
         </div>
-        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${skill.source === "platform" ? "bg-shell-600/20 text-shell-400" : "bg-status-blue/15 text-blue-400"}`}>{skill.source}</span>
+        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${skill.source === "platform" ? "bg-shell-600/20 text-shell-400" : "bg-status-blue/15 text-status-blue"}`}>{skill.source}</span>
       </div>
     </div>
   );

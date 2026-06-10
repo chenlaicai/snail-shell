@@ -31,7 +31,7 @@ function SopRow({ sop }: { sop: SopDto }) {
     <div className="bg-surface-2 rounded-lg border border-white/6 p-4 hover:bg-surface-3 transition-colors cursor-pointer">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${sop.source === "platform" ? "bg-shell-600/20 text-shell-400" : "bg-status-blue/15 text-blue-400"}`}>
+          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${sop.source === "platform" ? "bg-shell-600/20 text-shell-400" : "bg-status-blue/15 text-status-blue"}`}>
             {sop.source}
           </span>
           <div>

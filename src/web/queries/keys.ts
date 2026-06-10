@@ -13,10 +13,6 @@ export const queryKeys = {
     conversations: (id: string) => ["issues", id, "conversations"] as const,
     stageSuggestion: (id: string) => ["issues", id, "stage-suggestion"] as const,
   },
-  stages: {
-    detail: (id: string) => ["stages", id] as const,
-    conversations: (id: string) => ["stages", id, "conversations"] as const,
-  },
   sops: {
     all: ["sops"] as const,
     detail: (id: string) => ["sops", id] as const,
