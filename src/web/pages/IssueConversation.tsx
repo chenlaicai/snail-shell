@@ -199,7 +199,7 @@ export function IssueConversation() {
           </QueryState>
         </div>
 
-        {issue && <PropertiesPanel issue={issue} />}
+        {issue && <PropertiesPanel issue={issue} stage={stage} />}
       </div>
     </div>
   );

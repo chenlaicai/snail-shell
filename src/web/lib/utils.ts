@@ -5,4 +5,4 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export { formatRelativeTime, formatDate } from "./format";
+export { formatRelativeTime, formatDate, formatDateTime } from "./format";

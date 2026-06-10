@@ -62,12 +62,6 @@ export async function api<K extends EndpointKey>(
   if (spaceIdx === -1) throw new Error(`Invalid endpoint format: ${endpoint}`);
   const method = endpoint.slice(0, spaceIdx);
   const path = appendQuery(resolvePath(endpoint.slice(spaceIdx + 1), options?.params), options?.query);
-
-  try {
-    const response = await fetch(path, buildFetchOptions(method, options?.body));
-    return handleResponse(response);
-  } catch (err) {
-    if (err instanceof ApiError) throw err;
-    throw new ApiError(err instanceof Error ? err.message : "Network error", 0);
-  }
+  const response = await fetch(path, buildFetchOptions(method, options?.body));
+  return handleResponse(response);
 }
