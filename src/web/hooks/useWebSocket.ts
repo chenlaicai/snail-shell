@@ -21,7 +21,7 @@ export function useWebSocket(
 ) {
   const wsRef = useRef<WebSocket | null>(null);
   const qc = useQueryClient();
-  const reconnectRef = useRef<ReturnType<typeof setTimeout>>();
+  const reconnectRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const backoffRef = useRef(1000);
   const retriesRef = useRef(0);
   const intentionalCloseRef = useRef(false);

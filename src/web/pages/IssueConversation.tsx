@@ -129,7 +129,7 @@ export function IssueConversation() {
                         <div>
                           <PropRow label="Status">{stage ? <StatusBadge status={stage.status} /> : <span className="text-[13px] text-text-muted">—</span>}</PropRow>
                           <PropRow label="Stage"><span className="text-[13px]">{stage?.stage_definition?.title ?? "—"}</span></PropRow>
-                          <PropRow label="SOP" last><span className="text-[13px] text-text-secondary">{issue!.sop_snapshot?.title ?? "—"}</span></PropRow>
+                          <PropRow label="SOP" last><span className="text-[13px] text-text-secondary">{issue!.sop_snapshot?.name ?? "—"}</span></PropRow>
                         </div>
                         <div>
                           <PropRow label="Created"><span className="text-[13px] text-text-secondary">{formatDate(issue!.created_at)}</span></PropRow>
@@ -167,7 +167,7 @@ export function IssueConversation() {
                     {/* Stage Actions */}
                     {stage?.status === "in_progress" && (
                       <div className="flex items-center gap-2 mb-6">
-                        <button onClick={() => advanceIssue.mutate()} disabled={advanceIssue.isPending}
+                        <button onClick={() => advanceIssue.mutate(undefined)} disabled={advanceIssue.isPending}
                           className="px-3 py-1.5 rounded-md bg-shell-600 hover:bg-shell-500 text-white text-xs font-medium transition-colors disabled:opacity-50">
                           Advance Stage
                         </button>

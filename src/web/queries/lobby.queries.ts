@@ -15,10 +15,3 @@ export const lobbyQueries = {
     queryFn: () => api("GET /api/lobby/sessions/:sessionId/messages", { params: { sessionId: id } }),
   }),
 };
-
-export const roleQueries = {
-  all: () => ({
-    queryKey: queryKeys.meta.roles,
-    queryFn: () => api("GET /api/roles"),
-  }),
-};

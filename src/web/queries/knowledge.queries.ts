@@ -6,7 +6,7 @@ export const knowledgeQueries = {
     queryKey: queryKeys.knowledge.summary,
     queryFn: () => api("GET /api/knowledge/items/summary"),
   }),
-  items: (filters?: { scope?: string; workspace_id?: string }) => ({
+  items: (filters?: { scope?: "workspace" | "global"; workspace_id?: string }) => ({
     queryKey: queryKeys.knowledge.items(filters),
     queryFn: () => api("GET /api/knowledge/items", { query: filters }),
   }),

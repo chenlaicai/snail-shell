@@ -43,7 +43,7 @@ export const conversationQueries = {
     queryKey: queryKeys.conversations.historySearch(id, q),
     queryFn: () => api("GET /api/conversations/:conversationId/history/search", {
       params: { conversationId: id },
-      query: { q },
+      query: { query: q },
     }),
     enabled: q.length > 0,
   }),
