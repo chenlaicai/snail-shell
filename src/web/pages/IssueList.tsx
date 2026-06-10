@@ -12,8 +12,8 @@ export function IssueList() {
   const { workspaceId } = useParams();
   const navigate = useNavigate();
   const [showNewIssue, setShowNewIssue] = useState(false);
-  const workspaceQ = useQuery({ ...workspaceQueries.detail(workspaceId!), enabled: !!workspaceId });
-  const issuesQ = useQuery({ ...workspaceQueries.issues(workspaceId!), enabled: !!workspaceId });
+  const workspaceQ = useQuery({ ...workspaceQueries.detail(workspaceId ?? ""), enabled: !!workspaceId });
+  const issuesQ = useQuery({ ...workspaceQueries.issues(workspaceId ?? ""), enabled: !!workspaceId });
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const grouped = groupByStatus(issuesQ.data ?? []);
 
@@ -83,7 +83,7 @@ export function IssueList() {
         </div>
       </QueryState>
 
-      <NewIssueDialog workspaceId={workspaceId!} open={showNewIssue} onClose={() => setShowNewIssue(false)} />
+      {workspaceId && <NewIssueDialog workspaceId={workspaceId} open={showNewIssue} onClose={() => setShowNewIssue(false)} />}
     </>
   );
 }

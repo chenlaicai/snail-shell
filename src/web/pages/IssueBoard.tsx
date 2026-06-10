@@ -12,8 +12,8 @@ export function IssueBoard() {
   const { workspaceId } = useParams();
   const navigate = useNavigate();
   const [showNewIssue, setShowNewIssue] = useState(false);
-  const workspaceQ = useQuery({ ...workspaceQueries.detail(workspaceId!), enabled: !!workspaceId });
-  const issuesQ = useQuery({ ...workspaceQueries.issues(workspaceId!), enabled: !!workspaceId });
+  const workspaceQ = useQuery({ ...workspaceQueries.detail(workspaceId ?? ""), enabled: !!workspaceId });
+  const issuesQ = useQuery({ ...workspaceQueries.issues(workspaceId ?? ""), enabled: !!workspaceId });
   const grouped = groupByStatus(issuesQ.data ?? []);
 
   return (
@@ -66,7 +66,7 @@ export function IssueBoard() {
         </div>
       </QueryState>
 
-      <NewIssueDialog workspaceId={workspaceId!} open={showNewIssue} onClose={() => setShowNewIssue(false)} />
+      {workspaceId && <NewIssueDialog workspaceId={workspaceId} open={showNewIssue} onClose={() => setShowNewIssue(false)} />}
     </>
   );
 }

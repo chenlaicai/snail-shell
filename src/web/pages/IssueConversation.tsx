@@ -1,6 +1,6 @@
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useState, useRef } from "react";
+import { useCallback, useState, useRef, useMemo } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { issueQueries } from "@/queries/issue.queries";
 import { conversationQueries } from "@/queries/conversation.queries";
@@ -35,7 +35,9 @@ export function IssueConversation() {
   const conversationsQ = useQuery({ ...issueQueries.conversations(issueId!), enabled: !!issueId });
   const stageSuggestionQ = useQuery({ ...issueQueries.stageSuggestion(issueId!), enabled: !!issueId });
 
-  const activeConversationId = conversationsQ.data?.[0]?.id ?? null;
+  // Pick the most recently updated conversation
+  const sorted = conversationsQ.data?.slice().sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+  const activeConversationId = sorted?.[0]?.id ?? null;
   const messagesQ = useQuery({ ...conversationQueries.messages(activeConversationId ?? ""), enabled: !!activeConversationId });
 
   const sendMessage = useSendMessage(activeConversationId ?? "");
@@ -46,7 +48,8 @@ export function IssueConversation() {
   const confirmSuggestion = useConfirmStageSuggestion(issueId!, workspaceId);
   const rejectSuggestion = useRejectStageSuggestion(issueId!);
 
-  const { send } = useWebSocket(activeConversationId, handlePermissionRequired);
+  const [wsStatus, setWsStatus] = useState<"connected" | "disconnected" | "reconnecting">("disconnected");
+  const { send } = useWebSocket(activeConversationId, handlePermissionRequired, setWsStatus);
 
   const handleSend = useCallback((content: string) => {
     if (!activeConversationId) return;
@@ -62,8 +65,8 @@ export function IssueConversation() {
   }, [activeConversationId, send, interruptMessage]);
 
   const issue = issueQ.data;
-  const stage = issue?.current_stage;
-  const suggestion = stageSuggestionQ.data;
+  const stage = issue?.current_stage ?? null;
+  const suggestion = stageSuggestionQ.data ?? null;
   const messages = messagesQ.data ?? [];
 
   const renderMessage = useCallback((_index: number, msg: MessageWithEvents) => (
@@ -93,6 +96,81 @@ export function IssueConversation() {
     </div>
   ), [handleInterrupt, pendingPermissions, activeConversationId]);
 
+  const virtuosoComponents = useMemo(() => ({
+    Header: () => (
+      <div className="px-6 pt-6 pb-2">
+        <div className="mb-6">
+          <div className="flex items-center gap-3 mb-3">
+            <span className="text-xs text-text-muted font-medium font-mono">{issue?.id?.slice(0, 8) ?? ""}</span>
+            {stage && <StatusBadge status={stage.status} />}
+          </div>
+          <h1 className="text-xl font-semibold leading-tight mb-2">{issue?.title ?? ""}</h1>
+          {issue?.summary && <p className="text-[14px] text-text-secondary leading-relaxed">{issue.summary}</p>}
+        </div>
+
+        <div className="bg-surface-2 rounded-lg border border-white/6 mb-6 overflow-hidden">
+          <div className="grid grid-cols-2 divide-x divide-white/6">
+            <div>
+              <PropRow label="Status">{stage ? <StatusBadge status={stage.status} /> : <span className="text-[13px] text-text-muted">—</span>}</PropRow>
+              <PropRow label="Stage"><span className="text-[13px]">{stage?.stage_definition?.title ?? "—"}</span></PropRow>
+              <PropRow label="SOP" last><span className="text-[13px] text-text-secondary">{issue?.sop_snapshot?.name ?? "—"}</span></PropRow>
+            </div>
+            <div>
+              <PropRow label="Created"><span className="text-[13px] text-text-secondary">{issue?.created_at ? formatDate(issue.created_at) : "—"}</span></PropRow>
+              <PropRow label="Updated"><span className="text-[13px] text-text-secondary">{issue?.updated_at ? formatRelativeTime(issue.updated_at) : "—"}</span></PropRow>
+              <PropRow label="Conversations" last><span className="text-[13px] text-text-secondary">{issue?.conversation_count ?? 0}</span></PropRow>
+            </div>
+          </div>
+        </div>
+
+        {suggestion && (
+          <div className="bg-shell-600/10 border border-shell-600/30 rounded-lg p-4 mb-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[13px] font-medium text-shell-400">Stage Suggestion</p>
+                <p className="text-[12px] text-text-secondary mt-1">
+                  {suggestion.fromStageKey} → {suggestion.toStageKey}
+                  {suggestion.reason && `: ${suggestion.reason}`}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={() => confirmSuggestion.mutate()} disabled={confirmSuggestion.isPending}
+                  className="px-3 py-1.5 rounded-md bg-shell-600 hover:bg-shell-500 text-white text-xs font-medium transition-colors disabled:opacity-50">Confirm</button>
+                <button onClick={() => rejectSuggestion.mutate()} disabled={rejectSuggestion.isPending}
+                  className="px-3 py-1.5 rounded-md border border-white/6 text-text-secondary hover:text-text-primary text-xs transition-colors disabled:opacity-50">Reject</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {stage?.status === "in_progress" && (
+          <div className="flex items-center gap-2 mb-6">
+            <button onClick={() => advanceIssue.mutate(undefined)} disabled={advanceIssue.isPending}
+              className="px-3 py-1.5 rounded-md bg-shell-600 hover:bg-shell-500 text-white text-xs font-medium transition-colors disabled:opacity-50">Advance Stage</button>
+            <button onClick={() => completeIssue.mutate()} disabled={completeIssue.isPending}
+              className="px-3 py-1.5 rounded-md border border-status-green/30 text-status-green hover:bg-status-green/10 text-xs font-medium transition-colors disabled:opacity-50">Complete</button>
+            <button onClick={() => archiveIssue.mutate()} disabled={archiveIssue.isPending}
+              className="px-3 py-1.5 rounded-md border border-white/6 text-text-secondary hover:text-text-primary text-xs transition-colors disabled:opacity-50">Archive</button>
+          </div>
+        )}
+
+        <div className="h-px bg-white/6 mb-4" />
+        {messages.length === 0 && <div className="text-center text-text-muted text-sm py-8">No messages yet. Start the conversation below.</div>}
+      </div>
+    ),
+    Footer: () => (
+      <div className="px-6 pt-4 pb-8">
+        {wsStatus !== "connected" && (
+          <div className="flex items-center gap-2 px-3 py-2 mb-2 rounded-md bg-status-amber/10 text-status-amber text-[11px]">
+            <div className="w-1.5 h-1.5 rounded-full bg-status-amber animate-pulse" />
+            {wsStatus === "reconnecting" ? "Reconnecting..." : "Disconnected"}
+          </div>
+        )}
+        <ChatInput onSend={handleSend} />
+      </div>
+    ),
+  }), [issue, stage, suggestion, messages.length, wsStatus, advanceIssue, completeIssue, archiveIssue, confirmSuggestion, rejectSuggestion, handleSend]);
+
   return (
     <div className="flex flex-col h-full">
       <TopBar breadcrumbs={[{ label: issueQ.isLoading ? "Loading..." : (issue?.title ?? issueId?.slice(0, 8) ?? ""), to: `/ws/${workspaceId}/board` }, { label: issueId?.slice(0, 8) ?? "" }]} />
@@ -110,91 +188,7 @@ export function IssueConversation() {
               className="flex-1"
               style={{ height: "100%" }}
               topItemCount={0}
-              components={{
-                Header: () => (
-                  <div className="px-6 pt-6 pb-2">
-                    {/* Issue Header */}
-                    <div className="mb-6">
-                      <div className="flex items-center gap-3 mb-3">
-                        <span className="text-xs text-text-muted font-medium font-mono">{issue!.id.slice(0, 8)}</span>
-                        {stage && <StatusBadge status={stage.status} />}
-                      </div>
-                      <h1 className="text-xl font-semibold leading-tight mb-2">{issue!.title}</h1>
-                      {issue!.summary && <p className="text-[14px] text-text-secondary leading-relaxed">{issue!.summary}</p>}
-                    </div>
-
-                    {/* Properties */}
-                    <div className="bg-surface-2 rounded-lg border border-white/6 mb-6 overflow-hidden">
-                      <div className="grid grid-cols-2 divide-x divide-white/6">
-                        <div>
-                          <PropRow label="Status">{stage ? <StatusBadge status={stage.status} /> : <span className="text-[13px] text-text-muted">—</span>}</PropRow>
-                          <PropRow label="Stage"><span className="text-[13px]">{stage?.stage_definition?.title ?? "—"}</span></PropRow>
-                          <PropRow label="SOP" last><span className="text-[13px] text-text-secondary">{issue!.sop_snapshot?.name ?? "—"}</span></PropRow>
-                        </div>
-                        <div>
-                          <PropRow label="Created"><span className="text-[13px] text-text-secondary">{formatDate(issue!.created_at)}</span></PropRow>
-                          <PropRow label="Updated"><span className="text-[13px] text-text-secondary">{formatRelativeTime(issue!.updated_at)}</span></PropRow>
-                          <PropRow label="Conversations" last><span className="text-[13px] text-text-secondary">{issue!.conversation_count}</span></PropRow>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Stage Suggestion */}
-                    {suggestion && (
-                      <div className="bg-shell-600/10 border border-shell-600/30 rounded-lg p-4 mb-6">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-[13px] font-medium text-shell-400">Stage Suggestion</p>
-                            <p className="text-[12px] text-text-secondary mt-1">
-                              {suggestion.fromStageKey} → {suggestion.toStageKey}
-                              {suggestion.reason && `: ${suggestion.reason}`}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => confirmSuggestion.mutate()} disabled={confirmSuggestion.isPending}
-                              className="px-3 py-1.5 rounded-md bg-shell-600 hover:bg-shell-500 text-white text-xs font-medium transition-colors disabled:opacity-50">
-                              Confirm
-                            </button>
-                            <button onClick={() => rejectSuggestion.mutate()} disabled={rejectSuggestion.isPending}
-                              className="px-3 py-1.5 rounded-md border border-white/6 text-text-secondary hover:text-text-primary text-xs transition-colors disabled:opacity-50">
-                              Reject
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Stage Actions */}
-                    {stage?.status === "in_progress" && (
-                      <div className="flex items-center gap-2 mb-6">
-                        <button onClick={() => advanceIssue.mutate(undefined)} disabled={advanceIssue.isPending}
-                          className="px-3 py-1.5 rounded-md bg-shell-600 hover:bg-shell-500 text-white text-xs font-medium transition-colors disabled:opacity-50">
-                          Advance Stage
-                        </button>
-                        <button onClick={() => completeIssue.mutate()} disabled={completeIssue.isPending}
-                          className="px-3 py-1.5 rounded-md border border-status-green/30 text-status-green hover:bg-status-green/10 text-xs font-medium transition-colors disabled:opacity-50">
-                          Complete
-                        </button>
-                        <button onClick={() => archiveIssue.mutate()} disabled={archiveIssue.isPending}
-                          className="px-3 py-1.5 rounded-md border border-white/6 text-text-secondary hover:text-text-primary text-xs transition-colors disabled:opacity-50">
-                          Archive
-                        </button>
-                      </div>
-                    )}
-
-                    <div className="h-px bg-white/6 mb-4" />
-
-                    {messages.length === 0 && (
-                      <div className="text-center text-text-muted text-sm py-8">No messages yet. Start the conversation below.</div>
-                    )}
-                  </div>
-                ),
-                Footer: () => (
-                  <div className="px-6 pt-4 pb-8">
-                    <ChatInput onSend={handleSend} />
-                  </div>
-                ),
-              }}
+              components={virtuosoComponents}
             />
           </QueryState>
         </div>

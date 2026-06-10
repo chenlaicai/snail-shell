@@ -90,6 +90,8 @@ function appendPlaceholderMessage(qc: ReturnType<typeof useQueryClient>, msgKey:
   qc.setQueryData<MessageWithEvents[]>(msgKey, (old) => {
     if (!old) return old;
     if (old.some((m) => m.id === inner.message_id)) return old;
-    return [...old, { id: inner.message_id, conversation_id: conversationId, client_id: inner.client_id ?? null, from_role: inner.role_name, to_roles: [], role: inner.role as MessageWithEvents["role"], quoted_message_id: null, context_cutoff_at: "0", runtime: null, status: inner.status as MessageWithEvents["status"], created_at: new Date().toISOString(), updated_at: new Date().toISOString(), events: [], context: null }];
+    // Client-side timestamp used as placeholder; server will replace with authoritative time on next fetch
+    const now = new Date().toISOString();
+    return [...old, { id: inner.message_id, conversation_id: conversationId, client_id: inner.client_id ?? null, from_role: inner.role_name, to_roles: [], role: inner.role as MessageWithEvents["role"], quoted_message_id: null, context_cutoff_at: "0", runtime: null, status: inner.status as MessageWithEvents["status"], created_at: now, updated_at: now, events: [], context: null }];
   });
 }

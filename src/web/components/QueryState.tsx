@@ -29,7 +29,11 @@ export function QueryState({ query, loadingText = "Loading...", errorText, empty
     );
   }
 
-  if (isEmpty ?? (query.data && Array.isArray(query.data) && query.data.length === 0)) {
+  if (query.data == null) {
+    return <div className="text-center text-text-muted text-sm py-16">{emptyText}</div>;
+  }
+
+  if (isEmpty ?? (Array.isArray(query.data) && query.data.length === 0)) {
     return <div className="text-center text-text-muted text-sm py-16">{emptyText}</div>;
   }
 
