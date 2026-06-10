@@ -18,7 +18,7 @@ export function IssueBoard() {
 
   return (
     <>
-      <TopBar breadcrumbs={[{ label: workspaceQ.data?.name ?? "Workspace", to: `/ws/${workspaceId}/board` }, { label: "Board" }]} />
+      <TopBar breadcrumbs={[{ label: workspaceQ.isLoading ? "Loading..." : (workspaceQ.data?.name ?? workspaceId ?? ""), to: `/ws/${workspaceId}/board` }, { label: "Board" }]} />
 
       <div className="flex items-center px-6 py-3 gap-3 border-b border-white/4 shrink-0">
         <div className="flex items-center bg-surface-2 rounded-md border border-white/6 p-0.5">
