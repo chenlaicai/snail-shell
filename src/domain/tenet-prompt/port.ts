@@ -1,18 +1,11 @@
+import type { Workspace } from "@domain/workspace/model";
 import type { PromptDocument } from "./model";
 
 /** TenetPrompt 端口定义 */
 export interface TenetPrompt {
-  /** 列出所有已加载的 prompt 文档 */
+  /** 页面展示用，列出所有 prompts */
   list(): PromptDocument[];
 
-  /** 按 id 查找 */
-  findById(id: string): PromptDocument | undefined;
-
-  /** 按条件过滤匹配的 prompts */
-  filter(match: {
-    runtime?: string;
-    stage_type?: string;
-    role?: string;
-    conversation_kind?: string;
-  }): PromptDocument[];
+  /** 获取指定 ws 的 prompts（平台 + 该 ws），返回无 tag 和命中 tag 的 */
+  findByWorkspace(workspace: Workspace, tags?: string[]): PromptDocument[];
 }
