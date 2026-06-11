@@ -1,11 +1,9 @@
-import fs from "fs";
-import path from "path";
 import type {
   SnailTemplate,
   SnailAgentSession,
   CreateSnailAgentSessionInput,
 } from "@domain/snail/model";
-import type { FileSystem } from "@infra/file-system";
+import type { FileDataStore } from "@infra/file-data-store";
 
 /** Snail 持久层接口 */
 export interface SnailRepository {
@@ -18,12 +16,14 @@ export interface SnailRepository {
 
 /** Snail 文件存储实现 */
 export class FileSnailRepository implements SnailRepository {
+  private static readonly FILE = "snail-den.json";
+
   private templates = new Map<string, SnailTemplate>();
   private sessions = new Map<string, SnailAgentSession>();
   private nextSessionId = 1;
 
-  constructor(private fileSystem: FileSystem, repoRoot: string) {
-    this.loadTemplates(repoRoot);
+  constructor(private dataStore: FileDataStore) {
+    this.loadTemplates();
   }
 
   listTemplates(): SnailTemplate[] {
@@ -35,7 +35,6 @@ export class FileSnailRepository implements SnailRepository {
   }
 
   findCurrentSession(conversationId: string, roleName: string): SnailAgentSession | undefined {
-    // 查找最新的 session
     const sessions = [...this.sessions.values()]
       .filter(s => s.conversation_id === conversationId && s.role_name === roleName)
       .sort((a, b) => b.created_at.localeCompare(a.created_at));
@@ -71,9 +70,8 @@ export class FileSnailRepository implements SnailRepository {
     session.external_session_id = externalSessionId;
   }
 
-  private loadTemplates(repoRoot: string): void {
-    const configPath = path.join(repoRoot, "config", "snail-den.json");
-    const raw = this.fileSystem.readJson<{ snails: SnailTemplate[] }>(configPath);
+  private loadTemplates(): void {
+    const raw = this.dataStore.readJson<{ snails: SnailTemplate[] }>(FileSnailRepository.FILE);
 
     if (!raw?.snails) return;
 

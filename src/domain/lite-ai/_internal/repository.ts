@@ -1,28 +1,27 @@
-import fs from "fs";
-import path from "path";
-import type { LlmConfig } from "@domain/lite-ai/model";
-import type { FileSystem } from "@infra/file-system";
+import type { LiteAIConfig } from "@domain/lite-ai/model";
+import type { FileDataStore } from "@infra/file-data-store";
 
 /** Lite AI 持久层接口 */
 export interface LiteAIRepository {
-  getConfig(): LlmConfig | null;
+  getConfig(): LiteAIConfig | null;
 }
 
 /** Lite AI 文件存储实现 */
 export class FileLiteAIRepository implements LiteAIRepository {
-  private config: LlmConfig | null = null;
+  private static readonly FILE = "lite-ai.json";
 
-  constructor(private fileSystem: FileSystem, repoRoot: string) {
-    this.loadConfig(repoRoot);
+  private config: LiteAIConfig | null = null;
+
+  constructor(private dataStore: FileDataStore) {
+    this.loadConfig();
   }
 
-  getConfig(): LlmConfig | null {
+  getConfig(): LiteAIConfig | null {
     return this.config;
   }
 
-  private loadConfig(repoRoot: string): void {
-    const configPath = path.join(repoRoot, "config", "llm.json");
-    const raw = this.fileSystem.readJson<LlmConfig>(configPath);
+  private loadConfig(): void {
+    const raw = this.dataStore.readJson<LiteAIConfig>(FileLiteAIRepository.FILE);
 
     if (raw && raw.provider === "openai" && raw.openai?.api_key) {
       this.config = raw;

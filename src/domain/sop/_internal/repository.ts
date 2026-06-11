@@ -1,9 +1,8 @@
-import fs from "fs";
-import path from "path";
 import { parse as parseYaml } from "yaml";
-import type { Workspace, Scope } from "@domain/workspace/model";
+import type { Workspace } from "@domain/workspace/model";
+import { Scope } from "@domain/workspace/model";
 import type { Sop, StageDefinition, RoleDefinition, Transition } from "@domain/sop/model";
-import type { FileSystem } from "@infra/file-system";
+import type { FileDataStore } from "@infra/file-data-store";
 
 /** SOP 持久层接口 */
 export interface SopRepository {
@@ -14,12 +13,19 @@ export interface SopRepository {
 
 /** SOP 文件存储实现 */
 export class FileSopRepository implements SopRepository {
-  private platformSops: Sop[] = [];
-  private workspaceSops = new Map<string, Sop[]>();  // workspace_path -> sops
+  private static readonly DIR = "sops";
 
-  constructor(private fileSystem: FileSystem, repoRoot: string, workspacePaths: string[]) {
-    this.loadPlatformSops(repoRoot);
-    this.loadWorkspaceSops(workspacePaths);
+  private platformSops: Sop[] = [];
+  private workspaceSops = new Map<string, Sop[]>();
+
+  constructor(private dataStore: FileDataStore, workspaces: Workspace[]) {
+    this.platformSops = this.loadSopDir(this.dataStore);
+    for (const ws of workspaces) {
+      const wsStore = this.dataStore.workspace(ws.path);
+      const sops = this.loadSopDir(wsStore)
+        .map(s => ({ ...s, scope: Scope.Workspace, workspace: ws }));
+      this.workspaceSops.set(ws.path, sops);
+    }
   }
 
   list(): Sop[] {
@@ -35,43 +41,31 @@ export class FileSopRepository implements SopRepository {
     return [...this.platformSops, ...wsSops];
   }
 
-  private loadPlatformSops(repoRoot: string): void {
-    const sopDir = path.join(repoRoot, "config", "sop");
-    this.platformSops = this.loadSopDir(sopDir, "platform");
-  }
+  private loadSopDir(store: FileDataStore): Sop[] {
+    const relativeDir = FileSopRepository.DIR;
+    if (!store.exists(relativeDir)) return [];
 
-  private loadWorkspaceSops(workspacePaths: string[]): void {
-    for (const wsPath of workspacePaths) {
-      const wsSopDir = path.join(wsPath, ".snail", "config", "sop");
-      const sops = this.loadSopDir(wsSopDir, "workspace");
-      this.workspaceSops.set(wsPath, sops);
-    }
-  }
-
-  private loadSopDir(dir: string, scope: Scope): Sop[] {
-    if (!this.fileSystem.exists(dir)) return [];
-
-    const entries = this.fileSystem.listDirs(dir);
+    const entries = store.listDirs(relativeDir);
     const sops: Sop[] = [];
 
     for (const entry of entries) {
-      const yamlFile = path.join(dir, entry, `${entry}.yaml`);
-      const raw = this.fileSystem.readFile(yamlFile);
+      const yamlPath = `${relativeDir}/${entry}/${entry}.yaml`;
+      const raw = store.readFile(yamlPath);
       if (!raw) continue;
 
       try {
         const data = parseYaml(raw);
-        const sop = this.parseSop(entry, data, path.join(dir, entry), scope);
+        const sop = this.parseSop(entry, data, `${relativeDir}/${entry}`);
         sops.push(sop);
       } catch (err) {
-        console.warn(`Failed to parse SOP: ${yamlFile}`, err);
+        console.warn(`Failed to parse SOP: ${yamlPath}`, err);
       }
     }
 
     return sops;
   }
 
-  private parseSop(key: string, data: Record<string, unknown>, sopDir: string, scope: Scope): Sop {
+  private parseSop(key: string, data: Record<string, unknown>, sopDir: string): Sop {
     if (!data.name) throw new Error(`SOP missing name: ${key}`);
 
     const stageDefinitions = (data.stage_definitions as Array<Record<string, unknown>>)?.map(sd =>
@@ -89,7 +83,7 @@ export class FileSopRepository implements SopRepository {
       shared_handbook: this.resolveFileRef(data.shared_handbook as string | undefined, sopDir),
       stage_definitions: stageDefinitions,
       transitions,
-      scope,
+      scope: Scope.Platform,
     };
   }
 
@@ -139,8 +133,8 @@ export class FileSopRepository implements SopRepository {
     if (!ref.startsWith("@")) return ref;
 
     const fileName = ref.slice(1);
-    const filePath = path.join(sopDir, fileName);
-    const content = this.fileSystem.readFile(filePath);
+    const filePath = `${sopDir}/${fileName}`;
+    const content = this.dataStore.readFile(filePath);
     if (content) return content.trim();
 
     console.warn(`File reference not found: ${filePath}`);

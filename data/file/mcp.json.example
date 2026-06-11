@@ -1,0 +1,27 @@
+{
+  "mcpServers": {
+    "server-name": {
+      // 【必填】MCP Server 名称，全局唯一
+      // 写法：与 key 一致，使用 kebab-case
+
+      // 【二选一】启动命令（stdio 传输）
+      // 写法：可执行文件路径，如 "npx"、"node"、"/usr/bin/python"
+      "command": "npx",
+
+      // 【可选】命令参数（stdio 传输）
+      // 写法：字符串数组，每个元素是一个参数
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/allowed/files"],
+
+      // 【可选】环境变量（stdio 传输）
+      // 写法：key-value 对，value 为字符串
+      "env": {
+        "GITHUB_TOKEN": "your-github-token"
+      },
+
+      // 【二选一】HTTP 端点（HTTP 传输）
+      // 写法：完整的 URL，如 "http://localhost:8080/mcp"
+      // 注意：command+args 与 url 二选一，不能同时存在
+      "url": "http://localhost:8080/mcp"
+    }
+  }
+}
