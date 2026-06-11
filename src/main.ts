@@ -2,10 +2,12 @@ import { serve } from "@hono/node-server";
 import { FileDataStore } from "@infra/file-data-store";
 import { SQLiteDatabase } from "@infra/database";
 import { createApp } from "@infra/http/app";
+import { init as initAcs } from "@domain/acs/_internal/initor";
 import { init as initWorkspace } from "@domain/workspace/_internal/initor";
 import { init as initTenetPrompt } from "@domain/tenet-prompt/_internal/initor";
 import { init as initSkill } from "@domain/skill/_internal/initor";
 import { init as initSop } from "@domain/sop/_internal/initor";
+import { init as initMCP } from "@domain/mcp/_internal/initor";
 import { init as initMCPServer } from "@domain/snail-mcp-server/_internal/initor";
 import { initHono as initIM } from "@domain/im/_internal/hono-initor";
 import { init as initKnowledge } from "@domain/knowledge/_internal/initor";
@@ -13,6 +15,7 @@ import { init as initIssue } from "@domain/issue/_internal/adapter";
 import { init as initEvolution } from "@domain/evolution/_internal/adapter";
 import { initGovernance as initEvolutionGovernance } from "@app/evolution-governance/governance";
 import { init as initFeatureChain } from "@domain/feature-chain/_internal/initor";
+import { init as initGuardProfile } from "@domain/guard-profile/_internal/initor";
 import { init as initSnail } from "@domain/snail/_internal/initor";
 import { init as initLiteAI } from "@domain/lite-ai/_internal/initor";
 import { createMcpHandler } from "@infra/mcp-server/handler";
@@ -20,24 +23,40 @@ import { createMcpHandler } from "@infra/mcp-server/handler";
 async function main() {
   const repoRoot = process.cwd();
 
-  // 基础设施 — 目录结构由 infra 内部管理
-  const db = new SQLiteDatabase(repoRoot);           // → data/database/snail-shell.db
-  const fileDataStore = new FileDataStore(repoRoot);  // → data/file/
+  // 基础设施
+  const db = new SQLiteDatabase(repoRoot);
+  const dataStore = new FileDataStore(repoRoot);
 
-  // FileDataStore — 所有运行时文件数据（workspace, sop, snail, lite-ai, skill, tenet-prompt）
-  const workspace = initWorkspace(fileDataStore);
+  // 初始化 acs（agent 运行时）
+  const { registry } = await initAcs();
+
+  // 初始化 workspace
+  const workspace = initWorkspace(dataStore);
   const workspaces = workspace.repo.list();
-  const sop = initSop(fileDataStore, workspaces);
-  const snail = initSnail(fileDataStore);
-  const liteAI = initLiteAI(fileDataStore);
-  const tenetPrompt = initTenetPrompt(fileDataStore, workspaces);
-  const skill = initSkill(fileDataStore, workspaces);
 
-  // FileLoader — 源码目录（feature-chain 读取 docs/features/，initor 内部创建）
-  const featureChain = initFeatureChain(repoRoot);
-
-  // 纯内存模块
+  // 初始化领域模块
+  const tenetPrompt = initTenetPrompt(dataStore, workspaces);
+  const skill = initSkill(dataStore, workspaces);
+  const sop = initSop(dataStore, workspaces);
+  const mcp = initMCP(dataStore, workspaces);
   const snailMCPServer = initMCPServer();
+  const im = initIM();
+  const knowledge = initKnowledge();
+  const issue = initIssue(sop.repo, im.repo);
+  const evolution = initEvolution(sop.repo, im.repo, issue.issueRepo, issue.stageRepo);
+  const evolutionGovernance = initEvolutionGovernance(evolution.adapter, issue.adapter, im.adapter, sop.adapter);
+  const featureChain = initFeatureChain(repoRoot);
+  const guardProfile = initGuardProfile(dataStore);
+  const liteAI = initLiteAI(dataStore);
+
+  // 初始化 snail（依赖 tenet-prompt, skill, mcp, guard-profile, acs registry）
+  const snail = initSnail(dataStore, {
+    registry,
+    tenetPrompt: tenetPrompt.adapter,
+    skill: skill.adapter,
+    mcp: mcp.adapter,
+    guardProfile: guardProfile.adapter,
+  });
 
   // 注册 snail-final-response MCP Server
   snailMCPServer.adapter.registerServer({
@@ -64,17 +83,6 @@ async function main() {
     ],
   });
 
-  const im = initIM();
-  const knowledge = initKnowledge();
-  const issue = initIssue(sop.repo);
-  const evolution = initEvolution();
-  const evolutionGovernance = initEvolutionGovernance(
-    evolution.adapter,
-    issue.adapter,
-    im.adapter,
-    sop.adapter,
-  );
-
   // 重建 Feature Chain 索引
   featureChain.adapter.rebuild();
 
@@ -85,11 +93,12 @@ async function main() {
   console.log(`Loaded ${sop.adapter.list().length} SOPs`);
   console.log(`MCP Servers: ${snailMCPServer.adapter.listServers().map(s => s.name).join(", ")}`);
   console.log(`Feature Chain: ${featureChain.adapter.search("").length} docs indexed`);
-  console.log(`Snail: ${snail.adapter.listTemplates().length} templates`);
+  console.log(`Snails: ${snail.adapter.list().map(s => s.id).join(", ")}`);
   console.log(`IM: ready`);
   console.log(`Lite AI: ${liteAI.repo.getConfig() ? "configured" : "not configured"}`);
   console.log(`Evolution: ready`);
   console.log(`Evolution Governance: ready`);
+  console.log(`Registered agents: ${registry.listAgentRuntimes().join(", ")}`);
 
   // HTTP 服务
   const mcpHandler = createMcpHandler(snailMCPServer.adapter);

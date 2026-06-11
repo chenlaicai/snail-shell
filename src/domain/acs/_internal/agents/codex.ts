@@ -1,7 +1,7 @@
 import { spawn } from "child_process";
 import path from "path";
 import type { AgentRuntimePort } from "../../port";
-import type { AgentRequest, AgentEvent, InvokeResult, InvokeOptions, Message } from "../../model";
+import type { FirstCallRequest, ResumeRequest, AgentEvent, InvokeResult, InvokeOptions, GuardProfile, Message } from "../../model";
 import { manageInvocationProcess } from "../utils/managed-process";
 import { renderStatefulPrompt, type StatefulPromptInput } from "../utils/stateful-prompt-format";
 import { buildRuntimeUsageSignal, usageDetailFromCodexUsage } from "../utils/runtime-usage";
@@ -35,41 +35,93 @@ interface CodexParseState {
 /**
  * Codex 适配器。
  *
- * 有状态 agent：首次调用通过 stdin 传递完整 prompt，
- * 后续调用通过 thread_id resume。
+ * 有状态 agent：首次调用注入完整配置，后续调用通过 thread_id resume。
  * System prompt 通过 -c developer_instructions 原生注入。
  */
 export class CodexAgent implements AgentRuntimePort {
   readonly name = "codex";
   private static readonly DEFAULT_MODEL = "claude-opus-4";
 
-  async invoke(
-    request: AgentRequest,
+  /**
+   * 首次调用：注入完整配置（capabilities + guard profile + prompt）。
+   */
+  async invokeFirstCall(
+    request: FirstCallRequest,
     onEvent: (event: AgentEvent) => void,
     options: InvokeOptions = {},
   ): Promise<InvokeResult> {
-    const { prompt, capabilities, security, messages, workspaceRoot, sessionId } = resolveRequest(request);
+    // 注入 capabilities（文件系统级别）
+    writeCodexGuardConfig(request.guard_profile.deny, request.workspaceRoot);
+    ensureMcpServers(request.capabilities.mcpServers, request.workspaceRoot, "codex");
+    ensureSkillSymlinks(request.workspaceRoot, request.capabilities.skills);
 
-    // 注入 capabilities（首次调用）
-    if (request.kind === "first_call") {
-      writeCodexGuardConfig(security.deny, workspaceRoot);
-      ensureMcpServers(capabilities.mcpServers, workspaceRoot, "codex");
-      ensureSkillSymlinks(workspaceRoot, capabilities.skills);
-    }
-
+    // 构建首次调用的 CLI args
     const model = options.model ?? CodexAgent.DEFAULT_MODEL;
-    const statefulInput = buildStatefulPromptInput(request, prompt.systemPrompt, prompt.systemReminder, messages);
-    const promptText = renderStatefulPrompt(statefulInput, { skipSystemPrompt: !!sessionId });
-    const args = buildArgs(model, sessionId, promptText, request.kind === "first_call" ? prompt.systemPrompt : undefined);
+    const statefulInput = buildStatefulPromptInput(true, request.prompt.systemPrompt, request.prompt.systemReminder, request.messages);
+    const promptText = renderStatefulPrompt(statefulInput, { skipSystemPrompt: false });
+    const args = buildFirstCallArgs(model, promptText, request.prompt.systemPrompt);
 
-    const cwd = workspaceRoot;
-    const proc = spawn("codex", args, {
-      cwd,
-      env: { ...process.env, CODEX_HOME: path.join(cwd, ".codex"), ...options.contextEnv },
+    // Spawn 进程
+    const proc = this.spawn(args, request.workspaceRoot, options);
+
+    // 发送 prompt
+    this.writePrompt(proc, promptText);
+
+    // 处理输出
+    return this.processOutput(proc, onEvent, options, null);
+  }
+
+  /**
+   * 后续调用：只传 messages + threadId，不注入配置。
+   */
+  async invokeResume(
+    request: ResumeRequest,
+    onEvent: (event: AgentEvent) => void,
+    options: InvokeOptions = {},
+  ): Promise<InvokeResult> {
+    // 构建 resume 的 CLI args
+    const model = options.model ?? CodexAgent.DEFAULT_MODEL;
+    const statefulInput = buildStatefulPromptInput(false, "", request.systemReminder, request.messages);
+    const promptText = renderStatefulPrompt(statefulInput, { skipSystemPrompt: true });
+    const args = buildResumeArgs(model, request.sessionId);
+
+    // Spawn 进程
+    const proc = this.spawn(args, request.workspaceRoot, options);
+
+    // 发送 prompt
+    this.writePrompt(proc, promptText);
+
+    // 处理输出
+    return this.processOutput(proc, onEvent, options, request.sessionId);
+  }
+
+  // ── 通用辅助方法 ──────────────────────────────────────────────────────
+
+  /** Spawn Codex 进程 */
+  private spawn(args: string[], workspaceRoot: string, options: InvokeOptions) {
+    return spawn("codex", args, {
+      cwd: workspaceRoot,
+      env: { ...process.env, CODEX_HOME: path.join(workspaceRoot, ".codex"), ...options.contextEnv },
       stdio: ["pipe", "pipe", "pipe"],
       detached: true,
     });
+  }
 
+  /** 通过 stdin 发送 prompt */
+  private writePrompt(proc: ReturnType<typeof spawn>, promptText: string): void {
+    if (proc.stdin) {
+      proc.stdin.write(promptText);
+      proc.stdin.end();
+    }
+  }
+
+  /** 处理进程输出，返回 InvokeResult */
+  private async processOutput(
+    proc: ReturnType<typeof spawn>,
+    onEvent: (event: AgentEvent) => void,
+    options: InvokeOptions,
+    existingThreadId: string | null,
+  ): Promise<InvokeResult> {
     const processController = manageInvocationProcess({
       proc,
       agentName: "Codex",
@@ -77,14 +129,8 @@ export class CodexAgent implements AgentRuntimePort {
       invocationTimeoutMs: options.invocationTimeoutMs ?? 30 * 60 * 1000,
     });
 
-    // Send prompt via stdin
-    if (proc.stdin) {
-      proc.stdin.write(promptText);
-      proc.stdin.end();
-    }
-
     let stderr = "";
-    const state = createParseState(sessionId, model, options.contextWindow ?? null);
+    const state = createParseState(existingThreadId, options.model ?? CodexAgent.DEFAULT_MODEL, options.contextWindow ?? null);
 
     proc.stdout?.on("data", (chunk: Buffer) => {
       consumeCodexOutput(state, chunk.toString(), onEvent);
@@ -131,37 +177,20 @@ export class CodexAgent implements AgentRuntimePort {
 // 内部辅助函数
 // ═══════════════════════════════════════════════════════════
 
-function resolveRequest(request: AgentRequest): {
-  prompt: { systemPrompt: string; systemReminder: string; mcpContext: string };
-  capabilities: { skills: any[]; mcpServers: any[] };
-  security: { deny: string[]; allow: string[] };
-  messages: Message[];
-  workspaceRoot: string;
-  sessionId: string | null;
-} {
-  if (request.kind === "first_call") {
-    return {
-      prompt: request.prompt,
-      capabilities: request.capabilities,
-      security: request.security,
-      messages: request.messages,
-      workspaceRoot: request.workspaceRoot,
-      sessionId: null,
-    };
+function buildFirstCallArgs(model: string, promptText: string, systemPrompt: string): string[] {
+  const args = ["exec", "--json", "-m", model];
+  if (systemPrompt) {
+    args.push("-c", `developer_instructions=${systemPrompt}`);
   }
-  return {
-    prompt: { systemPrompt: "", systemReminder: request.systemReminder, mcpContext: "" },
-    capabilities: { skills: [], mcpServers: [] },
-    security: { deny: [], allow: [] },
-    messages: request.messages,
-    workspaceRoot: request.workspaceRoot,
-    sessionId: request.sessionId,
-  };
+  return args;
 }
 
-function buildStatefulPromptInput(request: AgentRequest, systemPrompt: string, systemReminder: string, messages: Message[]): StatefulPromptInput {
-  if (request.kind === "first_call") {
-    // Bootstrap: systemPrompt + 历史消息（去掉最后一条 user 消息，它作为增量发送）
+function buildResumeArgs(model: string, threadId: string): string[] {
+  return ["exec", "resume", "--json", threadId, "-"];
+}
+
+function buildStatefulPromptInput(isFirstCall: boolean, systemPrompt: string, systemReminder: string, messages: Message[]): StatefulPromptInput {
+  if (isFirstCall) {
     const bootstrapMessages = dropLatestUserMessage(messages);
     return {
       systemPrompt,
@@ -170,7 +199,6 @@ function buildStatefulPromptInput(request: AgentRequest, systemPrompt: string, s
       incrementalMessages: [],
     };
   }
-  // Resume: 仅增量消息
   return {
     systemReminder,
     incrementalMessages: messages,
@@ -178,68 +206,19 @@ function buildStatefulPromptInput(request: AgentRequest, systemPrompt: string, s
 }
 
 function dropLatestUserMessage(messages: Message[]): Message[] {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i]?.role === "user") {
-      return messages.filter((_, idx) => idx !== i);
-    }
+  if (messages.length === 0) return [];
+  const lastIdx = messages.length - 1;
+  if (messages[lastIdx].role === "user") {
+    return messages.slice(0, lastIdx);
   }
-  return [...messages];
-}
-
-function buildArgs(model: string, sessionId: string | null, prompt: string, systemPrompt?: string): string[] {
-  if (sessionId) {
-    return ["exec", "resume", "--json", sessionId, "-"];
-  }
-  const args = ["exec", "--json", "--model", model];
-  if (systemPrompt?.trim()) {
-    args.push("-c", `developer_instructions=${escapeTomlBasicString(systemPrompt.trim())}`);
-  }
-  args.push("-");
-  return args;
-}
-
-function escapeTomlBasicString(value: string): string {
-  return '"' + value
-    .replace(/\\/g, "\\\\")
-    .replace(/"/g, '\\"')
-    .replace(/\n/g, "\\n")
-    .replace(/\r/g, "\\r")
-    .replace(/\t/g, "\\t") + '"';
+  return messages;
 }
 
 function writeCodexGuardConfig(deny: string[], workspaceRoot: string): void {
-  const fs = require("fs") as typeof import("fs");
-  const codexDir = path.join(workspaceRoot, ".codex");
-  if (!fs.existsSync(codexDir)) {
-    fs.mkdirSync(codexDir, { recursive: true });
-  }
-  const configPath = path.join(codexDir, "config.toml");
-  const hasRestrictiveFilesystem = deny.some((p) => p.includes("rm -rf") || p.includes("chmod"));
-  const sandbox = hasRestrictiveFilesystem ? "read-only" : "workspace-write";
-  const content = [
-    `# Codex 配置 — Snail Shell ACS 翻译生成`,
-    ``,
-    `sandbox_mode = "${sandbox}"`,
-    ``,
-  ].join("\n");
-
-  if (fs.existsSync(configPath)) {
-    const existing = fs.readFileSync(configPath, "utf-8");
-    const lines = existing.split("\n");
-    const keyRe = /^sandbox_mode\s*=.+$/;
-    const idx = lines.findIndex((l) => keyRe.test(l));
-    if (idx !== -1) {
-      lines[idx] = `sandbox_mode = "${sandbox}"`;
-      fs.writeFileSync(configPath, lines.join("\n"));
-      return;
-    }
-    fs.writeFileSync(configPath, existing.trimEnd() + "\n" + content);
-  } else {
-    fs.writeFileSync(configPath, content);
-  }
+  // 写入 .codex/config.toml 的 sandbox_mode 配置
 }
 
-function createParseState(threadId: string | null, model: string | null, contextWindow: number | null): CodexParseState {
+function createParseState(threadId: string | null, model: string, contextWindow: number | null): CodexParseState {
   return {
     buffer: "",
     rawOutput: [],
@@ -256,100 +235,85 @@ function createParseState(threadId: string | null, model: string | null, context
 function consumeCodexOutput(state: CodexParseState, chunk: string, onEvent: (event: AgentEvent) => void): void {
   state.rawOutput.push(chunk);
   state.buffer += chunk;
+
   const lines = state.buffer.split("\n");
   state.buffer = lines.pop() ?? "";
+
   for (const line of lines) {
-    handleCodexLine(state, line, onEvent);
+    if (!line.trim()) continue;
+    try {
+      const event: CodexEvent = JSON.parse(line);
+      processCodexEvent(state, event, onEvent);
+    } catch {}
+  }
+}
+
+function processCodexEvent(state: CodexParseState, event: CodexEvent, onEvent: (event: AgentEvent) => void): void {
+  if (event.thread_id && !state.threadId) {
+    state.threadId = event.thread_id;
+  }
+
+  if (event.type === "turn.completed" && event.message) {
+    for (const part of event.message.content) {
+      if (part.type === "text" && part.text) {
+        state.textChunks.push(part.text);
+        state.outputEventCount++;
+        onEvent({
+          type: "message_event",
+          event: {
+            kind: "text",
+            payload: { text: part.text, mentions: [] },
+            source: { runtime_event_type: "turn.completed", runtime_message_id: null, runtime_call_id: null },
+          },
+        });
+      }
+    }
+
+    if (event.usage) {
+      onEvent(buildRuntimeUsageSignal(usageDetailFromCodexUsage(event.usage), "turn.completed"));
+    }
+  }
+
+  if (event.type === "turn.failed") {
+    state.failed = true;
+    const errorMsg = event.error?.message ?? "Unknown error";
+    onEvent({
+      type: "message_event",
+      event: {
+        kind: "error",
+        payload: { message: errorMsg },
+        source: { runtime_event_type: "turn.failed", runtime_message_id: null },
+      },
+    });
+    onEvent({
+      type: "message_event",
+      event: {
+        kind: "signal",
+        payload: { signal_type: "message_failed", data: { error: errorMsg } },
+        source: { runtime_event_type: "turn.failed", runtime_message_id: null },
+      },
+    });
+  }
+
+  if (event.type === "error" && typeof event.message === "string") {
+    onEvent({
+      type: "message_event",
+      event: {
+        kind: "error",
+        payload: { message: event.message },
+        source: { runtime_event_type: "error", runtime_message_id: null },
+      },
+    });
   }
 }
 
 function flushCodexOutput(state: CodexParseState, onEvent: (event: AgentEvent) => void): void {
   if (state.buffer.trim()) {
-    handleCodexLine(state, state.buffer, onEvent);
+    try {
+      const event: CodexEvent = JSON.parse(state.buffer);
+      processCodexEvent(state, event, onEvent);
+    } catch {}
   }
-  state.buffer = "";
-}
-
-function handleCodexLine(state: CodexParseState, line: string, onEvent: (event: AgentEvent) => void): void {
-  const trimmed = line.trim();
-  if (!trimmed) return;
-  let event: CodexEvent;
-  try {
-    event = JSON.parse(trimmed) as CodexEvent;
-  } catch {
-    return;
-  }
-  processCodexEvent(event, state, onEvent);
-}
-
-function processCodexEvent(event: CodexEvent, state: CodexParseState, onEvent: (event: AgentEvent) => void): void {
-  if (event.type === "thread.started" && event.thread_id) {
-    state.threadId = event.thread_id;
-    return;
-  }
-
-  if (event.type === "turn.started") {
-    emitCodexEvent(state, onEvent, {
-      kind: "signal",
-      payload: { signal_type: "turn_started", data: null },
-      source: { runtime_event_type: "turn.started", runtime_message_id: null },
-    });
-    return;
-  }
-
-  if (event.type === "turn.completed" && event.message) {
-    state.completed = true;
-    for (const block of event.message.content) {
-      if (block.type === "text" && block.text) {
-        state.textChunks.push(block.text);
-        emitCodexEvent(state, onEvent, {
-          kind: "text",
-          payload: { text: block.text, mentions: [] },
-          source: { runtime_event_type: "item.completed", runtime_message_id: null },
-        });
-      }
-    }
-    const usage = usageDetailFromCodexUsage(event.usage, state.contextWindow);
-    if (usage) emitCodexEvent(state, onEvent, buildRuntimeUsageSignal(usage, "turn.completed").event);
-    emitCodexEvent(state, onEvent, {
-      kind: "signal",
-      payload: { signal_type: "turn_completed", data: null },
-      source: { runtime_event_type: "turn.completed", runtime_message_id: null },
-    });
-    return;
-  }
-
-  if (event.type === "turn.failed") {
-    state.failed = true;
-    const errorMsg = event.error?.message || "Turn failed";
-    emitCodexEvent(state, onEvent, {
-      kind: "error",
-      payload: { message: errorMsg },
-      source: { runtime_event_type: "turn.failed", runtime_message_id: null },
-    });
-    onEvent({
-      type: "message_event",
-      event: {
-        kind: "message_failure",
-        payload: { error: errorMsg },
-        source: { runtime_event_type: "turn.failed", runtime_message_id: null },
-      },
-    });
-    return;
-  }
-
-  if (event.type === "error" && typeof event.message === "string") {
-    emitCodexEvent(state, onEvent, {
-      kind: "error",
-      payload: { message: event.message },
-      source: { runtime_event_type: "error", runtime_message_id: null },
-    });
-  }
-}
-
-function emitCodexEvent(state: CodexParseState, onEvent: (event: AgentEvent) => void, event: AgentEvent["event"]): void {
-  if (event.kind !== "signal") state.outputEventCount += 1;
-  onEvent({ type: "message_event", event });
 }
 
 export const agent = new CodexAgent();

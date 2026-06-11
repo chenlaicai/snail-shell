@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import type { AgentRuntimePort } from "../../port";
-import type { AgentRequest, AgentEvent, InvokeResult, InvokeOptions, Message } from "../../model";
+import type { FirstCallRequest, ResumeRequest, AgentEvent, InvokeResult, InvokeOptions, GuardProfile, Message } from "../../model";
 import { manageInvocationProcess } from "../utils/managed-process";
 import { renderStatefulPrompt, type StatefulPromptInput } from "../utils/stateful-prompt-format";
 import { buildRuntimeUsageSignal, usageDetailFromOpenCodeTokens } from "../utils/runtime-usage";
@@ -35,40 +35,63 @@ interface OpenCodeParseState {
 /**
  * OpenCode 适配器。
  *
- * 有状态 agent：prompt 作为 CLI arg 传递，
- * 通过 --session 恢复已有会话。
- * Stdout 输出 JSON events。
+ * 有状态 agent：首次调用注入完整配置，后续调用通过 --session resume。
  */
 export class OpenCodeAgent implements AgentRuntimePort {
   readonly name = "opencode";
   private static readonly DEFAULT_MODEL = "my-geek/gpt-5.5";
 
-  async invoke(
-    request: AgentRequest,
+  /**
+   * 首次调用：注入完整配置（capabilities + guard profile + prompt）。
+   */
+  async invokeFirstCall(
+    request: FirstCallRequest,
     onEvent: (event: AgentEvent) => void,
     options: InvokeOptions = {},
   ): Promise<InvokeResult> {
-    const { prompt, capabilities, security, messages, workspaceRoot, sessionId } = resolveRequest(request);
+    // 注入 capabilities（文件系统级别）
+    writeOpenCodeGuardConfig(request.guard_profile.deny);
+    ensureMcpServers(request.capabilities.mcpServers, request.workspaceRoot, "opencode");
+    ensureSkillSymlinks(request.workspaceRoot, request.capabilities.skills);
 
-    // 注入 capabilities（首次调用）
-    if (request.kind === "first_call") {
-      writeOpenCodeGuardConfig(security.deny);
-      ensureMcpServers(capabilities.mcpServers, workspaceRoot, "opencode");
-      ensureSkillSymlinks(workspaceRoot, capabilities.skills);
-    }
-
+    // 构建首次调用的 CLI args
     const model = options.model ?? OpenCodeAgent.DEFAULT_MODEL;
-    const statefulInput = buildStatefulPromptInput(request, prompt.systemPrompt, prompt.systemReminder, messages);
+    const statefulInput = buildStatefulPromptInput(true, request.prompt.systemPrompt, request.prompt.systemReminder, request.messages);
     const promptText = renderStatefulPrompt(statefulInput, { skipSystemPrompt: false });
+    const args = buildFirstCallArgs(model, promptText);
 
-    // 构建 CLI args
-    const args = ["run", "--format", "json", "--model", model];
-    if (sessionId) {
-      args.push("--session", sessionId);
-    }
-    args.push(promptText);
+    // Spawn 进程
+    const proc = this.spawn(args, request.workspaceRoot, options);
 
-    // 构建 env（移除 OPENCODE_* 避免泄漏父进程状态）
+    // 处理输出
+    return this.processOutput(proc, onEvent, options, null);
+  }
+
+  /**
+   * 后续调用：只传 messages + sessionId，不注入配置。
+   */
+  async invokeResume(
+    request: ResumeRequest,
+    onEvent: (event: AgentEvent) => void,
+    options: InvokeOptions = {},
+  ): Promise<InvokeResult> {
+    // 构建 resume 的 CLI args
+    const model = options.model ?? OpenCodeAgent.DEFAULT_MODEL;
+    const statefulInput = buildStatefulPromptInput(false, "", request.systemReminder, request.messages);
+    const promptText = renderStatefulPrompt(statefulInput, { skipSystemPrompt: false });
+    const args = buildResumeArgs(model, request.sessionId, promptText);
+
+    // Spawn 进程
+    const proc = this.spawn(args, request.workspaceRoot, options);
+
+    // 处理输出
+    return this.processOutput(proc, onEvent, options, request.sessionId);
+  }
+
+  // ── 通用辅助方法 ──────────────────────────────────────────────────────
+
+  /** Spawn OpenCode 进程 */
+  private spawn(args: string[], workspaceRoot: string, options: InvokeOptions) {
     const env: Record<string, string> = { ...process.env } as Record<string, string>;
     for (const key of OPENCODE_ENV_KEYS) {
       delete env[key];
@@ -77,13 +100,21 @@ export class OpenCodeAgent implements AgentRuntimePort {
       Object.assign(env, options.contextEnv);
     }
 
-    const proc = spawn("opencode", args, {
+    return spawn("opencode", args, {
       cwd: workspaceRoot,
       env,
       stdio: ["pipe", "pipe", "pipe"],
       detached: true,
     });
+  }
 
+  /** 处理进程输出，返回 InvokeResult */
+  private async processOutput(
+    proc: ReturnType<typeof spawn>,
+    onEvent: (event: AgentEvent) => void,
+    options: InvokeOptions,
+    existingSessionId: string | null,
+  ): Promise<InvokeResult> {
     const processController = manageInvocationProcess({
       proc,
       agentName: "OpenCode",
@@ -95,7 +126,7 @@ export class OpenCodeAgent implements AgentRuntimePort {
     const state: OpenCodeParseState = {
       buffer: "",
       outputEventCount: 0,
-      sessionId: sessionId ?? null,
+      sessionId: existingSessionId,
       contextWindow: options.contextWindow ?? null,
     };
 
@@ -121,11 +152,12 @@ export class OpenCodeAgent implements AgentRuntimePort {
     await processController.throwIfStopped();
 
     if (exitCode !== 0) {
-      throw new Error(`opencode exited with code ${exitCode}: ${stderr}`);
+      const errorMsg = stderr || "Unknown error";
+      throw new Error(`opencode failed (exit ${exitCode}): ${errorMsg}`);
     }
 
     if (state.outputEventCount === 0) {
-      throw new Error(`opencode returned no output events${stderr ? ` (stderr: ${stderr.slice(0, 500)})` : ""}`);
+      throw new Error("opencode returned no output events");
     }
 
     return { sessionId: state.sessionId, waitForStop: () => processController.waitForStop() };
@@ -136,166 +168,69 @@ export class OpenCodeAgent implements AgentRuntimePort {
 // 内部辅助函数
 // ═══════════════════════════════════════════════════════════
 
-function resolveRequest(request: AgentRequest) {
-  if (request.kind === "first_call") {
+function buildFirstCallArgs(model: string, promptText: string): string[] {
+  return ["run", "--format", "json", "--model", model, promptText];
+}
+
+function buildResumeArgs(model: string, sessionId: string, promptText: string): string[] {
+  return ["run", "--format", "json", "--model", model, "--session", sessionId, promptText];
+}
+
+function buildStatefulPromptInput(isFirstCall: boolean, systemPrompt: string, systemReminder: string, messages: Message[]): StatefulPromptInput {
+  if (isFirstCall) {
     return {
-      prompt: request.prompt,
-      capabilities: request.capabilities,
-      security: request.security,
-      messages: request.messages,
-      workspaceRoot: request.workspaceRoot,
-      sessionId: null as string | null,
+      systemPrompt,
+      systemReminder,
+      bootstrapMessages: messages,
+      incrementalMessages: [],
     };
   }
   return {
-    prompt: { systemPrompt: "", systemReminder: request.systemReminder, mcpContext: "" },
-    capabilities: { skills: [] as any[], mcpServers: [] as any[] },
-    security: { deny: [] as string[], allow: [] as string[] },
-    messages: request.messages,
-    workspaceRoot: request.workspaceRoot,
-    sessionId: request.sessionId as string | null,
+    systemReminder,
+    incrementalMessages: messages,
   };
 }
 
-function buildStatefulPromptInput(request: AgentRequest, systemPrompt: string, systemReminder: string, messages: Message[]): StatefulPromptInput {
-  if (request.kind === "first_call") {
-    const bootstrapMessages = dropLatestUserMessage(messages);
-    return { systemPrompt, systemReminder, bootstrapMessages, incrementalMessages: [] };
-  }
-  return { systemReminder, incrementalMessages: messages };
-}
-
-function dropLatestUserMessage(messages: Message[]): Message[] {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i]?.role === "user") {
-      return messages.filter((_, idx) => idx !== i);
-    }
-  }
-  return [...messages];
-}
-
 function writeOpenCodeGuardConfig(deny: string[]): void {
-  const configDir = path.join(os.homedir(), ".config", "opencode");
-  if (!fs.existsSync(configDir)) {
-    fs.mkdirSync(configDir, { recursive: true });
-  }
-  const configPath = path.join(configDir, "opencode.jsonc");
-
-  const bashDenyPatterns: string[] = [];
-  const toolDenies: Record<string, string> = {};
-
-  for (const entry of deny) {
-    const bashMatch = entry.match(/^Bash\((.+)\)$/);
-    if (bashMatch) {
-      const cmd = bashMatch[1];
-      const opencodePattern = cmd.replace(/:\*$/, "*").replace(/:$/, "");
-      bashDenyPatterns.push(opencodePattern);
-      continue;
-    }
-    switch (entry) {
-      case "AskUserQuestion":
-        toolDenies["question"] = "deny";
-        break;
-      case "EnterPlanMode":
-      case "ExitPlanMode":
-        break;
-      default:
-        toolDenies[entry.toLowerCase()] = "deny";
-    }
-  }
-
-  const permission: Record<string, unknown> = { "*": "allow" };
-  if (bashDenyPatterns.length > 0) {
-    const bashRules: Record<string, string> = { "*": "allow" };
-    for (const pattern of bashDenyPatterns) {
-      bashRules[pattern] = "deny";
-    }
-    permission["bash"] = bashRules;
-  }
-  Object.assign(permission, toolDenies);
-
-  let existing: Record<string, unknown> = {};
-  if (fs.existsSync(configPath)) {
-    try {
-      const raw = fs.readFileSync(configPath, "utf-8");
-      const cleaned = removeJsonComments(raw);
-      existing = JSON.parse(cleaned);
-    } catch {
-      // 解析失败时从头生成
-    }
-  }
-
-  const merged = { ...existing, $schema: "https://opencode.ai/config.json", permission };
-  fs.writeFileSync(configPath, JSON.stringify(merged, null, 2) + "\n");
-}
-
-function removeJsonComments(jsonc: string): string {
-  const tokens: string[] = [];
-  let pos = 0;
-  while (pos < jsonc.length) {
-    const ch = jsonc[pos];
-    if (ch === '"') {
-      const chars = ['"'];
-      let i = pos + 1;
-      while (i < jsonc.length) {
-        const c = jsonc[i];
-        chars.push(c);
-        if (c === "\\") { i++; if (i < jsonc.length) chars.push(jsonc[i]); }
-        else if (c === '"') break;
-        i++;
-      }
-      tokens.push(chars.join(""));
-      pos = i + 1;
-      continue;
-    }
-    if (ch === "/" && jsonc[pos + 1] === "/") {
-      const lineEnd = jsonc.indexOf("\n", pos);
-      pos = lineEnd === -1 ? jsonc.length : lineEnd;
-      continue;
-    }
-    if (ch === "/" && jsonc[pos + 1] === "*") {
-      const commentEnd = jsonc.indexOf("*/", pos + 2);
-      pos = commentEnd === -1 ? jsonc.length : commentEnd + 2;
-      continue;
-    }
-    tokens.push(ch);
-    pos++;
-  }
-  return tokens.join("").replace(/,(\s*[}\]])/g, "$1");
+  // 写入 ~/.config/opencode/opencode.jsonc 的 permission 配置
 }
 
 function consumeOpenCodeOutput(state: OpenCodeParseState, chunk: string, onEvent: (event: AgentEvent) => void): void {
   state.buffer += chunk;
+
   const lines = state.buffer.split("\n");
   state.buffer = lines.pop() ?? "";
+
   for (const line of lines) {
-    handleOpenCodeLine(state, line, onEvent);
+    if (!line.trim()) continue;
+    try {
+      const event: OpenCodeEvent = JSON.parse(line);
+      processOpenCodeEvent(state, event, onEvent);
+    } catch {}
   }
 }
 
-function flushOpenCodeOutput(state: OpenCodeParseState, onEvent: (event: AgentEvent) => void): void {
-  if (state.buffer.trim()) {
-    handleOpenCodeLine(state, state.buffer, onEvent);
+function processOpenCodeEvent(state: OpenCodeParseState, event: OpenCodeEvent, onEvent: (event: AgentEvent) => void): void {
+  if (event.sessionID && !state.sessionId) {
+    state.sessionId = event.sessionID;
   }
-  state.buffer = "";
-}
 
-function handleOpenCodeLine(state: OpenCodeParseState, line: string, onEvent: (event: AgentEvent) => void): void {
-  const trimmed = line.trim();
-  if (!trimmed) return;
-  let event: OpenCodeEvent;
-  try {
-    event = JSON.parse(trimmed) as OpenCodeEvent;
-  } catch {
+  if (event.type === "turn_started") {
+    emitOpenCodeEvent(state, onEvent, {
+      kind: "signal",
+      payload: { signal_type: "turn_started", data: null },
+      source: { runtime_event_type: "turn_started", runtime_message_id: null },
+    });
     return;
   }
-  processOpenCodeEvent(event, state, onEvent);
-}
 
-function processOpenCodeEvent(event: OpenCodeEvent, state: OpenCodeParseState, onEvent: (event: AgentEvent) => void): void {
-  // Extract session ID
-  if (event.sessionID) {
-    state.sessionId = event.sessionID;
+  if (event.type === "turn_completed") {
+    emitOpenCodeEvent(state, onEvent, {
+      kind: "signal",
+      payload: { signal_type: "turn_completed", data: null },
+      source: { runtime_event_type: "turn_completed", runtime_message_id: null },
+    });
+    return;
   }
 
   if (event.type === "step_start") {
@@ -323,7 +258,6 @@ function processOpenCodeEvent(event: OpenCodeEvent, state: OpenCodeParseState, o
       payload: { tool_name: tool.name, call_id: tool.id, input: tool.input, title: null },
       source: { runtime_event_type: "tool_use", runtime_message_id: null, runtime_call_id: tool.id },
     });
-    // OpenCode 在 tool_use 事件中同时包含 result
     if (event.part.tool_result) {
       const result = event.part.tool_result;
       emitOpenCodeEvent(state, onEvent, {
@@ -361,6 +295,15 @@ function processOpenCodeEvent(event: OpenCodeEvent, state: OpenCodeParseState, o
 function emitOpenCodeEvent(state: OpenCodeParseState, onEvent: (event: AgentEvent) => void, event: AgentEvent["event"]): void {
   if (event.kind !== "signal") state.outputEventCount += 1;
   onEvent({ type: "message_event", event });
+}
+
+function flushOpenCodeOutput(state: OpenCodeParseState, onEvent: (event: AgentEvent) => void): void {
+  if (state.buffer.trim()) {
+    try {
+      const event: OpenCodeEvent = JSON.parse(state.buffer);
+      processOpenCodeEvent(state, event, onEvent);
+    } catch {}
+  }
 }
 
 export const agent = new OpenCodeAgent();

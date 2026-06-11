@@ -13,7 +13,7 @@ export interface AgentRuntimePort {
   readonly name: string;
 
   /**
-   * 首次调用：传入完整上下文（prompt + capabilities + security + 全量消息）。
+   * 首次调用：传入完整上下文（prompt + capabilities + guard profile + 全量消息）。
    *
    * 流式事件通过 onEvent 回调实时传递。
    * 返回 InvokeResult（含 sessionId，供后续 invokeResume 使用）。

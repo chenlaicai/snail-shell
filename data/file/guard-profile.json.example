@@ -1,0 +1,16 @@
+{
+  // 【可选】工具/命令白名单，匹配的工具绕过审批
+  "allow": [
+    "Read",
+    "Write",
+    "Edit",
+    "Bash(npm run *)",
+    "Bash(git *)"
+  ],
+
+  // 【可选】工具/命令黑名单，匹配的工具被拒绝，优先于 allow
+  "deny": [
+    "Bash(rm -rf *)",
+    "Bash(sudo *)"
+  ]
+}

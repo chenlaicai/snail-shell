@@ -1,68 +1,183 @@
-import type {
-  SnailTemplate,
-  SnailRuntimeInstance,
-  SnailAgentSession,
-  CreateSnailAgentSessionInput,
-} from "@domain/snail/model";
+import type { AgentEvent, InvokeResult, InvokeOptions, CapabilitiesSpec } from "@domain/acs/model";
+import type { AgentRegistryPort } from "@domain/acs/port";
+import type { TenetPromptPort } from "@domain/tenet-prompt/port";
+import type { SkillPort } from "@domain/skill/port";
+import type { MCPPort } from "@domain/mcp/port";
+import type { GuardProfilePort } from "@domain/guard-profile/port";
+import type { Snail, SnailFirstCallRequest, SnailResumeRequest } from "@domain/snail/model";
 import type { SnailPort } from "@domain/snail/port";
 import type { SnailRepository } from "./repository";
 
 /**
  * Snail 适配器实现。
- * 实现业务逻辑，调用 repository 完成持久化。
+ *
+ * 管理 snail 配置，根据 snailId 创建 agent 实例并调用。
+ * snail 是 agent 的上层封装，负责组装 tenet-prompt、skill、mcp、guard-profile 等。
  */
 export class SnailAdapter implements SnailPort {
-  constructor(private repo: SnailRepository) {}
+  /** 默认调用超时：120 分钟 */
+  private static readonly DEFAULT_TIMEOUT_MS = 120 * 60 * 1000;
 
-  listTemplates(): SnailTemplate[] {
-    return this.repo.listTemplates();
+  constructor(
+    private repo: SnailRepository,
+    private registry: AgentRegistryPort,
+    private tenetPrompt: TenetPromptPort,
+    private skill: SkillPort,
+    private mcp: MCPPort,
+    private guardProfile: GuardProfilePort,
+  ) {}
+
+  list(): Snail[] {
+    return this.repo.list();
   }
 
-  findTemplateById(id: string): SnailTemplate | undefined {
-    return this.repo.findTemplateById(id);
+  async invokeFirstCall(
+    snailId: string,
+    request: SnailFirstCallRequest,
+    onEvent: (event: AgentEvent) => void,
+    options: InvokeOptions = {},
+  ): Promise<InvokeResult> {
+    const snail = this.findSnailOrThrow(snailId);
+    const agent = this.createAgent(snail);
+    const workspace = { path: request.workspace_root, summary: null };
+
+    // 组装 system prompt（tenet-prompt 按 tags 过滤）
+    const systemPrompt = this.buildSystemPrompt(request.tags);
+
+    // 组装 capabilities（skill + mcp）
+    const capabilities = this.buildCapabilities(workspace);
+
+    // 组装 guard profile（guard-profile 平台 + ws 合并）
+    const guardProfile = this.buildGuardProfile(workspace);
+
+    // 组装 system reminder（handbook + context 放入正确位置）
+    const systemReminder = this.buildSystemReminder(request.handbook, request.context);
+
+    // 组装 invoke options（model, context_window, timeout）
+    const invokeOptions = this.buildOptions(snail, options);
+
+    // 调用底层 acs
+    return agent.invokeFirstCall({
+      prompt: { systemPrompt, systemReminder },
+      capabilities,
+      guardProfile,
+      messages: request.messages,
+      workspaceRoot: request.workspace_root,
+    }, onEvent, invokeOptions);
   }
 
-  getSnailRuntime(templateId: string): SnailRuntimeInstance | undefined {
-    const template = this.repo.findTemplateById(templateId);
-    if (!template) return undefined;
+  async invokeResume(
+    snailId: string,
+    sessionId: string,
+    request: SnailResumeRequest,
+    onEvent: (event: AgentEvent) => void,
+    options: InvokeOptions = {},
+  ): Promise<InvokeResult> {
+    const snail = this.findSnailOrThrow(snailId);
+    const agent = this.createAgent(snail);
+
+    // 组装 invoke options（model, context_window, timeout）
+    const invokeOptions = this.buildOptions(snail, options);
+
+    // 调用底层 acs
+    return agent.invokeResume(
+      {
+        sessionId,
+        systemReminder: request.system_reminder ?? "",
+        messages: request.messages,
+        workspaceRoot: request.workspace_root,
+      },
+      onEvent,
+      invokeOptions,
+    );
+  }
+
+  // ── 组装逻辑 ──────────────────────────────────────────────────────
+
+  /** 组装 system prompt（tenet-prompt 按 tags 过滤） */
+  private buildSystemPrompt(tags?: string[]): string {
+    const prompts = this.tenetPrompt.findByWorkspace({ path: "", summary: null }, tags);
+    return prompts.map(p => p.content).join("\n\n");
+  }
+
+  /** 组装 capabilities（skill + mcp） */
+  private buildCapabilities(workspace: { path: string; summary: null }): CapabilitiesSpec {
+    const skills = this.skill.findByWorkspace(workspace);
+    const mcpServers = this.mcp.findByWorkspace(workspace);
 
     return {
-      template,
-      model: template.model,
-      context_window: template.context_window ?? null,
-      invocation_timeout_ms: template.invocation_timeout_ms ?? null,
+      skills: skills.map(s => ({
+        name: s.name,
+        description: s.description,
+        filePath: `${s.dir_path}/SKILL.md`,
+        directory: s.dir_path,
+        content: s.content,
+        source: s.scope,
+      })),
+      mcpServers: mcpServers.map(m => ({
+        name: m.name,
+        command: m.command,
+        args: m.args,
+        env: m.env,
+        url: m.url,
+      })),
     };
   }
 
-  findCurrentSession(conversationId: string, roleName: string): SnailAgentSession | undefined {
-    return this.repo.findCurrentSession(conversationId, roleName);
+  /** 组装 guard profile（guard-profile 平台 + ws 合并） */
+  private buildGuardProfile(workspace: { path: string; summary: null }): { deny: string[]; allow: string[] } {
+    const profile = this.guardProfile.findByWorkspace(workspace);
+    return {
+      deny: profile.deny,
+      allow: profile.allow,
+    };
   }
 
-  createSession(input: CreateSnailAgentSessionInput): SnailAgentSession {
-    // 检查是否需要创建新 session（runtime/model 变更）
-    const existingSession = this.repo.findCurrentSession(input.conversation_id, input.role_name);
+  /** 组装 system reminder（handbook + context 放入正确位置） */
+  private buildSystemReminder(handbook?: string, context?: Record<string, string>): string {
+    const parts: string[] = [];
 
-    if (existingSession) {
-      const runtimeChanged = existingSession.runtime !== input.runtime;
-      const modelChanged = existingSession.model !== input.model;
-
-      if (runtimeChanged || modelChanged) {
-        // runtime/model 变更，创建新 session，handoff 指向旧 session
-        return this.repo.createSession({
-          ...input,
-          handoff_from_id: existingSession.id,
-        });
-      }
-
-      // 未变更，返回现有 session
-      return existingSession;
+    if (handbook) {
+      parts.push(`<role-handbook>\n${handbook}\n</role-handbook>`);
     }
 
-    // 首次调用，创建新 session
-    return this.repo.createSession(input);
+    if (context) {
+      const contextLines = Object.entries(context)
+        .map(([key, value]) => `${key}: ${value}`)
+        .join("\n");
+      parts.push(`<invocation-context>\n${contextLines}\n</invocation-context>`);
+    }
+
+    return parts.join("\n\n");
   }
 
-  updateSessionExternalId(sessionId: string, externalSessionId: string): void {
-    this.repo.updateSessionExternalId(sessionId, externalSessionId);
+  /** 组装 invoke options（model, context_window, timeout） */
+  private buildOptions(snail: Snail, options: InvokeOptions): InvokeOptions {
+    return {
+      ...options,
+      model: snail.model,
+      contextWindow: snail.context_window,
+      invocationTimeoutMs: snail.invocation_timeout_ms ?? SnailAdapter.DEFAULT_TIMEOUT_MS,
+    };
+  }
+
+  // ── 辅助方法 ──────────────────────────────────────────────────────
+
+  /** 查找 snail 配置，不存在则抛异常 */
+  private findSnailOrThrow(snailId: string): Snail {
+    const snail = this.repo.findById(snailId);
+    if (!snail) {
+      throw new Error(`Snail not found: ${snailId}`);
+    }
+    return snail;
+  }
+
+  /** 根据 snail 配置创建 agent 实例 */
+  private createAgent(snail: Snail) {
+    const AgentClass = this.registry.getAgentRuntimeClass(snail.agent_name);
+    if (!AgentClass) {
+      throw new Error(`Agent runtime not found: ${snail.agent_name}`);
+    }
+    return new AgentClass();
   }
 }

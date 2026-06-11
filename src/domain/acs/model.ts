@@ -29,7 +29,7 @@ export interface FirstCallRequest {
   /** 可用工具 */
   capabilities: CapabilitiesSpec;
   /** 安全策略 */
-  security: SecuritySpec;
+  guard_profile: GuardProfile;
   /** 对话历史（全量） */
   messages: Message[];
   /** 当前工作目录 */
@@ -68,8 +68,6 @@ export interface PromptSpec {
   systemPrompt: string;
   /** 动态运行时上下文：workspace/stage 状态、日期、剩余轮次等。仅变化时注入。 */
   systemReminder: string;
-  /** 调用上下文：conversation_id、message_id 等标识。Append 到 system prompt 尾部。 */
-  mcpContext: string;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -126,7 +124,7 @@ export interface MCPServerCapability {
 }
 
 // ═══════════════════════════════════════════════════════════
-// Security — 安全策略
+// Guard Profile — 安全策略
 // ═══════════════════════════════════════════════════════════
 
 /**
@@ -135,7 +133,7 @@ export interface MCPServerCapability {
  * 扁平 allow/deny 模型，deny 优先于 allow。
  * 首次调用时注入（agent 原生配置文件），后续调用不重复注入。
  */
-export interface SecuritySpec {
+export interface GuardProfile {
   /** 工具/命令黑名单。匹配的工具被拒绝，优先于 allow。 */
   deny: string[];
   /** 工具/命令白名单。匹配的工具绕过审批。 */
@@ -240,7 +238,7 @@ export type LifecycleSignal =
 export interface InvokeOptions {
   /** 中断信号 */
   signal?: AbortSignal;
-  /** 模型标识（由 Snail Den template 指定） */
+  /** 模型标识（由 Snail指定） */
   model?: string;
   /** 上下文窗口大小（用于 runtime 未返回时的兜底） */
   contextWindow?: number;

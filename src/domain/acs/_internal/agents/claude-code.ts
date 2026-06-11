@@ -5,7 +5,7 @@ import { join } from "path";
 import { randomUUID } from "crypto";
 import type { Readable } from "stream";
 import type { AgentRuntimePort } from "../../port";
-import type { FirstCallRequest, ResumeRequest, AgentEvent, InvokeResult, InvokeOptions, SecuritySpec, Message } from "../../model";
+import type { FirstCallRequest, ResumeRequest, AgentEvent, InvokeResult, InvokeOptions, GuardProfile, Message } from "../../model";
 import { manageInvocationProcess } from "../utils/managed-process";
 import { renderStatelessTranscript } from "../utils/stateless-runtime-adapter";
 import { buildRuntimeUsageSignal, usageDetailFromClaudeResult } from "../utils/runtime-usage";
@@ -32,25 +32,21 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
     onEvent: (event: AgentEvent) => void,
     options: InvokeOptions = {},
   ): Promise<InvokeResult> {
-    return this.invoke(request.prompt, request.capabilities, request.security, request.messages, request.workspaceRoot, onEvent, options);
+    return this.invoke(request.prompt, request.capabilities, request.guard_profile, request.messages, request.workspaceRoot, onEvent, options);
   }
 
   async invokeResume(
-    request: ResumeRequest,
-    onEvent: (event: AgentEvent) => void,
-    options: InvokeOptions = {},
+    _request: ResumeRequest,
+    _onEvent: (event: AgentEvent) => void,
+    _options: InvokeOptions = {},
   ): Promise<InvokeResult> {
-    // Stateless agent 不支持 resume，用空 prompt + 增量消息
-    const prompt = { systemPrompt: "", systemReminder: request.systemReminder, mcpContext: "" };
-    const capabilities = { skills: [], mcpServers: [] };
-    const security: SecuritySpec = { deny: [], allow: [] };
-    return this.invoke(prompt, capabilities, security, request.messages, request.workspaceRoot, onEvent, options);
+    throw new Error("claude-code is stateless and does not support invokeResume. Use invokeFirstCall instead.");
   }
 
   private async invoke(
     prompt: { systemPrompt: string; systemReminder: string; mcpContext: string },
     capabilities: { skills: any[]; mcpServers: any[] },
-    security: SecuritySpec,
+    guardProfile: GuardProfile,
     messages: Message[],
     workspaceRoot: string,
     onEvent: (event: AgentEvent) => void,
@@ -74,9 +70,9 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
       args.push("--model", options.model);
     }
 
-    // Security deny → --disallowedTools
-    if (security.deny.length > 0) {
-      args.push("--disallowedTools", ...security.deny);
+    // Guard deny → --disallowedTools
+    if (guardProfile.deny.length > 0) {
+      args.push("--disallowedTools", ...guardProfile.deny);
     }
 
     // MCP 配置
