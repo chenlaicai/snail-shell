@@ -4,11 +4,11 @@ import path from "path";
 import os from "os";
 import type { AgentRuntimePort } from "../../port";
 import type { AgentRequest, AgentEvent, InvokeResult, InvokeOptions, Message } from "../../model";
-import { manageInvocationProcess } from "../managed-process";
-import { renderStatefulPrompt, type StatefulPromptInput } from "../stateful-prompt-format";
-import { buildRuntimeUsageSignal, usageDetailFromOpenCodeTokens } from "../runtime-usage";
-import { ensureMcpServers } from "../mcp-config";
-import { ensureSkillSymlinks } from "../skill-symlinks";
+import { manageInvocationProcess } from "../utils/managed-process";
+import { renderStatefulPrompt, type StatefulPromptInput } from "../utils/stateful-prompt-format";
+import { buildRuntimeUsageSignal, usageDetailFromOpenCodeTokens } from "../utils/runtime-usage";
+import { ensureMcpServers } from "../utils/mcp-config";
+import { ensureSkillSymlinks } from "../utils/skill-symlinks";
 
 const OPENCODE_ENV_KEYS = [
   "OPENCODE", "OPENCODE_CLIENT", "OPENCODE_EXPERIMENTAL_FILEWATCHER",
@@ -41,7 +41,6 @@ interface OpenCodeParseState {
  */
 export class OpenCodeAgent implements AgentRuntimePort {
   readonly name = "opencode";
-  readonly runtime = "opencode-cli";
   private static readonly DEFAULT_MODEL = "my-geek/gpt-5.5";
 
   async invoke(
@@ -363,3 +362,5 @@ function emitOpenCodeEvent(state: OpenCodeParseState, onEvent: (event: AgentEven
   if (event.kind !== "signal") state.outputEventCount += 1;
   onEvent({ type: "message_event", event });
 }
+
+export const agent = new OpenCodeAgent();

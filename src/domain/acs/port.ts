@@ -1,4 +1,4 @@
-import type { AgentRequest, AgentEvent, InvokeResult, InvokeOptions } from "./model";
+import type { FirstCallRequest, ResumeRequest, AgentEvent, InvokeResult, InvokeOptions } from "./model";
 
 /**
  * Agent Runtime 端口：Snail Shell 调用 agent 的唯一入口。
@@ -11,20 +11,44 @@ import type { AgentRequest, AgentEvent, InvokeResult, InvokeOptions } from "./mo
  */
 export interface AgentRuntimePort {
   readonly name: string;
-  readonly runtime: string;
 
   /**
-   * 调用 agent 处理一条消息。
-   *
-   * 首次调用：传入 FirstCallRequest（prompt + capabilities + security + 全量消息）。
-   * 后续调用：传入 ResumeRequest（sessionId + 增量消息）。
+   * 首次调用：传入完整上下文（prompt + capabilities + security + 全量消息）。
    *
    * 流式事件通过 onEvent 回调实时传递。
-   * 返回 InvokeResult（含 sessionId，供后续 ResumeRequest 使用）。
+   * 返回 InvokeResult（含 sessionId，供后续 invokeResume 使用）。
    */
-  invoke(
-    request: AgentRequest,
+  invokeFirstCall(
+    request: FirstCallRequest,
     onEvent: (event: AgentEvent) => void,
     options?: InvokeOptions,
   ): Promise<InvokeResult>;
+
+  /**
+   * 后续调用：传入 sessionId + 增量消息。
+   *
+   * 流式事件通过 onEvent 回调实时传递。
+   * 返回 InvokeResult（含 sessionId，供后续调用使用）。
+   */
+  invokeResume(
+    request: ResumeRequest,
+    onEvent: (event: AgentEvent) => void,
+    options?: InvokeOptions,
+  ): Promise<InvokeResult>;
+}
+
+/**
+ * Agent Registry 端口：管理 agent runtime 类的注册和查询。
+ *
+ * 用于 snail 模块根据 name 获取 agent 实现类，然后创建实例。
+ */
+export interface AgentRegistryPort {
+  /** 获取 agent 运行时类（返回类本身，调用方自行 new 创建实例） */
+  getAgentRuntimeClass(name: string): (new () => AgentRuntimePort) | undefined;
+
+  /** 列出所有已注册的 agent runtime 名称 */
+  listAgentRuntimes(): string[];
+
+  /** 检查指定 name 是否已注册 */
+  hasAgentRuntime(name: string): boolean;
 }

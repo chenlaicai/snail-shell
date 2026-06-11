@@ -2,11 +2,11 @@ import { spawn } from "child_process";
 import path from "path";
 import type { AgentRuntimePort } from "../../port";
 import type { AgentRequest, AgentEvent, InvokeResult, InvokeOptions, Message } from "../../model";
-import { manageInvocationProcess } from "../managed-process";
-import { renderStatefulPrompt, type StatefulPromptInput } from "../stateful-prompt-format";
-import { buildRuntimeUsageSignal, usageDetailFromCodexUsage } from "../runtime-usage";
-import { ensureMcpServers } from "../mcp-config";
-import { ensureSkillSymlinks } from "../skill-symlinks";
+import { manageInvocationProcess } from "../utils/managed-process";
+import { renderStatefulPrompt, type StatefulPromptInput } from "../utils/stateful-prompt-format";
+import { buildRuntimeUsageSignal, usageDetailFromCodexUsage } from "../utils/runtime-usage";
+import { ensureMcpServers } from "../utils/mcp-config";
+import { ensureSkillSymlinks } from "../utils/skill-symlinks";
 
 interface CodexEvent {
   type: string;
@@ -41,7 +41,6 @@ interface CodexParseState {
  */
 export class CodexAgent implements AgentRuntimePort {
   readonly name = "codex";
-  readonly runtime = "codex-cli";
   private static readonly DEFAULT_MODEL = "claude-opus-4";
 
   async invoke(
@@ -352,3 +351,5 @@ function emitCodexEvent(state: CodexParseState, onEvent: (event: AgentEvent) => 
   if (event.kind !== "signal") state.outputEventCount += 1;
   onEvent({ type: "message_event", event });
 }
+
+export const agent = new CodexAgent();

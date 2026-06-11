@@ -6,10 +6,10 @@ import { randomUUID } from "crypto";
 import type { Readable } from "stream";
 import type { AgentRuntimePort } from "../../port";
 import type { AgentRequest, AgentEvent, InvokeResult, InvokeOptions, Message } from "../../model";
-import { manageInvocationProcess } from "../managed-process";
-import { buildRuntimeUsageSignal, usageDetailFromClaudeResult } from "../runtime-usage";
-import { ensureMcpServers } from "../mcp-config";
-import { ensureSkillSymlinks } from "../skill-symlinks";
+import { manageInvocationProcess } from "../utils/managed-process";
+import { buildRuntimeUsageSignal, usageDetailFromClaudeResult } from "../utils/runtime-usage";
+import { ensureMcpServers } from "../utils/mcp-config";
+import { ensureSkillSymlinks } from "../utils/skill-symlinks";
 
 /**
  * Claude Code stateful 适配器。
@@ -20,7 +20,6 @@ import { ensureSkillSymlinks } from "../skill-symlinks";
  */
 export class ClaudeCodeStatefulAgent implements AgentRuntimePort {
   readonly name = "claude-code-stateful";
-  readonly runtime = "claude-code-stateful-cli";
 
   constructor(
     private readonly spawnFn: typeof spawn = spawn,
@@ -286,3 +285,5 @@ function resolveRequest(request: AgentRequest) {
     sessionId: request.sessionId as string | null,
   };
 }
+
+export const agent = new ClaudeCodeStatefulAgent();
