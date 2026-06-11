@@ -24,7 +24,7 @@ export interface Snail {
 /** Snail 首次调用请求 */
 export interface SnailFirstCallRequest {
   /** 工作目录 */
-  workspace_root: string;
+  workspace_path: string;
   /** 对话历史 */
   messages: Message[];
   /** 用于过滤 tenet-prompt 的标签 */
@@ -38,7 +38,7 @@ export interface SnailFirstCallRequest {
 /** Snail 后续调用请求 */
 export interface SnailResumeRequest {
   /** 工作目录 */
-  workspace_root: string;
+  workspace_path: string;
   /** 增量消息 */
   messages: Message[];
   /** 动态上下文 */

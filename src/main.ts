@@ -11,8 +11,10 @@ import { init as initMCP } from "@domain/mcp/_internal/initor";
 import { init as initMCPServer } from "@domain/snail-mcp-server/_internal/initor";
 import { initHono as initIM } from "@domain/im/_internal/hono-initor";
 import { init as initKnowledge } from "@domain/knowledge/_internal/initor";
-import { init as initIssue } from "@domain/issue/_internal/adapter";
-import { init as initEvolution } from "@domain/evolution/_internal/adapter";
+import { init as initKnowledgeMCP } from "@domain/knowledge-mcp/_internal/initor";
+import { init as initIssue } from "@domain/issue/_internal/initor";
+import { init as initStage } from "@domain/stage/_internal/initor";
+import { init as initEvolution } from "@domain/evolution/_internal/initor";
 import { initGovernance as initEvolutionGovernance } from "@app/evolution-governance/governance";
 import { init as initFeatureChain } from "@domain/feature-chain/_internal/initor";
 import { init as initGuardProfile } from "@domain/guard-profile/_internal/initor";
@@ -39,12 +41,21 @@ async function main() {
   const skill = initSkill(dataStore, workspaces);
   const sop = initSop(dataStore, workspaces);
   const mcp = initMCP(dataStore, workspaces);
-  const snailMCPServer = initMCPServer();
   const im = initIM();
-  const knowledge = initKnowledge();
-  const issue = initIssue(sop.repo, im.repo);
-  const evolution = initEvolution(sop.repo, im.repo, issue.issueRepo, issue.stageRepo);
-  const evolutionGovernance = initEvolutionGovernance(evolution.adapter, issue.adapter, im.adapter, sop.adapter);
+  const knowledge = initKnowledge(dataStore, workspaces);
+  const knowledgeMCP = initKnowledgeMCP(knowledge.adapter);
+  const issue = initIssue(sop.adapter);
+  const stage = initStage();
+  const evolution = initEvolution();
+  const evolutionGovernance = initEvolutionGovernance(evolution.adapter, issue.adapter, stage.adapter, sop.adapter);
+
+  // 初始化 snail-mcp-server（注册所有 MCP Server）
+  const snailMCPServer = initMCPServer({
+    evolutionUpdateStatus: (id, status, result) =>
+      Promise.resolve(evolution.adapter.updateStatus(id, status, result)),
+    knowledge: knowledgeMCP.adapter,
+  });
+
   const featureChain = initFeatureChain(repoRoot);
   const guardProfile = initGuardProfile(dataStore);
   const liteAI = initLiteAI(dataStore);
@@ -56,31 +67,6 @@ async function main() {
     skill: skill.adapter,
     mcp: mcp.adapter,
     guardProfile: guardProfile.adapter,
-  });
-
-  // 注册 snail-final-response MCP Server
-  snailMCPServer.adapter.registerServer({
-    name: "snail-final-response",
-    version: "1.0.0",
-    tools: [
-      {
-        name: "set_final_body",
-        description: "设置消息的最终展示正文（Markdown）",
-        inputSchema: {
-          type: "object",
-          properties: {
-            text: { type: "string", description: "最终 Markdown 正文" },
-            conversation_id: { type: "string" },
-            message_id: { type: "string" },
-          },
-          required: ["text", "conversation_id", "message_id"],
-        },
-        handler: async (params) => {
-          // TODO: 实现 set_final_body 逻辑
-          return { ok: true };
-        },
-      },
-    ],
   });
 
   // 重建 Feature Chain 索引

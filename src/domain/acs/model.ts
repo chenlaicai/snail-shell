@@ -33,7 +33,7 @@ export interface FirstCallRequest {
   /** 对话历史（全量） */
   messages: Message[];
   /** 当前工作目录 */
-  workspaceRoot: string;
+  workspacePath: string;
 }
 
 /**
@@ -50,7 +50,7 @@ export interface ResumeRequest {
   /** 增量消息（首次调用后的新消息） */
   messages: Message[];
   /** 当前工作目录 */
-  workspaceRoot: string;
+  workspacePath: string;
 }
 
 // ═══════════════════════════════════════════════════════════

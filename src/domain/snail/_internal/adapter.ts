@@ -1,5 +1,6 @@
 import type { AgentEvent, InvokeResult, InvokeOptions, CapabilitiesSpec } from "@domain/acs/model";
 import type { AgentRegistryPort } from "@domain/acs/port";
+import { buildContextEnv } from "@domain/acs/_internal/utils/context-env";
 import type { TenetPromptPort } from "@domain/tenet-prompt/port";
 import type { SkillPort } from "@domain/skill/port";
 import type { MCPPort } from "@domain/mcp/port";
@@ -39,7 +40,7 @@ export class SnailAdapter implements SnailPort {
   ): Promise<InvokeResult> {
     const snail = this.findSnailOrThrow(snailId);
     const agent = this.createAgent(snail);
-    const workspace = { path: request.workspace_root, summary: null };
+    const workspace = { path: request.workspace_path, summary: null };
 
     // 组装 system prompt（tenet-prompt 按 tags 过滤）
     const systemPrompt = this.buildSystemPrompt(request.tags);
@@ -53,8 +54,11 @@ export class SnailAdapter implements SnailPort {
     // 组装 system reminder（handbook + context 放入正确位置）
     const systemReminder = this.buildSystemReminder(request.handbook, request.context);
 
-    // 组装 invoke options（model, context_window, timeout）
-    const invokeOptions = this.buildOptions(snail, options);
+    // 组装环境变量（注入到 agent 进程的 process.env）
+    const contextEnv = this.buildContextEnv(request);
+
+    // 组装 invoke options（model, context_window, timeout, contextEnv）
+    const invokeOptions = this.buildOptions(snail, options, contextEnv);
 
     // 调用底层 acs
     return agent.invokeFirstCall({
@@ -62,7 +66,7 @@ export class SnailAdapter implements SnailPort {
       capabilities,
       guardProfile,
       messages: request.messages,
-      workspaceRoot: request.workspace_root,
+      workspacePath: request.workspace_path,
     }, onEvent, invokeOptions);
   }
 
@@ -85,7 +89,7 @@ export class SnailAdapter implements SnailPort {
         sessionId,
         systemReminder: request.system_reminder ?? "",
         messages: request.messages,
-        workspaceRoot: request.workspace_root,
+        workspacePath: request.workspace_path,
       },
       onEvent,
       invokeOptions,
@@ -151,14 +155,23 @@ export class SnailAdapter implements SnailPort {
     return parts.join("\n\n");
   }
 
-  /** 组装 invoke options（model, context_window, timeout） */
-  private buildOptions(snail: Snail, options: InvokeOptions): InvokeOptions {
+  /** 组装 invoke options（model, context_window, timeout, contextEnv） */
+  private buildOptions(snail: Snail, options: InvokeOptions, contextEnv: Record<string, string>): InvokeOptions {
     return {
       ...options,
       model: snail.model,
       contextWindow: snail.context_window,
       invocationTimeoutMs: snail.invocation_timeout_ms ?? SnailAdapter.DEFAULT_TIMEOUT_MS,
+      contextEnv,
     };
+  }
+
+  /** 组装环境变量（注入到 agent 进程的 process.env） */
+  private buildContextEnv(request: SnailFirstCallRequest): Record<string, string> {
+    return buildContextEnv({
+      workspacePath: request.workspace_path,
+      ...request.context,
+    });
   }
 
   // ── 辅助方法 ──────────────────────────────────────────────────────

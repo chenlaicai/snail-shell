@@ -15,9 +15,9 @@ function buildMcpRemoteEntry(url: string): { command: string; args: string[] } {
   return { command: "npx", args: ["mcp-remote@1", url] };
 }
 
-export function ensureMcpServers(servers: MCPServerCapability[], workspaceRoot?: string, agentType?: "claude" | "opencode" | "codex"): void {
+export function ensureMcpServers(servers: MCPServerCapability[], workspacePath?: string, agentType?: "claude" | "opencode" | "codex"): void {
   if (!servers?.length) return;
-  const wsRoot = workspaceRoot ?? process.cwd();
+  const wsRoot = workspacePath ?? process.cwd();
 
   switch (agentType) {
     case "claude":
@@ -35,8 +35,8 @@ export function ensureMcpServers(servers: MCPServerCapability[], workspaceRoot?:
   }
 }
 
-function writeClaudeMcpConfig(servers: MCPServerCapability[], workspaceRoot: string): void {
-  const claudeDir = path.join(workspaceRoot, ".claude");
+function writeClaudeMcpConfig(servers: MCPServerCapability[], workspacePath: string): void {
+  const claudeDir = path.join(workspacePath, ".claude");
   if (!fs.existsSync(claudeDir)) {
     fs.mkdirSync(claudeDir, { recursive: true });
   }
@@ -84,8 +84,8 @@ function syncEnabledMcpjsonServers(claudeDir: string, serverNames: string[]): vo
   fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n");
 }
 
-function writeOpenCodeMcpConfig(servers: MCPServerCapability[], workspaceRoot: string): void {
-  const configPath = path.join(workspaceRoot, "opencode.json");
+function writeOpenCodeMcpConfig(servers: MCPServerCapability[], workspacePath: string): void {
+  const configPath = path.join(workspacePath, "opencode.json");
   let config: Record<string, unknown> = {};
 
   if (fs.existsSync(configPath)) {
@@ -121,8 +121,8 @@ function writeOpenCodeMcpConfig(servers: MCPServerCapability[], workspaceRoot: s
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
 }
 
-function writeCodexMcpConfig(servers: MCPServerCapability[], workspaceRoot: string): void {
-  const codexDir = path.join(workspaceRoot, ".codex");
+function writeCodexMcpConfig(servers: MCPServerCapability[], workspacePath: string): void {
+  const codexDir = path.join(workspacePath, ".codex");
   if (!fs.existsSync(codexDir)) {
     fs.mkdirSync(codexDir, { recursive: true });
   }

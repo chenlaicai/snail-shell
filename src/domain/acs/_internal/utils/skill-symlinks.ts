@@ -10,12 +10,12 @@ import type { SkillCapability } from "../model";
  *  - Codex:       `.agents/skills/<name>/SKILL.md`
  *  - OpenCode:    同时扫描 `.claude/skills/` 和 `.agents/skills/`
  */
-export function ensureSkillSymlinks(workspaceRoot: string, skills: SkillCapability[]): void {
+export function ensureSkillSymlinks(workspacePath: string, skills: SkillCapability[]): void {
   if (skills.length === 0) return;
 
   const linkDirs = [
-    path.join(workspaceRoot, ".claude", "skills"),
-    path.join(workspaceRoot, ".agents", "skills"),
+    path.join(workspacePath, ".claude", "skills"),
+    path.join(workspacePath, ".agents", "skills"),
   ];
 
   for (const linkDir of linkDirs) {
@@ -57,10 +57,10 @@ function ensureSingleSkillSymlink(linkDir: string, skill: SkillCapability): void
 /**
  * 清理 invokeMessage 创建的符号链接目录。
  */
-export function cleanupSkillSymlinks(workspaceRoot: string): void {
+export function cleanupSkillSymlinks(workspacePath: string): void {
   const linkDirs = [
-    path.join(workspaceRoot, ".claude", "skills"),
-    path.join(workspaceRoot, ".agents", "skills"),
+    path.join(workspacePath, ".claude", "skills"),
+    path.join(workspacePath, ".agents", "skills"),
   ];
   for (const linkDir of linkDirs) {
     cleanupSingleDir(linkDir);

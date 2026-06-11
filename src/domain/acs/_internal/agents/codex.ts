@@ -51,9 +51,9 @@ export class CodexAgent implements AgentRuntimePort {
     options: InvokeOptions = {},
   ): Promise<InvokeResult> {
     // 注入 capabilities（文件系统级别）
-    writeCodexGuardConfig(request.guard_profile.deny, request.workspaceRoot);
-    ensureMcpServers(request.capabilities.mcpServers, request.workspaceRoot, "codex");
-    ensureSkillSymlinks(request.workspaceRoot, request.capabilities.skills);
+    writeCodexGuardConfig(request.guard_profile.deny, request.workspacePath);
+    ensureMcpServers(request.capabilities.mcpServers, request.workspacePath, "codex");
+    ensureSkillSymlinks(request.workspacePath, request.capabilities.skills);
 
     // 构建首次调用的 CLI args
     const model = options.model ?? CodexAgent.DEFAULT_MODEL;
@@ -62,7 +62,7 @@ export class CodexAgent implements AgentRuntimePort {
     const args = buildFirstCallArgs(model, promptText, request.prompt.systemPrompt);
 
     // Spawn 进程
-    const proc = this.spawn(args, request.workspaceRoot, options);
+    const proc = this.spawn(args, request.workspacePath, options);
 
     // 发送 prompt
     this.writePrompt(proc, promptText);
@@ -86,7 +86,7 @@ export class CodexAgent implements AgentRuntimePort {
     const args = buildResumeArgs(model, request.sessionId);
 
     // Spawn 进程
-    const proc = this.spawn(args, request.workspaceRoot, options);
+    const proc = this.spawn(args, request.workspacePath, options);
 
     // 发送 prompt
     this.writePrompt(proc, promptText);
@@ -98,10 +98,10 @@ export class CodexAgent implements AgentRuntimePort {
   // ── 通用辅助方法 ──────────────────────────────────────────────────────
 
   /** Spawn Codex 进程 */
-  private spawn(args: string[], workspaceRoot: string, options: InvokeOptions) {
+  private spawn(args: string[], workspacePath: string, options: InvokeOptions) {
     return spawn("codex", args, {
-      cwd: workspaceRoot,
-      env: { ...process.env, CODEX_HOME: path.join(workspaceRoot, ".codex"), ...options.contextEnv },
+      cwd: workspacePath,
+      env: { ...process.env, CODEX_HOME: path.join(workspacePath, ".codex"), ...options.contextEnv },
       stdio: ["pipe", "pipe", "pipe"],
       detached: true,
     });
@@ -214,7 +214,7 @@ function dropLatestUserMessage(messages: Message[]): Message[] {
   return messages;
 }
 
-function writeCodexGuardConfig(deny: string[], workspaceRoot: string): void {
+function writeCodexGuardConfig(deny: string[], workspacePath: string): void {
   // 写入 .codex/config.toml 的 sandbox_mode 配置
 }
 

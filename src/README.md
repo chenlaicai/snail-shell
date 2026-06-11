@@ -22,7 +22,7 @@
 ```
 domain/xxx/
 ├── model.ts              # 结构体定义（对外）
-├── port.ts               # 业务接口（对外）
+├── port.ts               # 端口（接口定义）
 └── _internal/
     ├── repository.ts     # 持久层接口 + 实现类（内部）
     └── adapter.ts        # 适配器 + 工厂函数（内部）
@@ -30,12 +30,12 @@ domain/xxx/
 
 **职责**:
 - `model.ts`：对外暴露结构体（PromptDocument, Skill, Sop 等）
-- `port.ts`：对外暴露业务接口（TenetPrompt, SkillPort, SopPort 等）
+- `port.ts`：对外暴露接口（TenetPrompt, SkillPort, SopPort 等）
 - `_internal/repository.ts`：持久层接口 + 实现类（注入 infra）
 - `_internal/adapter.ts`：适配器实现业务逻辑 + 工厂函数
 
 **原则**:
-- 对外只暴露契约（model + port）
+- 对外只暴露契约（结构体 + 接口）
 - 实现细节封装在 `_internal/` 中
 - main 负责组装：创建 repository → 创建 adapter → 注入依赖
 
@@ -56,7 +56,8 @@ domain/xxx/
 ```
 infra/
 ├── file-system.ts       # 文件读写（readFile, writeJson, listDir 等）
-└── database.ts          # SQLite 操作（run, get, all, transaction）
+├── database.ts          # SQLite 操作（run, get, all, transaction）
+└── index.ts             # 导出桶文件
 ```
 
 **职责**:
@@ -78,14 +79,15 @@ infra/
   "baseUrl": ".",
   "paths": {
     "@domain/*": ["src/domain/*"],
-    "@infra/*": ["src/infra/*"]
+    "@infra/*": ["src/infra/*"],
+    "@app/*": ["src/app/*"]
   }
 }
 ```
 
 **用法**:
 ```typescript
-import { WorkspaceAdapter } from "@domain/workspace/_internal/workspace";
+import { WorkspaceAdapter } from "@domain/workspace/_internal/adapter";
 import { FileSystem } from "@infra/file-system";
 ```
 
@@ -198,3 +200,26 @@ export class EvolutionGovernance {
 - 不提前设计"未来可能需要"的功能
 - 在 `issue-conversation` 实际使用时，再补齐写入、更新等功能
 - 一点点做起，而不是全量迁移
+
+## 10. 环境变量 Key 管理
+
+**决策**: 统一管理 snail 注入到 agent 进程的环境变量 key。
+
+**定义**:
+```typescript
+// domain/acs/context-keys.ts
+export const CONTEXT_KEYS = {
+  WORKSPACE_PATH: "SNAIL_CTX_WORKSPACE_PATH",
+  ISSUE_ID: "SNAIL_CTX_ISSUE_ID",
+  CONVERSATION_ID: "SNAIL_CTX_CONVERSATION_ID",
+  STAGE_ID: "SNAIL_CTX_STAGE_ID",
+} as const;
+```
+
+**使用**:
+- `context-env.ts` 使用 `CONTEXT_KEYS` 构造环境变量
+- skill 脚本通过 `process.env[CONTEXT_KEYS.WORKSPACE_PATH]` 获取
+
+**好处**:
+- 统一管理，避免硬编码
+- 易于维护和扩展

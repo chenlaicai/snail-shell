@@ -31,17 +31,17 @@ export class ClaudeCodeStatefulAgent implements AgentRuntimePort {
     options: InvokeOptions = {},
   ): Promise<InvokeResult> {
     // 注入 capabilities（文件系统级别）
-    ensureMcpServers(request.capabilities.mcpServers, request.workspaceRoot, "claude");
-    ensureSkillSymlinks(request.workspaceRoot, request.capabilities.skills);
+    ensureMcpServers(request.capabilities.mcpServers, request.workspacePath, "claude");
+    ensureSkillSymlinks(request.workspacePath, request.capabilities.skills);
 
     // 构建首次调用的 CLI args
     const args = this.buildBaseArgs(options);
     this.addGuardArgs(args, request.guard_profile);
-    this.addMcpConfigArg(args, request.workspaceRoot);
+    this.addMcpConfigArg(args, request.workspacePath);
     this.addPromptFileArg(args, request.prompt);
 
     // Spawn 进程
-    const proc = this.spawn(args, request.workspaceRoot, options);
+    const proc = this.spawn(args, request.workspacePath, options);
 
     // 发送消息
     this.writeMessages(proc, request.messages);
@@ -60,11 +60,11 @@ export class ClaudeCodeStatefulAgent implements AgentRuntimePort {
   ): Promise<InvokeResult> {
     // 构建 resume 的 CLI args
     const args = this.buildBaseArgs(options);
-    this.addMcpConfigArg(args, request.workspaceRoot);
+    this.addMcpConfigArg(args, request.workspacePath);
     args.push("--resume", request.sessionId);
 
     // Spawn 进程
-    const proc = this.spawn(args, request.workspaceRoot, options);
+    const proc = this.spawn(args, request.workspacePath, options);
 
     // 发送消息
     this.writeMessages(proc, request.messages);
@@ -100,8 +100,8 @@ export class ClaudeCodeStatefulAgent implements AgentRuntimePort {
   }
 
   /** 添加 mcp-config arg（每次调用） */
-  private addMcpConfigArg(args: string[], workspaceRoot: string): void {
-    args.push("--mcp-config", join(workspaceRoot, ".claude", "mcp.json"));
+  private addMcpConfigArg(args: string[], workspacePath: string): void {
+    args.push("--mcp-config", join(workspacePath, ".claude", "mcp.json"));
   }
 
   /** 添加 prompt 文件 arg（仅首次调用） */
@@ -118,12 +118,12 @@ export class ClaudeCodeStatefulAgent implements AgentRuntimePort {
   }
 
   /** Spawn Claude Code 进程 */
-  private spawn(args: string[], workspaceRoot: string, options: InvokeOptions): ChildProcess {
+  private spawn(args: string[], workspacePath: string, options: InvokeOptions): ChildProcess {
     return this.spawnFn(
       "claude",
       args,
       {
-        cwd: workspaceRoot,
+        cwd: workspacePath,
         stdio: ["pipe", "pipe", "pipe"],
         detached: true,
         env: { ...process.env, ...options.contextEnv },

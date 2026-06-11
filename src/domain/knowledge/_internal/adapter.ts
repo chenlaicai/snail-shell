@@ -1,10 +1,5 @@
-import type {
-  KnowledgeEntry,
-  KnowledgeSearchResult,
-  CreateKnowledgeInput,
-  KnowledgeListFilters,
-  KnowledgeSummary,
-} from "@domain/knowledge/model";
+import type { Workspace } from "@domain/workspace/model";
+import type { KnowledgeEntry, CreateKnowledgeInput, RemoveKnowledgeInput } from "@domain/knowledge/model";
 import type { KnowledgePort } from "@domain/knowledge/port";
 import type { KnowledgeRepository } from "./repository";
 
@@ -15,23 +10,19 @@ import type { KnowledgeRepository } from "./repository";
 export class KnowledgeAdapter implements KnowledgePort {
   constructor(private repo: KnowledgeRepository) {}
 
-  summary(workspaceId?: string): KnowledgeSummary {
-    return this.repo.summary(workspaceId);
+  list(): KnowledgeEntry[] {
+    return this.repo.list();
   }
 
-  list(filters?: KnowledgeListFilters): KnowledgeEntry[] {
-    return this.repo.list(filters);
+  findByWorkspace(workspace: Workspace): KnowledgeEntry[] {
+    return this.repo.findByWorkspace(workspace);
   }
 
-  findById(id: string): KnowledgeEntry | undefined {
-    return this.repo.findById(id);
+  add(input: CreateKnowledgeInput): KnowledgeEntry {
+    return this.repo.add(input);
   }
 
-  search(query: string, filters?: KnowledgeListFilters): KnowledgeSearchResult[] {
-    return this.repo.search(query, filters);
-  }
-
-  create(input: CreateKnowledgeInput): KnowledgeEntry {
-    return this.repo.create(input);
+  remove(input: RemoveKnowledgeInput): void {
+    this.repo.remove(input);
   }
 }

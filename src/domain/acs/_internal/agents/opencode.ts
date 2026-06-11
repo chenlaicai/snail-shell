@@ -51,8 +51,8 @@ export class OpenCodeAgent implements AgentRuntimePort {
   ): Promise<InvokeResult> {
     // 注入 capabilities（文件系统级别）
     writeOpenCodeGuardConfig(request.guard_profile.deny);
-    ensureMcpServers(request.capabilities.mcpServers, request.workspaceRoot, "opencode");
-    ensureSkillSymlinks(request.workspaceRoot, request.capabilities.skills);
+    ensureMcpServers(request.capabilities.mcpServers, request.workspacePath, "opencode");
+    ensureSkillSymlinks(request.workspacePath, request.capabilities.skills);
 
     // 构建首次调用的 CLI args
     const model = options.model ?? OpenCodeAgent.DEFAULT_MODEL;
@@ -61,7 +61,7 @@ export class OpenCodeAgent implements AgentRuntimePort {
     const args = buildFirstCallArgs(model, promptText);
 
     // Spawn 进程
-    const proc = this.spawn(args, request.workspaceRoot, options);
+    const proc = this.spawn(args, request.workspacePath, options);
 
     // 处理输出
     return this.processOutput(proc, onEvent, options, null);
@@ -82,7 +82,7 @@ export class OpenCodeAgent implements AgentRuntimePort {
     const args = buildResumeArgs(model, request.sessionId, promptText);
 
     // Spawn 进程
-    const proc = this.spawn(args, request.workspaceRoot, options);
+    const proc = this.spawn(args, request.workspacePath, options);
 
     // 处理输出
     return this.processOutput(proc, onEvent, options, request.sessionId);
@@ -91,7 +91,7 @@ export class OpenCodeAgent implements AgentRuntimePort {
   // ── 通用辅助方法 ──────────────────────────────────────────────────────
 
   /** Spawn OpenCode 进程 */
-  private spawn(args: string[], workspaceRoot: string, options: InvokeOptions) {
+  private spawn(args: string[], workspacePath: string, options: InvokeOptions) {
     const env: Record<string, string> = { ...process.env } as Record<string, string>;
     for (const key of OPENCODE_ENV_KEYS) {
       delete env[key];
@@ -101,7 +101,7 @@ export class OpenCodeAgent implements AgentRuntimePort {
     }
 
     return spawn("opencode", args, {
-      cwd: workspaceRoot,
+      cwd: workspacePath,
       env,
       stdio: ["pipe", "pipe", "pipe"],
       detached: true,

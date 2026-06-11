@@ -32,7 +32,7 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
     onEvent: (event: AgentEvent) => void,
     options: InvokeOptions = {},
   ): Promise<InvokeResult> {
-    return this.invoke(request.prompt, request.capabilities, request.guard_profile, request.messages, request.workspaceRoot, onEvent, options);
+    return this.invoke(request.prompt, request.capabilities, request.guard_profile, request.messages, request.workspacePath, onEvent, options);
   }
 
   async invokeResume(
@@ -48,13 +48,13 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
     capabilities: { skills: any[]; mcpServers: any[] },
     guardProfile: GuardProfile,
     messages: Message[],
-    workspaceRoot: string,
+    workspacePath: string,
     onEvent: (event: AgentEvent) => void,
     options: InvokeOptions,
   ): Promise<InvokeResult> {
     // 注入 capabilities
-    ensureMcpServers(capabilities.mcpServers, workspaceRoot, "claude");
-    ensureSkillSymlinks(workspaceRoot, capabilities.skills);
+    ensureMcpServers(capabilities.mcpServers, workspacePath, "claude");
+    ensureSkillSymlinks(workspacePath, capabilities.skills);
 
     // 构建 CLI args
     const args = [
@@ -76,7 +76,7 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
     }
 
     // MCP 配置
-    args.push("--mcp-config", join(workspaceRoot, ".claude", "mcp.json"));
+    args.push("--mcp-config", join(workspacePath, ".claude", "mcp.json"));
 
     // System prompt 文件注入
     let promptFilePath: string | null = null;
@@ -93,7 +93,7 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
     const proc = this.spawnProcess(
       "claude",
       args,
-      { cwd: workspaceRoot, stdio: ["pipe", "pipe", "pipe"], detached: true, env: { ...process.env, ...options.contextEnv } }
+      { cwd: workspacePath, stdio: ["pipe", "pipe", "pipe"], detached: true, env: { ...process.env, ...options.contextEnv } }
     );
 
     // 管理进程生命周期
