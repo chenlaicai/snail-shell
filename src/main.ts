@@ -7,19 +7,16 @@ import { init as initWorkspace } from "@domain/workspace/_internal/initor";
 import { init as initTenetPrompt } from "@domain/tenet-prompt/_internal/initor";
 import { init as initSkill } from "@domain/skill/_internal/initor";
 import { init as initSop } from "@domain/sop/_internal/initor";
-import { init as initMCP } from "@domain/mcp/_internal/initor";
 import { init as initMCPServer } from "@domain/snail-mcp-server/_internal/initor";
 import { initHono as initIM } from "@domain/im/_internal/hono-initor";
 import { init as initKnowledge } from "@domain/knowledge/_internal/initor";
-import { init as initKnowledgeMCP } from "@domain/knowledge-mcp/_internal/initor";
 import { init as initIssue } from "@domain/issue/_internal/initor";
-import { init as initStage } from "@domain/stage/_internal/initor";
 import { init as initEvolution } from "@domain/evolution/_internal/initor";
-import { initGovernance as initEvolutionGovernance } from "@app/evolution-governance/governance";
 import { init as initFeatureChain } from "@domain/feature-chain/_internal/initor";
 import { init as initGuardProfile } from "@domain/guard-profile/_internal/initor";
 import { init as initSnail } from "@domain/snail/_internal/initor";
 import { init as initLiteAI } from "@domain/lite-ai/_internal/initor";
+import { init as initMCP } from "@domain/mcp/_internal/initor";
 import { createMcpHandler } from "@infra/mcp-server/handler";
 
 async function main() {
@@ -40,20 +37,23 @@ async function main() {
   const tenetPrompt = initTenetPrompt(dataStore, workspaces);
   const skill = initSkill(dataStore, workspaces);
   const sop = initSop(dataStore, workspaces);
-  const mcp = initMCP(dataStore, workspaces);
   const im = initIM();
   const knowledge = initKnowledge(dataStore, workspaces);
-  const knowledgeMCP = initKnowledgeMCP(knowledge.adapter);
   const issue = initIssue(sop.adapter);
-  const stage = initStage();
-  const evolution = initEvolution();
-  const evolutionGovernance = initEvolutionGovernance(evolution.adapter, issue.adapter, stage.adapter, sop.adapter);
+  const evolution = initEvolution(issue.issueAdapter);
 
   // 初始化 snail-mcp-server（注册所有 MCP Server）
   const snailMCPServer = initMCPServer({
     evolutionUpdateStatus: (id, status, result) =>
-      Promise.resolve(evolution.adapter.updateStatus(id, status, result)),
-    knowledge: knowledgeMCP.adapter,
+      Promise.resolve(evolution.adapter.updateStatus(id, status as any, result)),
+    knowledge: knowledge.adapter,
+  });
+
+  // 初始化 mcp（读取 snail-mcp-server 的配置）
+  const mcp = initMCP({
+    dataStore,
+    workspaces,
+    snailMCPServer: snailMCPServer.adapter,
   });
 
   const featureChain = initFeatureChain(repoRoot);
@@ -78,6 +78,7 @@ async function main() {
   console.log(`Loaded ${skill.adapter.list().length} skills`);
   console.log(`Loaded ${sop.adapter.list().length} SOPs`);
   console.log(`MCP Servers: ${snailMCPServer.adapter.listServers().map(s => s.name).join(", ")}`);
+  console.log(`MCP Configs: ${mcp.adapter.list().map(c => c.name).join(", ")}`);
   console.log(`Feature Chain: ${featureChain.adapter.search("").length} docs indexed`);
   console.log(`Snails: ${snail.adapter.list().map(s => s.id).join(", ")}`);
   console.log(`IM: ready`);
