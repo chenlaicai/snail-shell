@@ -1,8 +1,9 @@
 import { serve } from "@hono/node-server";
 import { FileDataStore } from "@infra/file-data-store";
+import { ConfigStore } from "@infra/config-store";
 import { SQLiteDatabase } from "@infra/database";
 import { createApp } from "@infra/http/app";
-import { init as initAcs } from "@domain/acs/_internal/initor";
+import { init as initAcs } from "@infra/acs/_internal/initor";
 import { init as initWorkspace } from "@domain/workspace/_internal/initor";
 import { init as initTenetPrompt } from "@domain/tenet-prompt/_internal/initor";
 import { init as initSkill } from "@domain/skill/_internal/initor";
@@ -24,28 +25,36 @@ async function main() {
 
   // 基础设施
   const db = new SQLiteDatabase(repoRoot);
-  const dataStore = new FileDataStore(repoRoot);
+  const dataStore = FileDataStore.fromRepoRoot(repoRoot);
+  const configStore = new ConfigStore(repoRoot);
 
   // 初始化 acs（agent 运行时）
   const { registry } = await initAcs();
 
   // 初始化 workspace
   const workspace = initWorkspace(dataStore);
-  const workspaces = workspace.repo.list();
+  const workspaces = workspace.adapter.list();
 
   // 初始化领域模块
   const tenetPrompt = initTenetPrompt(dataStore, workspaces);
   const skill = initSkill(dataStore, workspaces);
   const sop = initSop(dataStore, workspaces);
-  const im = initIM();
   const knowledge = initKnowledge(dataStore, workspaces);
   const issue = initIssue(sop.adapter);
   const evolution = initEvolution(issue.issueAdapter);
 
+  // IM 依赖 issue ports，必须在 initIssue 之后
+  const im = initIM({
+    workspacePort: workspace.adapter,
+    issuePort: issue.issueAdapter,
+    stagePort: issue.stageAdapter,
+    configStore,
+  });
+
   // 初始化 snail-mcp-server（注册所有 MCP Server）
   const snailMCPServer = initMCPServer({
-    evolutionUpdateStatus: (id, status, result) =>
-      Promise.resolve(evolution.adapter.updateStatus(id, status as any, result)),
+    updateEvolution: (id, updates) =>
+      Promise.resolve(evolution.adapter.update(id, updates)),
     knowledge: knowledge.adapter,
   });
 
@@ -54,6 +63,7 @@ async function main() {
     dataStore,
     workspaces,
     snailMCPServer: snailMCPServer.adapter,
+    configStore,
   });
 
   const featureChain = initFeatureChain(repoRoot);
@@ -81,10 +91,9 @@ async function main() {
   console.log(`MCP Configs: ${mcp.adapter.list().map(c => c.name).join(", ")}`);
   console.log(`Feature Chain: ${featureChain.adapter.search("").length} docs indexed`);
   console.log(`Snails: ${snail.adapter.list().map(s => s.id).join(", ")}`);
-  console.log(`IM: ready`);
-  console.log(`Lite AI: ${liteAI.repo.getConfig() ? "configured" : "not configured"}`);
+  console.log(`IM: ready (${im.adapter.listChannelConfigs().map(c => c.type).join(", ") || "no channels"})`);
+  console.log(`Lite AI: ${liteAI.adapter.getConfig() ? "configured" : "not configured"}`);
   console.log(`Evolution: ready`);
-  console.log(`Evolution Governance: ready`);
   console.log(`Registered agents: ${registry.listAgentRuntimes().join(", ")}`);
 
   // HTTP 服务
@@ -94,7 +103,10 @@ async function main() {
     mcpHandler,
   });
 
-  const port = Number(process.env.PORT) || 3000;
+  // 挂载 IM webhook 路由
+  app.route("/im", im.app);
+
+  const port = configStore.readYaml<{ port?: number }>("server.yaml")?.port ?? 3000;
   serve({ fetch: app.fetch, port }, (info) => {
     console.log(`HTTP server listening on http://localhost:${info.port}`);
   });

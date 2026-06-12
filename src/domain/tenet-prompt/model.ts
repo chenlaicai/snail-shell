@@ -1,4 +1,5 @@
-import type { Workspace, Scope } from "@domain/workspace/model";
+import type { Workspace } from "@domain/workspace/model";
+import type { Scope } from "@domain/workspace/model";
 
 /** 原则性 Prompt 文档 */
 export interface PromptDocument {

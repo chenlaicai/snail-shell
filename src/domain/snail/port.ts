@@ -1,4 +1,4 @@
-import type { AgentEvent, InvokeResult, InvokeOptions } from "@domain/acs/model";
+import type { AgentEvent, InvokeResult, InvokeOptions } from "@infra/acs/model";
 import type { Snail, SnailFirstCallRequest, SnailResumeRequest } from "./model";
 
 /**

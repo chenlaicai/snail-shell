@@ -8,9 +8,11 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createWorkspaceRoutes } from "./routes/workspace.route";
 import type { WorkspaceAdapter } from "@domain/workspace/_internal/adapter";
+import type { Hono as HonoApp } from "hono";
 
 export interface AppDeps {
   workspaceAdapter: WorkspaceAdapter;
+  mcpHandler?: HonoApp;
 }
 
 export function createApp(deps: AppDeps) {
@@ -21,6 +23,11 @@ export function createApp(deps: AppDeps) {
 
   // 路由挂载
   app.route("/", createWorkspaceRoutes(deps.workspaceAdapter));
+
+  // MCP Server 路由
+  if (deps.mcpHandler) {
+    app.route("/mcp", deps.mcpHandler);
+  }
 
   // 健康检查
   app.get("/health", (c) => c.json({ status: "ok" }));

@@ -1,11 +1,11 @@
 import type { MCPServerConfig } from "@domain/snail-mcp-server/model";
-import type { KnowledgeMCPPort } from "@domain/knowledge-mcp/port";
+import type { KnowledgePort } from "@domain/knowledge/port";
 
 /**
  * Knowledge MCP Server。
  * 提供知识库查询、创建、删除工具。
  */
-export function createKnowledgeServer(knowledge: KnowledgeMCPPort): MCPServerConfig {
+export function createKnowledgeServer(knowledge: KnowledgePort): MCPServerConfig {
   return {
     name: "snail-knowledge",
     version: "1.0.0",
@@ -22,11 +22,17 @@ export function createKnowledgeServer(knowledge: KnowledgeMCPPort): MCPServerCon
           required: ["query"],
         },
         handler: async (params) => {
-          const result = knowledge.search({
-            query: params.query as string,
-            workspace_path: params.workspace_path as string | undefined,
-          });
-          return result;
+          const workspace = params.workspace_path ? { path: params.workspace_path as string, summary: null } : undefined;
+          const entries = workspace
+            ? knowledge.findByWorkspace(workspace)
+            : knowledge.list();
+
+          const query = (params.query as string).toLowerCase();
+          const filtered = entries.filter(
+            e => e.title.toLowerCase().includes(query) || e.content.toLowerCase().includes(query)
+          );
+
+          return { items: filtered };
         },
       },
       {
@@ -39,10 +45,12 @@ export function createKnowledgeServer(knowledge: KnowledgeMCPPort): MCPServerCon
           },
         },
         handler: async (params) => {
-          const result = knowledge.list({
-            workspace_path: params.workspace_path as string | undefined,
-          });
-          return result;
+          const workspace = params.workspace_path ? { path: params.workspace_path as string, summary: null } : undefined;
+          const items = workspace
+            ? knowledge.findByWorkspace(workspace)
+            : knowledge.list();
+
+          return { items };
         },
       },
       {
@@ -61,15 +69,16 @@ export function createKnowledgeServer(knowledge: KnowledgeMCPPort): MCPServerCon
           required: ["id", "title", "content", "scope"],
         },
         handler: async (params) => {
-          const result = knowledge.add({
+          const entry = knowledge.add({
             id: params.id as string,
             title: params.title as string,
             tags: params.tags as string[] | undefined,
             content: params.content as string,
             scope: params.scope as "platform" | "workspace",
-            workspace_path: params.workspace_path as string | undefined,
+            workspace: params.workspace_path ? { path: params.workspace_path as string, summary: null } : undefined,
           });
-          return result;
+
+          return { entry };
         },
       },
       {
@@ -88,7 +97,7 @@ export function createKnowledgeServer(knowledge: KnowledgeMCPPort): MCPServerCon
           knowledge.remove({
             id: params.id as string,
             scope: params.scope as "platform" | "workspace",
-            workspace_path: params.workspace_path as string | undefined,
+            workspace: params.workspace_path ? { path: params.workspace_path as string, summary: null } : undefined,
           });
           return { ok: true };
         },

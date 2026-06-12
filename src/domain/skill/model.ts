@@ -1,4 +1,5 @@
-import type { Workspace, Scope } from "@domain/workspace/model";
+import type { Workspace } from "@domain/workspace/model";
+import { Scope } from "@domain/workspace/model";
 
 /** Agent Skill 定义 */
 export interface Skill {

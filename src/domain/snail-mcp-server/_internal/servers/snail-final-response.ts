@@ -1,4 +1,4 @@
-import type { MCPServerConfig } from "../../model";
+import type { MCPServerConfig } from "@domain/snail-mcp-server/model";
 
 /**
  * snail-final-response MCP Server。

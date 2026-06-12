@@ -1,44 +1,15 @@
 import type {
-  Conversation,
-  Message,
-  MessageEvent,
-  MessageContext,
-  MessageDispatch,
-  CreateConversationInput,
-  CreateMessageInput,
-  MessageContextKind,
-  MessageDispatchStatus,
   IMChannelConfig,
   IMInboundMessage,
   LobbySession,
+  LobbyMessage,
+  LobbyResponse,
+  NavigationContext,
 } from "./model";
 
 /** IM 端口定义 */
 export interface IMPort {
-  // ── 会话 ──────────────────────────────────────────────────────────────
-  findConversationById(id: string): Conversation | undefined;
-  listConversations(filters?: { workspace_id?: string; issue_id?: string; stage_id?: string; limit?: number; offset?: number }): Conversation[];
-  createConversation(input: CreateConversationInput): Conversation;
-
-  // ── 消息 ──────────────────────────────────────────────────────────────
-  findMessageById(id: number): Message | undefined;
-  listMessages(conversationId: string, limit?: number, offset?: number): Message[];
-  createMessage(input: CreateMessageInput): Message;
-
-  // ── 消息事件 ──────────────────────────────────────────────────────────
-  listMessageEvents(messageId: number): MessageEvent[];
-  appendEvent(messageId: number, event: Omit<MessageEvent, "id" | "created_at">): MessageEvent;
-
-  // ── 消息上下文 ────────────────────────────────────────────────────────
-  getMessageContext(messageId: number): MessageContext | null;
-  setMessageContext(messageId: number, kind: MessageContextKind, context: string): void;
-
-  // ── 消息分发 ──────────────────────────────────────────────────────────
-  listPendingDispatches(conversationId: string): MessageDispatch[];
-  createDispatch(conversationId: string, messageId: number, toRole: string): MessageDispatch;
-  updateDispatchStatus(dispatchId: number, status: MessageDispatchStatus, consumedByMessageId?: number): void;
-
-  // ── IM 渠道 ──────────────────────────────────────────────────────────
+  // IM 渠道配置
   listChannelConfigs(): IMChannelConfig[];
   getChannelConfig(type: string): IMChannelConfig | undefined;
 }
@@ -55,6 +26,8 @@ export interface IMTransport {
   sendText(chatId: string, text: string, uuid?: string): Promise<string>;
   /** 更新文本消息（流式响应） */
   patchText?(messageId: string, text: string): Promise<void>;
+  /** 处理 webhook 请求体（平台特定解析） */
+  handleWebhook?(body: unknown): void;
 }
 
 /** IM 渠道适配器接口 */
@@ -62,4 +35,31 @@ export interface IMChannelAdapter {
   readonly channelType: string;
   start(): Promise<void>;
   stop(): Promise<void>;
+  /** 处理 webhook 请求体（由 Hono server 调用） */
+  handleWebhook?(body: unknown): void;
+}
+
+/** Lobby 端口定义 */
+export interface LobbyPort {
+  // Session
+  getOrCreateSession(channelType: string, channelChatId: string, channelTenantKey: string | null): LobbySession;
+  getSessionByChannel(channelType: string, channelChatId: string, channelTenantKey: string | null): LobbySession | null;
+  updateSessionNavigation(id: string, updates: Partial<Pick<LobbySession, "navigation_level" | "current_workspace_id" | "current_issue_id" | "current_stage_id">>): LobbySession;
+  getInStageSessions(channelType: string): LobbySession[];
+
+  // Message audit
+  addLobbyMessage(input: { lobby_session_id: string; direction: "inbound" | "outbound"; command?: string | null; content: string; response_content?: string | null }): LobbyMessage;
+  getLobbyMessages(sessionId: string, limit?: number, offset?: number): LobbyMessage[];
+
+  // Command execution
+  executeCommand(session: LobbySession, commandText: string): Promise<LobbyResponse>;
+
+  // Routing
+  processInbound(params: { channelType: string; channelChatId: string; channelTenantKey: string | null; text: string }): Promise<
+    | { response: LobbyResponse; session: LobbySession }
+    | { forwarded: true; session: LobbySession }
+  >;
+
+  // Navigation context
+  buildNavigationContext(session: LobbySession): NavigationContext;
 }

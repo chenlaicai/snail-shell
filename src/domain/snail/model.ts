@@ -1,4 +1,4 @@
-import type { Message } from "@domain/acs/model";
+import type { Message } from "@infra/acs/model";
 
 /**
  * Snail — AI Agent 运行时配置。
@@ -31,8 +31,8 @@ export interface SnailFirstCallRequest {
   tags?: string[];
   /** role handbook 内容 */
   handbook?: string;
-  /** 业务上下文标识（conversation_id, message_id 等），由 snail 塞入 system-reminder */
-  context?: Record<string, string>;
+  /** 业务上下文标识（conversation_id, message_id, evolution_item_id 等），注入到 system-reminder 和 env vars */
+  context?: Record<string, unknown>;
 }
 
 /** Snail 后续调用请求 */

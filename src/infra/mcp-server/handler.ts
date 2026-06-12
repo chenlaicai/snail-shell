@@ -43,10 +43,14 @@ export function createMcpHandler(adapter: SnailMCPServerAdapter): Hono {
 
   // 处理 JSON-RPC 请求（每个 MCP Server 独立端点）
   app.post("/:serverName", async (c) => {
-    const serverName = c.req.param("serverName");
-    const body = await c.req.json<JsonRpcRequest>();
-    const response = await adapter.handleRequest(serverName, body);
-    return c.json(response);
+    try {
+      const serverName = c.req.param("serverName");
+      const body = await c.req.json<JsonRpcRequest>();
+      const response = await adapter.handleRequest(serverName, body);
+      return c.json(response);
+    } catch (err) {
+      return c.json({ jsonrpc: "2.0", error: { code: -32603, message: (err as Error).message } }, 500);
+    }
   });
 
   return app;

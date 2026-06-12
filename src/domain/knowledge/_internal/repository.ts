@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
-import type { Workspace, Scope } from "@domain/workspace/model";
+import type { Workspace } from "@domain/workspace/model";
+import { Scope } from "@domain/workspace/model";
 import type { KnowledgeEntry, CreateKnowledgeInput, RemoveKnowledgeInput } from "@domain/knowledge/model";
 import type { FileDataStore } from "@infra/file-data-store";
 
@@ -53,7 +54,7 @@ export class FileKnowledgeRepository implements KnowledgeRepository {
     const fileName = `${input.id}#${input.title}.md`;
     const mdContent = this.buildMdContent(entry);
 
-    if (input.scope === "workspace" && input.workspace) {
+    if (input.scope === Scope.Workspace && input.workspace) {
       const wsStore = this.dataStore.workspace(input.workspace.path);
       const filePath = `${FileKnowledgeRepository.DIR}/${fileName}`;
       wsStore.writeFile(filePath, mdContent);
@@ -71,7 +72,7 @@ export class FileKnowledgeRepository implements KnowledgeRepository {
   }
 
   remove(input: RemoveKnowledgeInput): void {
-    if (input.scope === "workspace" && input.workspace) {
+    if (input.scope === Scope.Workspace && input.workspace) {
       const wsStore = this.dataStore.workspace(input.workspace.path);
       const entries = this.workspaceEntries.get(input.workspace.path) ?? [];
       const index = entries.findIndex(e => e.id === input.id);
@@ -103,13 +104,13 @@ export class FileKnowledgeRepository implements KnowledgeRepository {
   }
 
   private loadPlatformEntries(): void {
-    this.platformEntries = this.loadEntries(this.dataStore, "platform");
+    this.platformEntries = this.loadEntries(this.dataStore, Scope.Platform);
   }
 
   private loadWorkspaceEntries(workspaces: Workspace[]): void {
     for (const ws of workspaces) {
       const wsStore = this.dataStore.workspace(ws.path);
-      const entries = this.loadEntries(wsStore, "workspace");
+      const entries = this.loadEntries(wsStore, Scope.Workspace);
       this.workspaceEntries.set(ws.path, entries);
     }
   }

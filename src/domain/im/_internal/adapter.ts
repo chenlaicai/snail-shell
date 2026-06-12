@@ -1,18 +1,7 @@
-import type {
-  Conversation,
-  Message,
-  MessageEvent,
-  MessageContext,
-  MessageDispatch,
-  CreateConversationInput,
-  CreateMessageInput,
-  MessageContextKind,
-  MessageDispatchStatus,
-  IMChannelConfig,
-  IMInboundMessage,
-} from "@domain/im/model";
-import type { IMPort, IMTransport, IMChannelAdapter } from "@domain/im/port";
-import { InMemoryIMRepository, type IMRepository } from "./repository";
+import type { IMInboundMessage } from "@domain/im/model";
+import type { IMPort, IMChannelAdapter, IMTransport } from "@domain/im/port";
+import type { IMRepository } from "./repository";
+import type { LobbyRouter } from "./router";
 
 /**
  * IM 适配器实现。
@@ -23,81 +12,22 @@ export class IMAdapter implements IMPort {
 
   constructor(private repo: IMRepository) {}
 
-  // ── 会话 ──────────────────────────────────────────────────────────────
-
-  findConversationById(id: string): Conversation | undefined {
-    return this.repo.findConversationById(id);
-  }
-
-  listConversations(filters?: { workspace_id?: string; issue_id?: string; stage_id?: string; limit?: number; offset?: number }): Conversation[] {
-    return this.repo.listConversations(filters);
-  }
-
-  createConversation(input: CreateConversationInput): Conversation {
-    return this.repo.createConversation(input);
-  }
-
-  // ── 消息 ──────────────────────────────────────────────────────────────
-
-  findMessageById(id: number): Message | undefined {
-    return this.repo.findMessageById(id);
-  }
-
-  listMessages(conversationId: string, limit?: number, offset?: number): Message[] {
-    return this.repo.listMessages(conversationId, limit, offset);
-  }
-
-  createMessage(input: CreateMessageInput): Message {
-    return this.repo.createMessage(input);
-  }
-
-  // ── 消息事件 ──────────────────────────────────────────────────────────
-
-  listMessageEvents(messageId: number): MessageEvent[] {
-    return this.repo.listMessageEvents(messageId);
-  }
-
-  appendEvent(messageId: number, event: Omit<MessageEvent, "id" | "created_at">): MessageEvent {
-    return this.repo.appendEvent(messageId, event);
-  }
-
-  // ── 消息上下文 ────────────────────────────────────────────────────────
-
-  getMessageContext(messageId: number): MessageContext | null {
-    return this.repo.getMessageContext(messageId);
-  }
-
-  setMessageContext(messageId: number, kind: MessageContextKind, context: string): void {
-    this.repo.setMessageContext(messageId, kind, context);
-  }
-
-  // ── 消息分发 ──────────────────────────────────────────────────────────
-
-  listPendingDispatches(conversationId: string): MessageDispatch[] {
-    return this.repo.listPendingDispatches(conversationId);
-  }
-
-  createDispatch(conversationId: string, messageId: number, toRole: string): MessageDispatch {
-    return this.repo.createDispatch(conversationId, messageId, toRole);
-  }
-
-  updateDispatchStatus(dispatchId: number, status: MessageDispatchStatus, consumedByMessageId?: number): void {
-    this.repo.updateDispatchStatus(dispatchId, status, consumedByMessageId);
-  }
-
-  // ── IM 渠道 ──────────────────────────────────────────────────────────
-
-  listChannelConfigs(): IMChannelConfig[] {
+  listChannelConfigs() {
     return this.repo.listChannelConfigs();
   }
 
-  getChannelConfig(type: string): IMChannelConfig | undefined {
+  getChannelConfig(type: string) {
     return this.repo.getChannelConfig(type);
   }
 
   /** 注册渠道适配器 */
   registerChannel(adapter: IMChannelAdapter): void {
     this.channels.set(adapter.channelType, adapter);
+  }
+
+  /** 获取渠道适配器 */
+  getChannel(type: string): IMChannelAdapter | undefined {
+    return this.channels.get(type);
   }
 
   /** 启动所有渠道 */
@@ -118,69 +48,104 @@ export class IMAdapter implements IMPort {
 /**
  * LobbyAwareChannel 实现。
  * 飞书和企微共享的渠道适配器，通过注入不同的 IMTransport 适配不同平台。
+ * 包含入站去重、白名单过滤、lobby 路由。
  */
 export class LobbyAwareChannel implements IMChannelAdapter {
-  private messageHandler: ((msg: IMInboundMessage) => void) | null = null;
+  readonly channelType: string;
+
+  // 入站去重
+  private readonly processedInbound = new Map<string, { processedAt: number }>();
+  private readonly pendingInbound = new Set<string>();
+
+  // Echo 防护（结构预留，出站链路打通后激活）
+  private readonly recentForwardedMessages = new Map<string, string>();
+  private pendingForwardChatId: string | null = null;
 
   constructor(
-    readonly channelType: string,
-    private transport: IMTransport,
-    private allowedChats: string[],
-    private maxTextLength: number,
-    private streamingEnabled: boolean,
-  ) {}
+    private readonly config: {
+      channelType: string;
+      allowedChats: string[];
+      maxTextLength: number;
+      streamingEnabled: boolean;
+    },
+    private readonly transport: IMTransport,
+    private readonly lobbyRouter: LobbyRouter,
+  ) {
+    this.channelType = config.channelType;
+  }
 
   async start(): Promise<void> {
     await this.transport.prepare();
-    this.transport.onMessage((msg) => this.handleInbound(msg));
+    this.transport.onMessage((msg) => this.scheduleInbound(msg));
   }
 
   async stop(): Promise<void> {
+    this.processedInbound.clear();
+    this.pendingInbound.clear();
+    this.recentForwardedMessages.clear();
     await this.transport.stop();
   }
 
-  private async handleInbound(msg: IMInboundMessage): Promise<void> {
-    // 白名单校验
-    if (!this.allowedChats.includes(msg.chat_id)) {
-      return;
-    }
-
-    // 转发给消息处理器
-    if (this.messageHandler) {
-      this.messageHandler(msg);
+  /** 由 Hono server 调用，将 webhook 请求体传递给 transport 解析 */
+  handleWebhook(body: unknown): void {
+    if (this.transport.handleWebhook) {
+      this.transport.handleWebhook(body);
     }
   }
 
-  /** 设置消息处理器 */
-  onMessage(handler: (msg: IMInboundMessage) => void): void {
-    this.messageHandler = handler;
-  }
-
-  /** 发送消息 */
-  async sendMessage(chatId: string, text: string): Promise<string> {
-    // 截断超长文本
-    const truncatedText = text.length > this.maxTextLength
-      ? text.slice(0, this.maxTextLength) + "..."
+  /** 发送文本消息（带截断） */
+  async sendText(chatId: string, text: string): Promise<string> {
+    const truncated = text.length > this.config.maxTextLength
+      ? text.slice(0, this.config.maxTextLength) + "..."
       : text;
-
-    return this.transport.sendText(chatId, truncatedText);
+    return this.transport.sendText(chatId, truncated);
   }
 
-  /** 更新消息（流式响应） */
-  async updateMessage(messageId: string, text: string): Promise<void> {
-    if (this.streamingEnabled && this.transport.patchText) {
-      const truncatedText = text.length > this.maxTextLength
-        ? text.slice(0, this.maxTextLength) + "..."
-        : text;
+  private scheduleInbound(message: IMInboundMessage): void {
+    void this.handleInbound(message).catch(console.error);
+  }
 
-      await this.transport.patchText(messageId, truncatedText);
+  private async handleInbound(message: IMInboundMessage): Promise<void> {
+    // 白名单检查
+    if (!this.config.allowedChats.includes(message.chat_id)) return;
+
+    // 去重
+    const clientId = `${this.channelType}:${message.tenant_key ?? "unknown"}:${message.chat_id}:${message.message_id}`;
+    this.pruneProcessedInbound(Date.now());
+    if (this.processedInbound.has(clientId) || this.pendingInbound.has(clientId)) return;
+    this.pendingInbound.add(clientId);
+
+    try {
+      this.pendingForwardChatId = message.chat_id;
+
+      const result = await this.lobbyRouter.processInbound({
+        channelType: this.channelType,
+        channelChatId: message.chat_id,
+        channelTenantKey: message.tenant_key ?? null,
+        text: message.text,
+      });
+
+      this.processedInbound.set(clientId, { processedAt: Date.now() });
+
+      if ("response" in result && result.response.text) {
+        await this.sendText(message.chat_id, result.response.text);
+      }
+    } finally {
+      this.pendingForwardChatId = null;
+      this.pendingInbound.delete(clientId);
     }
   }
-}
 
-/** 初始化 IM 模块 */
-export function init() {
-  const repo = new InMemoryIMRepository();
-  const adapter = new IMAdapter(repo);
-  return { repo, adapter };
+  private pruneProcessedInbound(now: number): void {
+    const TTL = 24 * 60 * 60 * 1000;
+    const MAX = 10_000;
+    for (const [key, entry] of this.processedInbound) {
+      if (now - entry.processedAt > TTL) this.processedInbound.delete(key);
+    }
+    while (this.processedInbound.size > MAX) {
+      const oldest = this.processedInbound.keys().next().value;
+      if (!oldest) break;
+      this.processedInbound.delete(oldest);
+    }
+  }
 }

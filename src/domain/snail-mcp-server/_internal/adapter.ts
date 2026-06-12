@@ -98,9 +98,3 @@ export class SnailMCPServerAdapter implements SnailMCPServerPort {
     return { jsonrpc: "2.0", id, error: { code, message } };
   }
 }
-
-/** 初始化 Snail MCP Server 模块 */
-export function init() {
-  const adapter = new SnailMCPServerAdapter();
-  return { adapter };
-}

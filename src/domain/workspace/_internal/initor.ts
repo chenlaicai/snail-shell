@@ -1,10 +1,10 @@
-import type { FileSystem } from "@infra/file-system";
+import type { FileDataStore } from "@infra/file-data-store";
 import { FileWorkspaceRepository } from "./repository";
 import { WorkspaceAdapter } from "./adapter";
 
 /** 初始化 Workspace 模块 */
-export function init(fs: FileSystem, repoRoot: string) {
-  const repo = new FileWorkspaceRepository(fs, repoRoot);
+export function init(dataStore: FileDataStore) {
+  const repo = new FileWorkspaceRepository(dataStore);
   const adapter = new WorkspaceAdapter(repo);
   return { repo, adapter };
 }

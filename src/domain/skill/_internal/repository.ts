@@ -1,8 +1,8 @@
-import fs from "fs";
 import path from "path";
 import type { Workspace } from "@domain/workspace/model";
+import { Scope } from "@domain/workspace/model";
 import type { Skill } from "@domain/skill/model";
-import type { FileSystem } from "@infra/file-system";
+import type { FileDataStore } from "@infra/file-data-store";
 
 /** Skill 持久层接口 */
 export interface SkillRepository {
@@ -12,12 +12,19 @@ export interface SkillRepository {
 
 /** Skill 文件存储实现 */
 export class FileSkillRepository implements SkillRepository {
-  private platformSkills: Skill[] = [];
-  private workspaceSkills = new Map<string, Skill[]>();  // workspace_path -> skills
+  private static readonly DIR = "skills";
 
-  constructor(private fileSystem: FileSystem, repoRoot: string, workspacePaths: string[]) {
-    this.loadPlatformSkills(repoRoot);
-    this.loadWorkspaceSkills(workspacePaths);
+  private platformSkills: Skill[] = [];
+  private workspaceSkills = new Map<string, Skill[]>();
+
+  constructor(platformStore: FileDataStore, workspaces: Workspace[]) {
+    this.platformSkills = this.loadSkillDir(platformStore, FileSkillRepository.DIR);
+    for (const ws of workspaces) {
+      const wsStore = platformStore.workspace(ws.path);
+      const skills = this.loadSkillDir(wsStore, FileSkillRepository.DIR)
+        .map(s => ({ ...s, scope: Scope.Workspace, workspace: ws }));
+      this.workspaceSkills.set(ws.path, skills);
+    }
   }
 
   list(): Skill[] {
@@ -29,46 +36,33 @@ export class FileSkillRepository implements SkillRepository {
     return [...this.platformSkills, ...wsSkills];
   }
 
-  private loadPlatformSkills(repoRoot: string): void {
-    const platformDir = path.join(repoRoot, ".meta", "skills");
-    this.platformSkills = this.loadSkillDir(platformDir, "platform");
-  }
+  private loadSkillDir(store: FileDataStore, relativeDir: string): Skill[] {
+    if (!store.exists(relativeDir)) return [];
 
-  private loadWorkspaceSkills(workspacePaths: string[]): void {
-    for (const wsPath of workspacePaths) {
-      const wsSkillDir = path.join(wsPath, ".snail", "skills");
-      const skills = this.loadSkillDir(wsSkillDir, "workspace");
-      this.workspaceSkills.set(wsPath, skills);
-    }
-  }
-
-  private loadSkillDir(dir: string, source: "platform" | "workspace"): Skill[] {
-    if (!this.fileSystem.exists(dir)) return [];
-
-    const entries = this.fileSystem.listDirs(dir);
+    const entries = store.listDirs(relativeDir);
     const skills: Skill[] = [];
 
     for (const entry of entries) {
-      const skillDir = path.join(dir, entry);
-      const skillFile = path.join(skillDir, "SKILL.md");
+      const skillDirPath = path.join(relativeDir, entry);
+      const skillFilePath = path.join(skillDirPath, "SKILL.md");
 
-      if (!this.fileSystem.exists(skillFile)) continue;
+      if (!store.exists(skillFilePath)) continue;
 
-      const raw = this.fileSystem.readFile(skillFile);
+      const raw = store.readFile(skillFilePath);
       if (!raw) continue;
 
       try {
-        const skill = this.parseSkill(raw, skillDir, source);
+        const skill = this.parseSkill(raw, skillDirPath);
         skills.push(skill);
       } catch (err) {
-        console.warn(`Failed to parse skill: ${skillFile}`, err);
+        console.warn(`Failed to parse skill: ${skillFilePath}`, err);
       }
     }
 
     return skills;
   }
 
-  private parseSkill(raw: string, dirPath: string, source: "platform" | "workspace"): Skill {
+  private parseSkill(raw: string, dirPath: string): Skill {
     const match = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
     if (!match) throw new Error("Invalid skill format: missing frontmatter");
 
@@ -81,7 +75,7 @@ export class FileSkillRepository implements SkillRepository {
       name: meta.name,
       description: meta.description ?? "",
       content: content.trim(),
-      source,
+      scope: Scope.Platform,
       dir_path: dirPath,
     };
   }

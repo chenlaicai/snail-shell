@@ -1,7 +1,5 @@
-import fs from "fs";
-import path from "path";
 import type { Workspace, CreateWorkspaceInput } from "@domain/workspace/model";
-import type { FileSystem } from "@infra/file-system";
+import type { FileDataStore } from "@infra/file-data-store";
 
 /** Workspace 持久层接口 */
 export interface WorkspaceRepository {
@@ -12,10 +10,8 @@ export interface WorkspaceRepository {
 /** Workspace 文件存储实现 */
 export class FileWorkspaceRepository implements WorkspaceRepository {
   private cache = new Map<string, Workspace>();
-  private configPath: string;
 
-  constructor(private fileSystem: FileSystem, repoRoot: string) {
-    this.configPath = path.join(repoRoot, "config", "workspaces.json");
+  constructor(private dataStore: FileDataStore) {
     this.load();
   }
 
@@ -40,7 +36,7 @@ export class FileWorkspaceRepository implements WorkspaceRepository {
   }
 
   private load(): void {
-    const paths = this.fileSystem.readJson<string[]>(this.configPath);
+    const paths = this.dataStore.readJson<string[]>("workspaces.json");
     if (!paths) return;
 
     for (const p of paths) {
@@ -49,6 +45,6 @@ export class FileWorkspaceRepository implements WorkspaceRepository {
   }
 
   private save(): void {
-    this.fileSystem.writeJson(this.configPath, [...this.cache.keys()]);
+    this.dataStore.writeJson("workspaces.json", [...this.cache.keys()]);
   }
 }

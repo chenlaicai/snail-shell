@@ -1,5 +1,5 @@
-import type { FeatureDoc, FeatureSearchResult, FeatureChain, FeatureChainLink } from "@domain/feature-chain/model";
-import type { FileSystem } from "@infra/file-system";
+import type { FeatureDoc, FeatureSearchResult, FeatureChain } from "@domain/feature-chain/model";
+import type { FileLoader } from "@infra/file-loader";
 
 /** Feature Chain 持久层接口 */
 export interface FeatureChainRepository {
@@ -11,10 +11,12 @@ export interface FeatureChainRepository {
 
 /** Feature Chain 文件存储实现 */
 export class FileFeatureChainRepository implements FeatureChainRepository {
+  private static readonly DIR = "docs/features";
+
   private docs = new Map<string, FeatureDoc>();
   private backlinks = new Map<string, string[]>(); // feature_id -> from_feature_ids
 
-  constructor(private fileSystem: FileSystem, private repoRoot: string) {}
+  constructor(private loader: FileLoader) {}
 
   search(query: string, limit = 10): FeatureSearchResult[] {
     const lowerQuery = query.toLowerCase();
@@ -73,14 +75,14 @@ export class FileFeatureChainRepository implements FeatureChainRepository {
     this.docs.clear();
     this.backlinks.clear();
 
-    const featuresDir = `${this.repoRoot}/docs/features`;
-    if (!this.fileSystem.exists(featuresDir)) return;
+    const featuresDir = FileFeatureChainRepository.DIR;
+    if (!this.loader.exists(featuresDir)) return;
 
-    const files = this.fileSystem.listDir(featuresDir).filter(f => f.endsWith(".md") && f.startsWith("F"));
+    const files = this.loader.listDir(featuresDir).filter(f => f.endsWith(".md") && f.startsWith("F"));
 
     for (const file of files) {
       const filePath = `${featuresDir}/${file}`;
-      const raw = this.fileSystem.readFile(filePath);
+      const raw = this.loader.readFile(filePath);
       if (!raw) continue;
 
       try {

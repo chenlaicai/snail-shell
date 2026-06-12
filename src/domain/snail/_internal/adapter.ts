@@ -1,6 +1,6 @@
-import type { AgentEvent, InvokeResult, InvokeOptions, CapabilitiesSpec } from "@domain/acs/model";
-import type { AgentRegistryPort } from "@domain/acs/port";
-import { buildContextEnv } from "@domain/acs/_internal/utils/context-env";
+import type { AgentEvent, InvokeResult, InvokeOptions, CapabilitiesSpec } from "@infra/acs/model";
+import type { AgentRegistryPort } from "@infra/acs/port";
+import { buildContextEnv } from "@infra/acs/_internal/utils/context-env";
 import type { TenetPromptPort } from "@domain/tenet-prompt/port";
 import type { SkillPort } from "@domain/skill/port";
 import type { MCPPort } from "@domain/mcp/port";
@@ -138,7 +138,7 @@ export class SnailAdapter implements SnailPort {
   }
 
   /** 组装 system reminder（handbook + context 放入正确位置） */
-  private buildSystemReminder(handbook?: string, context?: Record<string, string>): string {
+  private buildSystemReminder(handbook?: string, context?: Record<string, unknown>): string {
     const parts: string[] = [];
 
     if (handbook) {
@@ -147,9 +147,12 @@ export class SnailAdapter implements SnailPort {
 
     if (context) {
       const contextLines = Object.entries(context)
-        .map(([key, value]) => `${key}: ${value}`)
+        .filter(([, value]) => value != null)
+        .map(([key, value]) => `${key}: ${String(value)}`)
         .join("\n");
-      parts.push(`<invocation-context>\n${contextLines}\n</invocation-context>`);
+      if (contextLines) {
+        parts.push(`<invocation-context>\n${contextLines}\n</invocation-context>`);
+      }
     }
 
     return parts.join("\n\n");
@@ -170,7 +173,7 @@ export class SnailAdapter implements SnailPort {
   private buildContextEnv(request: SnailFirstCallRequest): Record<string, string> {
     return buildContextEnv({
       workspacePath: request.workspace_path,
-      ...request.context,
+      context: request.context,
     });
   }
 

@@ -1,41 +1,26 @@
-/** LLM 配置 */
-export interface LlmConfig {
+/** Lite AI 配置 */
+export interface LiteAIConfig {
   provider: "openai";
   openai: {
+    /** OpenAI API Key */
     api_key: string;
+    /** 模型 ID */
     model: string;
+    /** API 基础 URL（支持任何 OpenAI 兼容服务） */
     base_url: string;
+    /** 单次请求超时（毫秒） */
     timeout_ms: number;
   };
 }
 
-/** OpenAI 聊天消息 */
+/** 聊天消息 */
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
   content: string;
 }
 
-/** OpenAI 聊天选项 */
+/** 聊天选项 */
 export interface ChatOptions {
   temperature?: number;
   max_tokens?: number;
-}
-
-/** Mention 提取结果 */
-export interface MentionExtractionResult {
-  mentions: Array<{ role: string; raw: string }>;
-}
-
-/** 对话摘要输入 */
-export interface ConversationSummaryInput {
-  title: string;
-  kind: string;
-  previous_summary: string | null;
-  messages: Array<{ role: string; content: string }>;
-}
-
-/** 消息上下文摘要输入 */
-export interface MessageContextSummaryInput {
-  target_chars: number;
-  context: string;
 }

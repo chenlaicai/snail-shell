@@ -1,9 +1,8 @@
 import type {
   EvolutionItem,
-  CreateEvolutionItemInput,
-  UpdateEvolutionItemInput,
   EvolutionItemListFilters,
 } from "@domain/evolution/model";
+import type { EvolutionStatus } from "@domain/evolution/model";
 
 /** Evolution 持久层接口 */
 export interface EvolutionRepository {
@@ -11,7 +10,7 @@ export interface EvolutionRepository {
   list(filters?: EvolutionItemListFilters): EvolutionItem[];
   search(query: string, filters?: EvolutionItemListFilters): EvolutionItem[];
   create(item: EvolutionItem): void;
-  update(id: string, updates: UpdateEvolutionItemInput): void;
+  update(id: string, updates: Partial<Pick<EvolutionItem, "status" | "issue_id" | "result" | "updated_at">>): void;
 }
 
 /** Evolution 内存存储实现 */
@@ -28,8 +27,8 @@ export class InMemoryEvolutionRepository implements EvolutionRepository {
     if (filters?.workspace_id) {
       result = result.filter(i => i.workspace_id === filters.workspace_id);
     }
-    if (filters?.issue_id) {
-      result = result.filter(i => i.issue_id === filters.issue_id);
+    if (filters?.status) {
+      result = result.filter(i => i.status === filters.status);
     }
     if (filters?.tags?.length) {
       result = result.filter(i => filters.tags!.some(t => i.tags.includes(t)));
@@ -55,16 +54,14 @@ export class InMemoryEvolutionRepository implements EvolutionRepository {
     this.items.set(item.id, item);
   }
 
-  update(id: string, updates: UpdateEvolutionItemInput): void {
+  update(id: string, updates: Partial<Pick<EvolutionItem, "status" | "issue_id" | "result" | "updated_at">>): void {
     const item = this.items.get(id);
     if (!item) {
       throw new Error(`Evolution item not found: ${id}`);
     }
-    if (updates.title !== undefined) item.title = updates.title;
-    if (updates.content !== undefined) item.content = updates.content;
-    if (updates.tags !== undefined) item.tags = updates.tags;
-    if (updates.metadata !== undefined) item.metadata = updates.metadata;
+    if (updates.status !== undefined) item.status = updates.status;
     if (updates.issue_id !== undefined) item.issue_id = updates.issue_id;
-    item.updated_at = new Date().toISOString();
+    if (updates.result !== undefined) item.result = updates.result;
+    item.updated_at = updates.updated_at ?? new Date().toISOString();
   }
 }

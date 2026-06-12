@@ -1,25 +1,34 @@
+import fs from "fs";
+import path from "path";
 import Database from "better-sqlite3";
 
 /**
  * 数据库基础设施。
  * 封装 SQLite 操作，提供通用的 CRUD 能力。
+ *
+ * 目录结构由 infra 层管理：data/database/snail-shell.db
+ * 调用方只需传入 repoRoot，不需要知道 DB 文件在哪。
  */
 export class SQLiteDatabase {
   private db: Database.Database;
 
-  constructor(dbPath: string) {
+  constructor(repoRoot: string) {
+    const dbDir = path.join(repoRoot, "data", "database");
+    fs.mkdirSync(dbDir, { recursive: true });
+    const dbPath = path.join(dbDir, "snail-shell.db");
     this.db = new Database(dbPath);
     this.db.pragma("journal_mode = WAL");
     this.db.pragma("foreign_keys = ON");
   }
 
-  /** 执行 SQL（无返回值） */
-  run(sql: string, params?: unknown[]): void {
+  /** 执行 SQL，返回 lastInsertRowid */
+  run(sql: string, params?: unknown[]): number {
     if (params) {
-      this.db.prepare(sql).run(...params);
-    } else {
-      this.db.prepare(sql).run();
+      const result = this.db.prepare(sql).run(...params);
+      return Number(result.lastInsertRowid);
     }
+    const result = this.db.prepare(sql).run();
+    return Number(result.lastInsertRowid);
   }
 
   /** 查询单行 */

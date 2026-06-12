@@ -1,4 +1,4 @@
-import type { AgentRegistryPort } from "@domain/acs/port";
+import type { AgentRegistryPort } from "@infra/acs/port";
 import type { TenetPromptPort } from "@domain/tenet-prompt/port";
 import type { SkillPort } from "@domain/skill/port";
 import type { MCPPort } from "@domain/mcp/port";

@@ -1,13 +1,13 @@
-import type { MCPServerConfig } from "../../model";
+import type { MCPServerConfig } from "@domain/snail-mcp-server/model";
 
 /**
  * snail-evolution MCP Server。
  * 用于 agent 在演进治理对话中回写处理结果。
  *
- * @param updateStatus evolution adapter 的 updateStatus 方法
+ * @param updateEvolution evolution adapter 的 update 方法
  */
 export function createEvolutionServer(
-  updateStatus: (id: string, status: string, result?: string) => Promise<{ id: string; status: string }>,
+  updateEvolution: (id: string, updates: { status?: string; result?: string }) => Promise<{ id: string; status: string }>,
 ): MCPServerConfig {
   return {
     name: "snail-evolution",
@@ -26,7 +26,7 @@ export function createEvolutionServer(
         },
         handler: async (params) => {
           const { evolution_item_id, result } = params as { evolution_item_id: string; result: string };
-          const item = await updateStatus(evolution_item_id, "completed", result);
+          const item = await updateEvolution(evolution_item_id, { status: "completed", result });
           return { ok: true, item_id: item.id, status: item.status };
         },
       },

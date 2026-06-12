@@ -1,4 +1,5 @@
-import type { Workspace, Scope } from "@domain/workspace/model";
+import type { Workspace } from "@domain/workspace/model";
+import { Scope } from "@domain/workspace/model";
 
 /** SOP (Standard Operating Procedure) 定义 */
 export interface Sop {

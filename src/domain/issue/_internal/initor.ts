@@ -1,18 +1,15 @@
-import type { SopRepository } from "@domain/sop/_internal/repository";
-import type { IMRepository } from "@domain/im/_internal/repository";
-import { InMemoryIssueRepository, InMemoryStageRepository } from "./repository";
-import { IssueAdapter } from "./adapter";
-
-/** Issue 模块依赖 */
-export interface IssueDeps {
-  sopRepo: SopRepository;
-  imRepo: IMRepository;
-}
+import type { SopPort } from "@domain/sop/port";
+import { InMemoryIssueRepository, InMemoryStageRepository, InMemoryRoleSnailSessionRepository } from "./repository";
+import { IssueAdapter, StageAdapter } from "./adapter";
 
 /** 初始化 Issue 模块 */
-export function init(deps: IssueDeps) {
+export function init(sopPort: SopPort) {
   const issueRepo = new InMemoryIssueRepository();
   const stageRepo = new InMemoryStageRepository();
-  const adapter = new IssueAdapter(issueRepo, stageRepo, deps.sopRepo, deps.imRepo);
-  return { issueRepo, stageRepo, adapter };
+  const sessionRepo = new InMemoryRoleSnailSessionRepository();
+
+  const issueAdapter = new IssueAdapter(issueRepo, sopPort);
+  const stageAdapter = new StageAdapter(stageRepo, sessionRepo, issueRepo);
+
+  return { issueRepo, stageRepo, sessionRepo, issueAdapter, stageAdapter };
 }

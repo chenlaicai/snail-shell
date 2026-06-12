@@ -1,7 +1,7 @@
 import type { Workspace, Scope } from "@domain/workspace/model";
 import { Scope as ScopeEnum } from "@domain/workspace/model";
 import type { MCPConfig } from "@domain/mcp/model";
-import type { MCPServerPort } from "@domain/snail-mcp-server/port";
+import type { SnailMCPServerPort } from "@domain/snail-mcp-server/port";
 import type { FileDataStore } from "@infra/file-data-store";
 
 /** MCP 持久层接口 */
@@ -25,7 +25,8 @@ export class FileMCPRepository implements MCPRepository {
   constructor(
     private dataStore: FileDataStore,
     private workspaces: Workspace[],
-    private snailMCPServer: MCPServerPort,
+    private snailMCPServer: SnailMCPServerPort,
+    private baseUrl: string = "http://localhost:3000",
   ) {
     this.loadPlatformConfigs();
     this.loadWorkspaceConfigs();
@@ -59,7 +60,7 @@ export class FileMCPRepository implements MCPRepository {
     for (const server of servers) {
       this.platformConfigs.push({
         name: server.name,
-        url: `http://localhost:3000/mcp/${server.name}`,
+        url: `${this.baseUrl}/mcp/${server.name}`,
         scope: ScopeEnum.Platform,
       });
     }

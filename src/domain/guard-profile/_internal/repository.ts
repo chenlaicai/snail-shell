@@ -1,4 +1,5 @@
 import type { Workspace } from "@domain/workspace/model";
+import { Scope } from "@domain/workspace/model";
 import type { GuardProfile } from "@domain/guard-profile/model";
 import type { FileDataStore } from "@infra/file-data-store";
 
@@ -30,7 +31,7 @@ export class FileGuardProfileRepository implements GuardProfileRepository {
     return {
       allow: [...new Set([...platform.allow, ...(wsProfile?.allow ?? [])])],
       deny: [...new Set([...platform.deny, ...(wsProfile?.deny ?? [])])],
-      scope: "workspace",
+      scope: Scope.Workspace,
       workspace,
     };
   }
@@ -41,7 +42,7 @@ export class FileGuardProfileRepository implements GuardProfileRepository {
       this.platformProfile = {
         allow: raw.allow ?? [],
         deny: raw.deny ?? [],
-        scope: "platform",
+        scope: Scope.Platform,
       };
     }
   }

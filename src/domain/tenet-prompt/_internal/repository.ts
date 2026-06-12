@@ -1,8 +1,8 @@
-import fs from "fs";
 import path from "path";
 import type { Workspace } from "@domain/workspace/model";
+import { Scope } from "@domain/workspace/model";
 import type { PromptDocument } from "@domain/tenet-prompt/model";
-import type { FileSystem } from "@infra/file-system";
+import type { FileDataStore } from "@infra/file-data-store";
 
 /** TenetPrompt 持久层接口 */
 export interface TenetPromptRepository {
@@ -12,12 +12,19 @@ export interface TenetPromptRepository {
 
 /** TenetPrompt 文件存储实现 */
 export class FileTenetPromptRepository implements TenetPromptRepository {
-  private platformPrompts: PromptDocument[] = [];
-  private workspacePrompts = new Map<string, PromptDocument[]>();  // workspace_path -> prompts
+  private static readonly DIR = "prompts";
 
-  constructor(private fileSystem: FileSystem, repoRoot: string, workspacePaths: string[]) {
-    this.loadPlatformPrompts(repoRoot);
-    this.loadWorkspacePrompts(workspacePaths);
+  private platformPrompts: PromptDocument[] = [];
+  private workspacePrompts = new Map<string, PromptDocument[]>();
+
+  constructor(platformStore: FileDataStore, workspaces: Workspace[]) {
+    this.platformPrompts = this.loadPromptDir(platformStore, FileTenetPromptRepository.DIR);
+    for (const ws of workspaces) {
+      const wsStore = platformStore.workspace(ws.path);
+      const prompts = this.loadPromptDir(wsStore, FileTenetPromptRepository.DIR)
+        .map(p => ({ ...p, scope: Scope.Workspace, workspace: ws }));
+      this.workspacePrompts.set(ws.path, prompts);
+    }
   }
 
   list(): PromptDocument[] {
@@ -29,43 +36,28 @@ export class FileTenetPromptRepository implements TenetPromptRepository {
     const allPrompts = [...this.platformPrompts, ...wsPrompts];
 
     if (!tags || tags.length === 0) {
-      // 无 tag 过滤，返回所有
       return allPrompts;
     }
 
-    // 过滤：无 tag 的 + 命中 tag 的
     return allPrompts.filter(prompt => {
-      if (prompt.tags.length === 0) return true;  // 无 tag，始终返回
-      return prompt.tags.some(tag => tags.includes(tag));  // 命中 tag
+      if (prompt.tags.length === 0) return true;
+      return prompt.tags.some(tag => tags.includes(tag));
     });
   }
 
-  private loadPlatformPrompts(repoRoot: string): void {
-    const platformDir = path.join(repoRoot, ".meta", "prompts");
-    this.platformPrompts = this.loadPromptDir(platformDir, "platform");
-  }
+  private loadPromptDir(store: FileDataStore, relativeDir: string): PromptDocument[] {
+    if (!store.exists(relativeDir)) return [];
 
-  private loadWorkspacePrompts(workspacePaths: string[]): void {
-    for (const wsPath of workspacePaths) {
-      const wsPromptDir = path.join(wsPath, ".meta", "prompts");
-      const prompts = this.loadPromptDir(wsPromptDir, "workspace");
-      this.workspacePrompts.set(wsPath, prompts);
-    }
-  }
-
-  private loadPromptDir(dir: string, source: "platform" | "workspace"): PromptDocument[] {
-    if (!this.fileSystem.exists(dir)) return [];
-
-    const files = this.fileSystem.listDir(dir).filter(f => f.endsWith(".md"));
+    const files = store.listDir(relativeDir).filter(f => f.endsWith(".md"));
     const prompts: PromptDocument[] = [];
 
     for (const file of files) {
-      const filePath = path.join(dir, file);
-      const raw = this.fileSystem.readFile(filePath);
+      const filePath = path.join(relativeDir, file);
+      const raw = store.readFile(filePath);
       if (!raw) continue;
 
       try {
-        const doc = this.parseDocument(raw, source);
+        const doc = this.parseDocument(raw);
         prompts.push(doc);
       } catch (err) {
         console.warn(`Failed to parse prompt: ${filePath}`, err);
@@ -75,7 +67,7 @@ export class FileTenetPromptRepository implements TenetPromptRepository {
     return prompts;
   }
 
-  private parseDocument(raw: string, source: "platform" | "workspace"): PromptDocument {
+  private parseDocument(raw: string): PromptDocument {
     const match = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
     if (!match) throw new Error("Invalid prompt format: missing frontmatter");
 
@@ -85,11 +77,11 @@ export class FileTenetPromptRepository implements TenetPromptRepository {
     if (!meta.title) throw new Error("Prompt frontmatter missing 'title'");
 
     return {
-      id: meta.title,  // 用 title 作为 id
+      id: meta.title,
       title: meta.title,
       content: content.trim(),
       tags: Array.isArray(meta.tags) ? meta.tags : [],
-      source,
+      scope: Scope.Platform,
     };
   }
 
@@ -103,25 +95,21 @@ export class FileTenetPromptRepository implements TenetPromptRepository {
       const trimmed = line.trim();
       if (!trimmed || trimmed.startsWith("#")) continue;
 
-      // 数组结束
       if (inArray && !trimmed.startsWith("-")) {
         result[arrayKey] = arrayItems;
         inArray = false;
         arrayItems = [];
       }
 
-      // 数组项
       if (inArray && trimmed.startsWith("-")) {
         arrayItems.push(trimmed.slice(1).trim().replace(/^["']|["']$/g, ""));
         continue;
       }
 
-      // key: value
       const kvMatch = trimmed.match(/^(\w+):\s*(.+)$/);
       if (kvMatch) {
         const [, key, value] = kvMatch;
 
-        // 数组开始
         if (value === "") {
           inArray = true;
           arrayKey = key;
@@ -129,19 +117,16 @@ export class FileTenetPromptRepository implements TenetPromptRepository {
           continue;
         }
 
-        // 内联数组 [a, b, c]
         const inlineArrayMatch = value.match(/^\[(.*)\]$/);
         if (inlineArrayMatch) {
           result[key] = inlineArrayMatch[1].split(",").map(s => s.trim().replace(/^["']|["']$/g, ""));
           continue;
         }
 
-        // 字符串
         result[key] = value.replace(/^["']|["']$/g, "");
       }
     }
 
-    // 处理末尾的数组
     if (inArray) {
       result[arrayKey] = arrayItems;
     }

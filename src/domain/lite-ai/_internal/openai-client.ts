@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatOptions } from "@domain/lite-ai/model";
+import type { ChatMessage, ChatOptions, LiteAIConfig } from "@domain/lite-ai/model";
 
 /**
  * OpenAI 兼容 HTTP 客户端。
@@ -10,7 +10,7 @@ export class OpenAIClient {
   private baseUrl: string;
   private timeoutMs: number;
 
-  constructor(config: { api_key: string; model: string; base_url: string; timeout_ms: number }) {
+  constructor(config: LiteAIConfig["openai"]) {
     this.apiKey = config.api_key;
     this.model = config.model;
     this.baseUrl = config.base_url.replace(/\/$/, "");
