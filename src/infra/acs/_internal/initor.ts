@@ -12,7 +12,7 @@ export async function init(): Promise<{ registry: AgentRegistryPort }> {
   const agentsDir = path.join(__dirname, "agents");
 
   // 扫描 agents 目录
-  const files = fs.readdirSync(agentsDir).filter(f => f.endsWith(".ts") || f.endsWith(".js"));
+  const files = fs.readdirSync(agentsDir).filter(isRuntimeModuleFile);
 
   for (const file of files) {
     try {
@@ -31,6 +31,11 @@ export async function init(): Promise<{ registry: AgentRegistryPort }> {
   };
 
   return { registry };
+}
+
+function isRuntimeModuleFile(file: string): boolean {
+  if (file.endsWith(".d.ts")) return false;
+  return file.endsWith(".ts") || file.endsWith(".js");
 }
 
 function registerRuntimeFromModule(module: Record<string, unknown>): void {

@@ -93,7 +93,7 @@ function startHttpServer(modules: Awaited<ReturnType<typeof initModules>>): void
     mcpHandler,
   });
   app.route("/im", modules.im.app);
-  const port = modules.configStore.readYaml<{ port?: number }>("server.yaml")?.port ?? 3000;
+  const port = modules.configStore.readYaml<{ port?: number }>("server.yaml")?.port ?? 3001;
   serve({ fetch: app.fetch, port }, (info) => {
     console.log(`HTTP server listening on http://localhost:${info.port}`);
   });
