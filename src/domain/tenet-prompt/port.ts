@@ -1,5 +1,5 @@
 import type { Workspace } from "@domain/workspace/model";
-import type { PromptDocument } from "./model";
+import type { PromptDocument } from "@domain/tenet-prompt/model";
 
 /** TenetPrompt 端口定义 */
 export interface TenetPromptPort {

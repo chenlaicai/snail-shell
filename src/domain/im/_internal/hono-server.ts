@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
-import type { IMAdapter } from "./adapter";
+import type { IMAdapter } from "@domain/im/_internal/adapter";
 
 /**
  * IM Hono Server。

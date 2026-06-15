@@ -2,8 +2,8 @@ import type { Workspace } from "@domain/workspace/model";
 import type { SnailMCPServerPort } from "@domain/snail-mcp-server/port";
 import type { FileDataStore } from "@infra/file-data-store";
 import type { ConfigStore } from "@infra/config-store";
-import { FileMCPRepository } from "./repository";
-import { MCPAdapter } from "./adapter";
+import { FileMCPRepository } from "@domain/mcp/_internal/repository";
+import { MCPAdapter } from "@domain/mcp/_internal/adapter";
 
 /** MCP 模块依赖 */
 export interface MCPDeps {

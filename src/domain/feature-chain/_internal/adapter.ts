@@ -1,6 +1,6 @@
 import type { FeatureDoc, FeatureSearchResult, FeatureChain } from "@domain/feature-chain/model";
 import type { FeatureChainPort } from "@domain/feature-chain/port";
-import type { FeatureChainRepository } from "./repository";
+import type { FeatureChainRepository } from "@domain/feature-chain/_internal/repository";
 
 /**
  * Feature Chain 适配器实现。

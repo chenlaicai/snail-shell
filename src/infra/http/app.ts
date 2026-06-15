@@ -6,7 +6,7 @@
 
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { createWorkspaceRoutes } from "./routes/workspace.route";
+import { createWorkspaceRoutes } from "@infra/http/routes/workspace.route";
 import type { WorkspaceAdapter } from "@domain/workspace/_internal/adapter";
 import type { Hono as HonoApp } from "hono";
 

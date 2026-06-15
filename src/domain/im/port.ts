@@ -6,7 +6,7 @@ import type {
   LobbyMessage,
   LobbyResponse,
   NavigationContext,
-} from "./model";
+} from "@domain/im/model";
 
 /** IM 端口定义 */
 export interface IMPort {

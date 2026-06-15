@@ -1,7 +1,7 @@
 import type { Workspace } from "@domain/workspace/model";
 import type { KnowledgeEntry, CreateKnowledgeInput, RemoveKnowledgeInput } from "@domain/knowledge/model";
 import type { KnowledgePort } from "@domain/knowledge/port";
-import type { KnowledgeRepository } from "./repository";
+import type { KnowledgeRepository } from "@domain/knowledge/_internal/repository";
 
 /**
  * Knowledge 适配器实现。

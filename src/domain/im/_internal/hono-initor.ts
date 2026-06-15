@@ -2,15 +2,15 @@ import type { WorkspacePort } from "@domain/workspace/port";
 import type { IssuePort, StagePort } from "@domain/issue/port";
 import type { ConfigStore } from "@infra/config-store";
 import type { SQLiteDatabase } from "@infra/database";
-import { InMemoryIMRepository, SQLiteLobbyRepository } from "./repository";
-import { IMAdapter, LobbyAwareChannel } from "./adapter";
-import { IMHonoServer } from "./hono-server";
-import { FeishuTransport } from "./feishu-transport";
-import { WecomTransport } from "./wecom-transport";
-import { PlainTextLobbyRenderer } from "./response-renderer";
-import { LobbyCommandExecutor } from "./command-executor";
-import { LobbyRouter } from "./router";
-import { LobbyAdapter } from "./lobby-adapter";
+import { InMemoryIMRepository, SQLiteLobbyRepository } from "@domain/im/_internal/repository";
+import { IMAdapter, LobbyAwareChannel } from "@domain/im/_internal/adapter";
+import { IMHonoServer } from "@domain/im/_internal/hono-server";
+import { FeishuTransport } from "@domain/im/_internal/feishu-transport";
+import { WecomTransport } from "@domain/im/_internal/wecom-transport";
+import { PlainTextLobbyRenderer } from "@domain/im/_internal/response-renderer";
+import { LobbyCommandExecutor } from "@domain/im/_internal/command-executor";
+import { LobbyRouter } from "@domain/im/_internal/router";
+import { LobbyAdapter } from "@domain/im/_internal/lobby-adapter";
 
 interface FeishuYamlConfig {
   enabled: boolean;

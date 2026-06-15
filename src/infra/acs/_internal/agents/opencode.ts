@@ -1,11 +1,11 @@
 import { spawn } from "child_process";
-import type { AgentRuntimePort } from "../../port";
-import type { FirstCallRequest, ResumeRequest, AgentEvent, InvokeResult, InvokeOptions, Message } from "../../model";
-import { manageInvocationProcess } from "../utils/managed-process";
-import { renderStatefulPrompt, type StatefulPromptInput } from "../utils/stateful-prompt-format";
-import { buildRuntimeUsageSignal, usageDetailFromOpenCodeTokens } from "../utils/runtime-usage";
-import { ensureMcpServers } from "../utils/mcp-config";
-import { ensureSkillSymlinks } from "../utils/skill-symlinks";
+import type { AgentRuntimePort } from "@infra/acs/port";
+import type { FirstCallRequest, ResumeRequest, AgentEvent, InvokeResult, InvokeOptions, Message } from "@infra/acs/model";
+import { manageInvocationProcess } from "@infra/acs/_internal/utils/managed-process";
+import { renderStatefulPrompt, type StatefulPromptInput } from "@infra/acs/_internal/utils/stateful-prompt-format";
+import { buildRuntimeUsageSignal, usageDetailFromOpenCodeTokens } from "@infra/acs/_internal/utils/runtime-usage";
+import { ensureMcpServers } from "@infra/acs/_internal/utils/mcp-config";
+import { ensureSkillSymlinks } from "@infra/acs/_internal/utils/skill-symlinks";
 
 const OPENCODE_ENV_KEYS = [
   "OPENCODE", "OPENCODE_CLIENT", "OPENCODE_EXPERIMENTAL_FILEWATCHER",

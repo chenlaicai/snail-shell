@@ -1,4 +1,4 @@
-import type { MCPServerConfig, JsonRpcRequest, JsonRpcResponse } from "./model";
+import type { MCPServerConfig, JsonRpcRequest, JsonRpcResponse } from "@domain/snail-mcp-server/model";
 
 /** Snail MCP Server 端口定义 */
 export interface SnailMCPServerPort {

@@ -6,7 +6,7 @@ import type {
 } from "@domain/evolution/model";
 import { EvolutionStatus, EVOLUTION_ITEM_ID_KEY } from "@domain/evolution/model";
 import type { EvolutionPort, UpdateEvolutionItemInput } from "@domain/evolution/port";
-import type { EvolutionRepository } from "./repository";
+import type { EvolutionRepository } from "@domain/evolution/_internal/repository";
 import type { IssuePort } from "@domain/issue/port";
 
 /**

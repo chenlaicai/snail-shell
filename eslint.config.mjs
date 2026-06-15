@@ -22,6 +22,15 @@ export default tseslint.config(
       "@typescript-eslint/explicit-module-boundary-types": "off",
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-require-imports": "off",
+      "@typescript-eslint/no-restricted-imports": [
+        "error",
+        {
+          patterns: [{
+            group: ["./*", "../*"],
+            message: "src 内统一使用 @domain/@infra/@app 路径别名，不使用相对 import"
+          }]
+        }
+      ],
       "@typescript-eslint/no-unused-vars": [
         "error",
         {

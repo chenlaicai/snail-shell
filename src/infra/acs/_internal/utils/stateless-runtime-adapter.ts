@@ -1,4 +1,4 @@
-import type { Message } from "../../model";
+import type { Message } from "@infra/acs/model";
 
 interface StatelessTranscriptEntry {
   role: Message["role"];

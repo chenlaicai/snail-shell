@@ -1,4 +1,4 @@
-import type { Message } from "../../model";
+import type { Message } from "@infra/acs/model";
 
 type MessageSectionTitle = "引用消息" | "新消息";
 

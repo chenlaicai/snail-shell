@@ -1,4 +1,4 @@
-import type { Issue, CreateIssueInput, Stage, CreateStageInput, RoleSnailAssignment, StagePreview } from "./model";
+import type { Issue, CreateIssueInput, Stage, CreateStageInput, RoleSnailAssignment, StagePreview } from "@domain/issue/model";
 
 /** Issue 端口 */
 export interface IssuePort {

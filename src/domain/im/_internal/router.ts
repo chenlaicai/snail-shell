@@ -1,9 +1,9 @@
 import type { LobbyInboundResult } from "@domain/im/port";
 import type { ChannelType, LobbySession } from "@domain/im/model";
-import type { LobbySessionRepository } from "./repository";
-import type { LobbyCommandExecutor } from "./command-executor";
-import type { LobbyResponseRenderer } from "./response-renderer";
-import { parseLobbyCommand } from "./command-parser";
+import type { LobbySessionRepository } from "@domain/im/_internal/repository";
+import type { LobbyCommandExecutor } from "@domain/im/_internal/command-executor";
+import type { LobbyResponseRenderer } from "@domain/im/_internal/response-renderer";
+import { parseLobbyCommand } from "@domain/im/_internal/command-parser";
 
 export interface LobbyRouterDeps {
   lobbyRepo: LobbySessionRepository;

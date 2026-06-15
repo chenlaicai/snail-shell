@@ -1,7 +1,7 @@
 import type { Workspace } from "@domain/workspace/model";
 import type { PromptDocument } from "@domain/tenet-prompt/model";
 import type { TenetPromptPort } from "@domain/tenet-prompt/port";
-import type { TenetPromptRepository } from "./repository";
+import type { TenetPromptRepository } from "@domain/tenet-prompt/_internal/repository";
 
 /**
  * TenetPrompt 适配器实现。

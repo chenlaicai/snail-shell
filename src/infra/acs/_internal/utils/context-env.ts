@@ -1,4 +1,4 @@
-import { CONTEXT_KEYS } from "../../context-keys";
+import { CONTEXT_KEYS } from "@infra/acs/context-keys";
 
 /**
  * 从上下文构造环境变量对象。

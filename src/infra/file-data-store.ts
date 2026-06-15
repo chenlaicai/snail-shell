@@ -1,5 +1,5 @@
 import path from "path";
-import { FileLoader } from "./file-loader";
+import { FileLoader } from "@infra/file-loader";
 
 /**
  * 文件数据存储。

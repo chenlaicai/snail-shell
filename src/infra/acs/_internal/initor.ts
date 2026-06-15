@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
-import { registerAgentRuntime, getAgentRuntimeClass, listAgentRuntimes, hasAgentRuntime } from "./registry";
-import type { AgentRuntimePort, AgentRegistryPort } from "../port";
+import { registerAgentRuntime, getAgentRuntimeClass, listAgentRuntimes, hasAgentRuntime } from "@infra/acs/_internal/registry";
+import type { AgentRuntimePort, AgentRegistryPort } from "@infra/acs/port";
 
 /**
  * 初始化 ACS 模块。

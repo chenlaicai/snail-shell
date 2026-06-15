@@ -3,12 +3,12 @@ import { writeFileSync, unlinkSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { randomUUID } from "crypto";
-import type { AgentRuntimePort } from "../../port";
-import type { FirstCallRequest, ResumeRequest, AgentEvent, InvokeResult, InvokeOptions, GuardProfile, Message } from "../../model";
-import { manageInvocationProcess } from "../utils/managed-process";
-import { buildRuntimeUsageSignal, usageDetailFromClaudeResult } from "../utils/runtime-usage";
-import { ensureMcpServers } from "../utils/mcp-config";
-import { ensureSkillSymlinks } from "../utils/skill-symlinks";
+import type { AgentRuntimePort } from "@infra/acs/port";
+import type { FirstCallRequest, ResumeRequest, AgentEvent, InvokeResult, InvokeOptions, GuardProfile, Message } from "@infra/acs/model";
+import { manageInvocationProcess } from "@infra/acs/_internal/utils/managed-process";
+import { buildRuntimeUsageSignal, usageDetailFromClaudeResult } from "@infra/acs/_internal/utils/runtime-usage";
+import { ensureMcpServers } from "@infra/acs/_internal/utils/mcp-config";
+import { ensureSkillSymlinks } from "@infra/acs/_internal/utils/skill-symlinks";
 
 /**
  * Claude Code stateful 适配器。

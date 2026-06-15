@@ -1,5 +1,5 @@
 import type { Workspace } from "@domain/workspace/model";
-import type { Sop } from "./model";
+import type { Sop } from "@domain/sop/model";
 
 /** SOP 端口定义 */
 export interface SopPort {

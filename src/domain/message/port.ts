@@ -7,7 +7,7 @@ import type {
   MessageContext,
   MessageContextKind,
   CallSignal,
-} from "./model";
+} from "@domain/message/model";
 
 /** 消息端口 */
 export interface MessagePort {

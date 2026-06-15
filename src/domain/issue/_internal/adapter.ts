@@ -10,7 +10,7 @@ import {
   type StagePreview,
 } from "@domain/issue/model";
 import type { IssuePort, StagePort } from "@domain/issue/port";
-import type { IssueRepository, StageRepository, RoleSnailAssignmentRepository } from "./repository";
+import type { IssueRepository, StageRepository, RoleSnailAssignmentRepository } from "@domain/issue/_internal/repository";
 import type { SopPort } from "@domain/sop/port";
 import type { Sop } from "@domain/sop/model";
 

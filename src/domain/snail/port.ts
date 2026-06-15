@@ -1,5 +1,5 @@
 import type { AgentEvent, InvokeOptions } from "@infra/acs/model";
-import type { Snail, SnailFirstCallRequest, SnailResumeRequest, SnailInvokeResult } from "./model";
+import type { Snail, SnailFirstCallRequest, SnailResumeRequest, SnailInvokeResult } from "@domain/snail/model";
 
 /**
  * Snail 端口定义。

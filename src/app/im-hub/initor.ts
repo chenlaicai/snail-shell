@@ -1,7 +1,7 @@
 import type { CollaborationInput } from "@app/issue-collaboration/port";
 import type { IMAdapter } from "@domain/im/_internal/adapter";
 import type { LobbyAdapter } from "@domain/im/_internal/lobby-adapter";
-import { IMHub } from "./im-hub";
+import { IMHub } from "@app/im-hub/im-hub";
 
 export interface IMHubDeps {
   imAdapter: IMAdapter;

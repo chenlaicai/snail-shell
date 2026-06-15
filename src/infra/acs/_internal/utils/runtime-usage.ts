@@ -1,4 +1,4 @@
-import type { AgentEvent, LifecycleSignal } from "../../model";
+import type { AgentEvent, LifecycleSignal } from "@infra/acs/model";
 
 export interface RuntimeUsageDetail {
   input_tokens: number | null;

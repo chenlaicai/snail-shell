@@ -1,4 +1,4 @@
-import type { Workspace, CreateWorkspaceInput } from "./model";
+import type { Workspace, CreateWorkspaceInput } from "@domain/workspace/model";
 
 /** Workspace 端口定义 */
 export interface WorkspacePort {

@@ -1,4 +1,4 @@
-import type { AgentRuntimePort } from "../port";
+import type { AgentRuntimePort } from "@infra/acs/port";
 
 /** Agent 运行时类映射：name → 类 */
 const classes = new Map<string, new () => AgentRuntimePort>();

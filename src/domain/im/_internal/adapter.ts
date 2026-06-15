@@ -1,7 +1,7 @@
 import type { ChannelType, IMInboundMessage } from "@domain/im/model";
 import type { IMPort, IMChannelAdapter, IMTransport, LobbyInboundResult } from "@domain/im/port";
-import type { IMRepository } from "./repository";
-import type { LobbyRouter } from "./router";
+import type { IMRepository } from "@domain/im/_internal/repository";
+import type { LobbyRouter } from "@domain/im/_internal/router";
 
 /**
  * IM 适配器实现。

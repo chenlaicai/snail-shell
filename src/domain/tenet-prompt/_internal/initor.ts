@@ -1,7 +1,7 @@
 import type { FileDataStore } from "@infra/file-data-store";
 import type { Workspace } from "@domain/workspace/model";
-import { FileTenetPromptRepository } from "./repository";
-import { TenetPromptAdapter } from "./adapter";
+import { FileTenetPromptRepository } from "@domain/tenet-prompt/_internal/repository";
+import { TenetPromptAdapter } from "@domain/tenet-prompt/_internal/adapter";
 
 /** 初始化 TenetPrompt 模块 */
 export function init(fileDataStore: FileDataStore, workspaces: Workspace[]) {

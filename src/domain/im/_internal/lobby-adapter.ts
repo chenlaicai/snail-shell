@@ -1,8 +1,8 @@
 import type { LobbyInboundResult, LobbyPort } from "@domain/im/port";
 import type { ChannelType, LobbySession, LobbyMessage, LobbyResponse, NavigationContext } from "@domain/im/model";
-import type { LobbySessionRepository } from "./repository";
-import type { LobbyCommandExecutor } from "./command-executor";
-import type { LobbyRouter } from "./router";
+import type { LobbySessionRepository } from "@domain/im/_internal/repository";
+import type { LobbyCommandExecutor } from "@domain/im/_internal/command-executor";
+import type { LobbyRouter } from "@domain/im/_internal/router";
 
 export class LobbyAdapter implements LobbyPort {
   constructor(

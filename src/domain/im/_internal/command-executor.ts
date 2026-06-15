@@ -1,9 +1,9 @@
 import type { WorkspacePort } from "@domain/workspace/port";
 import type { IssuePort, StagePort } from "@domain/issue/port";
 import type { LobbySession, LobbyResponse, NavigationContext } from "@domain/im/model";
-import type { LobbySessionRepository } from "./repository";
-import type { LobbyResponseRenderer } from "./response-renderer";
-import { parseLobbyCommand } from "./command-parser";
+import type { LobbySessionRepository } from "@domain/im/_internal/repository";
+import type { LobbyResponseRenderer } from "@domain/im/_internal/response-renderer";
+import { parseLobbyCommand } from "@domain/im/_internal/command-parser";
 
 export class LobbyCommandExecutor {
   constructor(

@@ -8,7 +8,7 @@ import type { MCPPort } from "@domain/mcp/port";
 import type { GuardProfilePort } from "@domain/guard-profile/port";
 import type { Snail, SnailFirstCallRequest, SnailResumeRequest, SnailInstance, SnailInvokeResult } from "@domain/snail/model";
 import type { SnailPort } from "@domain/snail/port";
-import type { SnailRepository } from "./repository";
+import type { SnailRepository } from "@domain/snail/_internal/repository";
 
 /**
  * Snail 适配器实现。

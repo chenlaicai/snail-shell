@@ -1,7 +1,7 @@
 import type { Workspace } from "@domain/workspace/model";
 import type { MCPConfig } from "@domain/mcp/model";
 import type { MCPPort } from "@domain/mcp/port";
-import type { MCPRepository } from "./repository";
+import type { MCPRepository } from "@domain/mcp/_internal/repository";
 
 /**
  * MCP 适配器实现。

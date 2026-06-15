@@ -1,5 +1,5 @@
 import type { Workspace } from "@domain/workspace/model";
-import type { Skill } from "./model";
+import type { Skill } from "@domain/skill/model";
 
 /** Skill 端口定义 */
 export interface SkillPort {

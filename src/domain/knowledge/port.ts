@@ -1,5 +1,5 @@
 import type { Workspace } from "@domain/workspace/model";
-import type { KnowledgeEntry, CreateKnowledgeInput, RemoveKnowledgeInput } from "./model";
+import type { KnowledgeEntry, CreateKnowledgeInput, RemoveKnowledgeInput } from "@domain/knowledge/model";
 
 /**
  * Knowledge 端口定义。

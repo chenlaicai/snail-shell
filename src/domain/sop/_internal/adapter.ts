@@ -1,7 +1,7 @@
 import type { Workspace } from "@domain/workspace/model";
 import type { Sop } from "@domain/sop/model";
 import type { SopPort } from "@domain/sop/port";
-import type { SopRepository } from "./repository";
+import type { SopRepository } from "@domain/sop/_internal/repository";
 
 /**
  * SOP 适配器实现。

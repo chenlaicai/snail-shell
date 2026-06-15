@@ -1,4 +1,4 @@
-import type { FirstCallRequest, ResumeRequest, AgentEvent, InvokeResult, InvokeOptions } from "./model";
+import type { FirstCallRequest, ResumeRequest, AgentEvent, InvokeResult, InvokeOptions } from "@infra/acs/model";
 
 /**
  * Agent Runtime 端口：Snail Shell 调用 agent 的唯一入口。

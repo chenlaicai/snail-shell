@@ -4,8 +4,8 @@ import {
   InMemoryContextRepository,
   InMemoryReadCursorRepository,
   InMemoryCallSignalRepository,
-} from "./repository";
-import { MessageAdapter } from "./adapter";
+} from "@domain/message/_internal/repository";
+import { MessageAdapter } from "@domain/message/_internal/adapter";
 
 /** 初始化 Message 模块 */
 export function init() {

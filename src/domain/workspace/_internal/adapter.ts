@@ -1,6 +1,6 @@
 import type { Workspace, CreateWorkspaceInput } from "@domain/workspace/model";
 import type { WorkspacePort } from "@domain/workspace/port";
-import type { WorkspaceRepository } from "./repository";
+import type { WorkspaceRepository } from "@domain/workspace/_internal/repository";
 
 /**
  * Workspace 适配器实现。

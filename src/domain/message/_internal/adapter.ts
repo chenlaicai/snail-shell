@@ -15,7 +15,7 @@ import type {
   ContextRepository,
   ReadCursorRepository,
   CallSignalRepository,
-} from "./repository";
+} from "@domain/message/_internal/repository";
 
 export class MessageAdapter implements MessagePort {
   constructor(

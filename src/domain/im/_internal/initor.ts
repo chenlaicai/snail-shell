@@ -1,5 +1,5 @@
-import { InMemoryIMRepository } from "./repository";
-import { IMAdapter } from "./adapter";
+import { InMemoryIMRepository } from "@domain/im/_internal/repository";
+import { IMAdapter } from "@domain/im/_internal/adapter";
 
 /** 初始化 IM 模块 */
 export function init() {

@@ -1,6 +1,6 @@
 import type { SopPort } from "@domain/sop/port";
-import { InMemoryIssueRepository, InMemoryStageRepository, InMemoryRoleSnailAssignmentRepository } from "./repository";
-import { IssueAdapter, StageAdapter } from "./adapter";
+import { InMemoryIssueRepository, InMemoryStageRepository, InMemoryRoleSnailAssignmentRepository } from "@domain/issue/_internal/repository";
+import { IssueAdapter, StageAdapter } from "@domain/issue/_internal/adapter";
 
 /** 初始化 Issue 模块 */
 export function init(sopPort: SopPort) {

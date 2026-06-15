@@ -1,5 +1,5 @@
 import type { Workspace } from "@domain/workspace/model";
-import type { GuardProfile } from "./model";
+import type { GuardProfile } from "@domain/guard-profile/model";
 
 /**
  * Guard Profile 端口定义。

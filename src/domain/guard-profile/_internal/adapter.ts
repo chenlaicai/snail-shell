@@ -1,7 +1,7 @@
 import type { Workspace } from "@domain/workspace/model";
 import type { GuardProfile } from "@domain/guard-profile/model";
 import type { GuardProfilePort } from "@domain/guard-profile/port";
-import type { GuardProfileRepository } from "./repository";
+import type { GuardProfileRepository } from "@domain/guard-profile/_internal/repository";
 
 /**
  * Guard Profile 适配器实现。

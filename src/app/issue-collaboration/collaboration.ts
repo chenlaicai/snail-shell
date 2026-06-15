@@ -5,8 +5,8 @@ import type { Issue, Stage } from "@domain/issue/model";
 import type { SnailPort } from "@domain/snail/port";
 import type { LiteAIPort } from "@domain/lite-ai/port";
 import type { AgentEvent, Message as AgentMessage, InvokeOptions } from "@infra/acs/model";
-import type { CollaborationConsumer, CollaborationInput, LaunchIssueInput, StageTransitionSuggestion } from "./port";
-import { StageQueue } from "./stage-queue";
+import type { CollaborationConsumer, CollaborationInput, LaunchIssueInput, StageTransitionSuggestion } from "@app/issue-collaboration/port";
+import { StageQueue } from "@app/issue-collaboration/stage-queue";
 
 interface CollaborationDeps {
   issuePort: IssuePort;

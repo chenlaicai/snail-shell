@@ -1,7 +1,7 @@
-import { SnailMCPServerAdapter } from "./adapter";
-import { createFinalResponseServer } from "./servers/snail-final-response";
-import { createEvolutionServer } from "./servers/evolution";
-import { createKnowledgeServer } from "./servers/knowledge";
+import { SnailMCPServerAdapter } from "@domain/snail-mcp-server/_internal/adapter";
+import { createFinalResponseServer } from "@domain/snail-mcp-server/_internal/servers/snail-final-response";
+import { createEvolutionServer } from "@domain/snail-mcp-server/_internal/servers/evolution";
+import { createKnowledgeServer } from "@domain/snail-mcp-server/_internal/servers/knowledge";
 import type { KnowledgePort } from "@domain/knowledge/port";
 import type { MessagePort } from "@domain/message/port";
 

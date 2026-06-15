@@ -1,5 +1,5 @@
 import type { Workspace } from "@domain/workspace/model";
-import type { MCPConfig } from "./model";
+import type { MCPConfig } from "@domain/mcp/model";
 
 /** MCP 配置管理端口定义 */
 export interface MCPPort {

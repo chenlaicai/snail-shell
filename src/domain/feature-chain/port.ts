@@ -1,4 +1,4 @@
-import type { FeatureDoc, FeatureSearchResult, FeatureChain } from "./model";
+import type { FeatureDoc, FeatureSearchResult, FeatureChain } from "@domain/feature-chain/model";
 
 /** Feature Chain 端口定义 */
 export interface FeatureChainPort {

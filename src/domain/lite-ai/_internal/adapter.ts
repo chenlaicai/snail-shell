@@ -1,7 +1,7 @@
 import type { ChatMessage, ChatOptions } from "@domain/lite-ai/model";
 import type { LiteAIPort } from "@domain/lite-ai/port";
-import type { LiteAIRepository } from "./repository";
-import { OpenAIClient } from "./openai-client";
+import type { LiteAIRepository } from "@domain/lite-ai/_internal/repository";
+import { OpenAIClient } from "@domain/lite-ai/_internal/openai-client";
 
 /**
  * Lite AI 适配器 — 纯 OpenAI 兼容聊天客户端。

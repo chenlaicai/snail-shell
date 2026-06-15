@@ -1,5 +1,5 @@
 import type { MessagePort } from "@domain/message/port";
-import type { IssueCollaboration } from "./collaboration";
+import type { IssueCollaboration } from "@app/issue-collaboration/collaboration";
 
 export function startupRecovery(messagePort: MessagePort, collaboration: IssueCollaboration): void {
   const signalsByStage = messagePort.getAllCallSignals();
