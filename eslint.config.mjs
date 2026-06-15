@@ -26,8 +26,8 @@ export default tseslint.config(
         "error",
         {
           patterns: [{
-            group: ["./*", "../*"],
-            message: "src 内统一使用 @domain/@infra/@app 路径别名，不使用相对 import"
+            group: ["./*", "../*", "@shared", "@shared/*", "src/shared", "src/shared/*", "**/shared", "**/shared/*"],
+            message: "src 内统一使用 @domain/@infra/@app/@api-contracts 路径别名；严禁引入 shared 目录"
           }]
         }
       ],
@@ -58,6 +58,13 @@ export default tseslint.config(
       "max-lines-per-function": ["error", { max: 80, skipBlankLines: true, skipComments: true }],
       "max-params": ["error", 6],
       "max-statements": ["error", 35]
+    }
+  },
+
+  {
+    files: ["src/shared/**/*"],
+    rules: {
+      "no-restricted-syntax": ["error", { selector: "Program", message: "严禁创建 src/shared 目录；DTO 放 api-contracts/web，业务模型放 domain" }]
     }
   },
 
@@ -127,6 +134,21 @@ export default tseslint.config(
           message: "_internal 是模块私有目录，不能跨模块 import"
         }]
       }]
+    }
+  },
+
+  {
+    files: ["src/web/**/*.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": [
+        "error",
+        {
+          patterns: [{
+            group: ["@shared", "@shared/*", "src/shared", "src/shared/*", "**/shared", "**/shared/*"],
+            message: "严禁引入 shared 目录；DTO 放 api-contracts/web，业务模型放 domain"
+          }]
+        }
+      ]
     }
   },
 

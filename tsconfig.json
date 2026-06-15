@@ -18,7 +18,9 @@
     "paths": {
       "@domain/*": ["src/domain/*"],
       "@infra/*": ["src/infra/*"],
-      "@app/*": ["src/app/*"]
+      "@app/*": ["src/app/*"],
+      "@api-contracts/*": ["src/api-contracts/*"],
+      "@api-contracts": ["src/api-contracts/index.ts"]
     }
   },
   "include": ["src/**/*", "tests/**/*", "scripts/**/*"],

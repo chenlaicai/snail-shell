@@ -56,7 +56,7 @@ async function initModules(repoRoot: string) {
   const im = initIM({ workspacePort: workspace.adapter, issuePort: issue.issueAdapter, stagePort: issue.stageAdapter, configStore, db });
   const imHub = initIMHub({ imAdapter: im.adapter, lobbyAdapter: im.lobbyAdapter, collaboration: collaboration.adapter });
   await im.adapter.startChannels();
-  return { registry, workspace, tenetPrompt, skill, sop, snailMCPServer, mcp, featureChain, snail, im, imHub, liteAI, evolution, configStore };
+  return { registry, workspace, tenetPrompt, skill, sop, snailMCPServer, mcp, featureChain, snail, im, imHub, liteAI, evolution, issue, message, collaboration, knowledge, configStore };
 }
 
 function logStartupSummary(modules: Awaited<ReturnType<typeof initModules>>): void {
@@ -77,7 +77,21 @@ function logStartupSummary(modules: Awaited<ReturnType<typeof initModules>>): vo
 
 function startHttpServer(modules: Awaited<ReturnType<typeof initModules>>): void {
   const mcpHandler = createMcpHandler(modules.snailMCPServer.adapter);
-  const app = createApp({ workspaceAdapter: modules.workspace.adapter, mcpHandler });
+  const app = createApp({
+    workspaceAdapter: modules.workspace.adapter,
+    issuePort: modules.issue.issueAdapter,
+    stagePort: modules.issue.stageAdapter,
+    messagePort: modules.message.adapter,
+    collaboration: modules.collaboration.adapter,
+    tenetPrompt: modules.tenetPrompt.adapter,
+    skill: modules.skill.adapter,
+    sop: modules.sop.adapter,
+    snail: modules.snail.adapter,
+    mcp: modules.mcp.adapter,
+    knowledge: modules.knowledge.adapter,
+    evolution: modules.evolution.adapter,
+    mcpHandler,
+  });
   app.route("/im", modules.im.app);
   const port = modules.configStore.readYaml<{ port?: number }>("server.yaml")?.port ?? 3000;
   serve({ fetch: app.fetch, port }, (info) => {
