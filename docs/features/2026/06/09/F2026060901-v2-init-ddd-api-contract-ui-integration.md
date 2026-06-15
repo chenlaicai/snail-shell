@@ -140,6 +140,23 @@ Web UI 复用 PR375 视觉和布局，但按 v2 contract 重接数据链路：
 - `Lobby` 暂保留入口，等待当前 IM domain 正式 HTTP routes。
 - `ContextPanel` 中旧的产物编辑和 role-snail 切换写接口未在当前后端提供，已改为只读展示。
 
+## 正式启动链路
+
+v2 Web 本地开发使用两个进程：
+
+- 前端 Vite dev server：`npm run dev:web`，默认 `http://127.0.0.1:5173/`。
+- 后端正式入口：`npm start`，默认 `http://localhost:3001/`。
+
+端口设计与 `src/web/vite.config.ts` 保持一致：Vite 将 `/api` 和 `/ws` 代理到 `localhost:3001`，因此无需额外 `config/server.yaml` 即可本地联调；`config/server.yaml.example` 也同步为 `port: 3001`。
+
+`npm start` 保持正式链路：
+
+```bash
+npm run build && node dist/src/main.js
+```
+
+为保证编译产物可被 Node 直接运行，`npm run build` 在 `tsc` 后执行 `tsc-alias`，将 TypeScript path aliases 重写为 dist 中的相对路径。同时，ACS runtime loader 只加载真实运行时模块，排除 `.d.ts` declaration 文件，避免编译产物启动时误加载类型声明。
+
 ## 禁用的旧 UI 写能力
 
 以下 PR375 旧接口没有在当前 v2 后端中恢复，Web 侧已移除调用或显示不可用提示：
