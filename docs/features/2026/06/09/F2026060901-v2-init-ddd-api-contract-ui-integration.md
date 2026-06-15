@@ -144,10 +144,11 @@ Web UI 复用 PR375 视觉和布局，但按 v2 contract 重接数据链路：
 
 v2 Web 本地开发使用两个进程：
 
-- 前端 Vite dev server：`npm run dev:web`，默认 `http://127.0.0.1:5173/`。
-- 后端正式入口：`npm start`，默认 `http://localhost:3001/`。
+- 前端 Vite dev server：`npm run web`，默认 `http://127.0.0.1:5173/`，由 `config/server.yaml` 的 `web_port` 可配置。
+- 后端正式入口：`npm start`，默认 `http://localhost:3000/`，由 `config/server.yaml` 的 `port` 可配置。
 
-端口设计与 `src/web/vite.config.ts` 保持一致：Vite 将 `/api` 和 `/ws` 代理到 `localhost:3001`，因此无需额外 `config/server.yaml` 即可本地联调；`config/server.yaml.example` 也同步为 `port: 3001`。
+端口配置统一使用 `config/server.yaml`：后端入口通过 `src/infra/server-config.ts` 解析 `port` 作为监听端口和 MCP endpoint base URL；Web 专用的 `src/web/vite.config.ts` 在 Vite 启动时直接读取 `web_port` 作为前端 dev server 严格端口，并读取 `port` 将 `/api` 与 `/ws` 代理到后端。默认值为 `port: 3000`、`web_port: 5173`；如需修改，复制 `config/server.yaml.example` 为 `config/server.yaml` 并设置对应字段，重启后端和 Vite 即可。
+
 
 `npm start` 保持正式链路：
 

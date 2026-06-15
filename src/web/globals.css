@@ -129,43 +129,46 @@
 }
 
 /* Base reset */
-* { box-sizing: border-box; margin: 0; padding: 0; }
+@layer base {
+  * { box-sizing: border-box; margin: 0; padding: 0; }
 
-body {
-  font-family: var(--font-sans);
-  background: var(--color-bg-base);
-  color: var(--color-text-body);
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
+  body {
+    font-family: var(--font-sans);
+    background: var(--color-bg-base);
+    color: var(--color-text-body);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #app-root {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  button {
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    border: none;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  textarea, input, select {
+    width: 100%;
+    background: var(--color-bg-surface);
+    color: var(--color-text-body);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-button);
+    padding: var(--space-md);
+    font: inherit;
+  }
+
+  textarea { resize: vertical; }
+
+  button:disabled { opacity: 0.55; cursor: not-allowed; }
 }
-
-#app-root {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-button {
-  background: transparent;
-  color: inherit;
-  text-align: left;
-  border: none;
-  font: inherit;
-  cursor: pointer;
-}
-
-textarea, input, select {
-  width: 100%;
-  background: var(--color-bg-surface);
-  color: var(--color-text-body);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-button);
-  padding: var(--space-md);
-  font: inherit;
-}
-textarea { resize: vertical; }
-
-button:disabled { opacity: 0.55; cursor: not-allowed; }

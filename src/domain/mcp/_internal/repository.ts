@@ -26,7 +26,7 @@ export class FileMCPRepository implements MCPRepository {
     private dataStore: FileDataStore,
     private workspaces: Workspace[],
     private snailMCPServer: SnailMCPServerPort,
-    private baseUrl: string = "http://localhost:3000",
+    private baseUrl: string,
   ) {
     this.loadPlatformConfigs();
     this.loadWorkspaceConfigs();

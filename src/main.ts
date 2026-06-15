@@ -1,6 +1,7 @@
 import { serve } from "@hono/node-server";
 import { FileDataStore } from "@infra/file-data-store";
 import { ConfigStore } from "@infra/config-store";
+import { loadServerSettings, type ServerSettings } from "@infra/server-config";
 import { SQLiteDatabase } from "@infra/database";
 import { createApp } from "@infra/http/app";
 import { init as initAcs } from "@infra/acs/_internal/initor";
@@ -25,14 +26,15 @@ import { createMcpHandler } from "@infra/mcp-server/handler";
 
 async function main() {
   const repoRoot = process.cwd();
-  const modules = await initModules(repoRoot);
+  const serverSettings = loadServerSettings(repoRoot);
+  const modules = await initModules(repoRoot, serverSettings);
 
   modules.featureChain.adapter.rebuild();
   logStartupSummary(modules);
-  startHttpServer(modules);
+  startHttpServer(modules, serverSettings);
 }
 
-async function initModules(repoRoot: string) {
+async function initModules(repoRoot: string, serverSettings: ServerSettings) {
   const db = new SQLiteDatabase(repoRoot);
   const dataStore = FileDataStore.fromRepoRoot(repoRoot);
   const configStore = new ConfigStore(repoRoot);
@@ -47,7 +49,7 @@ async function initModules(repoRoot: string) {
   const message = initMessage();
   const evolution = initEvolution(issue.issueAdapter);
   const snailMCPServer = initMCPServer({ updateEvolution: (id, updates) => Promise.resolve(evolution.adapter.update(id, updates)), knowledge: knowledge.adapter, message: message.adapter });
-  const mcp = initMCP({ dataStore, workspaces, snailMCPServer: snailMCPServer.adapter, configStore });
+  const mcp = initMCP({ dataStore, workspaces, snailMCPServer: snailMCPServer.adapter, serverSettings });
   const featureChain = initFeatureChain(repoRoot);
   const guardProfile = initGuardProfile(dataStore);
   const liteAI = initLiteAI(dataStore);
@@ -75,7 +77,7 @@ function logStartupSummary(modules: Awaited<ReturnType<typeof initModules>>): vo
   console.log(`Registered agents: ${modules.registry.listAgentRuntimes().join(", ")}`);
 }
 
-function startHttpServer(modules: Awaited<ReturnType<typeof initModules>>): void {
+function startHttpServer(modules: Awaited<ReturnType<typeof initModules>>, serverSettings: ServerSettings): void {
   const mcpHandler = createMcpHandler(modules.snailMCPServer.adapter);
   const app = createApp({
     workspaceAdapter: modules.workspace.adapter,
@@ -93,7 +95,7 @@ function startHttpServer(modules: Awaited<ReturnType<typeof initModules>>): void
     mcpHandler,
   });
   app.route("/im", modules.im.app);
-  const port = modules.configStore.readYaml<{ port?: number }>("server.yaml")?.port ?? 3001;
+  const port = serverSettings.port;
   serve({ fetch: app.fetch, port }, (info) => {
     console.log(`HTTP server listening on http://localhost:${info.port}`);
   });

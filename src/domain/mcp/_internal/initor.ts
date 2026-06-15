@@ -1,7 +1,7 @@
 import type { Workspace } from "@domain/workspace/model";
 import type { SnailMCPServerPort } from "@domain/snail-mcp-server/port";
 import type { FileDataStore } from "@infra/file-data-store";
-import type { ConfigStore } from "@infra/config-store";
+import type { ServerSettings } from "@infra/server-config";
 import { FileMCPRepository } from "@domain/mcp/_internal/repository";
 import { MCPAdapter } from "@domain/mcp/_internal/adapter";
 
@@ -10,17 +10,12 @@ export interface MCPDeps {
   dataStore: FileDataStore;
   workspaces: Workspace[];
   snailMCPServer: SnailMCPServerPort;
-  configStore: ConfigStore;
+  serverSettings: ServerSettings;
 }
 
 /** 初始化 MCP 模块 */
 export function init(deps: MCPDeps) {
-  // 从 config/server.yaml 读取端口，构造 MCP endpoint base URL
-  const serverConfig = deps.configStore.readYaml<{ port?: number }>("server.yaml");
-  const port = serverConfig?.port ?? 3000;
-  const baseUrl = `http://localhost:${port}`;
-
-  const repo = new FileMCPRepository(deps.dataStore, deps.workspaces, deps.snailMCPServer, baseUrl);
+  const repo = new FileMCPRepository(deps.dataStore, deps.workspaces, deps.snailMCPServer, deps.serverSettings.httpBaseUrl);
   const adapter = new MCPAdapter(repo);
   return { repo, adapter };
 }

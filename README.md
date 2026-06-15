@@ -31,19 +31,72 @@ Snail Shell 通过阶段化工作流（初始化 -> 讨论 -> 编码 -> 检查 -
 npm install
 ```
 
-### 构建工作区
+### 构建后端
 
 ```bash
 npm run build
 ```
 
-### 运行服务
+### 配置本地端口
+
+默认无需配置即可启动：后端监听 `3000`，Web 开发服务器监听 `5173`。
+
+如需修改端口，复制示例配置：
+
+```bash
+cp config/server.yaml.example config/server.yaml
+```
+
+然后编辑 `config/server.yaml`：
+
+```yaml
+# 后端 HTTP 服务监听端口
+port: 3000
+
+# Web Vite dev server 监听端口
+web_port: 5173
+```
+
+### 一键后台启动
+
+```bash
+npm run service:start
+```
+
+该命令会在后台同时启动后端和 Web，不占用当前终端。启动脚本会先检查配置端口是否被占用，并在确认服务真正监听成功后才报告运行中。日志写入：
+
+- `logs/server.log`
+- `logs/web.log`
+
+常用管理命令：
+
+```bash
+npm run service:status
+npm run service:stop
+npm run service:restart
+```
+
+如果启动失败，先执行 `npm run service:status` 查看 `port` / `web_port` 是否被其他 PID 占用，再查看对应日志。
+
+默认访问 Web 地址：`http://127.0.0.1:5173/`。
+
+### 分别启动后端和 Web
+
+启动后端：
 
 ```bash
 npm start
 ```
 
-服务将在 `http://localhost:3000` 启动。
+后端服务默认启动在 `http://localhost:3000`。
+
+另开一个终端启动 Web：
+
+```bash
+npm run web
+```
+
+Web 默认启动在 `http://127.0.0.1:5173/`。开发时访问这个 Web 地址；Vite 会按 `config/server.yaml` 的 `port` 自动把 `/api` 和 `/ws` 代理到后端。`web_port` 是严格端口，如果被占用，Web 启动会失败而不会自动切换端口。
 
 ### 开发命令
 
