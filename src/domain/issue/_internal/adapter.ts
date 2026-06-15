@@ -6,11 +6,11 @@ import {
   type CreateIssueInput,
   type Stage,
   type CreateStageInput,
-  type RoleSnailSession,
+  type RoleSnailAssignment,
   type StagePreview,
 } from "@domain/issue/model";
 import type { IssuePort, StagePort } from "@domain/issue/port";
-import type { IssueRepository, StageRepository, RoleSnailSessionRepository } from "./repository";
+import type { IssueRepository, StageRepository, RoleSnailAssignmentRepository } from "./repository";
 import type { SopPort } from "@domain/sop/port";
 import type { Sop } from "@domain/sop/model";
 
@@ -55,7 +55,7 @@ export class IssueAdapter implements IssuePort {
 export class StageAdapter implements StagePort {
   constructor(
     private stageRepo: StageRepository,
-    private sessionRepo: RoleSnailSessionRepository,
+    private sessionRepo: RoleSnailAssignmentRepository,
     private issueRepo: IssueRepository,
   ) {}
 
@@ -133,7 +133,7 @@ export class StageAdapter implements StagePort {
     };
     this.stageRepo.create(stage);
 
-    // 创建初始 RoleSnailSession（seq=0）
+    // 创建初始 RoleSnailAssignment（seq=0）
     for (const roleDef of stageDef.roles) {
       const instances = roleDef.count <= 1
         ? [roleDef.name]
@@ -144,8 +144,8 @@ export class StageAdapter implements StagePort {
           stage_id: stageId,
           role_instance: instance,
           seq: 0,
-          snail_id: input.snail_assignments[instance],
-          external_session_ids: [],
+          snail_key: input.snail_assignments[instance],
+          snail_instance_id: null,
           role_key: roleDef.key,
           description: roleDef.description,
           created_at: now,
@@ -187,29 +187,29 @@ export class StageAdapter implements StagePort {
     }
 
     const latest = this.sessionRepo.getLatest(stageId, roleInstance);
-    if (!latest) throw new Error(`RoleSnailSession not found: ${stageId}:${roleInstance}`);
+    if (!latest) throw new Error(`RoleSnailAssignment not found: ${stageId}:${roleInstance}`);
 
     this.sessionRepo.append({
       stage_id: stageId,
       role_instance: roleInstance,
       seq: latest.seq + 1,
-      snail_id: newSnailId,
-      external_session_ids: [],
+      snail_key: newSnailId,
+      snail_instance_id: null,
       role_key: latest.role_key,
       description: latest.description,
       created_at: new Date().toISOString(),
     });
   }
 
-  appendSessionId(stageId: string, roleInstance: string, sessionId: string): void {
-    this.sessionRepo.appendSessionId(stageId, roleInstance, sessionId);
+  setSnailInstanceId(stageId: string, roleInstance: string, snailInstanceId: string): void {
+    this.sessionRepo.setSnailInstanceId(stageId, roleInstance, snailInstanceId);
   }
 
-  getRoleSnailSessions(stageId: string): RoleSnailSession[] {
+  getRoleSnailAssignments(stageId: string): RoleSnailAssignment[] {
     return this.sessionRepo.listLatestByStage(stageId);
   }
 
-  getRoleSnailSession(stageId: string, roleInstance: string): RoleSnailSession | null {
+  getRoleSnailAssignment(stageId: string, roleInstance: string): RoleSnailAssignment | null {
     return this.sessionRepo.getLatest(stageId, roleInstance);
   }
 

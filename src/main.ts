@@ -12,105 +12,79 @@ import { init as initMCPServer } from "@domain/snail-mcp-server/_internal/initor
 import { initHono as initIM } from "@domain/im/_internal/hono-initor";
 import { init as initKnowledge } from "@domain/knowledge/_internal/initor";
 import { init as initIssue } from "@domain/issue/_internal/initor";
+import { init as initMessage } from "@domain/message/_internal/initor";
 import { init as initEvolution } from "@domain/evolution/_internal/initor";
 import { init as initFeatureChain } from "@domain/feature-chain/_internal/initor";
 import { init as initGuardProfile } from "@domain/guard-profile/_internal/initor";
 import { init as initSnail } from "@domain/snail/_internal/initor";
 import { init as initLiteAI } from "@domain/lite-ai/_internal/initor";
 import { init as initMCP } from "@domain/mcp/_internal/initor";
+import { init as initIssueCollaboration } from "@app/issue-collaboration/initor";
+import { init as initIMHub } from "@app/im-hub/initor";
 import { createMcpHandler } from "@infra/mcp-server/handler";
 
 async function main() {
   const repoRoot = process.cwd();
+  const modules = await initModules(repoRoot);
 
-  // 基础设施
+  modules.featureChain.adapter.rebuild();
+  logStartupSummary(modules);
+  startHttpServer(modules);
+}
+
+async function initModules(repoRoot: string) {
   const db = new SQLiteDatabase(repoRoot);
   const dataStore = FileDataStore.fromRepoRoot(repoRoot);
   const configStore = new ConfigStore(repoRoot);
-
-  // 初始化 acs（agent 运行时）
   const { registry } = await initAcs();
-
-  // 初始化 workspace
   const workspace = initWorkspace(dataStore);
   const workspaces = workspace.adapter.list();
-
-  // 初始化领域模块
   const tenetPrompt = initTenetPrompt(dataStore, workspaces);
   const skill = initSkill(dataStore, workspaces);
   const sop = initSop(dataStore, workspaces);
   const knowledge = initKnowledge(dataStore, workspaces);
   const issue = initIssue(sop.adapter);
+  const message = initMessage();
   const evolution = initEvolution(issue.issueAdapter);
-
-  // IM 依赖 issue ports，必须在 initIssue 之后
-  const im = initIM({
-    workspacePort: workspace.adapter,
-    issuePort: issue.issueAdapter,
-    stagePort: issue.stageAdapter,
-    configStore,
-  });
-
-  // 初始化 snail-mcp-server（注册所有 MCP Server）
-  const snailMCPServer = initMCPServer({
-    updateEvolution: (id, updates) =>
-      Promise.resolve(evolution.adapter.update(id, updates)),
-    knowledge: knowledge.adapter,
-  });
-
-  // 初始化 mcp（读取 snail-mcp-server 的配置）
-  const mcp = initMCP({
-    dataStore,
-    workspaces,
-    snailMCPServer: snailMCPServer.adapter,
-    configStore,
-  });
-
+  const snailMCPServer = initMCPServer({ updateEvolution: (id, updates) => Promise.resolve(evolution.adapter.update(id, updates)), knowledge: knowledge.adapter, message: message.adapter });
+  const mcp = initMCP({ dataStore, workspaces, snailMCPServer: snailMCPServer.adapter, configStore });
   const featureChain = initFeatureChain(repoRoot);
   const guardProfile = initGuardProfile(dataStore);
   const liteAI = initLiteAI(dataStore);
+  const snail = initSnail(dataStore, { registry, tenetPrompt: tenetPrompt.adapter, skill: skill.adapter, mcp: mcp.adapter, guardProfile: guardProfile.adapter });
+  const collaboration = initIssueCollaboration({ issuePort: issue.issueAdapter, stagePort: issue.stageAdapter, messagePort: message.adapter, snailPort: snail.adapter, liteAIPort: liteAI.adapter });
+  const im = initIM({ workspacePort: workspace.adapter, issuePort: issue.issueAdapter, stagePort: issue.stageAdapter, configStore, db });
+  const imHub = initIMHub({ imAdapter: im.adapter, lobbyAdapter: im.lobbyAdapter, collaboration: collaboration.adapter });
+  await im.adapter.startChannels();
+  return { registry, workspace, tenetPrompt, skill, sop, snailMCPServer, mcp, featureChain, snail, im, imHub, liteAI, evolution, configStore };
+}
 
-  // 初始化 snail（依赖 tenet-prompt, skill, mcp, guard-profile, acs registry）
-  const snail = initSnail(dataStore, {
-    registry,
-    tenetPrompt: tenetPrompt.adapter,
-    skill: skill.adapter,
-    mcp: mcp.adapter,
-    guardProfile: guardProfile.adapter,
-  });
-
-  // 重建 Feature Chain 索引
-  featureChain.adapter.rebuild();
-
-  // 输出加载结果
-  console.log(`Loaded ${workspace.adapter.list().length} workspaces`);
-  console.log(`Loaded ${tenetPrompt.adapter.list().length} prompts`);
-  console.log(`Loaded ${skill.adapter.list().length} skills`);
-  console.log(`Loaded ${sop.adapter.list().length} SOPs`);
-  console.log(`MCP Servers: ${snailMCPServer.adapter.listServers().map(s => s.name).join(", ")}`);
-  console.log(`MCP Configs: ${mcp.adapter.list().map(c => c.name).join(", ")}`);
-  console.log(`Feature Chain: ${featureChain.adapter.search("").length} docs indexed`);
-  console.log(`Snails: ${snail.adapter.list().map(s => s.id).join(", ")}`);
-  console.log(`IM: ready (${im.adapter.listChannelConfigs().map(c => c.type).join(", ") || "no channels"})`);
-  console.log(`Lite AI: ${liteAI.adapter.getConfig() ? "configured" : "not configured"}`);
+function logStartupSummary(modules: Awaited<ReturnType<typeof initModules>>): void {
+  console.log(`Loaded ${modules.workspace.adapter.list().length} workspaces`);
+  console.log(`Loaded ${modules.tenetPrompt.adapter.list().length} prompts`);
+  console.log(`Loaded ${modules.skill.adapter.list().length} skills`);
+  console.log(`Loaded ${modules.sop.adapter.list().length} SOPs`);
+  console.log(`MCP Servers: ${modules.snailMCPServer.adapter.listServers().map(s => s.name).join(", ")}`);
+  console.log(`MCP Configs: ${modules.mcp.adapter.list().map(c => c.name).join(", ")}`);
+  console.log(`Feature Chain: ${modules.featureChain.adapter.search("").length} docs indexed`);
+  console.log(`Snails: ${modules.snail.adapter.list().map(s => s.key).join(", ")}`);
+  console.log(`IM: ready (${modules.im.adapter.listChannelConfigs().map(c => c.type).join(", ") || "no channels"})`);
+  console.log(`IM Hub: ready (${Boolean(modules.imHub.adapter)})`);
+  console.log(`Lite AI: ${modules.liteAI.adapter.getConfig() ? "configured" : "not configured"}`);
   console.log(`Evolution: ready`);
-  console.log(`Registered agents: ${registry.listAgentRuntimes().join(", ")}`);
+  console.log(`Registered agents: ${modules.registry.listAgentRuntimes().join(", ")}`);
+}
 
-  // HTTP 服务
-  const mcpHandler = createMcpHandler(snailMCPServer.adapter);
-  const app = createApp({
-    workspaceAdapter: workspace.adapter,
-    mcpHandler,
-  });
-
-  // 挂载 IM webhook 路由
-  app.route("/im", im.app);
-
-  const port = configStore.readYaml<{ port?: number }>("server.yaml")?.port ?? 3000;
+function startHttpServer(modules: Awaited<ReturnType<typeof initModules>>): void {
+  const mcpHandler = createMcpHandler(modules.snailMCPServer.adapter);
+  const app = createApp({ workspaceAdapter: modules.workspace.adapter, mcpHandler });
+  app.route("/im", modules.im.app);
+  const port = modules.configStore.readYaml<{ port?: number }>("server.yaml")?.port ?? 3000;
   serve({ fetch: app.fetch, port }, (info) => {
     console.log(`HTTP server listening on http://localhost:${info.port}`);
   });
 }
+
 
 main().catch((err) => {
   console.error("Failed to start", err);

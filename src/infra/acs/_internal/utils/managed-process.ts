@@ -209,7 +209,7 @@ async function runStopStage(context: StopContext, stage: StopStage): Promise<boo
   return true;
 }
 
-function sendProcessTreeSignal(context: StopContext, signal: NodeJS.Signals, label: string): void {
+function sendProcessTreeSignal(context: StopContext, signal: NodeJS.Signals, _label: string): void {
   context.detail.process_group_signal_attempted = true;
   try {
     process.kill(-context.pid, signal);

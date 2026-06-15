@@ -110,8 +110,8 @@ export class FileFeatureChainRepository implements FeatureChainRepository {
     const [, frontmatter, body] = match;
     const meta = this.parseFrontmatter(frontmatter);
 
-    if (!meta.id) throw new Error("Feature doc missing 'id'");
-    if (!meta.title) throw new Error("Feature doc missing 'title'");
+    if (typeof meta.id !== "string") throw new Error("Feature doc missing 'id'");
+    if (typeof meta.title !== "string") throw new Error("Feature doc missing 'title'");
 
     // 从文件名提取日期
     const dateMatch = fileName.match(/^F(\d{4})(\d{2})(\d{2})/);
@@ -147,68 +147,81 @@ export class FileFeatureChainRepository implements FeatureChainRepository {
   }
 
   private parseFrontmatter(raw: string): Record<string, unknown> {
-    const result: Record<string, unknown> = {};
-    let currentKey = "";
-    let currentObj: Record<string, unknown> = result;
-    let inArray = false;
-    let arrayKey = "";
-    let arrayItems: string[] = [];
+    const state = this.createFrontmatterParseState();
 
     for (const line of raw.split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-
-      if (inArray && !trimmed.startsWith("-")) {
-        currentObj[arrayKey] = arrayItems;
-        inArray = false;
-        arrayItems = [];
-      }
-
-      if (inArray && trimmed.startsWith("-")) {
-        arrayItems.push(trimmed.slice(1).trim().replace(/^["']|["']$/g, ""));
-        continue;
-      }
-
-      const nestedMatch = trimmed.match(/^(\w+):\s*$/);
-      if (nestedMatch) {
-        currentKey = nestedMatch[1];
-        currentObj = {};
-        result[currentKey] = currentObj;
-        continue;
-      }
-
-      const kvMatch = trimmed.match(/^(\w+):\s*(.+)$/);
-      if (kvMatch) {
-        const [, key, value] = kvMatch;
-
-        if (value === "") {
-          inArray = true;
-          arrayKey = key;
-          arrayItems = [];
-          continue;
-        }
-
-        if (value === "true") { currentObj[key] = true; continue; }
-        if (value === "false") { currentObj[key] = false; continue; }
-        if (/^\d+$/.test(value)) { currentObj[key] = parseInt(value); continue; }
-
-        // 处理内联数组 [a, b, c]
-        const inlineArrayMatch = value.match(/^\[(.*)\]$/);
-        if (inlineArrayMatch) {
-          currentObj[key] = inlineArrayMatch[1].split(",").map(s => s.trim().replace(/^["']|["']$/g, ""));
-          continue;
-        }
-
-        currentObj[key] = value.replace(/^["']|["']$/g, "");
-      }
+      this.consumeFrontmatterLine(state, line);
     }
 
-    if (inArray) {
-      currentObj[arrayKey] = arrayItems;
-    }
-
-    return result;
+    this.flushArrayState(state);
+    return state.result;
   }
+
+  private createFrontmatterParseState() {
+    const result: Record<string, unknown> = {};
+    return {
+      result,
+      currentObj: result,
+      inArray: false,
+      arrayKey: "",
+      arrayItems: [] as string[],
+    };
+  }
+
+  private consumeFrontmatterLine(state: ReturnType<typeof this.createFrontmatterParseState>, line: string): void {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) return;
+
+    if (state.inArray && !trimmed.startsWith("-")) {
+      this.flushArrayState(state);
+    }
+    if (state.inArray && trimmed.startsWith("-")) {
+      state.arrayItems.push(this.unquote(trimmed.slice(1).trim()));
+      return;
+    }
+
+    const nestedMatch = trimmed.match(/^(\w+):\s*$/);
+    if (nestedMatch) {
+      state.currentObj = {};
+      state.result[nestedMatch[1]] = state.currentObj;
+      return;
+    }
+
+    const kvMatch = trimmed.match(/^(\w+):\s*(.+)$/);
+    if (!kvMatch) return;
+    this.consumeFrontmatterKeyValue(state, kvMatch[1], kvMatch[2]);
+  }
+
+  private consumeFrontmatterKeyValue(state: ReturnType<typeof this.createFrontmatterParseState>, key: string, value: string): void {
+    if (value === "") {
+      state.inArray = true;
+      state.arrayKey = key;
+      state.arrayItems = [];
+      return;
+    }
+    state.currentObj[key] = this.parseFrontmatterValue(value);
+  }
+
+  private parseFrontmatterValue(value: string): unknown {
+    if (value === "true") return true;
+    if (value === "false") return false;
+    if (/^\d+$/.test(value)) return parseInt(value);
+    const inlineArrayMatch = value.match(/^\[(.*)\]$/);
+    if (inlineArrayMatch) return inlineArrayMatch[1].split(",").map(s => this.unquote(s.trim()));
+    return this.unquote(value);
+  }
+
+  private flushArrayState(state: ReturnType<typeof this.createFrontmatterParseState>): void {
+    if (!state.inArray) return;
+    state.currentObj[state.arrayKey] = state.arrayItems;
+    state.inArray = false;
+    state.arrayItems = [];
+  }
+
+  private unquote(value: string): string {
+    return value.replace(/^["']|["']$/g, "");
+  }
+
 
   private generateSnippet(content: string, query: string): string {
     const lowerContent = content.toLowerCase();

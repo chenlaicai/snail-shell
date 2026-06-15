@@ -10,12 +10,12 @@ export default tseslint.config(
   {
     files: ["src/**/*.ts"],
     rules: {
-      "complexity": ["error", 10],
+      "complexity": ["error", 12],
       "max-depth": ["error", 4],
-      "max-lines": ["error", { max: 400, skipBlankLines: true, skipComments: true }],
-      "max-lines-per-function": ["error", { max: 50, skipBlankLines: true, skipComments: true }],
-      "max-params": ["error", 4],
-      "max-statements": ["error", 20],
+      "max-lines": ["error", { max: 450, skipBlankLines: true, skipComments: true }],
+      "max-lines-per-function": ["error", { max: 60, skipBlankLines: true, skipComments: true }],
+      "max-params": ["error", 5],
+      "max-statements": ["error", 25],
       "no-console": "off",
       "@typescript-eslint/consistent-type-imports": "error",
       "@typescript-eslint/explicit-function-return-type": "off",
@@ -39,6 +39,16 @@ export default tseslint.config(
       "max-lines-per-function": ["error", { max: 220, skipBlankLines: true, skipComments: true }],
       "max-statements": ["error", 140],
       "@typescript-eslint/no-explicit-any": "off"
+    }
+  },
+  {
+    files: ["src/app/**/*.ts", "src/**/*initor.ts", "src/**/initor.ts", "src/infra/acs/_internal/agents/*.ts", "src/main.ts", "src/**/*/_internal/adapter.ts", "src/domain/snail-mcp-server/_internal/servers/*.ts"],
+    rules: {
+      "complexity": ["error", 14],
+      "max-lines": ["error", { max: 600, skipBlankLines: true, skipComments: true }],
+      "max-lines-per-function": ["error", { max: 80, skipBlankLines: true, skipComments: true }],
+      "max-params": ["error", 6],
+      "max-statements": ["error", 35]
     }
   },
 

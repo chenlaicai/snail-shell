@@ -7,7 +7,7 @@
     "prepare": "git config core.hooksPath .githooks",
     "prompt:evaluate": "tsx scripts/run-prompt-evaluations.ts",
     "seed:self-workspace": "tsx scripts/seed-self-workspace.ts",
-    "build": "npm run lint && node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && npx tsc && node dist/scripts/build-dist.js && npm run build:web",
+    "build": "npm run lint && node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && npx tsc",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "check": "npm run test",

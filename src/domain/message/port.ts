@@ -15,6 +15,7 @@ export interface MessagePort {
   createMessage(input: CreateMessageInput): Message;
   getMessage(id: number): Message | undefined;
   listMessages(stageId: string, limit?: number, offset?: number): Message[];
+  updateMessageTargets(messageId: number, toSpeakers: string[]): void;
 
   /** 完成消息：追加终态信号事件 + 更新状态（原子操作） */
   completeMessage(messageId: number, status: MessageStatus, signalPayload?: Record<string, unknown>): void;
@@ -32,6 +33,9 @@ export interface MessagePort {
   advanceCursor(stageId: string, speaker: string, messageId: number): void;
   getUnreadMessages(stageId: string, speaker: string): Message[];
   initCursor(stageId: string, speaker: string): void;
+
+  /** 查找最近响应的 speaker（最近一条 assistant 消息的 from_speaker） */
+  findLatestRespondingSpeaker(stageId: string): string | null;
 
   // CallSignal
   createCallSignal(stageId: string, targetSpeaker: string): void;

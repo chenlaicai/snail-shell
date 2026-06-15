@@ -17,18 +17,7 @@ export async function init(): Promise<{ registry: AgentRegistryPort }> {
   for (const file of files) {
     try {
       const module = await import(path.join(agentsDir, file));
-
-      // 扫描所有导出的类，找到实现了 AgentRuntimePort 的类
-      for (const [exportName, exportValue] of Object.entries(module)) {
-        if (typeof exportValue === "function" && exportValue.prototype) {
-          // 检查是否实现了 AgentRuntimePort（有 name 属性和 invokeFirstCall/invokeResume 方法）
-          const instance = new (exportValue as new () => AgentRuntimePort)();
-          if (instance.name && typeof instance.invokeFirstCall === "function" && typeof instance.invokeResume === "function") {
-            registerAgentRuntime(instance.name, exportValue as new () => AgentRuntimePort);
-            break; // 每个文件只注册一个 agent
-          }
-        }
-      }
+      registerRuntimeFromModule(module);
     } catch (err) {
       console.warn(`[acs] Failed to load agent from ${file}:`, err);
     }
@@ -42,4 +31,20 @@ export async function init(): Promise<{ registry: AgentRegistryPort }> {
   };
 
   return { registry };
+}
+
+function registerRuntimeFromModule(module: Record<string, unknown>): void {
+  for (const exportValue of Object.values(module)) {
+    if (typeof exportValue !== "function" || !exportValue.prototype) continue;
+    const runtimeClass = exportValue as new () => AgentRuntimePort;
+    const instance = new runtimeClass();
+    if (isAgentRuntime(instance)) {
+      registerAgentRuntime(instance.name, runtimeClass);
+      return;
+    }
+  }
+}
+
+function isAgentRuntime(instance: AgentRuntimePort): boolean {
+  return Boolean(instance.name && typeof instance.invokeFirstCall === "function" && typeof instance.invokeResume === "function");
 }

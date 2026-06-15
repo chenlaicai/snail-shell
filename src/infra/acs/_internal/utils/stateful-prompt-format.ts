@@ -1,4 +1,4 @@
-import type { Message } from "../model";
+import type { Message } from "../../model";
 
 type MessageSectionTitle = "引用消息" | "新消息";
 
@@ -47,6 +47,5 @@ function renderCurrentTaskContext(content: string): string {
 function renderMessageSection(title: MessageSectionTitle, message: Message): string {
   const content = message.content.trim();
   if (!content) return "";
-  const speaker = message.speaker ? `${message.speaker}: ` : "";
-  return [`## ${title}`, `角色: ${message.role}`, "内容:", `${speaker}${content}`].join("\n\n");
+  return [`## ${title}`, `${message.speaker}:`, "内容:", content].join("\n\n");
 }

@@ -3,6 +3,7 @@ import { createFinalResponseServer } from "./servers/snail-final-response";
 import { createEvolutionServer } from "./servers/evolution";
 import { createKnowledgeServer } from "./servers/knowledge";
 import type { KnowledgePort } from "@domain/knowledge/port";
+import type { MessagePort } from "@domain/message/port";
 
 /** Snail MCP Server 模块依赖 */
 export interface SnailMCPServerDeps {
@@ -10,6 +11,8 @@ export interface SnailMCPServerDeps {
   updateEvolution: (id: string, updates: { status?: string; result?: string }) => Promise<{ id: string; status: string }>;
   /** knowledge adapter */
   knowledge: KnowledgePort;
+  /** message adapter */
+  message: MessagePort;
 }
 
 /**
@@ -20,7 +23,7 @@ export function init(deps: SnailMCPServerDeps) {
   const adapter = new SnailMCPServerAdapter();
 
   // 注册所有 MCP Server
-  adapter.registerServer(createFinalResponseServer());
+  adapter.registerServer(createFinalResponseServer(deps.message));
   adapter.registerServer(createEvolutionServer(deps.updateEvolution));
   adapter.registerServer(createKnowledgeServer(deps.knowledge));
 

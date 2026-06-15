@@ -1,4 +1,5 @@
 import type {
+  ChannelType,
   IMChannelConfig,
   IMInboundMessage,
   LobbySession,
@@ -35,17 +36,24 @@ export interface IMChannelAdapter {
   readonly channelType: string;
   start(): Promise<void>;
   stop(): Promise<void>;
+  sendText(chatId: string, text: string, uuid?: string): Promise<string>;
+  patchText?(messageId: string, text: string): Promise<void>;
+  onStageMessage?(handler: (params: { channelType: ChannelType; chatId: string; tenantKey: string | null; stageId: string; text: string }) => Promise<void>): void;
   /** 处理 webhook 请求体（由 Hono server 调用） */
   handleWebhook?(body: unknown): void;
 }
 
+export type LobbyInboundResult =
+  | { response: LobbyResponse; session: LobbySession }
+  | { forwarded: true; session: LobbySession; stageId: string; text: string };
+
 /** Lobby 端口定义 */
 export interface LobbyPort {
   // Session
-  getOrCreateSession(channelType: string, channelChatId: string, channelTenantKey: string | null): LobbySession;
-  getSessionByChannel(channelType: string, channelChatId: string, channelTenantKey: string | null): LobbySession | null;
+  getOrCreateSession(channelType: ChannelType, channelChatId: string, channelTenantKey: string | null): LobbySession;
+  getSessionByChannel(channelType: ChannelType, channelChatId: string, channelTenantKey: string | null): LobbySession | null;
   updateSessionNavigation(id: string, updates: Partial<Pick<LobbySession, "navigation_level" | "current_workspace_id" | "current_issue_id" | "current_stage_id">>): LobbySession;
-  getInStageSessions(channelType: string): LobbySession[];
+  getInStageSessions(channelType: ChannelType): LobbySession[];
 
   // Message audit
   addLobbyMessage(input: { lobby_session_id: string; direction: "inbound" | "outbound"; command?: string | null; content: string; response_content?: string | null }): LobbyMessage;
@@ -55,10 +63,7 @@ export interface LobbyPort {
   executeCommand(session: LobbySession, commandText: string): Promise<LobbyResponse>;
 
   // Routing
-  processInbound(params: { channelType: string; channelChatId: string; channelTenantKey: string | null; text: string }): Promise<
-    | { response: LobbyResponse; session: LobbySession }
-    | { forwarded: true; session: LobbySession }
-  >;
+  processInbound(params: { channelType: ChannelType; channelChatId: string; channelTenantKey: string | null; text: string }): Promise<LobbyInboundResult>;
 
   // Navigation context
   buildNavigationContext(session: LobbySession): NavigationContext;

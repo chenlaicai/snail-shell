@@ -1,7 +1,7 @@
 import { spawn } from "child_process";
 import path from "path";
 import type { AgentRuntimePort } from "../../port";
-import type { FirstCallRequest, ResumeRequest, AgentEvent, InvokeResult, InvokeOptions, GuardProfile, Message } from "../../model";
+import type { FirstCallRequest, ResumeRequest, AgentEvent, InvokeResult, InvokeOptions, Message } from "../../model";
 import { manageInvocationProcess } from "../utils/managed-process";
 import { renderStatefulPrompt, type StatefulPromptInput } from "../utils/stateful-prompt-format";
 import { buildRuntimeUsageSignal, usageDetailFromCodexUsage } from "../utils/runtime-usage";
@@ -208,13 +208,13 @@ function buildStatefulPromptInput(isFirstCall: boolean, systemPrompt: string, sy
 function dropLatestUserMessage(messages: Message[]): Message[] {
   if (messages.length === 0) return [];
   const lastIdx = messages.length - 1;
-  if (messages[lastIdx].role === "user") {
+  if (messages[lastIdx].role === "human") {
     return messages.slice(0, lastIdx);
   }
   return messages;
 }
 
-function writeCodexGuardConfig(deny: string[], workspacePath: string): void {
+function writeCodexGuardConfig(_deny: string[], _workspacePath: string): void {
   // 写入 .codex/config.toml 的 sandbox_mode 配置
 }
 
@@ -244,7 +244,9 @@ function consumeCodexOutput(state: CodexParseState, chunk: string, onEvent: (eve
     try {
       const event: CodexEvent = JSON.parse(line);
       processCodexEvent(state, event, onEvent);
-    } catch {}
+    } catch (error) {
+      console.warn("[acs] failed to parse Codex output line:", error);
+    }
   }
 }
 
@@ -253,7 +255,23 @@ function processCodexEvent(state: CodexParseState, event: CodexEvent, onEvent: (
     state.threadId = event.thread_id;
   }
 
-  if (event.type === "turn.completed" && event.message) {
+  if (event.type === "turn.completed") {
+    handleCodexTurnCompleted(state, event, onEvent);
+    return;
+  }
+
+  if (event.type === "turn.failed") {
+    handleCodexTurnFailed(state, event, onEvent);
+    return;
+  }
+
+  if (event.type === "error" && typeof event.message === "string") {
+    emitCodexError(onEvent, event.message, "error");
+  }
+}
+
+function handleCodexTurnCompleted(state: CodexParseState, event: CodexEvent, onEvent: (event: AgentEvent) => void): void {
+  if (event.message) {
     for (const part of event.message.content) {
       if (part.type === "text" && part.text) {
         state.textChunks.push(part.text);
@@ -268,43 +286,37 @@ function processCodexEvent(state: CodexParseState, event: CodexEvent, onEvent: (
         });
       }
     }
-
-    if (event.usage) {
-      onEvent(buildRuntimeUsageSignal(usageDetailFromCodexUsage(event.usage), "turn.completed"));
-    }
   }
 
-  if (event.type === "turn.failed") {
-    state.failed = true;
-    const errorMsg = event.error?.message ?? "Unknown error";
-    onEvent({
-      type: "message_event",
-      event: {
-        kind: "error",
-        payload: { message: errorMsg },
-        source: { runtime_event_type: "turn.failed", runtime_message_id: null },
-      },
-    });
-    onEvent({
-      type: "message_event",
-      event: {
-        kind: "signal",
-        payload: { signal_type: "message_failed", data: { error: errorMsg } },
-        source: { runtime_event_type: "turn.failed", runtime_message_id: null },
-      },
-    });
+  if (event.usage) {
+    const usageDetail = usageDetailFromCodexUsage(event.usage);
+    if (usageDetail) onEvent(buildRuntimeUsageSignal(usageDetail, "turn.completed"));
   }
+}
 
-  if (event.type === "error" && typeof event.message === "string") {
-    onEvent({
-      type: "message_event",
-      event: {
-        kind: "error",
-        payload: { message: event.message },
-        source: { runtime_event_type: "error", runtime_message_id: null },
-      },
-    });
-  }
+function handleCodexTurnFailed(state: CodexParseState, event: CodexEvent, onEvent: (event: AgentEvent) => void): void {
+  state.failed = true;
+  const errorMsg = event.error?.message ?? "Unknown error";
+  emitCodexError(onEvent, errorMsg, "turn.failed");
+  onEvent({
+    type: "message_event",
+    event: {
+      kind: "signal",
+      payload: { signal_type: "message_failed", data: { error: errorMsg } },
+      source: { runtime_event_type: "turn.failed", runtime_message_id: null },
+    },
+  });
+}
+
+function emitCodexError(onEvent: (event: AgentEvent) => void, message: string, runtimeEventType: string): void {
+  onEvent({
+    type: "message_event",
+    event: {
+      kind: "error",
+      payload: { message },
+      source: { runtime_event_type: runtimeEventType, runtime_message_id: null },
+    },
+  });
 }
 
 function flushCodexOutput(state: CodexParseState, onEvent: (event: AgentEvent) => void): void {
@@ -312,7 +324,9 @@ function flushCodexOutput(state: CodexParseState, onEvent: (event: AgentEvent) =
     try {
       const event: CodexEvent = JSON.parse(state.buffer);
       processCodexEvent(state, event, onEvent);
-    } catch {}
+    } catch (error) {
+      console.warn("[acs] failed to parse buffered Codex output:", error);
+    }
   }
 }
 

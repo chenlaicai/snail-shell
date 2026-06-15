@@ -12,7 +12,7 @@ import type {
 export interface MessageRepository {
   findById(id: number): Message | undefined;
   listByStage(stageId: string, limit?: number, offset?: number): Message[];
-  create(message: Message): void;
+  create(message: Message): Message;
   update(id: number, updates: Partial<Message>): void;
 }
 
@@ -31,9 +31,11 @@ export class InMemoryMessageRepository implements MessageRepository {
       .slice(offset, offset + limit);
   }
 
-  create(message: Message): void {
+  create(message: Message): Message {
     const id = this.nextId++;
-    this.messages.set(id, { ...message, id });
+    const created = { ...message, id };
+    this.messages.set(id, created);
+    return created;
   }
 
   update(id: number, updates: Partial<Message>): void {

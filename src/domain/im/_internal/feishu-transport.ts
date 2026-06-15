@@ -1,4 +1,5 @@
-import type { IMInboundMessage, IMTransport } from "@domain/im/port";
+import type { IMInboundMessage } from "@domain/im/model";
+import type { IMTransport } from "@domain/im/port";
 
 /**
  * 飞书传输层实现。

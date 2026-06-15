@@ -2,7 +2,6 @@ import type {
   EvolutionItem,
   EvolutionItemListFilters,
 } from "@domain/evolution/model";
-import type { EvolutionStatus } from "@domain/evolution/model";
 
 /** Evolution 持久层接口 */
 export interface EvolutionRepository {

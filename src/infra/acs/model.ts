@@ -14,9 +14,6 @@
 // 请求协议 — Snail Shell → Agent
 // ═══════════════════════════════════════════════════════════
 
-/** Agent 请求：首次调用或 resume 调用的完整上下文。 */
-export type AgentRequest = FirstCallRequest | ResumeRequest;
-
 /**
  * 首次调用请求：完整上下文。
  *
@@ -143,19 +140,18 @@ export interface GuardProfile {
 // ═══════════════════════════════════════════════════════════
 
 /**
- * 对话消息：agent 看到的单条消息。
+ * 对话消息：业务语义的多角色消息。
  *
- * 消息格式由 adapter 层根据调用模型渲染：
- *  - stateless → JSON envelope (snail_shell_stateless_transcript)
- *  - stateful → markdown sections
+ * role 区分人类/agent/系统，speaker 标识谁在说话。
+ * Adapter 层负责翻译为 LLM 格式（user/assistant）。
  */
 export interface Message {
-  /** 消息角色 */
-  role: "user" | "assistant";
-  /** 消息内容（文本，可能包含结构化标签） */
+  /** 业务角色类型 */
+  role: "human" | "agent" | "system";
+  /** 谁在说话（角色名，如 "开发者"、"审查者"、"项目负责人"） */
+  speaker: string;
+  /** 消息内容 */
   content: string;
-  /** 消息来源角色名（多角色对话时，用于区分谁说的） */
-  speaker?: string;
 }
 
 // ═══════════════════════════════════════════════════════════

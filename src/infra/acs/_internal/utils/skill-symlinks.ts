@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import type { SkillCapability } from "../model";
+import type { SkillCapability } from "../../model";
 
 /**
  * 在 worktree 内创建符号链接目录，将 ACS skills 暴露为 agent 原生 skill 目录。

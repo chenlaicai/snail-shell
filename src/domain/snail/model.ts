@@ -8,7 +8,7 @@ import type { Message } from "@infra/acs/model";
  */
 export interface Snail {
   /** Snail 唯一标识，如 "claude-code-sonnet" */
-  id: string;
+  key: string;
   /** 显示名称，如 "Claude Code + Sonnet" */
   name: string;
   /** 对应 acs agent 的 name，如 "claude-code" */
@@ -43,4 +43,22 @@ export interface SnailResumeRequest {
   messages: Message[];
   /** 动态上下文 */
   system_reminder?: string;
+}
+
+// ── Snail Instance ────────────────────────────────────────────────────
+// snail 调用产生的实例，调用方只认 snail_instance_id，不感知 agent session。
+
+export interface SnailInstance {
+  /** snail domain 生成的实例 ID */
+  id: string;
+  /** 使用的 snail key */
+  snail_key: string;
+  /** agent 运行时返回的 session ids（snail 内部管理，对调用方不透明） */
+  session_ids: string[];
+  created_at: string;
+}
+
+export interface SnailInvokeResult {
+  /** snail 实例 ID，后续调用传此 ID 即可 */
+  snail_instance_id: string;
 }

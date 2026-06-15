@@ -1,4 +1,5 @@
-import type { IMInboundMessage, IMTransport } from "@domain/im/port";
+import type { IMInboundMessage } from "@domain/im/model";
+import type { IMTransport } from "@domain/im/port";
 
 /**
  * 企微传输层实现。
@@ -38,9 +39,9 @@ export class WecomTransport implements IMTransport {
     this.messageHandler = handler;
   }
 
-  async sendText(chatId: string, text: string, uuid?: string): Promise<string> {
+  async sendText(chatId: string, text: string, _uuid?: string): Promise<string> {
     const token = await this.getAccessToken();
-    const response = await fetch(
+    await fetch(
       `https://qyapi.weixin.qq.com/cgi-bin/appchat/send?access_token=${token}`,
       {
         method: "POST",
@@ -53,12 +54,11 @@ export class WecomTransport implements IMTransport {
       }
     );
 
-    const result = await response.json();
     // 企微不返回 message_id，返回空字符串
     return "";
   }
 
-  async patchText(messageId: string, text: string): Promise<void> {
+  async patchText(_messageId: string, _text: string): Promise<void> {
     // 企微不支持 patchText，降级为发送新消息
     console.warn("企微不支持 patchText，降级为发送新消息");
   }
@@ -84,8 +84,7 @@ export class WecomTransport implements IMTransport {
   /** 验证 webhook 签名 */
   verifySignature(signature: string, timestamp: string, nonce: string, echostr: string): string | null {
     // 验证签名（简化版）
-    const arr = [this.token, timestamp, nonce, echostr].sort();
-    const str = arr.join("");
+    [this.token, timestamp, nonce, echostr].sort();
     // 实际应该用 SHA1
     return echostr;
   }

@@ -6,8 +6,8 @@ export interface SnailRepository {
   /** 列出所有 snail */
   list(): Snail[];
 
-  /** 按 ID 查找 */
-  findById(id: string): Snail | undefined;
+  /** 按 key 查找 */
+  findByKey(key: string): Snail | undefined;
 }
 
 /**
@@ -27,8 +27,8 @@ export class FileSnailRepository implements SnailRepository {
     return [...this.snails.values()];
   }
 
-  findById(id: string): Snail | undefined {
-    return this.snails.get(id);
+  findByKey(key: string): Snail | undefined {
+    return this.snails.get(key);
   }
 
   /** 从 snails.json 加载配置到缓存 */
@@ -37,7 +37,7 @@ export class FileSnailRepository implements SnailRepository {
     if (!raw?.snails) return;
 
     for (const snail of raw.snails) {
-      this.snails.set(snail.id, snail);
+      this.snails.set(snail.key, snail);
     }
   }
 }

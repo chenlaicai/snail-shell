@@ -1,4 +1,4 @@
-import type { Issue, CreateIssueInput, Stage, CreateStageInput, RoleSnailSession, StagePreview } from "./model";
+import type { Issue, CreateIssueInput, Stage, CreateStageInput, RoleSnailAssignment, StagePreview } from "./model";
 
 /** Issue 端口 */
 export interface IssuePort {
@@ -21,17 +21,17 @@ export interface StagePort {
   /** 流转到下一个 Stage：设置当前 left_at + 创建新 Stage */
   advanceStage(currentStageId: string, targetKey: string, snailAssignments: Record<string, string>): Stage;
 
-  /** 切换 snail：追加新 RoleSnailSession 记录（seq+1） */
+  /** 切换 snail：追加新 RoleSnailAssignment 记录（seq+1） */
   switchSnail(stageId: string, roleInstance: string, newSnailId: string): void;
 
-  /** 追加 session ID 到当前 RoleSnailSession 的 external_session_ids */
-  appendSessionId(stageId: string, roleInstance: string, sessionId: string): void;
+  /** 设置 snail 实例 ID（首次调用 snail 后填入） */
+  setSnailInstanceId(stageId: string, roleInstance: string, snailInstanceId: string): void;
 
   /** 获取 stage 所有角色实例的当前（最新）snail 分配 */
-  getRoleSnailSessions(stageId: string): RoleSnailSession[];
+  getRoleSnailAssignments(stageId: string): RoleSnailAssignment[];
 
   /** 获取指定角色实例的当前（最新）snail 分配 */
-  getRoleSnailSession(stageId: string, roleInstance: string): RoleSnailSession | null;
+  getRoleSnailAssignment(stageId: string, roleInstance: string): RoleSnailAssignment | null;
 
   /** 获取指定角色的 handbook 内容（从 SOP 快照中读取） */
   getRoleHandbook(stageId: string, roleKey: string): string | null;

@@ -4,7 +4,7 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { randomUUID } from "crypto";
 import type { AgentRuntimePort } from "../../port";
-import type { FirstCallRequest, ResumeRequest, AgentEvent, InvokeResult, InvokeOptions, GuardProfile, Message } from "../../model";
+import type { FirstCallRequest, ResumeRequest, AgentEvent, InvokeResult, InvokeOptions, Message } from "../../model";
 import { manageInvocationProcess } from "../utils/managed-process";
 import { buildRuntimeUsageSignal, usageDetailFromClaudeResult } from "../utils/runtime-usage";
 import { ensureMcpServers } from "../utils/mcp-config";
@@ -91,7 +91,7 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
     proc.stdin?.end();
     await new Promise<void>(resolve => proc.on("close", () => {
       processController.cleanup();
-      if (promptFilePath) { try { unlinkSync(promptFilePath); } catch {} }
+      if (promptFilePath) cleanupFile(promptFilePath);
       resolve();
     }));
     await processController.throwIfStopped();
@@ -129,46 +129,8 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
 
         for (const line of lines) {
           if (!line.trim()) continue;
-          try {
-            const event = JSON.parse(line);
-            if (event.type === "assistant") {
-              const textContent = event.content?.find((c: any) => c.type === "text");
-              if (textContent) {
-                onOutputEvent();
-                onEvent({
-                  type: "message_event",
-                  event: {
-                    kind: "text",
-                    payload: { text: textContent.text, mentions: [] },
-                    source: { runtime_event_type: "assistant", runtime_message_id: event.id, runtime_call_id: null },
-                  },
-                });
-              }
-              const toolUse = event.content?.find((c: any) => c.type === "tool_use");
-              if (toolUse) {
-                onOutputEvent();
-                onEvent({
-                  type: "message_event",
-                  event: {
-                    kind: "tool_call",
-                    payload: { tool_name: toolUse.name, call_id: toolUse.id, input: toolUse.input, title: null },
-                    source: { runtime_event_type: "tool_use", runtime_message_id: event.id, runtime_call_id: toolUse.id },
-                  },
-                });
-              }
-            } else if (event.type === "result") {
-              if (event.usage) {
-                onEvent(buildRuntimeUsageSignal(usageDetailFromClaudeResult(event.usage, contextWindow), "result"));
-              }
-              if (event.is_error) {
-                const rawResult = typeof event.result === "string" ? event.result : JSON.stringify(event.result);
-                onEvent({
-                  type: "message_event",
-                  event: { kind: "message_failure", payload: { error: rawResult }, source: { runtime_event_type: "result", runtime_message_id: null } },
-                });
-              }
-            }
-          } catch {}
+          const event = parseJsonLine(line, "ClaudeCode");
+          if (event) handleClaudeCodeEvent(event, onEvent, onOutputEvent, contextWindow);
         }
       });
 
@@ -188,10 +150,9 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
       contentBlocks.push({ type: "text", text: `<system-reminder>\n${systemReminder}\n</system-reminder>` });
     }
 
-    // 消息内容
+    // 消息内容：业务语义 → LLM 格式
     for (const msg of messages) {
-      const speaker = msg.speaker ? `[${msg.speaker}]: ` : "";
-      contentBlocks.push({ type: "text", text: `${speaker}${msg.content}` });
+      contentBlocks.push({ type: "text", text: `[${msg.speaker}]: ${msg.content}` });
     }
 
     this.writeStdin(proc, {
@@ -204,6 +165,62 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
     if (proc.stdin && !proc.stdin.destroyed) {
       proc.stdin.write(JSON.stringify(data) + "\n");
     }
+  }
+}
+
+function cleanupFile(filePath: string): void {
+  try {
+    unlinkSync(filePath);
+  } catch (error) {
+    console.warn(`[acs] failed to cleanup prompt file ${filePath}:`, error);
+  }
+}
+
+function parseJsonLine(line: string, source: string): any | null {
+  try {
+    return JSON.parse(line);
+  } catch (error) {
+    console.warn(`[acs] failed to parse ${source} output line:`, error);
+    return null;
+  }
+}
+
+function handleClaudeCodeEvent(
+  event: any,
+  onEvent: (event: AgentEvent) => void,
+  onOutputEvent: () => void,
+  contextWindow?: number | null,
+): void {
+  if (event.type === "assistant") {
+    emitClaudeAssistantEvents(event, onEvent, onOutputEvent);
+    return;
+  }
+  if (event.type === "result") {
+    emitClaudeResultEvents(event, onEvent, contextWindow);
+  }
+}
+
+function emitClaudeAssistantEvents(event: any, onEvent: (event: AgentEvent) => void, onOutputEvent: () => void): void {
+  const textContent = event.content?.find((content: any) => content.type === "text");
+  if (textContent) {
+    onOutputEvent();
+    onEvent({ type: "message_event", event: { kind: "text", payload: { text: textContent.text, mentions: [] }, source: { runtime_event_type: "assistant", runtime_message_id: event.id, runtime_call_id: null } } });
+  }
+  const toolUse = event.content?.find((content: any) => content.type === "tool_use");
+  if (toolUse) {
+    onOutputEvent();
+    onEvent({ type: "message_event", event: { kind: "tool_call", payload: { tool_name: toolUse.name, call_id: toolUse.id, input: toolUse.input, title: null }, source: { runtime_event_type: "tool_use", runtime_message_id: event.id, runtime_call_id: toolUse.id } } });
+  }
+}
+
+function emitClaudeResultEvents(event: any, onEvent: (event: AgentEvent) => void, contextWindow?: number | null): void {
+  if (event.usage) {
+    const usageDetail = usageDetailFromClaudeResult(event.usage, contextWindow);
+    if (usageDetail) onEvent(buildRuntimeUsageSignal(usageDetail, "result"));
+  }
+  if (event.is_error) {
+    const rawResult = typeof event.result === "string" ? event.result : JSON.stringify(event.result);
+    onEvent({ type: "message_event", event: { kind: "message_failure", payload: { error: rawResult }, source: { runtime_event_type: "result", runtime_message_id: null } } });
   }
 }
 

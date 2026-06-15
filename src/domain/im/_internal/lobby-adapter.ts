@@ -1,5 +1,5 @@
-import type { LobbyPort } from "@domain/im/port";
-import type { LobbySession, LobbyMessage, LobbyResponse, NavigationContext } from "@domain/im/model";
+import type { LobbyInboundResult, LobbyPort } from "@domain/im/port";
+import type { ChannelType, LobbySession, LobbyMessage, LobbyResponse, NavigationContext } from "@domain/im/model";
 import type { LobbySessionRepository } from "./repository";
 import type { LobbyCommandExecutor } from "./command-executor";
 import type { LobbyRouter } from "./router";
@@ -13,11 +13,11 @@ export class LobbyAdapter implements LobbyPort {
 
   // --- Session ---
 
-  getOrCreateSession(channelType: string, channelChatId: string, channelTenantKey: string | null): LobbySession {
+  getOrCreateSession(channelType: ChannelType, channelChatId: string, channelTenantKey: string | null): LobbySession {
     return this.lobbyRepo.getOrCreate(channelType, channelChatId, channelTenantKey);
   }
 
-  getSessionByChannel(channelType: string, channelChatId: string, channelTenantKey: string | null): LobbySession | null {
+  getSessionByChannel(channelType: ChannelType, channelChatId: string, channelTenantKey: string | null): LobbySession | null {
     return this.lobbyRepo.getByChannel(channelType, channelChatId, channelTenantKey);
   }
 
@@ -25,7 +25,7 @@ export class LobbyAdapter implements LobbyPort {
     return this.lobbyRepo.updateNavigation(id, updates);
   }
 
-  getInStageSessions(channelType: string): LobbySession[] {
+  getInStageSessions(channelType: ChannelType): LobbySession[] {
     return this.lobbyRepo.getInStageSessions(channelType);
   }
 
@@ -47,10 +47,7 @@ export class LobbyAdapter implements LobbyPort {
 
   // --- Routing ---
 
-  async processInbound(params: { channelType: string; channelChatId: string; channelTenantKey: string | null; text: string }): Promise<
-    | { response: LobbyResponse; session: LobbySession }
-    | { forwarded: true; session: LobbySession }
-  > {
+  async processInbound(params: { channelType: ChannelType; channelChatId: string; channelTenantKey: string | null; text: string }): Promise<LobbyInboundResult> {
     return this.lobbyRouter.processInbound(params);
   }
 

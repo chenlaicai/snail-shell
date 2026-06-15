@@ -1,5 +1,5 @@
-import type { IMInboundMessage } from "@domain/im/model";
-import type { IMPort, IMChannelAdapter, IMTransport } from "@domain/im/port";
+import type { ChannelType, IMInboundMessage } from "@domain/im/model";
+import type { IMPort, IMChannelAdapter, IMTransport, LobbyInboundResult } from "@domain/im/port";
 import type { IMRepository } from "./repository";
 import type { LobbyRouter } from "./router";
 
@@ -51,19 +51,18 @@ export class IMAdapter implements IMPort {
  * 包含入站去重、白名单过滤、lobby 路由。
  */
 export class LobbyAwareChannel implements IMChannelAdapter {
-  readonly channelType: string;
+  readonly channelType: ChannelType;
 
   // 入站去重
   private readonly processedInbound = new Map<string, { processedAt: number }>();
   private readonly pendingInbound = new Set<string>();
 
-  // Echo 防护（结构预留，出站链路打通后激活）
-  private readonly recentForwardedMessages = new Map<string, string>();
-  private pendingForwardChatId: string | null = null;
+  private forwardHandler: ((params: { channelType: ChannelType; chatId: string; tenantKey: string | null; stageId: string; text: string }) => Promise<void>) | null = null;
+
 
   constructor(
     private readonly config: {
-      channelType: string;
+      channelType: ChannelType;
       allowedChats: string[];
       maxTextLength: number;
       streamingEnabled: boolean;
@@ -82,8 +81,12 @@ export class LobbyAwareChannel implements IMChannelAdapter {
   async stop(): Promise<void> {
     this.processedInbound.clear();
     this.pendingInbound.clear();
-    this.recentForwardedMessages.clear();
     await this.transport.stop();
+  }
+
+  /** 注册 stage 普通消息转发处理器，由 app/im-hub 注入 */
+  onStageMessage(handler: (params: { channelType: ChannelType; chatId: string; tenantKey: string | null; stageId: string; text: string }) => Promise<void>): void {
+    this.forwardHandler = handler;
   }
 
   /** 由 Hono server 调用，将 webhook 请求体传递给 transport 解析 */
@@ -101,6 +104,13 @@ export class LobbyAwareChannel implements IMChannelAdapter {
     return this.transport.sendText(chatId, truncated);
   }
 
+  async patchText(messageId: string, text: string): Promise<void> {
+    if (!this.transport.patchText) {
+      return;
+    }
+    await this.transport.patchText(messageId, text);
+  }
+
   private scheduleInbound(message: IMInboundMessage): void {
     void this.handleInbound(message).catch(console.error);
   }
@@ -116,8 +126,6 @@ export class LobbyAwareChannel implements IMChannelAdapter {
     this.pendingInbound.add(clientId);
 
     try {
-      this.pendingForwardChatId = message.chat_id;
-
       const result = await this.lobbyRouter.processInbound({
         channelType: this.channelType,
         channelChatId: message.chat_id,
@@ -127,13 +135,35 @@ export class LobbyAwareChannel implements IMChannelAdapter {
 
       this.processedInbound.set(clientId, { processedAt: Date.now() });
 
-      if ("response" in result && result.response.text) {
-        await this.sendText(message.chat_id, result.response.text);
-      }
+      await this.handleRoutedResult(message, result);
     } finally {
-      this.pendingForwardChatId = null;
       this.pendingInbound.delete(clientId);
     }
+  }
+
+  private async handleRoutedResult(
+    message: IMInboundMessage,
+    result: LobbyInboundResult,
+  ): Promise<void> {
+    if ("response" in result) {
+      if (result.response.text) {
+        await this.sendText(message.chat_id, result.response.text);
+      }
+      return;
+    }
+
+    if (!this.forwardHandler) {
+      await this.sendText(message.chat_id, "Stage 消息转发服务尚未就绪。");
+      return;
+    }
+
+    await this.forwardHandler({
+      channelType: this.channelType,
+      chatId: message.chat_id,
+      tenantKey: message.tenant_key ?? null,
+      stageId: result.stageId,
+      text: result.text,
+    });
   }
 
   private pruneProcessedInbound(now: number): void {

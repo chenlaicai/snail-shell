@@ -1,9 +1,6 @@
 import { spawn } from "child_process";
-import fs from "fs";
-import path from "path";
-import os from "os";
 import type { AgentRuntimePort } from "../../port";
-import type { FirstCallRequest, ResumeRequest, AgentEvent, InvokeResult, InvokeOptions, GuardProfile, Message } from "../../model";
+import type { FirstCallRequest, ResumeRequest, AgentEvent, InvokeResult, InvokeOptions, Message } from "../../model";
 import { manageInvocationProcess } from "../utils/managed-process";
 import { renderStatefulPrompt, type StatefulPromptInput } from "../utils/stateful-prompt-format";
 import { buildRuntimeUsageSignal, usageDetailFromOpenCodeTokens } from "../utils/runtime-usage";
@@ -191,7 +188,7 @@ function buildStatefulPromptInput(isFirstCall: boolean, systemPrompt: string, sy
   };
 }
 
-function writeOpenCodeGuardConfig(deny: string[]): void {
+function writeOpenCodeGuardConfig(_deny: string[]): void {
   // 写入 ~/.config/opencode/opencode.jsonc 的 permission 配置
 }
 
@@ -206,7 +203,9 @@ function consumeOpenCodeOutput(state: OpenCodeParseState, chunk: string, onEvent
     try {
       const event: OpenCodeEvent = JSON.parse(line);
       processOpenCodeEvent(state, event, onEvent);
-    } catch {}
+    } catch (error) {
+      console.warn("[acs] failed to parse OpenCode output line:", error);
+    }
   }
 }
 
@@ -215,32 +214,7 @@ function processOpenCodeEvent(state: OpenCodeParseState, event: OpenCodeEvent, o
     state.sessionId = event.sessionID;
   }
 
-  if (event.type === "turn_started") {
-    emitOpenCodeEvent(state, onEvent, {
-      kind: "signal",
-      payload: { signal_type: "turn_started", data: null },
-      source: { runtime_event_type: "turn_started", runtime_message_id: null },
-    });
-    return;
-  }
-
-  if (event.type === "turn_completed") {
-    emitOpenCodeEvent(state, onEvent, {
-      kind: "signal",
-      payload: { signal_type: "turn_completed", data: null },
-      source: { runtime_event_type: "turn_completed", runtime_message_id: null },
-    });
-    return;
-  }
-
-  if (event.type === "step_start") {
-    emitOpenCodeEvent(state, onEvent, {
-      kind: "signal",
-      payload: { signal_type: "step_start", data: null },
-      source: { runtime_event_type: "step_start", runtime_message_id: null },
-    });
-    return;
-  }
+  if (emitOpenCodeSignalEvent(state, event, onEvent)) return;
 
   if (event.type === "text" && event.part?.text) {
     emitOpenCodeEvent(state, onEvent, {
@@ -252,44 +226,66 @@ function processOpenCodeEvent(state: OpenCodeParseState, event: OpenCodeEvent, o
   }
 
   if (event.type === "tool_use" && event.part?.tool_use) {
-    const tool = event.part.tool_use;
-    emitOpenCodeEvent(state, onEvent, {
-      kind: "tool_call",
-      payload: { tool_name: tool.name, call_id: tool.id, input: tool.input, title: null },
-      source: { runtime_event_type: "tool_use", runtime_message_id: null, runtime_call_id: tool.id },
-    });
-    if (event.part.tool_result) {
-      const result = event.part.tool_result;
-      emitOpenCodeEvent(state, onEvent, {
-        kind: "tool_result",
-        payload: { call_id: result.call_id, output: result.output, is_error: result.is_error },
-        source: { runtime_event_type: "tool_result", runtime_message_id: null, runtime_call_id: result.call_id },
-      });
-    }
+    emitOpenCodeToolEvents(state, event, onEvent);
     return;
   }
 
   if (event.type === "step_finish") {
-    if (event.tokens) {
-      const usage = usageDetailFromOpenCodeTokens(event.tokens, state.contextWindow);
-      if (usage) emitOpenCodeEvent(state, onEvent, buildRuntimeUsageSignal(usage, "step_finish").event);
-    }
-    emitOpenCodeEvent(state, onEvent, {
-      kind: "signal",
-      payload: { signal_type: "step_finish", data: null },
-      source: { runtime_event_type: "step_finish", runtime_message_id: null },
-    });
+    emitOpenCodeStepFinish(state, event, onEvent);
     return;
   }
 
   if (event.type === "error") {
-    const errorMsg = typeof event.error === "string" ? event.error : event.error?.message ?? "Unknown error";
+    emitOpenCodeError(state, event, onEvent);
+  }
+}
+
+function emitOpenCodeSignalEvent(state: OpenCodeParseState, event: OpenCodeEvent, onEvent: (event: AgentEvent) => void): boolean {
+  if (event.type !== "turn_started" && event.type !== "turn_completed" && event.type !== "step_start") return false;
+  emitOpenCodeEvent(state, onEvent, {
+    kind: "signal",
+    payload: { signal_type: event.type, data: null },
+    source: { runtime_event_type: event.type, runtime_message_id: null },
+  });
+  return true;
+}
+
+function emitOpenCodeToolEvents(state: OpenCodeParseState, event: OpenCodeEvent, onEvent: (event: AgentEvent) => void): void {
+  const tool = event.part!.tool_use!;
+  emitOpenCodeEvent(state, onEvent, {
+    kind: "tool_call",
+    payload: { tool_name: tool.name, call_id: tool.id, input: tool.input, title: null },
+    source: { runtime_event_type: "tool_use", runtime_message_id: null, runtime_call_id: tool.id },
+  });
+  if (event.part?.tool_result) {
+    const result = event.part.tool_result;
     emitOpenCodeEvent(state, onEvent, {
-      kind: "error",
-      payload: { message: errorMsg },
-      source: { runtime_event_type: "error", runtime_message_id: null },
+      kind: "tool_result",
+      payload: { call_id: result.call_id, output: result.output, is_error: result.is_error },
+      source: { runtime_event_type: "tool_result", runtime_message_id: null, runtime_call_id: result.call_id },
     });
   }
+}
+
+function emitOpenCodeStepFinish(state: OpenCodeParseState, event: OpenCodeEvent, onEvent: (event: AgentEvent) => void): void {
+  if (event.tokens) {
+    const usage = usageDetailFromOpenCodeTokens(event.tokens, state.contextWindow);
+    if (usage) emitOpenCodeEvent(state, onEvent, buildRuntimeUsageSignal(usage, "step_finish").event);
+  }
+  emitOpenCodeEvent(state, onEvent, {
+    kind: "signal",
+    payload: { signal_type: "step_finish", data: null },
+    source: { runtime_event_type: "step_finish", runtime_message_id: null },
+  });
+}
+
+function emitOpenCodeError(state: OpenCodeParseState, event: OpenCodeEvent, onEvent: (event: AgentEvent) => void): void {
+  const errorMsg = typeof event.error === "string" ? event.error : event.error?.message ?? "Unknown error";
+  emitOpenCodeEvent(state, onEvent, {
+    kind: "error",
+    payload: { message: errorMsg },
+    source: { runtime_event_type: "error", runtime_message_id: null },
+  });
 }
 
 function emitOpenCodeEvent(state: OpenCodeParseState, onEvent: (event: AgentEvent) => void, event: AgentEvent["event"]): void {
@@ -302,7 +298,9 @@ function flushOpenCodeOutput(state: OpenCodeParseState, onEvent: (event: AgentEv
     try {
       const event: OpenCodeEvent = JSON.parse(state.buffer);
       processOpenCodeEvent(state, event, onEvent);
-    } catch {}
+    } catch (error) {
+      console.warn("[acs] failed to parse buffered OpenCode output:", error);
+    }
   }
 }
 

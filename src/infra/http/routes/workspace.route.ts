@@ -11,12 +11,6 @@ import type { WorkspaceAdapter } from "@domain/workspace/_internal/adapter";
 
 // ── Schema ──
 
-/** Workspace 响应体 */
-const WorkspaceSchema = z.object({
-  path: z.string(),
-  summary: z.string().nullable(),
-});
-
 /** POST /api/workspaces 请求体 */
 const CreateWorkspaceBodySchema = z.object({
   path: z.string().min(1, "path 不能为空"),
@@ -25,7 +19,10 @@ const CreateWorkspaceBodySchema = z.object({
 
 // ── 类型导出（供前端引用）──
 
-export type WorkspaceDto = z.infer<typeof WorkspaceSchema>;
+export type WorkspaceDto = {
+  path: string;
+  summary: string | null;
+};
 export type CreateWorkspaceBody = z.infer<typeof CreateWorkspaceBodySchema>;
 
 // ── 路由 ──

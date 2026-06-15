@@ -1,5 +1,3 @@
-import fs from "fs";
-import path from "path";
 import type { Workspace } from "@domain/workspace/model";
 import { Scope } from "@domain/workspace/model";
 import type { KnowledgeEntry, CreateKnowledgeInput, RemoveKnowledgeInput } from "@domain/knowledge/model";

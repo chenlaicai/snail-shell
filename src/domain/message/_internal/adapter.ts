@@ -40,8 +40,7 @@ export class MessageAdapter implements MessagePort {
       created_at: now,
       ended_at: status !== "streaming" ? now : null,
     };
-    this.messageRepo.create(message);
-    return message;
+    return this.messageRepo.create(message);
   }
 
   getMessage(id: number): Message | undefined {
@@ -50,6 +49,10 @@ export class MessageAdapter implements MessagePort {
 
   listMessages(stageId: string, limit?: number, offset?: number): Message[] {
     return this.messageRepo.listByStage(stageId, limit, offset);
+  }
+
+  updateMessageTargets(messageId: number, toSpeakers: string[]): void {
+    this.messageRepo.update(messageId, { to_speakers: toSpeakers });
   }
 
   completeMessage(messageId: number, status: MessageStatus, signalPayload?: Record<string, unknown>): void {
@@ -61,7 +64,7 @@ export class MessageAdapter implements MessagePort {
       signal: status === "completed" ? "message_completed" : `message_${status}`,
       ...signalPayload,
     };
-    this.eventRepo.append(messageId, { payload });
+    this.eventRepo.append(messageId, payload);
     this.messageRepo.update(messageId, { status, ended_at: new Date().toISOString() });
   }
 
@@ -103,6 +106,17 @@ export class MessageAdapter implements MessagePort {
 
   initCursor(stageId: string, speaker: string): void {
     this.cursorRepo.set(stageId, speaker, 0);
+  }
+
+  findLatestRespondingSpeaker(stageId: string): string | null {
+    const messages = this.messageRepo.listByStage(stageId);
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.status === "completed" && m.from_speaker && m.from_speaker !== "user" && m.from_speaker !== "system") {
+        return m.from_speaker;
+      }
+    }
+    return null;
   }
 
   // ── CallSignal ───────────────────────────────────────────────────────

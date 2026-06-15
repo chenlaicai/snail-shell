@@ -9,7 +9,7 @@
 
 import fs from "fs";
 import path from "path";
-import type { MCPServerCapability } from "../model";
+import type { MCPServerCapability } from "../../model";
 
 function buildMcpRemoteEntry(url: string): { command: string; args: string[] } {
   return { command: "npx", args: ["mcp-remote@1", url] };

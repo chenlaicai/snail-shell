@@ -1,4 +1,4 @@
-import type { Issue, Stage, RoleSnailSession } from "@domain/issue/model";
+import type { Issue, Stage, RoleSnailAssignment } from "@domain/issue/model";
 
 // ── Issue Repository ──────────────────────────────────────────────────
 
@@ -55,35 +55,35 @@ export class InMemoryStageRepository implements StageRepository {
   }
 }
 
-// ── RoleSnailSession Repository ──────────────────────────────────────
+// ── RoleSnailAssignment Repository ──────────────────────────────────────
 
-export interface RoleSnailSessionRepository {
+export interface RoleSnailAssignmentRepository {
   /** 追加一条记录 */
-  append(session: RoleSnailSession): void;
+  append(session: RoleSnailAssignment): void;
   /** 获取指定角色实例的最新记录 */
-  getLatest(stageId: string, roleInstance: string): RoleSnailSession | null;
+  getLatest(stageId: string, roleInstance: string): RoleSnailAssignment | null;
   /** 获取 stage 下每个角色实例的最新记录 */
-  listLatestByStage(stageId: string): RoleSnailSession[];
-  /** 追加 session ID 到最新记录的 external_session_ids */
-  appendSessionId(stageId: string, roleInstance: string, sessionId: string): void;
+  listLatestByStage(stageId: string): RoleSnailAssignment[];
+  /** 设置 snail 实例 ID */
+  setSnailInstanceId(stageId: string, roleInstance: string, snailInstanceId: string): void;
 }
 
-export class InMemoryRoleSnailSessionRepository implements RoleSnailSessionRepository {
-  private sessions: RoleSnailSession[] = [];
+export class InMemoryRoleSnailAssignmentRepository implements RoleSnailAssignmentRepository {
+  private sessions: RoleSnailAssignment[] = [];
 
-  append(session: RoleSnailSession): void {
+  append(session: RoleSnailAssignment): void {
     this.sessions.push(session);
   }
 
-  getLatest(stageId: string, roleInstance: string): RoleSnailSession | null {
+  getLatest(stageId: string, roleInstance: string): RoleSnailAssignment | null {
     const matches = this.sessions
       .filter(s => s.stage_id === stageId && s.role_instance === roleInstance)
       .sort((a, b) => b.seq - a.seq);
     return matches[0] ?? null;
   }
 
-  listLatestByStage(stageId: string): RoleSnailSession[] {
-    const byRole = new Map<string, RoleSnailSession>();
+  listLatestByStage(stageId: string): RoleSnailAssignment[] {
+    const byRole = new Map<string, RoleSnailAssignment>();
     for (const s of this.sessions) {
       if (s.stage_id !== stageId) continue;
       const existing = byRole.get(s.role_instance);
@@ -94,9 +94,9 @@ export class InMemoryRoleSnailSessionRepository implements RoleSnailSessionRepos
     return [...byRole.values()];
   }
 
-  appendSessionId(stageId: string, roleInstance: string, sessionId: string): void {
+  setSnailInstanceId(stageId: string, roleInstance: string, snailInstanceId: string): void {
     const latest = this.getLatest(stageId, roleInstance);
-    if (!latest) throw new Error(`RoleSnailSession not found: ${stageId}:${roleInstance}`);
-    latest.external_session_ids.push(sessionId);
+    if (!latest) throw new Error(`RoleSnailAssignment not found: ${stageId}:${roleInstance}`);
+    latest.snail_instance_id = snailInstanceId;
   }
 }

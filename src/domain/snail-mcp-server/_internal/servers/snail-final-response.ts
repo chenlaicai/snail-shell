@@ -1,10 +1,12 @@
 import type { MCPServerConfig } from "@domain/snail-mcp-server/model";
 
+import type { MessagePort } from "@domain/message/port";
+
 /**
  * snail-final-response MCP Server。
  * 用于 agent 提交消息的最终展示正文。
  */
-export function createFinalResponseServer(): MCPServerConfig {
+export function createFinalResponseServer(messagePort: MessagePort): MCPServerConfig {
   return {
     name: "snail-final-response",
     version: "1.0.0",
@@ -19,10 +21,14 @@ export function createFinalResponseServer(): MCPServerConfig {
             conversation_id: { type: "string" },
             message_id: { type: "string" },
           },
-          required: ["text", "conversation_id", "message_id"],
+          required: ["text", "message_id"],
         },
         handler: async (params) => {
-          // TODO: 实现 set_final_body 逻辑
+          const text = typeof params.text === "string" ? params.text : "";
+          const messageId = Number(params.message_id);
+          if (!text) throw new Error("text is required");
+          if (!Number.isInteger(messageId) || messageId <= 0) throw new Error("message_id must be a positive integer");
+          messagePort.setContext(messageId, "mcp_final_body", text);
           return { ok: true };
         },
       },

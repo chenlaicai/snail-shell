@@ -1,4 +1,4 @@
-import type { Sop, RoleDefinition, Transition } from "@domain/sop/model";
+import type { Sop, RoleDefinition } from "@domain/sop/model";
 
 // ── Issue ─────────────────────────────────────────────────────────────
 
@@ -74,18 +74,18 @@ export interface CreateStageInput {
   snail_assignments: Record<string, string>;
 }
 
-// ── RoleSnailSession ──────────────────────────────────────────────────
+// ── RoleSnailAssignment ──────────────────────────────────────────────────
 // 追踪每个角色实例的 snail 分配和 session 历史。
 // append-only，seq 标识交接链。当前状态 = 最高 seq 的记录。
 
-export interface RoleSnailSession {
+export interface RoleSnailAssignment {
   stage_id: string;
   role_instance: string;
   /** 递增序号，0=初始分配，切换 snail 时 +1 */
   seq: number;
-  snail_id: string;
-  /** 当前分配期间的所有 session ID，最新在末尾 */
-  external_session_ids: string[];
+  snail_key: string;
+  /** snail 实例 ID（snail_key#随机6位），首次调用后填入 */
+  snail_instance_id: string | null;
   /** SOP RoleDefinition.key，如 "reviewer" */
   role_key: string;
   description: string;
