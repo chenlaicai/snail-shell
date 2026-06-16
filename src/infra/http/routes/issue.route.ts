@@ -144,8 +144,14 @@ function toStageDto(deps: Pick<IssueRoutesDeps, "stagePort">, stage: Stage) {
 }
 
 function toMessageDto(deps: Pick<IssueRoutesDeps, "messagePort">, message: Message) {
+  const role = message.from_speaker === "user" ? "user" : message.from_speaker ? "assistant" : "system";
   return {
     ...message,
+    conversation_id: message.stage_id,
+    from_role: message.from_speaker,
+    to_roles: message.to_speakers,
+    role,
+    updated_at: message.ended_at ?? message.created_at,
     context: deps.messagePort.getContext(message.id),
     events: deps.messagePort.getMessageEvents(message.id),
   };

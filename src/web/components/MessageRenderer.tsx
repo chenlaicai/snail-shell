@@ -83,14 +83,14 @@ export interface MessageContent {
 
 /** 从消息事件中提取内容，分为流式过程和最终答复 */
 export function extractMessageContent(msg: { events?: Array<Record<string, unknown>>; content?: string; status?: string; context?: { context?: string | null } | null }): MessageContent {
-  if (msg.content) {
-    return { processBlocks: [], finalBlocks: [{ kind: "text_event", text: msg.content }], isStreaming: false, containsQuestion: false };
-  }
-  if (msg.context?.context) {
-    return { processBlocks: [], finalBlocks: [{ kind: "text_event", text: msg.context.context }], isStreaming: false, containsQuestion: false };
-  }
+  const fallbackText = msg.content || msg.context?.context || "";
   if (!msg.events || msg.events.length === 0) {
-    return { processBlocks: [], finalBlocks: [], isStreaming: msg.status === "streaming", containsQuestion: false };
+    return {
+      processBlocks: [],
+      finalBlocks: fallbackText ? [{ kind: "text_event", text: fallbackText }] : [],
+      isStreaming: msg.status === "streaming",
+      containsQuestion: false,
+    };
   }
 
   const processBlocks: ContentBlock[] = [];
@@ -157,9 +157,13 @@ export function extractMessageContent(msg: { events?: Array<Record<string, unkno
   }
 
   const isStreaming = msg.status === "streaming" || msg.status === "pending" || msg.status === "thinking";
+  const visibleFinalBlocks = finalBlocks.filter((b) => b.text || b.summary || b.question);
+  if (visibleFinalBlocks.length === 0 && fallbackText) {
+    visibleFinalBlocks.push({ kind: "text_event", text: fallbackText });
+  }
   return {
     processBlocks: processBlocks.filter((b) => b.text || b.summary || b.toolName || b.question),
-    finalBlocks: finalBlocks.filter((b) => b.text || b.summary || b.question),
+    finalBlocks: visibleFinalBlocks,
     isStreaming,
     containsQuestion,
   };

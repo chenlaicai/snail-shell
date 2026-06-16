@@ -160,6 +160,7 @@ export class ClaudeCodeStatefulAgent implements AgentRuntimePort {
     });
 
     let extractedSessionId: string | null = existingSessionId;
+    let outputEventCount = 0;
     const closeDone = new Promise<void>((resolve) => {
       proc.on("close", () => {
         processController.cleanup();
@@ -178,12 +179,19 @@ export class ClaudeCodeStatefulAgent implements AgentRuntimePort {
         if (!line.trim()) continue;
         const event = parseJsonLine(line, "ClaudeCodeStateful");
         if (event) {
-          extractedSessionId = handleClaudeCodeStatefulEvent(event, onEvent, extractedSessionId);
+          extractedSessionId = handleClaudeCodeStatefulEvent(event, (agentEvent) => {
+            if (isOutputEvent(agentEvent)) outputEventCount += 1;
+            onEvent(agentEvent);
+          }, extractedSessionId, options.contextWindow);
         }
       }
     });
 
     await closeDone;
+
+    if (outputEventCount === 0) {
+      throw new Error("claude code stateful returned no output events");
+    }
 
     return {
       sessionId: extractedSessionId,
@@ -209,28 +217,33 @@ function parseJsonLine(line: string, source: string): any | null {
   }
 }
 
-function handleClaudeCodeStatefulEvent(event: any, onEvent: (event: AgentEvent) => void, currentSessionId: string | null): string | null {
+function handleClaudeCodeStatefulEvent(event: any, onEvent: (event: AgentEvent) => void, currentSessionId: string | null, contextWindow?: number | null): string | null {
   if (event.type === "assistant") {
     emitClaudeAssistantEvents(event, onEvent);
     return currentSessionId;
   }
   if (event.type !== "result") return currentSessionId;
-  if (event.usage) {
-    const usageDetail = usageDetailFromClaudeResult(event.usage);
+  if (event.usage || event.modelUsage) {
+    const usageDetail = usageDetailFromClaudeResult(event, contextWindow);
     if (usageDetail) onEvent(buildRuntimeUsageSignal(usageDetail, "result"));
   }
   return event.session_id ?? currentSessionId;
 }
 
 function emitClaudeAssistantEvents(event: any, onEvent: (event: AgentEvent) => void): void {
-  const textContent = event.content?.find((content: any) => content.type === "text");
-  if (textContent) {
-    onEvent({ type: "message_event", event: { kind: "text", payload: { text: textContent.text, mentions: [] }, source: { runtime_event_type: "assistant", runtime_message_id: event.id, runtime_call_id: null } } });
+  const messageId = event.message?.id ?? null;
+  for (const block of event.message?.content ?? []) {
+    if (block.type === "text") {
+      onEvent({ type: "message_event", event: { kind: "text", payload: { text: block.text, mentions: [] }, source: { runtime_event_type: "assistant", runtime_message_id: messageId, runtime_call_id: null } } });
+    }
+    if (block.type === "tool_use") {
+      onEvent({ type: "message_event", event: { kind: "tool_call", payload: { tool_name: block.name, call_id: block.id, input: block.input ?? null, title: null }, source: { runtime_event_type: "assistant", runtime_message_id: messageId, runtime_call_id: block.id ?? null } } });
+    }
   }
-  const toolUse = event.content?.find((content: any) => content.type === "tool_use");
-  if (toolUse) {
-    onEvent({ type: "message_event", event: { kind: "tool_call", payload: { tool_name: toolUse.name, call_id: toolUse.id, input: toolUse.input, title: null }, source: { runtime_event_type: "tool_use", runtime_message_id: event.id, runtime_call_id: toolUse.id } } });
-  }
+}
+
+function isOutputEvent(event: AgentEvent): boolean {
+  return event.type === "message_event" && (event.event.kind === "text" || event.event.kind === "tool_call" || event.event.kind === "tool_result");
 }
 
 export const agent = new ClaudeCodeStatefulAgent();

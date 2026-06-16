@@ -24,6 +24,24 @@
   --color-input: #121720;
   --color-ring: #6c8dfa;
 
+  --color-surface-0: #0a0d12;
+  --color-surface-1: #0f1218;
+  --color-surface-2: #151a23;
+  --color-surface-3: #1a2030;
+  --color-text-primary: #e8ecf1;
+  --color-text-secondary: #a5adba;
+  --color-text-muted: #8892a4;
+  --color-text-grey: #5c6678;
+  --color-shell-300: #a7bbff;
+  --color-shell-400: #8fa8ff;
+  --color-shell-500: #7895ff;
+  --color-shell-600: #6c8dfa;
+  --color-shell-700: #5874d8;
+  --color-status-amber: #fbbf24;
+  --color-status-green: #34d399;
+  --color-status-red: #f87171;
+  --color-status-blue: #60a5fa;
+
   --spacing: 4px;
 
   --radius-sm: 4px;

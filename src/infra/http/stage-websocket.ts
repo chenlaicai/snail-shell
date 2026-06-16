@@ -23,15 +23,19 @@ export function createStageWebSocketBridge(collaboration: CollaborationInput): S
 
       return {
         onOpen(_event, socket) {
+          if (consumer) return;
           if (!stageId) {
+            console.warn("[stage-events] rejected websocket without stage_id");
             socket.close(1008, "stage_id is required");
             return;
           }
+          console.log(`[stage-events] connected stage=${stageId}`);
           consumer = createConsumer(socket);
           collaboration.registerConsumer(stageId, consumer);
         },
         onClose() {
           if (stageId && consumer) {
+            console.log(`[stage-events] disconnected stage=${stageId}`);
             collaboration.unregisterConsumer(stageId, consumer);
           }
         },

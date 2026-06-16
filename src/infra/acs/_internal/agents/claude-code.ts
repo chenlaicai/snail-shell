@@ -201,21 +201,22 @@ function handleClaudeCodeEvent(
 }
 
 function emitClaudeAssistantEvents(event: any, onEvent: (event: AgentEvent) => void, onOutputEvent: () => void): void {
-  const textContent = event.content?.find((content: any) => content.type === "text");
-  if (textContent) {
-    onOutputEvent();
-    onEvent({ type: "message_event", event: { kind: "text", payload: { text: textContent.text, mentions: [] }, source: { runtime_event_type: "assistant", runtime_message_id: event.id, runtime_call_id: null } } });
-  }
-  const toolUse = event.content?.find((content: any) => content.type === "tool_use");
-  if (toolUse) {
-    onOutputEvent();
-    onEvent({ type: "message_event", event: { kind: "tool_call", payload: { tool_name: toolUse.name, call_id: toolUse.id, input: toolUse.input, title: null }, source: { runtime_event_type: "tool_use", runtime_message_id: event.id, runtime_call_id: toolUse.id } } });
+  const messageId = event.message?.id ?? null;
+  for (const block of event.message?.content ?? []) {
+    if (block.type === "text") {
+      onOutputEvent();
+      onEvent({ type: "message_event", event: { kind: "text", payload: { text: block.text, mentions: [] }, source: { runtime_event_type: "assistant", runtime_message_id: messageId, runtime_call_id: null } } });
+    }
+    if (block.type === "tool_use") {
+      onOutputEvent();
+      onEvent({ type: "message_event", event: { kind: "tool_call", payload: { tool_name: block.name, call_id: block.id, input: block.input ?? null, title: null }, source: { runtime_event_type: "assistant", runtime_message_id: messageId, runtime_call_id: block.id ?? null } } });
+    }
   }
 }
 
 function emitClaudeResultEvents(event: any, onEvent: (event: AgentEvent) => void, contextWindow?: number | null): void {
-  if (event.usage) {
-    const usageDetail = usageDetailFromClaudeResult(event.usage, contextWindow);
+  if (event.usage || event.modelUsage) {
+    const usageDetail = usageDetailFromClaudeResult(event, contextWindow);
     if (usageDetail) onEvent(buildRuntimeUsageSignal(usageDetail, "result"));
   }
   if (event.is_error) {

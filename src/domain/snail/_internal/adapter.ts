@@ -19,9 +19,6 @@ import type { SnailRepository } from "@domain/snail/_internal/repository";
 export class SnailAdapter implements SnailPort {
   private static readonly DEFAULT_TIMEOUT_MS = 120 * 60 * 1000;
 
-  /** snail 实例存储（内存） */
-  private instances = new Map<string, SnailInstance>();
-
   constructor(
     private repo: SnailRepository,
     private registry: AgentRegistryPort,
@@ -52,7 +49,7 @@ export class SnailAdapter implements SnailPort {
       session_ids: [],
       created_at: new Date().toISOString(),
     };
-    this.instances.set(instanceId, instance);
+    this.repo.createInstance(instance);
 
     // 组装调用参数
     const workspace = { path: request.workspace_path, summary: null };
@@ -75,6 +72,7 @@ export class SnailAdapter implements SnailPort {
     // 记录 session_id
     if (result.sessionId) {
       instance.session_ids.push(result.sessionId);
+      this.repo.updateInstanceSessionIds(instance.id, instance.session_ids);
     }
 
     return { snail_instance_id: instanceId };
@@ -86,7 +84,7 @@ export class SnailAdapter implements SnailPort {
     onEvent: (event: AgentEvent) => void,
     options: InvokeOptions = {},
   ): Promise<SnailInvokeResult> {
-    const instance = this.instances.get(snailInstanceId);
+    const instance = this.repo.findInstanceById(snailInstanceId);
     if (!instance) throw new Error(`Snail instance not found: ${snailInstanceId}`);
 
     const snail = this.findSnailOrThrow(instance.snail_key);
@@ -105,6 +103,7 @@ export class SnailAdapter implements SnailPort {
     // 记录新 session_id
     if (result.sessionId && result.sessionId !== sessionId) {
       instance.session_ids.push(result.sessionId);
+      this.repo.updateInstanceSessionIds(instance.id, instance.session_ids);
     }
 
     return { snail_instance_id: snailInstanceId };

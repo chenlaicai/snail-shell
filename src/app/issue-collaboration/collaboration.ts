@@ -3,6 +3,7 @@ import type { MessagePort } from "@domain/message/port";
 import type { IssuePort, StagePort } from "@domain/issue/port";
 import type { Issue, Stage } from "@domain/issue/model";
 import type { SnailPort } from "@domain/snail/port";
+import type { SnailFirstCallRequest, SnailResumeRequest } from "@domain/snail/model";
 import type { LiteAIPort } from "@domain/lite-ai/port";
 import type { AgentEvent, Message as AgentMessage, InvokeOptions } from "@infra/acs/model";
 import type { CollaborationConsumer, CollaborationInput, LaunchIssueInput, StageTransitionSuggestion } from "@app/issue-collaboration/port";
@@ -149,32 +150,40 @@ export class IssueCollaboration implements CollaborationInput {
     };
 
     try {
+      const firstCallRequest = {
+        workspace_path: issue.workspace_path,
+        messages: unreadMessages.map(message => this.toAgentMessage(message)),
+        handbook: firstCallHandbook || undefined,
+        context: {
+          issue_id: issue.id,
+          stage_id: stage.id,
+          message_id: String(agentMessage.id),
+          stage_key: stage.key,
+          role_instance: roleInstance,
+          system_reminder: systemReminder,
+        },
+      };
+
+      const resumeRequest = {
+        workspace_path: issue.workspace_path,
+        messages: unreadMessages.map(message => this.toAgentMessage(message)),
+        system_reminder: systemReminder,
+      };
+
       const result = assignment.snail_instance_id
-        ? await this.deps.snailPort.invokeResume(
-            assignment.snail_instance_id,
-            {
-              workspace_path: issue.workspace_path,
-              messages: unreadMessages.map(message => this.toAgentMessage(message)),
-              system_reminder: systemReminder,
-            },
-            event => this.handleAgentEvent(stageId, agentMessage.id, event),
+        ? await this.invokeResumeOrRecover({
+            stageId,
+            roleInstance,
+            snailInstanceId: assignment.snail_instance_id,
+            snailKey: assignment.snail_key,
+            resumeRequest,
+            firstCallRequest,
+            onEvent: event => this.handleAgentEvent(stageId, agentMessage.id, event),
             invokeOptions,
-          )
+          })
         : await this.deps.snailPort.invokeFirstCall(
             assignment.snail_key,
-            {
-              workspace_path: issue.workspace_path,
-              messages: unreadMessages.map(message => this.toAgentMessage(message)),
-              handbook: firstCallHandbook || undefined,
-              context: {
-                issue_id: issue.id,
-                stage_id: stage.id,
-                message_id: String(agentMessage.id),
-                stage_key: stage.key,
-                role_instance: roleInstance,
-                system_reminder: systemReminder,
-              },
-            },
+            firstCallRequest,
             event => this.handleAgentEvent(stageId, agentMessage.id, event),
             invokeOptions,
           );
@@ -198,6 +207,30 @@ export class IssueCollaboration implements CollaborationInput {
       await this.notifyConsumers(stageId, "onMessageCompleted", this.mustGetMessage(agentMessage.id), this.deps.messagePort.getContext(agentMessage.id));
       throw error;
     }
+  }
+
+  private async invokeResumeOrRecover(input: {
+    stageId: string;
+    roleInstance: string;
+    snailInstanceId: string;
+    snailKey: string;
+    resumeRequest: SnailResumeRequest;
+    firstCallRequest: SnailFirstCallRequest;
+    onEvent: (event: AgentEvent) => void;
+    invokeOptions: InvokeOptions;
+  }) {
+    try {
+      return await this.deps.snailPort.invokeResume(input.snailInstanceId, input.resumeRequest, input.onEvent, input.invokeOptions);
+    } catch (error) {
+      if (!this.isMissingSnailInstanceError(error, input.snailInstanceId)) throw error;
+      const result = await this.deps.snailPort.invokeFirstCall(input.snailKey, input.firstCallRequest, input.onEvent, input.invokeOptions);
+      this.deps.stagePort.setSnailInstanceId(input.stageId, input.roleInstance, result.snail_instance_id);
+      return result;
+    }
+  }
+
+  private isMissingSnailInstanceError(error: unknown, snailInstanceId: string): boolean {
+    return error instanceof Error && error.message === `Snail instance not found: ${snailInstanceId}`;
   }
 
   private handleAgentEvent(stageId: string, messageId: number, event: AgentEvent): void {

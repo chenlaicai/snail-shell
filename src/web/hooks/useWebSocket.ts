@@ -70,7 +70,7 @@ function handleMessage(
     queryClient.setQueryData(
       queryKeys.stages.messages(stageId),
       (old: MessageDto[] | undefined) => old?.map((m) =>
-        m.id === event.message_id ? { ...m, status: event.status } : m
+        m.id === event.message_id ? { ...m, status: event.status, context: event.context ?? m.context, updated_at: new Date().toISOString() } : m
       ),
     );
   }
@@ -96,6 +96,13 @@ function createWsConnection(url: string, handlers: WsHandlers): WebSocket {
   return ws;
 }
 
+function clearTimer(timer: React.MutableRefObject<ReturnType<typeof setTimeout> | null>): void {
+  if (timer.current) {
+    clearTimeout(timer.current);
+    timer.current = null;
+  }
+}
+
 export function useWebSocket(stageId: string | null) {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -104,20 +111,29 @@ export function useWebSocket(stageId: string | null) {
   const { setWsStatus } = useConversationStore();
 
   useEffect(() => {
-    if (!stageId) return;
+    if (!stageId) {
+      setWsStatus("disconnected");
+      return;
+    }
     let mounted = true;
+    let activeWs: WebSocket | null = null;
 
     function connect() {
       if (!mounted) return;
       const proto = location.protocol === "https:" ? "wss:" : "ws:";
       setWsStatus("reconnecting");
-      wsRef.current = createWsConnection(
-        `${proto}//${location.host}/stage-events?stage_id=${stageId}`,
+      const ws = createWsConnection(
+        `${proto}//${location.host}/stage-events?stage_id=${encodeURIComponent(stageId)}`,
         {
-          mounted: () => mounted,
-          onOpen: () => { setWsStatus("connected"); reconnectDelay.current = 1000; },
+          mounted: () => mounted && activeWs === ws && wsRef.current === ws,
+          onOpen: () => {
+            clearTimer(reconnectTimer);
+            setWsStatus("connected");
+            reconnectDelay.current = 1000;
+          },
           onMessage: (msg) => handleMessage(msg, stageId, queryClient),
           onClose: () => {
+            if (!mounted || activeWs !== ws || wsRef.current !== ws) return;
             setWsStatus("disconnected");
             console.log(`[WebSocket] 连接关闭，${reconnectDelay.current}ms 后重连`);
             reconnectTimer.current = setTimeout(() => {
@@ -127,15 +143,22 @@ export function useWebSocket(stageId: string | null) {
           },
         },
       );
+      activeWs = ws;
+      wsRef.current = ws;
     }
 
     connect();
     return () => {
       mounted = false;
-      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
-      if (wsRef.current) wsRef.current.close();
+      clearTimer(reconnectTimer);
+      if (activeWs) {
+        const ws = activeWs;
+        activeWs = null;
+        if (wsRef.current === ws) wsRef.current = null;
+        ws.close();
+      }
     };
-  }, [stageId]);
+  }, [stageId, queryClient, setWsStatus]);
 
   return wsRef;
 }

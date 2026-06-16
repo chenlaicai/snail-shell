@@ -61,7 +61,7 @@ async function initModules(repoRoot: string, serverSettings: ServerSettings) {
   const featureChain = initFeatureChain(repoRoot);
   const guardProfile = initGuardProfile(dataStore);
   const liteAI = initLiteAI(dataStore);
-  const snail = initSnail(dataStore, { registry, tenetPrompt: tenetPrompt.adapter, skill: skill.adapter, mcp: mcp.adapter, guardProfile: guardProfile.adapter });
+  const snail = initSnail(dataStore, db, { registry, tenetPrompt: tenetPrompt.adapter, skill: skill.adapter, mcp: mcp.adapter, guardProfile: guardProfile.adapter });
   const evolution = initEvolution(db, issue.issueAdapter, snail.adapter);
   evolutionRef.current = evolution;
   const collaboration = initIssueCollaboration({ issuePort: issue.issueAdapter, stagePort: issue.stageAdapter, messagePort: message.adapter, snailPort: snail.adapter, liteAIPort: liteAI.adapter });

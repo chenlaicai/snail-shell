@@ -4,6 +4,7 @@ import type { SkillPort } from "@domain/skill/port";
 import type { MCPPort } from "@domain/mcp/port";
 import type { GuardProfilePort } from "@domain/guard-profile/port";
 import type { FileDataStore } from "@infra/file-data-store";
+import type { SQLiteDatabase } from "@infra/database";
 import { FileSnailRepository } from "@domain/snail/_internal/repository";
 import { SnailAdapter } from "@domain/snail/_internal/adapter";
 
@@ -17,8 +18,8 @@ export interface SnailDeps {
 }
 
 /** 初始化 Snail 模块 */
-export function init(dataStore: FileDataStore, deps: SnailDeps) {
-  const repo = new FileSnailRepository(dataStore);
+export function init(dataStore: FileDataStore, db: SQLiteDatabase, deps: SnailDeps) {
+  const repo = new FileSnailRepository(dataStore, db);
   const adapter = new SnailAdapter(repo, deps.registry, deps.tenetPrompt, deps.skill, deps.mcp, deps.guardProfile);
   return { repo, adapter };
 }
