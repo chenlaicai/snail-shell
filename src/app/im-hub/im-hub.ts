@@ -1,4 +1,5 @@
 import type { CollaborationConsumer, CollaborationInput } from "@app/issue-collaboration/port";
+import type { StagePort } from "@domain/issue/port";
 import type { Message, MessageContext, MessageEvent } from "@domain/message/model";
 import type { IMAdapter } from "@domain/im/_internal/adapter";
 import type { LobbyAdapter } from "@domain/im/_internal/lobby-adapter";
@@ -8,6 +9,7 @@ interface IMHubDeps {
   imAdapter: IMAdapter;
   lobbyAdapter: LobbyAdapter;
   collaboration: CollaborationInput;
+  stagePort: StagePort;
 }
 
 export class IMHub {
@@ -37,13 +39,15 @@ export class IMHub {
   }
 
   private ensureConsumer(channelType: ChannelType, chatId: string, tenantKey: string | null, stageId: string): void {
-    const key = `${channelType}:${tenantKey ?? ""}:${chatId}:${stageId}`;
+    const stage = this.deps.stagePort.findStage(stageId);
+    if (!stage) throw new Error(`Stage not found: ${stageId}`);
+    const key = `${channelType}:${tenantKey ?? ""}:${chatId}:${stage.issue_id}`;
     if (this.consumers.has(key)) {
       return;
     }
 
     const consumer = new IMStageConsumer(this.deps.imAdapter, channelType, chatId);
-    this.deps.collaboration.registerConsumer(stageId, consumer);
+    this.deps.collaboration.registerIssueConsumer(stage.issue_id, consumer);
     this.consumers.set(key, consumer);
   }
 }

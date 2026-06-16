@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useConversationStore } from "../stores/conversationStore";
 import { queryKeys } from "../queries/keys";
-import type { WsServerMessage, MessageDto } from "../types";
+import type { IssueRealtimeMessage, MessageDto } from "../types";
 
 /** 创建占位 MessageDto——用于 WebSocket message_started 和乐观发送 */
 export function createPlaceholderMessage(
@@ -33,20 +33,18 @@ export function createPlaceholderMessage(
   };
 }
 
-/** 处理 WebSocket 消息，更新 TanStack Query 缓存 */
-function handleMessage(
-  msg: WsServerMessage,
-  stageId: string,
+function handleRealtimeMessage(
+  msg: IssueRealtimeMessage,
   queryClient: ReturnType<typeof useQueryClient>,
 ) {
-  if (msg.type !== "agent_event") return;
+  if (msg.type !== "issue_event") return;
   const { event } = msg;
+  const stageId = event.stage_id;
 
   if (event.type === "message_started") {
     queryClient.setQueryData(
       queryKeys.stages.messages(stageId),
       (old: MessageDto[] | undefined) => {
-        // 去重：相同 message_id 已存在则跳过
         if (old?.some((m) => m.id === event.message_id)) return old;
         return [...(old ?? []), createPlaceholderMessage(stageId, {
           id: event.message_id,
@@ -57,7 +55,10 @@ function handleMessage(
         })];
       },
     );
-  } else if (event.type === "message_event_appended") {
+    return;
+  }
+
+  if (event.type === "message_event_appended") {
     queryClient.setQueryData(
       queryKeys.stages.messages(stageId),
       (old: MessageDto[] | undefined) => old?.map((m) =>
@@ -66,7 +67,10 @@ function handleMessage(
           : m
       ),
     );
-  } else if (event.type === "message_status_changed") {
+    return;
+  }
+
+  if (event.type === "message_status_changed") {
     queryClient.setQueryData(
       queryKeys.stages.messages(stageId),
       (old: MessageDto[] | undefined) => old?.map((m) =>
@@ -79,7 +83,7 @@ function handleMessage(
 interface WsHandlers {
   mounted: () => boolean;
   onOpen: () => void;
-  onMessage: (msg: WsServerMessage) => void;
+  onMessage: (msg: IssueRealtimeMessage) => void;
   onClose: () => void;
 }
 
@@ -103,15 +107,17 @@ function clearTimer(timer: React.MutableRefObject<ReturnType<typeof setTimeout> 
   }
 }
 
-export function useWebSocket(stageId: string | null) {
+export function useIssueRealtime(issueId: string | null) {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectDelay = useRef(1000);
   const queryClient = useQueryClient();
-  const { setWsStatus } = useConversationStore();
+  const { setWsStatus, currentStage } = useConversationStore();
+  const currentStageIdRef = useRef<string | null>(null);
+  currentStageIdRef.current = currentStage?.id ?? null;
 
   useEffect(() => {
-    if (!stageId) {
+    if (!issueId) {
       setWsStatus("disconnected");
       return;
     }
@@ -123,15 +129,18 @@ export function useWebSocket(stageId: string | null) {
       const proto = location.protocol === "https:" ? "wss:" : "ws:";
       setWsStatus("reconnecting");
       const ws = createWsConnection(
-        `${proto}//${location.host}/stage-events?stage_id=${encodeURIComponent(stageId)}`,
+        `${proto}//${location.host}/issue-events?issue_id=${encodeURIComponent(issueId)}`,
         {
           mounted: () => mounted && activeWs === ws && wsRef.current === ws,
           onOpen: () => {
             clearTimer(reconnectTimer);
+            queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(issueId) });
+            const currentStageId = currentStageIdRef.current;
+            if (currentStageId) queryClient.invalidateQueries({ queryKey: queryKeys.stages.messages(currentStageId) });
             setWsStatus("connected");
             reconnectDelay.current = 1000;
           },
-          onMessage: (msg) => handleMessage(msg, stageId, queryClient),
+          onMessage: (msg) => handleRealtimeMessage(msg, queryClient),
           onClose: () => {
             if (!mounted || activeWs !== ws || wsRef.current !== ws) return;
             setWsStatus("disconnected");
@@ -158,7 +167,7 @@ export function useWebSocket(stageId: string | null) {
         ws.close();
       }
     };
-  }, [stageId, queryClient, setWsStatus]);
+  }, [issueId, queryClient, setWsStatus]);
 
   return wsRef;
 }

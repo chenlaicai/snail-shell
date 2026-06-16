@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { issueQueries } from "../queries/workspace.queries";
 import { sopQueries } from "../queries/sop.queries";
 import { queryKeys } from "../queries/keys";
-import { useWebSocket } from "../hooks/useWebSocket";
+import { useIssueRealtime } from "../hooks/useWebSocket";
 import { useConversationStore } from "../stores/conversationStore";
 import { ConversationView } from "./ConversationView";
 import { BossMentionsBanner } from "../components/BossMentionsBanner";
@@ -58,8 +58,8 @@ export function ConversationLayout() {
     setSearchParams({ stage: currentStage.id }, { replace: true });
   }, [currentStage?.id, setSearchParams]);
 
-  // WebSocket connection
-  useWebSocket(currentStage?.id || null);
+  // Issue-scoped realtime connection
+  useIssueRealtime(issueId || null);
 
   if (isLoading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
   if (!issue) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">Issue 不存在</div>;

@@ -101,15 +101,18 @@ export type StageSuggestion = {
   created_at: string;
 };
 
-export type WsServerMessage = {
-  type: "agent_event";
+export type IssueRealtimeMessage = {
+  type: "issue_event";
+  issue_id: string;
   event:
-    | { type: "message_started"; message_id: number; role: MessageRole; role_name: string | null; client_id: string | null; status: MessageStatus }
-    | { type: "message_event_appended"; message_id: number; event: MessageEvent }
-    | { type: "message_status_changed"; message_id: number; status: MessageStatus; context: MessageContext | null }
-    | { type: "user_called"; message_id: number; role: MessageRole; role_name: string | null; client_id: string | null; status: MessageStatus }
-    | { type: "stage_transition_suggested"; suggestion: StageSuggestion };
+    | { type: "message_started"; stage_id: string; message_id: number; role: MessageRole; role_name: string | null; client_id: string | null; status: MessageStatus }
+    | { type: "message_event_appended"; stage_id: string; message_id: number; event: MessageEvent }
+    | { type: "message_status_changed"; stage_id: string; message_id: number; status: MessageStatus; context: MessageContext | null }
+    | { type: "user_called"; stage_id: string; message_id: number; role: MessageRole; role_name: string | null; client_id: string | null; status: MessageStatus }
+    | { type: "stage_transition_suggested"; stage_id: string; suggestion: StageSuggestion };
 };
+
+export type WsServerMessage = IssueRealtimeMessage;
 
 export type MessageStatus = "streaming" | "completed" | "failed" | "interrupted" | "cancelled";
 export type MessageRole = "user" | "assistant" | "system";

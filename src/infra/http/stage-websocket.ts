@@ -4,39 +4,39 @@ import { WebSocketServer } from "ws";
 import type { CollaborationConsumer, CollaborationInput, StageTransitionSuggestion } from "@app/issue-collaboration/port";
 import type { Message } from "@domain/message/model";
 
-type StageSocket = {
+type IssueSocket = {
   send(data: string): void;
   close(code?: number, reason?: string): void;
 };
 
-interface StageWebSocketBridge {
+interface IssueWebSocketBridge {
   server: WebSocketServer;
   route: MiddlewareHandler;
 }
 
-export function createStageWebSocketBridge(collaboration: CollaborationInput): StageWebSocketBridge {
+export function createIssueWebSocketBridge(collaboration: CollaborationInput): IssueWebSocketBridge {
   return {
     server: new WebSocketServer({ noServer: true }),
     route: upgradeWebSocket((c) => {
-      const stageId = c.req.query("stage_id");
+      const issueId = c.req.query("issue_id");
       let consumer: CollaborationConsumer | null = null;
 
       return {
         onOpen(_event, socket) {
           if (consumer) return;
-          if (!stageId) {
-            console.warn("[stage-events] rejected websocket without stage_id");
-            socket.close(1008, "stage_id is required");
+          if (!issueId) {
+            console.warn("[issue-events] rejected websocket without issue_id");
+            socket.close(1008, "issue_id is required");
             return;
           }
-          console.log(`[stage-events] connected stage=${stageId}`);
-          consumer = createConsumer(socket);
-          collaboration.registerConsumer(stageId, consumer);
+          console.log(`[issue-events] connected issue=${issueId}`);
+          consumer = createConsumer(issueId, socket);
+          collaboration.registerIssueConsumer(issueId, consumer);
         },
         onClose() {
-          if (stageId && consumer) {
-            console.log(`[stage-events] disconnected stage=${stageId}`);
-            collaboration.unregisterConsumer(stageId, consumer);
+          if (issueId && consumer) {
+            console.log(`[issue-events] disconnected issue=${issueId}`);
+            collaboration.unregisterIssueConsumer(issueId, consumer);
           }
         },
       };
@@ -44,22 +44,22 @@ export function createStageWebSocketBridge(collaboration: CollaborationInput): S
   };
 }
 
-function createConsumer(socket: StageSocket): CollaborationConsumer {
+function createConsumer(issueId: string, socket: IssueSocket): CollaborationConsumer {
   return {
-    onMessageStarted(_stageId, message) {
-      send(socket, { type: "agent_event", event: { type: "message_started", ...toMessageEventBase(message) } });
+    onMessageStarted(stageId, message) {
+      send(socket, { type: "issue_event", issue_id: issueId, event: { type: "message_started", stage_id: stageId, ...toMessageEventBase(message) } });
     },
-    onEvent(_stageId, event) {
-      send(socket, { type: "agent_event", event: { type: "message_event_appended", message_id: event.message_id, event } });
+    onEvent(stageId, event) {
+      send(socket, { type: "issue_event", issue_id: issueId, event: { type: "message_event_appended", stage_id: stageId, message_id: event.message_id, event } });
     },
-    onMessageCompleted(_stageId, message, context) {
-      send(socket, { type: "agent_event", event: { type: "message_status_changed", message_id: message.id, status: message.status, context } });
+    onMessageCompleted(stageId, message, context) {
+      send(socket, { type: "issue_event", issue_id: issueId, event: { type: "message_status_changed", stage_id: stageId, message_id: message.id, status: message.status, context } });
     },
-    onUserCalled(_stageId, message) {
-      send(socket, { type: "agent_event", event: { type: "user_called", ...toMessageEventBase(message) } });
+    onUserCalled(stageId, message) {
+      send(socket, { type: "issue_event", issue_id: issueId, event: { type: "user_called", stage_id: stageId, ...toMessageEventBase(message) } });
     },
-    onStageTransitionSuggested(_stageId, suggestion) {
-      send(socket, { type: "agent_event", event: { type: "stage_transition_suggested", suggestion: toSuggestionPayload(suggestion) } });
+    onStageTransitionSuggested(stageId, suggestion) {
+      send(socket, { type: "issue_event", issue_id: issueId, event: { type: "stage_transition_suggested", stage_id: stageId, suggestion: toSuggestionPayload(suggestion) } });
     },
   };
 }
@@ -87,6 +87,6 @@ function toSuggestionPayload(suggestion: StageTransitionSuggestion) {
   };
 }
 
-function send(socket: StageSocket, payload: unknown): void {
+function send(socket: IssueSocket, payload: unknown): void {
   socket.send(JSON.stringify(payload));
 }

@@ -1,4 +1,5 @@
 import type { CollaborationInput } from "@app/issue-collaboration/port";
+import type { StagePort } from "@domain/issue/port";
 import type { IMAdapter } from "@domain/im/_internal/adapter";
 import type { LobbyAdapter } from "@domain/im/_internal/lobby-adapter";
 import { IMHub } from "@app/im-hub/im-hub";
@@ -7,6 +8,7 @@ export interface IMHubDeps {
   imAdapter: IMAdapter;
   lobbyAdapter: LobbyAdapter;
   collaboration: CollaborationInput;
+  stagePort: StagePort;
 }
 
 export function init(deps: IMHubDeps) {

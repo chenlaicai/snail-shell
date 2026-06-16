@@ -24,7 +24,7 @@ type SpeakerTarget = {
 };
 
 export class IssueCollaboration implements CollaborationInput {
-  private readonly consumers = new Map<string, Set<CollaborationConsumer>>();
+  private readonly issueConsumers = new Map<string, Set<CollaborationConsumer>>();
   private readonly queue = new StageQueue();
   private readonly suggestions = new Map<string, StageTransitionSuggestion[]>();
   private readonly maxCollaborationRounds: number;
@@ -69,17 +69,17 @@ export class IssueCollaboration implements CollaborationInput {
     this.enqueueStage(stageId);
   }
 
-  registerConsumer(stageId: string, consumer: CollaborationConsumer): void {
-    const consumers = this.consumers.get(stageId) ?? new Set<CollaborationConsumer>();
+  registerIssueConsumer(issueId: string, consumer: CollaborationConsumer): void {
+    const consumers = this.issueConsumers.get(issueId) ?? new Set<CollaborationConsumer>();
     consumers.add(consumer);
-    this.consumers.set(stageId, consumers);
+    this.issueConsumers.set(issueId, consumers);
   }
 
-  unregisterConsumer(stageId: string, consumer: CollaborationConsumer): void {
-    const consumers = this.consumers.get(stageId);
+  unregisterIssueConsumer(issueId: string, consumer: CollaborationConsumer): void {
+    const consumers = this.issueConsumers.get(issueId);
     if (!consumers) return;
     consumers.delete(consumer);
-    if (consumers.size === 0) this.consumers.delete(stageId);
+    if (consumers.size === 0) this.issueConsumers.delete(issueId);
   }
 
   listStageTransitionSuggestions(stageId: string): StageTransitionSuggestion[] {
@@ -469,7 +469,8 @@ export class IssueCollaboration implements CollaborationInput {
   }
 
   private async notifyConsumers(stageId: string, method: keyof CollaborationConsumer, ...args: unknown[]): Promise<void> {
-    const consumers = [...(this.consumers.get(stageId) ?? [])];
+    const stage = this.mustGetStage(stageId);
+    const consumers = [...(this.issueConsumers.get(stage.issue_id) ?? [])];
     await Promise.allSettled(consumers.map(async consumer => {
       if (method === "onMessageStarted" && consumer.onMessageStarted) {
         await consumer.onMessageStarted(stageId, args[0] as Message);

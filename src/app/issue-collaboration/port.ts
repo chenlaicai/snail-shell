@@ -20,8 +20,8 @@ export interface StageTransitionSuggestion {
 export interface CollaborationInput {
   launchIssue(input: LaunchIssueInput): Promise<Stage>;
   sendMessage(stageId: string, text: string, fromSpeaker?: string): Promise<void>;
-  registerConsumer(stageId: string, consumer: CollaborationConsumer): void;
-  unregisterConsumer(stageId: string, consumer: CollaborationConsumer): void;
+  registerIssueConsumer(issueId: string, consumer: CollaborationConsumer): void;
+  unregisterIssueConsumer(issueId: string, consumer: CollaborationConsumer): void;
   listStageTransitionSuggestions(stageId: string): StageTransitionSuggestion[];
   advanceStage(stageId: string, targetKey: string): Promise<Stage>;
 }
