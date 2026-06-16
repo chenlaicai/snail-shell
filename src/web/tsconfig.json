@@ -12,9 +12,12 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
+    "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@api-contracts": ["../api-contracts/index.ts"],
+      "@api-contracts/*": ["../api-contracts/*"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx"]

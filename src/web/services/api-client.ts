@@ -1,7 +1,7 @@
 import type { ApiEndpoints } from "@api-contracts";
 import type { z } from "zod";
 
-type EndpointKey = keyof ApiEndpoints;
+type EndpointKey = Extract<keyof ApiEndpoints, string>;
 
 export class ApiError extends Error {
   constructor(message: string, public readonly status: number) {
