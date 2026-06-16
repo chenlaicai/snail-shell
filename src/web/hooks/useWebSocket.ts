@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useConversationStore } from "../stores/conversationStore";
 import { queryKeys } from "../queries/keys";
-import type { MessageDto, WsServerMessage } from "../types";
+import type { IssueRealtimeMessage, MessageDto, WsServerMessage } from "../types";
 
 /** 创建占位 MessageDto——用于 WebSocket message_started 和乐观发送 */
 export function createPlaceholderMessage(
@@ -47,6 +47,27 @@ function addPlaceholderMessage(
   );
 }
 
+function applyMessageStatusChanged(
+  queryClient: ReturnType<typeof useQueryClient>,
+  stageId: string,
+  event: Extract<IssueRealtimeMessage["event"], { type: "message_status_changed" }>,
+): void {
+  queryClient.setQueryData(
+    queryKeys.stages.messages(stageId),
+    (old: MessageDto[] | undefined) => old?.map((m) =>
+      m.id === event.message_id
+        ? {
+            ...m,
+            status: event.status,
+            context: event.context ?? m.context,
+            content: event.context?.context ?? m.content,
+            updated_at: new Date().toISOString(),
+          }
+        : m
+    ),
+  );
+}
+
 function handleRealtimeMessage(
   msg: WsServerMessage,
   queryClient: ReturnType<typeof useQueryClient>,
@@ -79,12 +100,7 @@ function handleRealtimeMessage(
   }
 
   if (event.type === "message_status_changed") {
-    queryClient.setQueryData(
-      queryKeys.stages.messages(stageId),
-      (old: MessageDto[] | undefined) => old?.map((m) =>
-        m.id === event.message_id ? { ...m, status: event.status, context: event.context ?? m.context, updated_at: new Date().toISOString() } : m
-      ),
-    );
+    applyMessageStatusChanged(queryClient, stageId, event);
     return;
   }
 
@@ -133,14 +149,14 @@ function clearTimer(timer: React.MutableRefObject<ReturnType<typeof setTimeout> 
   }
 }
 
-export function useIssueRealtime(issueId: string | null) {
+export function useIssueRealtime(issueId: string | null, currentStageId: string | null) {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectDelay = useRef(1000);
   const queryClient = useQueryClient();
-  const { setWsStatus, currentStage } = useConversationStore();
+  const setWsStatus = useConversationStore((state) => state.setWsStatus);
   const currentStageIdRef = useRef<string | null>(null);
-  currentStageIdRef.current = currentStage?.id ?? null;
+  currentStageIdRef.current = currentStageId;
 
   useEffect(() => {
     if (!issueId) {

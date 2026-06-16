@@ -2,6 +2,7 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState, useCallback } from "react";
 import { WorkspaceTree } from "../components/Sidebar/WorkspaceTree";
 import { ContextPanel } from "../components/ContextPanel";
+import { useCurrentStage } from "../hooks/useCurrentStage";
 import { api } from "../services/api-client";
 
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,8 @@ export function AppShell() {
     if (!issueId) { setIssue(null); return; }
     api("GET /api/issues/:issueId", { params: { issueId } }).then(setIssue).catch(() => setIssue(null));
   }, [issueId]);
+
+  const { currentStage } = useCurrentStage(issue);
 
   const currentView = path === "/" ? "workspaces" : path.split("/")[1] || "workspaces";
   const isBoard = /^\/workspaces\/[^/]+$/.test(path);
@@ -139,7 +142,7 @@ export function AppShell() {
         {/* CONTEXT PANEL — 只在对话页显示 */}
         {isConversation && (
           <aside className="w-[280px] shrink-0 bg-[var(--color-bg-surface)] border-l border-[var(--color-border-muted)] overflow-y-auto">
-            <ContextPanel workspace={workspace} issue={issue} />
+            <ContextPanel workspace={workspace} issue={issue} stage={currentStage} />
           </aside>
         )}
       </div>

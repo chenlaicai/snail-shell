@@ -7,14 +7,14 @@
 import { useState, useEffect } from "react";
 import { api } from "../services/api-client";
 import { showToast } from "./Toast";
-import type { StageSuggestion } from "../types";
+import type { StageDetailDto, StageSuggestion } from "../types";
 
 export function StageSuggestionBanner({
   stageId,
   onAccepted,
 }: {
   stageId: string | null;
-  onAccepted: () => void;
+  onAccepted: (stage: StageDetailDto) => void;
 }) {
   const [suggestion, setSuggestion] = useState<StageSuggestion | null>(null);
 
@@ -32,10 +32,10 @@ export function StageSuggestionBanner({
 
   async function handleConfirm() {
     try {
-      await api("POST /api/stages/:stageId/advance", { params: { stageId }, body: { target_key: suggestion.target_key } });
+      const stage = await api("POST /api/stages/:stageId/advance", { params: { stageId }, body: { target_key: suggestion.target_key } });
       showToast("阶段已推进");
       setSuggestion(null);
-      onAccepted();
+      onAccepted(stage);
     } catch (err: unknown) {
       showToast(`推进失败：${err instanceof Error ? err.message : String(err)}`, true);
     }

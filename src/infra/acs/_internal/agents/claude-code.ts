@@ -5,6 +5,7 @@ import { join } from "path";
 import { randomUUID } from "crypto";
 import type { AgentRuntimePort } from "@infra/acs/port";
 import type { FirstCallRequest, ResumeRequest, AgentEvent, InvokeResult, InvokeOptions, Message } from "@infra/acs/model";
+import { buildResultTextEvent } from "@infra/acs/_internal/utils/event-utils";
 import { manageInvocationProcess } from "@infra/acs/_internal/utils/managed-process";
 import { buildRuntimeUsageSignal, usageDetailFromClaudeResult } from "@infra/acs/_internal/utils/runtime-usage";
 import { ensureMcpServers } from "@infra/acs/_internal/utils/mcp-config";
@@ -106,6 +107,11 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
 
     if (proc.exitCode !== 0 && !resultContent) {
       throw new Error(`claude code exited with code ${proc.exitCode}: ${stderr}`);
+    }
+
+    if (outputEventCount === 0 && resultContent) {
+      onEvent(buildResultTextEvent(resultContent, "result"));
+      outputEventCount = 1;
     }
 
     if (outputEventCount === 0) {
