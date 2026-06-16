@@ -17,18 +17,17 @@ interface IssueRoutesDeps {
   collaboration: CollaborationInput;
 }
 
+const snailAssignmentPlanSchema = z.record(z.record(z.string()));
+
 const createIssueBody = z.object({
   title: z.string().min(1),
   summary: z.string().optional(),
   adopted_sop_key: z.string().min(1),
-  initial_message: z.string().optional(),
-  snail_assignments: z.record(z.string()).optional(),
+  snail_assignment_plan: snailAssignmentPlanSchema,
 });
 
 const launchBody = z.object({
   stage_key: z.string().optional(),
-  initial_message: z.string().optional(),
-  snail_assignments: z.record(z.string()),
 });
 
 const sendMessageBody = z.object({
@@ -38,7 +37,6 @@ const sendMessageBody = z.object({
 
 const advanceStageBody = z.object({
   target_key: z.string().min(1),
-  snail_assignments: z.record(z.string()),
 });
 
 export function createIssueRoutes(deps: IssueRoutesDeps) {
@@ -58,6 +56,10 @@ export function createIssueRoutes(deps: IssueRoutesDeps) {
     return c.json(issues.map(issue => toIssueDetail(deps, issue)));
   });
 
+  app.get("/api/sops/:sopKey/stage-previews", (c) => {
+    return c.json(deps.issuePort.previewSopStages(c.req.param("sopKey"), c.req.query("title") ?? ""));
+  });
+
   app.post("/api/workspaces/:workspaceId/issues", zValidator("json", createIssueBody), async (c) => {
     const body = c.req.valid("json");
     const issue = deps.issuePort.createIssue({
@@ -65,11 +67,10 @@ export function createIssueRoutes(deps: IssueRoutesDeps) {
       title: body.title,
       summary: body.summary,
       adopted_sop_key: body.adopted_sop_key,
+      snail_assignment_plan: body.snail_assignment_plan,
     });
-    const stage = body.snail_assignments
-      ? await deps.collaboration.launchIssue({ issue_id: issue.id, snail_assignments: body.snail_assignments, initial_message: body.initial_message })
-      : null;
-    return c.json({ issue: toIssueDetail(deps, issue), stage: stage ? toStageDto(deps, stage) : null }, 201);
+    const stage = await deps.collaboration.launchIssue({ issue_id: issue.id });
+    return c.json({ issue: toIssueDetail(deps, issue), stage: toStageDto(deps, stage) }, 201);
   });
 
   app.get("/api/issues/:issueId", (c) => {
@@ -103,7 +104,7 @@ export function createIssueRoutes(deps: IssueRoutesDeps) {
 
   app.post("/api/stages/:stageId/advance", zValidator("json", advanceStageBody), async (c) => {
     const body = c.req.valid("json");
-    const stage = await deps.collaboration.advanceStage(c.req.param("stageId"), body.target_key, body.snail_assignments);
+    const stage = await deps.collaboration.advanceStage(c.req.param("stageId"), body.target_key);
     return c.json(toStageDto(deps, stage), 201);
   });
 

@@ -46,6 +46,14 @@ export type StageDetailDto = StageDto;
 export type UpdateStageBody = { output_artifacts?: Record<string, string> };
 
 export type RoleDefinitionDto = { key?: string; name: string; description?: string; snail_template_id?: string; is_primary?: boolean; count?: number; handbook?: string | null };
+export type StagePreviewDto = {
+  key: string;
+  title: string;
+  description: string;
+  available_transitions: StageTransition[];
+  role_instances: Array<{ role_key: string; role_instance: string; description: string }>;
+};
+export type IssueSnailAssignmentPlanDto = Record<string, Record<string, string>>;
 export type SopDto = {
   key: string;
   name: string;
@@ -68,6 +76,7 @@ export type IssueDto = {
   title: string;
   summary: string | null;
   sop_snapshot: SopDto;
+  snail_assignment_plan: IssueSnailAssignmentPlanDto;
   extendable_context: Record<string, unknown>;
   created_at: string;
   closed_at: string | null;

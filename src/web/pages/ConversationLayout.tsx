@@ -78,7 +78,7 @@ export function ConversationLayout() {
     <div className="flex flex-col h-full min-h-0 overflow-hidden" data-view-pane="workspaces">
       {/* Header */}
       <div className="flex items-center gap-[var(--space-md)] px-[var(--space-lg)] py-[var(--space-sm)] border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0">
-        <button className="p-[var(--space-xs)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]" type="button" onClick={() => navigate(`/ws/${workspaceId}`)}>
+        <button className="p-[var(--space-xs)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]" type="button" onClick={() => navigate(`/workspaces/${workspaceId}`)}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <polyline points="15 18 9 12 15 6" />
           </svg>

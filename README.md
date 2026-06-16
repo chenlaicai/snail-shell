@@ -184,7 +184,7 @@ GET /api/conversations/:id/history/search?query=关键词
 
 ## 数据库
 
-开发数据库位于 `data/snail-shell.db`，使用 SQLite 存储工作区、对话、消息和交付物数据。
+开发数据库位于 `data/database/snail-shell.db`，使用 SQLite 存储工作区、对话、消息和交付物数据。
 
 ## 工作区结构
 

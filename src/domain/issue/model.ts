@@ -1,5 +1,8 @@
 import type { Sop, RoleDefinition } from "@domain/sop/model";
 
+export type StageSnailAssignmentPlan = Record<string, string>;
+export type IssueSnailAssignmentPlan = Record<string, StageSnailAssignmentPlan>;
+
 // ── Issue ─────────────────────────────────────────────────────────────
 
 export interface Issue {
@@ -8,6 +11,7 @@ export interface Issue {
   title: string;
   summary: string | null;
   sop_snapshot: Sop;
+  snail_assignment_plan: IssueSnailAssignmentPlan;
   /** 可扩展上下文：由创建方注入的额外上下文数据，传递给底层 agent */
   extendable_context: Record<string, unknown>;
   created_at: string;
@@ -19,6 +23,7 @@ export interface CreateIssueInput {
   title: string;
   summary?: string;
   adopted_sop_key: string;
+  snail_assignment_plan: IssueSnailAssignmentPlan;
   extendable_context?: Record<string, unknown>;
 }
 
@@ -70,8 +75,6 @@ export interface CreateStageInput {
   issue_id: string;
   key: string;
   from_stage_id?: string | null;
-  /** 每个角色实例的 snail 模板分配，如 { "开发者": "snail-a", "审查者-1": "snail-b" } */
-  snail_assignments: Record<string, string>;
 }
 
 // ── RoleSnailAssignment ──────────────────────────────────────────────────

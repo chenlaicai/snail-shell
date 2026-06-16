@@ -19,11 +19,11 @@ export class FileSkillRepository implements SkillRepository {
 
   constructor(platformStore: FileDataStore, workspaces: Workspace[]) {
     this.platformSkills = this.loadSkillDir(platformStore, FileSkillRepository.DIR);
-    for (const ws of workspaces) {
-      const wsStore = platformStore.workspace(ws.path);
-      const skills = this.loadSkillDir(wsStore, FileSkillRepository.DIR)
-        .map(s => ({ ...s, scope: Scope.Workspace, workspace: ws }));
-      this.workspaceSkills.set(ws.path, skills);
+    for (const workspace of workspaces) {
+      const workspaceStore = platformStore.workspace(workspace.path);
+      const skills = this.loadSkillDir(workspaceStore, FileSkillRepository.DIR)
+        .map(s => ({ ...s, scope: Scope.Workspace, workspace }));
+      this.workspaceSkills.set(workspace.path, skills);
     }
   }
 
@@ -32,8 +32,8 @@ export class FileSkillRepository implements SkillRepository {
   }
 
   findByWorkspace(workspace: Workspace): Skill[] {
-    const wsSkills = this.workspaceSkills.get(workspace.path) ?? [];
-    return [...this.platformSkills, ...wsSkills];
+    const workspaceSkills = this.workspaceSkills.get(workspace.path) ?? [];
+    return [...this.platformSkills, ...workspaceSkills];
   }
 
   private loadSkillDir(store: FileDataStore, relativeDir: string): Skill[] {

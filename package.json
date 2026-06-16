@@ -14,7 +14,6 @@
     "start": "npm run build && node dist/src/main.js",
     "web": "vite --config src/web/vite.config.ts",
     "dev:web": "npm run web",
-    "test:web": "vitest run --config src/web/vitest.config.ts",
     "build:web": "vite build --config src/web/vite.config.ts",
     "service:start": "./bin/snail-service start",
     "service:stop": "./bin/snail-service stop",

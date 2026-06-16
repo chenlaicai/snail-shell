@@ -8,11 +8,13 @@ import {
   type CreateStageInput,
   type RoleSnailAssignment,
   type StagePreview,
+  type IssueSnailAssignmentPlan,
+  type StageSnailAssignmentPlan,
 } from "@domain/issue/model";
 import type { IssuePort, StagePort } from "@domain/issue/port";
 import type { IssueRepository, StageRepository, RoleSnailAssignmentRepository } from "@domain/issue/_internal/repository";
 import type { SopPort } from "@domain/sop/port";
-import type { Sop } from "@domain/sop/model";
+import type { Sop, StageDefinition } from "@domain/sop/model";
 
 // ── Issue Adapter ─────────────────────────────────────────────────────
 
@@ -30,9 +32,20 @@ export class IssueAdapter implements IssuePort {
     return this.issueRepo.listByWorkspace(workspacePath, limit, offset);
   }
 
+  previewSopStages(adoptedSopKey: string, title: string): StagePreview[] {
+    const sop = this.sopPort.findByKey(adoptedSopKey);
+    if (!sop) throw new Error(`SOP not found: ${adoptedSopKey}`);
+    return previewSopStages(sop, title);
+  }
+
+  validateSnailAssignmentPlan(sop: Sop, plan: IssueSnailAssignmentPlan): void {
+    validateSnailAssignmentPlan(sop, plan);
+  }
+
   createIssue(input: CreateIssueInput): Issue {
     const sop = this.sopPort.findByKey(input.adopted_sop_key);
     if (!sop) throw new Error(`SOP not found: ${input.adopted_sop_key}`);
+    validateSnailAssignmentPlan(sop, input.snail_assignment_plan);
 
     const now = new Date().toISOString();
     const issue: Issue = {
@@ -41,6 +54,7 @@ export class IssueAdapter implements IssuePort {
       title: input.title,
       summary: input.summary ?? null,
       sop_snapshot: structuredClone(sop),
+      snail_assignment_plan: structuredClone(input.snail_assignment_plan),
       extendable_context: input.extendable_context ?? {},
       created_at: now,
       closed_at: null,
@@ -68,54 +82,31 @@ export class StageAdapter implements StagePort {
   }
 
   previewStage(issueId: string, stageKey: string): StagePreview {
-    const issue = this.issueRepo.findById(issueId);
-    if (!issue) throw new Error(`Issue not found: ${issueId}`);
+    const issue = this.mustFindIssue(issueId);
+    const stageDef = findStageDefinition(issue.sop_snapshot, stageKey);
+    return previewStageDefinition(issue.sop_snapshot, stageDef, issue.title);
+  }
 
-    const stageDef = issue.sop_snapshot.stage_definitions.find(sd => sd.key === stageKey);
-    if (!stageDef) throw new Error(`Stage definition not found: ${stageKey} in SOP ${issue.sop_snapshot.key}`);
-
-    const availableTransitions = this.resolveTransitions(issue.sop_snapshot, stageDef.key);
-
-    const roleInstances = stageDef.roles.flatMap(roleDef => {
-      const count = roleDef.count <= 1 ? 1 : roleDef.count;
-      return Array.from({ length: count }, (_, i) => ({
-        role_key: roleDef.key,
-        role_instance: count <= 1 ? roleDef.name : `${roleDef.name}-${i + 1}`,
-        description: roleDef.description,
-      }));
-    });
-
-    return {
-      key: stageDef.key,
-      title: `${issue.title} . ${stageDef.key}`,
-      description: stageDef.description,
-      available_transitions: availableTransitions,
-      role_instances: roleInstances,
-    };
+  getStageSnailAssignmentPlan(issueId: string, stageKey: string): StageSnailAssignmentPlan {
+    const issue = this.mustFindIssue(issueId);
+    const stagePlan = issue.snail_assignment_plan[stageKey];
+    if (!stagePlan) throw new Error(`Missing snail assignment plan for stage: ${stageKey}`);
+    return stagePlan;
   }
 
   createStage(input: CreateStageInput): Stage {
-    const issue = this.issueRepo.findById(input.issue_id);
-    if (!issue) throw new Error(`Issue not found: ${input.issue_id}`);
-
-    const stageDef = issue.sop_snapshot.stage_definitions.find(sd => sd.key === input.key);
-    if (!stageDef) throw new Error(`Stage definition not found: ${input.key} in SOP ${issue.sop_snapshot.key}`);
-
+    const issue = this.mustFindIssue(input.issue_id);
+    const stageDef = findStageDefinition(issue.sop_snapshot, input.key);
     const roleInstances = expandRoleInstances(stageDef.roles);
     const defaultRoleInstance = resolveDefaultRoleInstance(stageDef.roles);
-    const availableTransitions = this.resolveTransitions(issue.sop_snapshot, stageDef.key);
+    const availableTransitions = resolveTransitions(issue.sop_snapshot, stageDef.key);
+    const snailAssignments = this.getStageSnailAssignmentPlan(issue.id, stageDef.key);
 
-    // 校验 snail_assignments 覆盖所有 role_instances
-    for (const instance of roleInstances) {
-      if (!input.snail_assignments[instance]) {
-        throw new Error(`Missing snail assignment for role instance: ${instance}`);
-      }
-    }
+    validateStageSnailAssignments(stageDef, snailAssignments);
 
     const now = new Date().toISOString();
     const stageId = randomUUID();
 
-    // 创建 Stage
     const stage: Stage = {
       id: stageId,
       workspace_path: issue.workspace_path,
@@ -133,7 +124,6 @@ export class StageAdapter implements StagePort {
     };
     this.stageRepo.create(stage);
 
-    // 创建初始 RoleSnailAssignment（seq=0）
     for (const roleDef of stageDef.roles) {
       const instances = roleDef.count <= 1
         ? [roleDef.name]
@@ -144,7 +134,7 @@ export class StageAdapter implements StagePort {
           stage_id: stageId,
           role_instance: instance,
           seq: 0,
-          snail_key: input.snail_assignments[instance],
+          snail_key: snailAssignments[instance],
           snail_instance_id: null,
           role_key: roleDef.key,
           description: roleDef.description,
@@ -160,22 +150,24 @@ export class StageAdapter implements StagePort {
     const stage = this.stageRepo.findById(stageId);
     if (!stage) throw new Error(`Stage not found: ${stageId}`);
     Object.assign(stage.output_artifacts, artifacts);
+    this.stageRepo.update(stageId, { output_artifacts: stage.output_artifacts });
   }
 
-  advanceStage(currentStageId: string, targetKey: string, snailAssignments: Record<string, string>): Stage {
+  advanceStage(currentStageId: string, targetKey: string): Stage {
     const current = this.stageRepo.findById(currentStageId);
     if (!current) throw new Error(`Stage not found: ${currentStageId}`);
 
     const transition = current.available_transitions.find(t => t.to === targetKey);
     if (!transition) throw new Error(`Transition to "${targetKey}" not available from stage "${current.key}"`);
 
-    current.left_at = new Date().toISOString();
+    const leftAt = new Date().toISOString();
+    current.left_at = leftAt;
+    this.stageRepo.update(currentStageId, { left_at: leftAt });
 
     return this.createStage({
       issue_id: current.issue_id,
       key: targetKey,
       from_stage_id: current.id,
-      snail_assignments: snailAssignments,
     });
   }
 
@@ -217,9 +209,7 @@ export class StageAdapter implements StagePort {
     const stage = this.stageRepo.findById(stageId);
     if (!stage) throw new Error(`Stage not found: ${stageId}`);
 
-    const issue = this.issueRepo.findById(stage.issue_id);
-    if (!issue) throw new Error(`Issue not found: ${stage.issue_id}`);
-
+    const issue = this.mustFindIssue(stage.issue_id);
     const stageDef = issue.sop_snapshot.stage_definitions.find(sd => sd.key === stage.key);
     if (!stageDef) return null;
 
@@ -227,9 +217,64 @@ export class StageAdapter implements StagePort {
     return roleDef?.handbook ?? null;
   }
 
-  private resolveTransitions(sop: Sop, stageKey: string) {
-    return sop.transitions
-      .filter(t => t.from === stageKey)
-      .map(t => ({ to: t.to, guard: t.guard }));
+  private mustFindIssue(issueId: string): Issue {
+    const issue = this.issueRepo.findById(issueId);
+    if (!issue) throw new Error(`Issue not found: ${issueId}`);
+    return issue;
   }
+}
+
+function previewSopStages(sop: Sop, title: string): StagePreview[] {
+  return sop.stage_definitions.map(stageDef => previewStageDefinition(sop, stageDef, title));
+}
+
+function previewStageDefinition(sop: Sop, stageDef: StageDefinition, title: string): StagePreview {
+  return {
+    key: stageDef.key,
+    title: `${title || sop.name} . ${stageDef.key}`,
+    description: stageDef.description,
+    available_transitions: resolveTransitions(sop, stageDef.key),
+    role_instances: stageDef.roles.flatMap(roleDef => {
+      const count = roleDef.count <= 1 ? 1 : roleDef.count;
+      return Array.from({ length: count }, (_, i) => ({
+        role_key: roleDef.key,
+        role_instance: count <= 1 ? roleDef.name : `${roleDef.name}-${i + 1}`,
+        description: roleDef.description,
+      }));
+    }),
+  };
+}
+
+function validateSnailAssignmentPlan(sop: Sop, plan: IssueSnailAssignmentPlan): void {
+  for (const stageDef of sop.stage_definitions) {
+    validateStageSnailAssignments(stageDef, plan[stageDef.key] ?? {});
+  }
+
+  const stageKeys = new Set(sop.stage_definitions.map(stageDef => stageDef.key));
+  for (const stageKey of Object.keys(plan)) {
+    if (!stageKeys.has(stageKey)) throw new Error(`Unknown stage in snail assignment plan: ${stageKey}`);
+  }
+}
+
+function validateStageSnailAssignments(stageDef: StageDefinition, assignments: StageSnailAssignmentPlan): void {
+  const roleInstances = expandRoleInstances(stageDef.roles);
+  const allowed = new Set(roleInstances);
+  for (const instance of roleInstances) {
+    if (!assignments[instance]) throw new Error(`Missing snail assignment for role instance: ${stageDef.key}:${instance}`);
+  }
+  for (const instance of Object.keys(assignments)) {
+    if (!allowed.has(instance)) throw new Error(`Unknown role instance in snail assignments: ${stageDef.key}:${instance}`);
+  }
+}
+
+function findStageDefinition(sop: Sop, stageKey: string): StageDefinition {
+  const stageDef = sop.stage_definitions.find(sd => sd.key === stageKey);
+  if (!stageDef) throw new Error(`Stage definition not found: ${stageKey} in SOP ${sop.key}`);
+  return stageDef;
+}
+
+function resolveTransitions(sop: Sop, stageKey: string) {
+  return sop.transitions
+    .filter(t => t.from === stageKey)
+    .map(t => ({ to: t.to, guard: t.guard }));
 }

@@ -23,6 +23,7 @@ import { init as initMCP } from "@domain/mcp/_internal/initor";
 import { init as initIssueCollaboration } from "@app/issue-collaboration/initor";
 import { init as initIMHub } from "@app/im-hub/initor";
 import { createMcpHandler } from "@infra/mcp-server/handler";
+import { createStageWebSocketBridge } from "@infra/http/stage-websocket";
 
 async function main() {
   const repoRoot = process.cwd();
@@ -45,15 +46,24 @@ async function initModules(repoRoot: string, serverSettings: ServerSettings) {
   const skill = initSkill(dataStore, workspaces);
   const sop = initSop(dataStore, workspaces);
   const knowledge = initKnowledge(dataStore, workspaces);
-  const issue = initIssue(sop.adapter);
-  const message = initMessage();
-  const evolution = initEvolution(issue.issueAdapter);
-  const snailMCPServer = initMCPServer({ updateEvolution: (id, updates) => Promise.resolve(evolution.adapter.update(id, updates)), knowledge: knowledge.adapter, message: message.adapter });
+  const issue = initIssue(sop.adapter, db);
+  const message = initMessage(db);
+  const evolutionRef: { current?: ReturnType<typeof initEvolution> } = {};
+  const snailMCPServer = initMCPServer({
+    updateEvolution: (id, updates) => {
+      if (!evolutionRef.current) throw new Error("Evolution module is not initialized");
+      return Promise.resolve(evolutionRef.current.adapter.update(id, updates));
+    },
+    knowledge: knowledge.adapter,
+    message: message.adapter,
+  });
   const mcp = initMCP({ dataStore, workspaces, snailMCPServer: snailMCPServer.adapter, serverSettings });
   const featureChain = initFeatureChain(repoRoot);
   const guardProfile = initGuardProfile(dataStore);
   const liteAI = initLiteAI(dataStore);
   const snail = initSnail(dataStore, { registry, tenetPrompt: tenetPrompt.adapter, skill: skill.adapter, mcp: mcp.adapter, guardProfile: guardProfile.adapter });
+  const evolution = initEvolution(db, issue.issueAdapter, snail.adapter);
+  evolutionRef.current = evolution;
   const collaboration = initIssueCollaboration({ issuePort: issue.issueAdapter, stagePort: issue.stageAdapter, messagePort: message.adapter, snailPort: snail.adapter, liteAIPort: liteAI.adapter });
   const im = initIM({ workspacePort: workspace.adapter, issuePort: issue.issueAdapter, stagePort: issue.stageAdapter, configStore, db });
   const imHub = initIMHub({ imAdapter: im.adapter, lobbyAdapter: im.lobbyAdapter, collaboration: collaboration.adapter });
@@ -96,7 +106,9 @@ function startHttpServer(modules: Awaited<ReturnType<typeof initModules>>, serve
   });
   app.route("/im", modules.im.app);
   const port = serverSettings.port;
-  serve({ fetch: app.fetch, port }, (info) => {
+  const websocketBridge = createStageWebSocketBridge(modules.collaboration.adapter);
+  app.get("/stage-events", websocketBridge.route);
+  serve({ fetch: app.fetch, port, websocket: { server: websocketBridge.server } }, (info) => {
     console.log(`HTTP server listening on http://localhost:${info.port}`);
   });
 }

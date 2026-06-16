@@ -9,6 +9,6 @@ export interface SopPort {
   /** 按 key 查找 */
   findByKey(key: string): Sop | undefined;
 
-  /** 获取指定 ws 的 SOPs（平台 + 该 ws） */
+  /** 获取指定 workspace 的 SOPs（平台 + 该 workspace） */
   findByWorkspace(workspace: Workspace): Sop[];
 }

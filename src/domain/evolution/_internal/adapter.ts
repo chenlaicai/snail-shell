@@ -8,6 +8,8 @@ import { EvolutionStatus, EVOLUTION_ITEM_ID_KEY } from "@domain/evolution/model"
 import type { EvolutionPort, UpdateEvolutionItemInput } from "@domain/evolution/port";
 import type { EvolutionRepository } from "@domain/evolution/_internal/repository";
 import type { IssuePort } from "@domain/issue/port";
+import type { IssueSnailAssignmentPlan } from "@domain/issue/model";
+import type { SnailPort } from "@domain/snail/port";
 
 /**
  * Evolution 适配器。
@@ -19,6 +21,7 @@ export class EvolutionAdapter implements EvolutionPort {
   constructor(
     private repo: EvolutionRepository,
     private issuePort: IssuePort,
+    private snailPort: SnailPort,
   ) {}
 
   findById(id: string): EvolutionItem | undefined {
@@ -82,6 +85,7 @@ export class EvolutionAdapter implements EvolutionPort {
       title: `[Evolution] ${item.title}`,
       summary: item.content,
       adopted_sop_key: "evolution",
+      snail_assignment_plan: this.createDefaultSnailAssignmentPlan("evolution", `[Evolution] ${item.title}`),
       extendable_context: { [EVOLUTION_ITEM_ID_KEY]: item.id },
     });
 
@@ -92,5 +96,19 @@ export class EvolutionAdapter implements EvolutionPort {
     });
 
     return this.repo.findById(itemId)!;
+  }
+
+  private createDefaultSnailAssignmentPlan(adoptedSopKey: string, title: string): IssueSnailAssignmentPlan {
+    const snail = this.snailPort.list()[0];
+    if (!snail) throw new Error("Cannot create evolution issue without configured snails");
+
+    const plan: IssueSnailAssignmentPlan = {};
+    for (const stage of this.issuePort.previewSopStages(adoptedSopKey, title)) {
+      plan[stage.key] = {};
+      for (const role of stage.role_instances) {
+        plan[stage.key][role.role_instance] = snail.key;
+      }
+    }
+    return plan;
   }
 }

@@ -8,5 +8,5 @@ export interface WorkspacePort {
   /** 新增 workspace，路径重复抛异常 */
   add(input: CreateWorkspaceInput): Workspace;
 
-  // TODO: remove 方法需要先清理 ws 下的 skill/prompt/sop 等业务数据
+  // TODO: remove 方法需要先清理 workspace 下的 skill/prompt/sop 等业务数据
 }

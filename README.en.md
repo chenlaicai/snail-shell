@@ -175,7 +175,7 @@ GET /api/conversations/:id/history/search?query=keyword
 
 ## Database
 
-The development database is located at `data/snail-shell.db` and uses SQLite to store workspaces, conversations, messages, and artifacts.
+The development database is located at `data/database/snail-shell.db` and uses SQLite to store workspaces, conversations, messages, and artifacts.
 
 ## Workspace Structure
 

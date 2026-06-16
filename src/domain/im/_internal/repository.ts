@@ -10,21 +10,70 @@ export interface IMRepository {
   registerChannelConfig(config: IMChannelConfig): void;
 }
 
-/** IM 内存存储实现 */
-export class InMemoryIMRepository implements IMRepository {
-  private channelConfigs = new Map<string, IMChannelConfig>();
+// ── SQLite IM Repository ──────────────────────────────────────────────
+
+const IM_SCHEMA = `
+CREATE TABLE IF NOT EXISTS im_channel_config (
+  type TEXT PRIMARY KEY,
+  enabled INTEGER NOT NULL,
+  allowed_chats TEXT NOT NULL,
+  max_text_length INTEGER NOT NULL,
+  streaming_enabled INTEGER NOT NULL
+);
+`;
+
+export class SQLiteIMRepository implements IMRepository {
+  constructor(private db: SQLiteDatabase) {
+    db.initSchema(IM_SCHEMA);
+  }
 
   listChannelConfigs(): IMChannelConfig[] {
-    return [...this.channelConfigs.values()];
+    return this.db.all<IMChannelConfigRow>(
+      `SELECT * FROM im_channel_config ORDER BY type ASC`,
+    ).map(mapChannelConfig);
   }
 
   getChannelConfig(type: string): IMChannelConfig | undefined {
-    return this.channelConfigs.get(type);
+    const row = this.db.get<IMChannelConfigRow>(`SELECT * FROM im_channel_config WHERE type = ?`, [type]);
+    return row ? mapChannelConfig(row) : undefined;
   }
 
   registerChannelConfig(config: IMChannelConfig): void {
-    this.channelConfigs.set(config.type, config);
+    this.db.run(
+      `INSERT INTO im_channel_config (type, enabled, allowed_chats, max_text_length, streaming_enabled)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(type) DO UPDATE SET
+         enabled = excluded.enabled,
+         allowed_chats = excluded.allowed_chats,
+         max_text_length = excluded.max_text_length,
+         streaming_enabled = excluded.streaming_enabled`,
+      [
+        config.type,
+        config.enabled ? 1 : 0,
+        JSON.stringify(config.allowed_chats),
+        config.max_text_length,
+        config.streaming_enabled ? 1 : 0,
+      ],
+    );
   }
+}
+
+type IMChannelConfigRow = {
+  type: ChannelType;
+  enabled: number;
+  allowed_chats: string;
+  max_text_length: number;
+  streaming_enabled: number;
+};
+
+function mapChannelConfig(row: IMChannelConfigRow): IMChannelConfig {
+  return {
+    type: row.type,
+    enabled: row.enabled === 1,
+    allowed_chats: JSON.parse(row.allowed_chats),
+    max_text_length: row.max_text_length,
+    streaming_enabled: row.streaming_enabled === 1,
+  };
 }
 
 // ── Lobby Session Repository ────────────────────────────────────────
@@ -44,99 +93,6 @@ export interface LobbySessionRepository {
   getInStageSessions(channelType: ChannelType): LobbySession[];
   addMessage(input: { lobby_session_id: string; direction: "inbound" | "outbound"; command?: string | null; content: string; response_content?: string | null }): LobbyMessage;
   getMessages(sessionId: string, limit?: number, offset?: number): LobbyMessage[];
-}
-
-/** Lobby 内存存储实现 */
-export class InMemoryLobbyRepository implements LobbySessionRepository {
-  private sessions = new Map<string, LobbySession>();
-  private sessionsByChannel = new Map<string, string>();
-  private messages: LobbyMessage[] = [];
-  private nextMessageId = 1;
-
-  getOrCreate(channelType: string, channelChatId: string, channelTenantKey: string | null): LobbySession {
-    const existing = this.getByChannel(channelType, channelChatId, channelTenantKey);
-    if (existing) return existing;
-    const now = new Date().toISOString();
-    const id = randomUUID();
-    const session: LobbySession = {
-      id,
-      channel_type: channelType as LobbySession["channel_type"],
-      channel_chat_id: channelChatId,
-      channel_tenant_key: channelTenantKey,
-      navigation_level: "lobby",
-      current_workspace_id: null,
-      current_issue_id: null,
-      current_stage_id: null,
-      last_command_at: now,
-      created_at: now,
-      updated_at: now,
-    };
-    this.sessions.set(id, session);
-    this.sessionsByChannel.set(this.channelKey(channelType, channelChatId, channelTenantKey), id);
-    return session;
-  }
-
-  getByChannel(channelType: string, channelChatId: string, channelTenantKey: string | null): LobbySession | null {
-    const id = this.sessionsByChannel.get(this.channelKey(channelType, channelChatId, channelTenantKey));
-    return id ? (this.sessions.get(id) ?? null) : null;
-  }
-
-  get(id: string): LobbySession | null {
-    return this.sessions.get(id) ?? null;
-  }
-
-  updateNavigation(id: string, updates: {
-    navigation_level?: NavigationLevel;
-    current_workspace_id?: string | null;
-    current_issue_id?: string | null;
-    current_stage_id?: string | null;
-  }): LobbySession {
-    const session = this.sessions.get(id);
-    if (!session) throw new Error(`Lobby session not found: ${id}`);
-    if (updates.navigation_level !== undefined) session.navigation_level = updates.navigation_level;
-    if (updates.current_workspace_id !== undefined) session.current_workspace_id = updates.current_workspace_id;
-    if (updates.current_issue_id !== undefined) session.current_issue_id = updates.current_issue_id;
-    if (updates.current_stage_id !== undefined) session.current_stage_id = updates.current_stage_id;
-    const now = new Date().toISOString();
-    session.updated_at = now;
-    session.last_command_at = now;
-    return session;
-  }
-
-  listAll(): LobbySession[] {
-    return [...this.sessions.values()].sort((a, b) => b.updated_at.localeCompare(a.updated_at));
-  }
-
-  getInStageSessions(channelType: ChannelType): LobbySession[] {
-    return [...this.sessions.values()].filter(
-      s => s.channel_type === channelType && s.navigation_level === "in_stage" && s.current_stage_id !== null,
-    );
-  }
-
-  addMessage(input: { lobby_session_id: string; direction: "inbound" | "outbound"; command?: string | null; content: string; response_content?: string | null }): LobbyMessage {
-    const msg: LobbyMessage = {
-      id: this.nextMessageId++,
-      lobby_session_id: input.lobby_session_id,
-      direction: input.direction,
-      command: input.command ?? null,
-      content: input.content,
-      response_content: input.response_content ?? null,
-      created_at: new Date().toISOString(),
-    };
-    this.messages.push(msg);
-    return msg;
-  }
-
-  getMessages(sessionId: string, limit = 50, offset = 0): LobbyMessage[] {
-    return this.messages
-      .filter(m => m.lobby_session_id === sessionId)
-      .reverse()
-      .slice(offset, offset + limit);
-  }
-
-  private channelKey(channelType: string, chatId: string, tenantKey: string | null): string {
-    return `${channelType}:${chatId}:${tenantKey ?? ""}`;
-  }
 }
 
 // ── SQLite Lobby Repository ──────────────────────────────────────────

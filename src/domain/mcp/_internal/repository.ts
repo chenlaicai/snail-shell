@@ -13,7 +13,7 @@ export interface MCPRepository {
 /**
  * MCP 文件存储实现。
  *
- * 读取平台级 config/mcp.json 和 workspace 级 <ws>/.snail/mcp.json。
+ * 读取平台级 config/mcp.json 和 workspace 级 <workspace>/.snail/mcp.json。
  * 同时读取 snail-mcp-server 中注册的 MCP Server。
  */
 export class FileMCPRepository implements MCPRepository {
@@ -38,8 +38,8 @@ export class FileMCPRepository implements MCPRepository {
   }
 
   findByWorkspace(workspace: Workspace): MCPConfig[] {
-    const wsConfigs = this.workspaceConfigs.get(workspace.path) ?? [];
-    return [...this.platformConfigs, ...wsConfigs];
+    const workspaceConfigs = this.workspaceConfigs.get(workspace.path) ?? [];
+    return [...this.platformConfigs, ...workspaceConfigs];
   }
 
   private loadPlatformConfigs(): void {
@@ -47,10 +47,10 @@ export class FileMCPRepository implements MCPRepository {
   }
 
   private loadWorkspaceConfigs(): void {
-    for (const ws of this.workspaces) {
-      const wsStore = this.dataStore.workspace(ws.path);
-      const configs = this.loadConfigFile(wsStore, ScopeEnum.Workspace);
-      this.workspaceConfigs.set(ws.path, configs);
+    for (const workspace of this.workspaces) {
+      const workspaceStore = this.dataStore.workspace(workspace.path);
+      const configs = this.loadConfigFile(workspaceStore, ScopeEnum.Workspace);
+      this.workspaceConfigs.set(workspace.path, configs);
     }
   }
 

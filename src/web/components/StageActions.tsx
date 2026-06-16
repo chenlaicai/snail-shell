@@ -1,14 +1,12 @@
 import { useState } from "react";
 import { api } from "../services/api-client";
 import { showToast } from "./Toast";
-import type { RoleSnailAssignment } from "../types";
 
 interface Stage {
   id: string;
   key: string;
   type: string;
   status: string;
-  assignments?: RoleSnailAssignment[];
   stage_definition?: { title?: string; sequence?: number };
 }
 
@@ -45,10 +43,6 @@ export function StageActions({
   );
 
   const needsSelection = forward.length > 1 && !selectedTarget;
-  const snailAssignments = Object.fromEntries(
-    (currentStage.assignments ?? []).map((assignment) => [assignment.role_instance, assignment.snail_key])
-  );
-
   async function handleAdvance() {
     if (!currentStage || advancing || forward.length === 0 || needsSelection) return;
     setAdvancing(true);
@@ -57,12 +51,11 @@ export function StageActions({
         ? forward[0].to
         : selectedTarget;
       if (!targetKey) { showToast("请选择目标阶段", true); setAdvancing(false); return; }
-      const nextStage = await api("POST /api/stages/:stageId/advance", {
+      await api("POST /api/stages/:stageId/advance", {
         params: { stageId: currentStage.id },
-        body: { target_key: targetKey, snail_assignments: snailAssignments },
+        body: { target_key: targetKey },
       });
       showToast("阶段已推进");
-      api("POST /api/stages/:stageId/messages", { params: { stageId: nextStage.id }, body: { text: "开始执行。" } }).catch(() => {});
       onStageChanged();
     } catch (err: unknown) {
       showToast(`推进失败：${err instanceof Error ? err.message : String(err)}`, true);

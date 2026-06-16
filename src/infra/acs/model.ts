@@ -106,9 +106,9 @@ export interface SkillCapability {
  * - HTTP: url（挂载到现有 HTTP server，JSON-RPC over HTTP POST）
  *
  * 注入策略（已实现）：
- *  - Claude Code → <wsRoot>/.claude/mcp.json
- *  - OpenCode → <wsRoot>/opencode.json
- *  - Codex → <wsRoot>/.codex/config.toml
+ *  - Claude Code → <workspaceRoot>/.claude/mcp.json
+ *  - OpenCode → <workspaceRoot>/opencode.json
+ *  - Codex → <workspaceRoot>/.codex/config.toml
  */
 export interface MCPServerCapability {
   name: string;

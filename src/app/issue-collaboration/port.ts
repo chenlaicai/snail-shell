@@ -4,8 +4,6 @@ import type { Stage } from "@domain/issue/model";
 export interface LaunchIssueInput {
   issue_id: string;
   stage_key?: string;
-  snail_assignments: Record<string, string>;
-  initial_message?: string;
 }
 
 export interface StageTransitionSuggestion {
@@ -25,7 +23,7 @@ export interface CollaborationInput {
   registerConsumer(stageId: string, consumer: CollaborationConsumer): void;
   unregisterConsumer(stageId: string, consumer: CollaborationConsumer): void;
   listStageTransitionSuggestions(stageId: string): StageTransitionSuggestion[];
-  advanceStage(stageId: string, targetKey: string, snailAssignments: Record<string, string>): Promise<Stage>;
+  advanceStage(stageId: string, targetKey: string): Promise<Stage>;
 }
 
 export interface CollaborationConsumer {

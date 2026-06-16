@@ -32,7 +32,6 @@ function readWebDevSettings(repoRoot: string): WebDevSettings {
 export default defineConfig(() => {
   const webDevSettings = readWebDevSettings(process.cwd());
   const backendHttpBaseUrl = `http://localhost:${webDevSettings.backendPort}`;
-  const backendWsBaseUrl = `ws://localhost:${webDevSettings.backendPort}`;
 
   return {
     plugins: [react()],
@@ -52,7 +51,10 @@ export default defineConfig(() => {
       strictPort: true,
       proxy: {
         "/api": backendHttpBaseUrl,
-        "/ws": { target: backendWsBaseUrl, ws: true },
+        "/stage-events": {
+          target: backendHttpBaseUrl,
+          ws: true,
+        },
       },
     },
   };

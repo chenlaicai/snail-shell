@@ -6,6 +6,6 @@ export interface SkillPort {
   /** 页面展示用，列出所有 skills */
   list(): Skill[];
 
-  /** 获取指定 ws 的 skills（平台 + 该 ws） */
+  /** 获取指定 workspace 的 skills（平台 + 该 workspace） */
   findByWorkspace(workspace: Workspace): Skill[];
 }

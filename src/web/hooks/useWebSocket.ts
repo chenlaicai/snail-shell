@@ -112,7 +112,7 @@ export function useWebSocket(stageId: string | null) {
       const proto = location.protocol === "https:" ? "wss:" : "ws:";
       setWsStatus("reconnecting");
       wsRef.current = createWsConnection(
-        `${proto}//${location.host}/ws?stage_id=${stageId}`,
+        `${proto}//${location.host}/stage-events?stage_id=${stageId}`,
         {
           mounted: () => mounted,
           onOpen: () => { setWsStatus("connected"); reconnectDelay.current = 1000; },

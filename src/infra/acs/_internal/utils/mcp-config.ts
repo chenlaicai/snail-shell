@@ -2,9 +2,9 @@
  * MCP 配置注入层：将 ACS mcpServers 翻译为各 agent 的原生配置格式并写入磁盘。
  *
  * 配置路径策略（工作区本地化）：
- *  - Claude Code → <wsRoot>/.claude/mcp.json（通过 --mcp-config 显式指定）
- *  - Codex → <wsRoot>/.codex/config.toml（通过 CODEX_HOME 环境变量加载）
- *  - OpenCode → <wsRoot>/opencode.json（CWD auto-discovery，原生 mcp schema）
+ *  - Claude Code → <workspaceRoot>/.claude/mcp.json（通过 --mcp-config 显式指定）
+ *  - Codex → <workspaceRoot>/.codex/config.toml（通过 CODEX_HOME 环境变量加载）
+ *  - OpenCode → <workspaceRoot>/opencode.json（CWD auto-discovery，原生 mcp schema）
  */
 
 import fs from "fs";
@@ -17,20 +17,20 @@ function buildMcpRemoteEntry(url: string): { command: string; args: string[] } {
 
 export function ensureMcpServers(servers: MCPServerCapability[], workspacePath?: string, agentType?: "claude" | "opencode" | "codex"): void {
   if (!servers?.length) return;
-  const wsRoot = workspacePath ?? process.cwd();
+  const workspaceRoot = workspacePath ?? process.cwd();
 
   switch (agentType) {
     case "claude":
-      writeClaudeMcpConfig(servers, wsRoot);
+      writeClaudeMcpConfig(servers, workspaceRoot);
       break;
     case "opencode":
-      writeOpenCodeMcpConfig(servers, wsRoot);
+      writeOpenCodeMcpConfig(servers, workspaceRoot);
       break;
     case "codex":
-      writeCodexMcpConfig(servers, wsRoot);
+      writeCodexMcpConfig(servers, workspaceRoot);
       break;
     default:
-      writeClaudeMcpConfig(servers, wsRoot);
+      writeClaudeMcpConfig(servers, workspaceRoot);
       break;
   }
 }

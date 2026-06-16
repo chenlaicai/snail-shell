@@ -11,7 +11,7 @@ export interface GuardProfileRepository {
 /**
  * Guard Profile 文件存储实现。
  *
- * 读取平台级 config/guard-profile.json 和 workspace 级 <ws>/.snail/guard-profile.json。
+ * 读取平台级 config/guard-profile.json 和 workspace 级 <workspace>/.snail/guard-profile.json。
  * 合并策略：workspace 优先（workspace 的配置覆盖平台的配置）。
  */
 export class FileGuardProfileRepository implements GuardProfileRepository {
@@ -25,12 +25,12 @@ export class FileGuardProfileRepository implements GuardProfileRepository {
 
   findByWorkspace(workspace: Workspace): GuardProfile {
     const platform = this.platformProfile ?? { allow: [], deny: [] };
-    const wsProfile = this.loadWorkspaceProfile(workspace);
+    const workspaceProfile = this.loadWorkspaceProfile(workspace);
 
     // 合并：workspace 优先
     return {
-      allow: [...new Set([...platform.allow, ...(wsProfile?.allow ?? [])])],
-      deny: [...new Set([...platform.deny, ...(wsProfile?.deny ?? [])])],
+      allow: [...new Set([...platform.allow, ...(workspaceProfile?.allow ?? [])])],
+      deny: [...new Set([...platform.deny, ...(workspaceProfile?.deny ?? [])])],
       scope: Scope.Workspace,
       workspace,
     };
@@ -48,7 +48,7 @@ export class FileGuardProfileRepository implements GuardProfileRepository {
   }
 
   private loadWorkspaceProfile(workspace: Workspace): { allow?: string[]; deny?: string[] } | null {
-    const wsStore = this.dataStore.workspace(workspace.path);
-    return wsStore.readJson<{ allow?: string[]; deny?: string[] }>(FileGuardProfileRepository.FILE);
+    const workspaceStore = this.dataStore.workspace(workspace.path);
+    return workspaceStore.readJson<{ allow?: string[]; deny?: string[] }>(FileGuardProfileRepository.FILE);
   }
 }

@@ -56,7 +56,6 @@ function extractTextSummary(msg: MessageDto): string {
   return "";
 }
 
-/** 单条消息组件——React.memo 避免未变更消息的重复渲染 */
 const MessageItem = memo(function MessageItem({
   msg,
   stageId,
@@ -75,70 +74,76 @@ const MessageItem = memo(function MessageItem({
   const runtimeUsage = extractRuntimeUsage(msg);
   const hasContent = msgContent.processBlocks.length > 0 || msgContent.finalBlocks.length > 0;
   const shouldFoldProcess = !msgContent.isStreaming && msgContent.finalBlocks.length > 0;
+  const isUser = msg.role === "user";
 
   return (
-    <div
-      id={`msg-${msg.id}`}
-      className={`max-w-[var(--message-max-width)] px-[14px] py-[var(--space-md)] rounded-[14px] leading-[1.6] whitespace-pre-wrap min-w-0 [overflow-wrap:break-word] ${
-        msg.role === "user"
-          ? "self-end bg-[var(--color-user-msg-bg)] border border-[var(--color-border-muted)] rounded-br-[var(--space-2xs)]"
-          : msg.role === "assistant"
-          ? "self-start bg-[var(--color-assistant-msg-bg)] border border-[var(--color-border-muted)] rounded-bl-[var(--space-2xs)]"
-          : ""
-      }${msgContent.isStreaming ? " border-[var(--color-accent-blue)] border-dashed" : ""}`}
-    >
-      <div className="flex items-center justify-between gap-[var(--space-md)] mb-[var(--space-2xs)]">
-        <div className="text-[var(--font-size-xs)] text-[var(--color-text-blue-muted)] uppercase tracking-[0.08em]">{roleName}</div>
-        <div className="flex items-center justify-end gap-[var(--space-sm)] min-w-0">
-          {runtimeUsage && (
-            <span
-              className={`inline-flex items-center gap-[var(--space-xs)] max-w-[190px] px-[7px] py-[2px] border border-[rgba(125,211,252,0.22)] rounded-full bg-[rgba(14,165,233,0.1)] text-[var(--color-text-cyan-muted)] text-[var(--font-size-xs)] not-italic [font-variant-numeric:tabular-nums] whitespace-nowrap${runtimeUsage.isPlaceholder ? " opacity-50 border-dashed" : ""}`}
-              title={runtimeUsage.title}
-            >
-              <span className="min-w-0 overflow-hidden text-ellipsis">{runtimeUsage.label}</span>
-              <span className="text-[var(--color-warning-text)] font-bold">{runtimeUsage.percentLabel}</span>
-            </span>
-          )}
-          <div className="shrink-0 text-[var(--font-size-xs)] text-[var(--color-text-muted)] [font-variant-numeric:tabular-nums]">{new Date(msg.created_at).toLocaleTimeString()}</div>
-          <button className="bg-transparent text-[var(--color-text-secondary)] border border-[var(--color-border-muted)] rounded-md px-1.5 py-0.5 text-[10px] font-medium cursor-pointer transition-all hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]" onClick={() => onReply(msg.id, extractTextSummary(msg))}>回复</button>
+    <article id={`msg-${msg.id}`} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+      <div className={`max-w-[85%] min-w-0 flex ${isUser ? "flex-col items-end" : "items-start gap-[var(--space-sm)]"}`}>
+        {!isUser && (
+          <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--color-accent-blue)] to-[var(--color-accent-purple)] text-[11px] font-semibold text-[var(--color-bg-base)]">
+            S
+          </div>
+        )}
+        <div className={`flex min-w-0 flex-col ${isUser ? "items-end" : "items-start"}`}>
+          <div className={`mb-1 flex items-center gap-[var(--space-sm)] px-1 text-[11px] text-[var(--color-text-grey)] ${isUser ? "flex-row-reverse" : ""}`}>
+            <span className="font-medium text-[var(--color-text-secondary)]">{roleName}</span>
+            <span className="[font-variant-numeric:tabular-nums]">{new Date(msg.created_at).toLocaleTimeString()}</span>
+          </div>
+          <div className={`min-w-0 rounded-2xl px-4 py-3 text-[13px] leading-relaxed shadow-sm [overflow-wrap:break-word] ${
+            isUser
+              ? "rounded-br-md border border-[rgba(108,141,250,0.24)] bg-[rgba(108,141,250,0.16)]"
+              : "rounded-bl-md border border-[var(--color-border-muted)] bg-[var(--color-bg-surface)]"
+          }${msgContent.isStreaming ? " border-[var(--color-accent-blue)]" : ""}`}>
+            <div className="mb-[var(--space-xs)] flex items-center justify-end gap-[var(--space-sm)]">
+              {runtimeUsage && (
+                <span
+                  className={`inline-flex max-w-[190px] items-center gap-[var(--space-xs)] whitespace-nowrap rounded-full border border-[rgba(125,211,252,0.22)] bg-[rgba(14,165,233,0.1)] px-[7px] py-[2px] text-[var(--font-size-xs)] text-[var(--color-text-cyan-muted)] [font-variant-numeric:tabular-nums]${runtimeUsage.isPlaceholder ? " border-dashed opacity-50" : ""}`}
+                  title={runtimeUsage.title}
+                >
+                  <span className="min-w-0 overflow-hidden text-ellipsis">{runtimeUsage.label}</span>
+                  <span className="font-bold text-[var(--color-warning-text)]">{runtimeUsage.percentLabel}</span>
+                </span>
+              )}
+              <button className="rounded-md border border-[var(--color-border-muted)] bg-transparent px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-text-secondary)] transition-all hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]" onClick={() => onReply(msg.id, extractTextSummary(msg))}>回复</button>
+            </div>
+            <div className="whitespace-pre-wrap text-[var(--color-text-primary)]">
+              {msg.quoted_message && (
+                <blockquote className="mb-[var(--space-sm)] rounded-[var(--radius-sm)] border-l-[3px] border-l-[var(--color-accent)] bg-[var(--color-bg-elevated)] px-[var(--space-md)] py-[var(--space-sm)] text-[var(--font-size-sm)] leading-[var(--line-height-normal)] text-[var(--color-text-secondary)] whitespace-pre-wrap">
+                  {msg.quoted_message.speaker && <strong>{msg.quoted_message.speaker}: </strong>}
+                  {msg.quoted_message.preview || "(空消息)"}
+                </blockquote>
+              )}
+              {!hasContent && msgContent.isStreaming && <ThinkingIndicator />}
+              {!hasContent && !msgContent.isStreaming && null}
+              {msgContent.processBlocks.length > 0 && (
+                <EventStreamView blocks={msgContent.processBlocks} defaultOpen={!shouldFoldProcess || msgContent.containsQuestion}
+                  onApprove={() => onApprove(stageId, msg.id)} onDeny={() => onDeny(stageId, msg.id)} />
+              )}
+              {msgContent.finalBlocks.map((block, i) => (
+                <ContentBlockView key={i} block={block}
+                  onApprove={() => onApprove(stageId, msg.id)} onDeny={() => onDeny(stageId, msg.id)} />
+              ))}
+              {msgContent.isStreaming && hasContent && <ThinkingIndicator className="mt-2" />}
+            </div>
+          </div>
         </div>
       </div>
-      <div className="whitespace-pre-wrap">
-        {msg.quoted_message && (
-          <blockquote className="mb-[var(--space-sm)] px-[var(--space-md)] py-[var(--space-sm)] border-l-[3px] border-l-[var(--color-accent)] bg-[var(--color-bg-elevated)] rounded-[var(--radius-sm)] text-[var(--color-text-secondary)] text-[var(--font-size-sm)] leading-[var(--line-height-normal)] whitespace-pre-wrap">
-            {msg.quoted_message.speaker && <strong>{msg.quoted_message.speaker}: </strong>}
-            {msg.quoted_message.preview || "(空消息)"}
-          </blockquote>
-        )}
-        {!hasContent && msgContent.isStreaming && (
-          <div className="flex items-center gap-[var(--space-md)] text-[var(--color-text-blue-muted)] text-[var(--font-size-base)] not-italic">
-            <div className="relative shrink-0 basis-[54px] h-5 overflow-hidden border-b border-dotted border-b-[rgba(191,219,254,0.52)]">
-              <span className="absolute left-0 -bottom-0.5 inline-block text-[var(--font-size-2xl)] leading-none animate-[snail-crawl_1.8s_ease-in-out_infinite]">🐌</span>
-            </div>
-            <span>Snail is starting</span>
-          </div>
-        )}
-        {!hasContent && !msgContent.isStreaming && <span className="text-[var(--color-text-grey)] text-[var(--font-size-xs)]">(空消息)</span>}
-        {msgContent.processBlocks.length > 0 && (
-          <EventStreamView blocks={msgContent.processBlocks} defaultOpen={!shouldFoldProcess || msgContent.containsQuestion}
-            onApprove={() => onApprove(stageId, msg.id)} onDeny={() => onDeny(stageId, msg.id)} />
-        )}
-        {msgContent.finalBlocks.map((block, i) => (
-          <ContentBlockView key={i} block={block}
-            onApprove={() => onApprove(stageId, msg.id)} onDeny={() => onDeny(stageId, msg.id)} />
-        ))}
-        {msgContent.isStreaming && hasContent && (
-          <div className="flex items-center gap-[var(--space-md)] text-[var(--color-text-blue-muted)] text-[var(--font-size-base)] not-italic">
-            <div className="relative shrink-0 basis-[54px] h-5 overflow-hidden border-b border-dotted border-b-[rgba(191,219,254,0.52)]">
-              <span className="absolute left-0 -bottom-0.5 inline-block text-[var(--font-size-2xl)] leading-none animate-[snail-crawl_1.8s_ease-in-out_infinite]">🐌</span>
-            </div>
-            <span>Snail is still working</span>
-          </div>
-        )}
-      </div>
-    </div>
+    </article>
   );
 });
+
+function ThinkingIndicator({ className = "" }: { className?: string }) {
+  return (
+    <div className={`flex items-center gap-1.5 text-[11px] text-[var(--color-text-muted)] ${className}`}>
+      <div className="flex gap-0.5">
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--color-accent)]" />
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--color-accent)] [animation-delay:150ms]" />
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--color-accent)] [animation-delay:300ms]" />
+      </div>
+      <span>thinking...</span>
+    </div>
+  );
+}
 
 interface Props { stageId: string | null; }
 
@@ -159,30 +164,25 @@ export function ConversationView({ stageId }: Props) {
     enabled: !!stageId,
   });
 
-  // TanStack Query: 消息列表
   const { data: messages = [] } = useQuery({
     ...conversationQueries.messages(stageId || ""),
     enabled: !!stageId,
   });
 
-  // 加载可用角色
   useEffect(() => {
     const roles = stage?.active_roles || stage?.role_instances || [];
     setAvailableRoles(roles.map((name) => ({ name })));
   }, [stage]);
 
-  // 消息变化时滚动到底部
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // 发送消息（乐观渲染）
   async function handleSend() {
     if (!input.trim() || !stageId || sending) return;
     const content = input.trim();
     const optimisticId = Date.now();
     const optimisticMsg = createPlaceholderMessage(stageId, { id: optimisticId, role: "user", content });
-    // 乐观插入
     queryClient.setQueryData(queryKeys.stages.messages(stageId), (old: MessageDto[] | undefined) => [...(old ?? []), optimisticMsg]);
     setInput(""); setReplyTo(null); setSending(true);
     try {
@@ -190,7 +190,6 @@ export function ConversationView({ stageId }: Props) {
       queryClient.invalidateQueries({ queryKey: queryKeys.stages.messages(stageId) });
     } catch (err: unknown) {
       showToast(`发送失败：${err instanceof Error ? err.message : String(err)}`, true);
-      // 回滚乐观消息 + 重新同步相关缓存
       queryClient.setQueryData(queryKeys.stages.messages(stageId), (old: MessageDto[] | undefined) => old?.filter((m) => m.id !== optimisticId));
       queryClient.invalidateQueries({ queryKey: queryKeys.stages.detail(stageId) });
     }
@@ -213,7 +212,10 @@ export function ConversationView({ stageId }: Props) {
     setReplyTo({ id, preview });
   }, []);
 
-  function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) { setInput(e.target.value); updateMention(); }
+  function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    setInput(e.target.value);
+    updateMention(e.target.value, e.target.selectionStart ?? e.target.value.length);
+  }
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter" && e.shiftKey) { e.preventDefault(); handleSend(); return; }
@@ -225,13 +227,21 @@ export function ConversationView({ stageId }: Props) {
   const canSend = input.trim() && !sending && !isAiRunning;
 
   if (!stageId) {
-    return <div id="messages" className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">选择一个 Stage</div>;
+    return <div id="messages" className="flex h-full items-center justify-center text-[13px] text-[var(--color-text-muted)]">选择一个 Stage</div>;
   }
 
   return (
-    <>
-      <div id="messages" className="flex-1 overflow-auto p-6" ref={messagesContainerRef}>
-        {messages.length === 0 && <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">暂无消息</div>}
+    <div className="flex min-h-0 flex-1 flex-col bg-[var(--color-bg-base)]">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto px-6 py-6" ref={messagesContainerRef}>
+        {messages.length === 0 && (
+          <div className="m-auto flex max-w-[440px] flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--color-border-muted)] bg-[var(--color-bg-surface)] px-8 py-10 text-center">
+            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-[rgba(108,141,250,0.12)] text-[var(--color-accent)]">S</div>
+            <div className="text-sm font-semibold text-[var(--color-text-primary)]">还没有消息</div>
+            <div className="mt-2 text-[12px] leading-relaxed text-[var(--color-text-muted)]">
+              当前 Stage 已创建，等待你发送第一条消息。
+            </div>
+          </div>
+        )}
         {messages.map((msg) => (
           <MessageItem
             key={msg.id}
@@ -245,47 +255,51 @@ export function ConversationView({ stageId }: Props) {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="border-t border-[var(--color-border-muted)] bg-[var(--color-bg-base)] p-[var(--space-md)] px-[var(--space-lg)] shrink-0">
-        {replyTo && (
-          <div className="flex items-center justify-between mb-[var(--space-sm)] px-[var(--space-md)] py-[var(--space-xs)] bg-[var(--color-bg-elevated)] rounded-[var(--radius-sm)] text-[var(--font-size-sm)] text-[var(--color-text-secondary)]">
-            <div id="reply-banner-text">回复：{replyTo.preview}</div>
-            <button className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] text-xs" onClick={() => setReplyTo(null)}>取消</button>
+      <div className="shrink-0 px-6 pb-8 pt-4">
+        {wsStatus !== "connected" && (
+          <div className="mx-auto mb-2 flex max-w-[920px] items-center gap-2 rounded-md bg-[rgba(251,191,36,0.1)] px-3 py-2 text-[11px] text-[var(--color-warning-text)]">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--color-warning-text)]" />
+            {wsStatus === "reconnecting" ? "Reconnecting..." : "Disconnected"}
           </div>
         )}
-        <div className="flex flex-col gap-[var(--space-xs)]">
+        <div className="relative mx-auto flex max-w-[920px] flex-col overflow-hidden rounded-2xl border border-[var(--color-border-muted)] bg-[var(--color-bg-surface)] shadow-sm transition-all focus-within:border-[rgba(108,141,250,0.45)] focus-within:ring-1 focus-within:ring-[rgba(108,141,250,0.16)]">
+          {replyTo && (
+            <div className="mx-3 mt-3 flex items-center justify-between rounded-[var(--radius-sm)] border border-[var(--color-border-muted)] bg-[var(--color-bg-elevated)] px-[var(--space-md)] py-[var(--space-xs)] text-[var(--font-size-sm)] text-[var(--color-text-secondary)]">
+              <div id="reply-banner-text" className="min-w-0 truncate">回复：{replyTo.preview}</div>
+              <button className="ml-3 shrink-0 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]" onClick={() => setReplyTo(null)}>取消</button>
+            </div>
+          )}
           <Textarea ref={inputRef} id="input" value={input} onChange={handleInputChange}
-            placeholder="输入 @开发者 与指定 role 对话；未指定时默认发送给当前主 role" rows={2} onKeyDown={handleKeyDown} />
-          <div className="flex items-center gap-[var(--space-md)] text-[var(--font-size-xs)] text-[var(--color-text-grey)]">
-            <span>Shift+Enter 发送</span>
-            {mentionStatus && <span className="text-[var(--color-accent)]">{mentionStatus}</span>}
-          </div>
+            placeholder="输入 @开发者 与指定 role 对话；未指定时默认发送给当前主 role" rows={1} onKeyDown={handleKeyDown}
+            className="min-h-12 resize-none border-0 bg-transparent px-4 py-3 text-[13px] leading-relaxed shadow-none outline-none focus-visible:ring-0" />
           {isMentionActive && (
-            <div className="absolute bottom-full left-0 right-0 mb-1 bg-[var(--color-bg-elevated)] border border-[var(--color-border-muted)] rounded-[var(--radius-md)] shadow-lg max-h-[200px] overflow-auto z-10">
+            <div className="absolute bottom-full left-[var(--space-md)] right-[var(--space-md)] z-10 mb-2 max-h-[220px] overflow-auto rounded-[var(--radius-md)] border border-[var(--color-border-muted)] bg-[var(--color-bg-elevated)] shadow-lg">
               {mentionState.suggestions.map((role, i) => (
-                <div key={role.name} className={`flex items-center gap-[var(--space-sm)] px-[var(--space-md)] py-[var(--space-xs)] cursor-pointer text-[var(--font-size-sm)] ${
-                  i === mentionState.selectedIndex ? "bg-[var(--color-bg-active)] text-[var(--color-accent)]" : "text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]"
+                <div key={role.name} className={`flex cursor-pointer items-center gap-[var(--space-sm)] px-[var(--space-md)] py-[var(--space-xs)] text-[var(--font-size-sm)] ${
+                  i === mentionState.selectedIndex ? "bg-[var(--color-bg-active)] text-[var(--color-accent)]" : "text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-active)]"
                 }`}
                   onMouseDown={(e) => { e.preventDefault(); applySelection(i); }}>
                   <span className="font-semibold">{role.name}</span>
-                  {role.description && <span className="text-[var(--color-text-grey)] text-[var(--font-size-xs)]">{role.description}</span>}
+                  {role.description && <span className="text-[var(--font-size-xs)] text-[var(--color-text-grey)]">{role.description}</span>}
                 </div>
               ))}
             </div>
           )}
-        </div>
-        <div className="flex gap-[var(--space-xs)] flex-wrap">
-          {streamingMessage ? (
-            <Button variant="destructive" onClick={() => handleInterrupt(streamingMessage.id)}>中断 Snail</Button>
-          ) : (
-            <Button onClick={handleSend} disabled={!canSend}>发送</Button>
-          )}
-        </div>
-        <div className="text-[11px] text-[var(--color-text-grey)] px-6">
-          {wsStatus === "connected" && <span className="text-[var(--color-accent-cyan)]">● 已连接</span>}
-          {wsStatus === "disconnected" && <span className="text-[var(--color-danger-text)]">● 已断开</span>}
-          {wsStatus === "reconnecting" && <span className="text-[var(--color-warning-soft)]">● 重连中...</span>}
+          <div className="flex items-center justify-between gap-[var(--space-md)] border-t border-[var(--color-border-muted)] px-3 py-2">
+            <div className="flex min-w-0 items-center gap-[var(--space-md)] text-[var(--font-size-xs)] text-[var(--color-text-grey)]">
+              <span>Shift+Enter 发送</span>
+              {mentionStatus && <span className="truncate text-[var(--color-accent)]">{mentionStatus}</span>}
+            </div>
+            <div className="flex shrink-0 gap-[var(--space-xs)]">
+              {streamingMessage ? (
+                <Button variant="destructive" onClick={() => handleInterrupt()}>中断 Snail</Button>
+              ) : (
+                <Button onClick={handleSend} disabled={!canSend}>发送</Button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

@@ -6,6 +6,6 @@ export interface MCPPort {
   /** 列出所有 MCP 配置 */
   list(): MCPConfig[];
 
-  /** 获取指定 ws 的 MCP 配置（平台 + 该 ws） */
+  /** 获取指定 workspace 的 MCP 配置（平台 + 该 workspace） */
   findByWorkspace(workspace: Workspace): MCPConfig[];
 }

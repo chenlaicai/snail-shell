@@ -2,7 +2,7 @@ import type { WorkspacePort } from "@domain/workspace/port";
 import type { IssuePort, StagePort } from "@domain/issue/port";
 import type { ConfigStore } from "@infra/config-store";
 import type { SQLiteDatabase } from "@infra/database";
-import { InMemoryIMRepository, SQLiteLobbyRepository } from "@domain/im/_internal/repository";
+import { SQLiteIMRepository, SQLiteLobbyRepository } from "@domain/im/_internal/repository";
 import { IMAdapter, LobbyAwareChannel } from "@domain/im/_internal/adapter";
 import { IMHonoServer } from "@domain/im/_internal/hono-server";
 import { FeishuTransport } from "@domain/im/_internal/feishu-transport";
@@ -42,7 +42,7 @@ export function initHono(deps: IMHonoDeps) {
   const feishuConfig = deps.configStore.readYaml<FeishuYamlConfig>("feishu.yaml");
   const wecomConfig = deps.configStore.readYaml<WecomYamlConfig>("wecom.yaml");
   // 仓库
-  const repo = new InMemoryIMRepository();
+  const repo = new SQLiteIMRepository(deps.db);
   const lobbyRepo = new SQLiteLobbyRepository(deps.db);
 
   // Lobby 组件

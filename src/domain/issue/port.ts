@@ -1,9 +1,12 @@
-import type { Issue, CreateIssueInput, Stage, CreateStageInput, RoleSnailAssignment, StagePreview } from "@domain/issue/model";
+import type { Issue, CreateIssueInput, Stage, CreateStageInput, RoleSnailAssignment, StagePreview, IssueSnailAssignmentPlan, StageSnailAssignmentPlan } from "@domain/issue/model";
+import type { Sop } from "@domain/sop/model";
 
 /** Issue 端口 */
 export interface IssuePort {
   findIssue(id: string): Issue | undefined;
   listIssues(workspacePath: string, limit?: number, offset?: number): Issue[];
+  previewSopStages(adoptedSopKey: string, title: string): StagePreview[];
+  validateSnailAssignmentPlan(sop: Sop, plan: IssueSnailAssignmentPlan): void;
   createIssue(input: CreateIssueInput): Issue;
 }
 
@@ -13,13 +16,14 @@ export interface StagePort {
   listStages(issueId: string): Stage[];
   /** 预览 stage 定义（只读，不创建），供页面展示角色实例供用户选择 snail */
   previewStage(issueId: string, stageKey: string): StagePreview;
+  getStageSnailAssignmentPlan(issueId: string, stageKey: string): StageSnailAssignmentPlan;
   createStage(input: CreateStageInput): Stage;
 
   /** 写入产物（合并，不覆盖已有） */
   addOutputArtifacts(stageId: string, artifacts: Record<string, string>): void;
 
   /** 流转到下一个 Stage：设置当前 left_at + 创建新 Stage */
-  advanceStage(currentStageId: string, targetKey: string, snailAssignments: Record<string, string>): Stage;
+  advanceStage(currentStageId: string, targetKey: string): Stage;
 
   /** 切换 snail：追加新 RoleSnailAssignment 记录（seq+1） */
   switchSnail(stageId: string, roleInstance: string, newSnailId: string): void;

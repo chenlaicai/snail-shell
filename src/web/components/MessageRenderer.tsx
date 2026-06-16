@@ -82,9 +82,12 @@ export interface MessageContent {
 }
 
 /** 从消息事件中提取内容，分为流式过程和最终答复 */
-export function extractMessageContent(msg: { events?: Array<Record<string, unknown>>; content?: string; status?: string }): MessageContent {
+export function extractMessageContent(msg: { events?: Array<Record<string, unknown>>; content?: string; status?: string; context?: { context?: string | null } | null }): MessageContent {
   if (msg.content) {
     return { processBlocks: [], finalBlocks: [{ kind: "text_event", text: msg.content }], isStreaming: false, containsQuestion: false };
+  }
+  if (msg.context?.context) {
+    return { processBlocks: [], finalBlocks: [{ kind: "text_event", text: msg.context.context }], isStreaming: false, containsQuestion: false };
   }
   if (!msg.events || msg.events.length === 0) {
     return { processBlocks: [], finalBlocks: [], isStreaming: msg.status === "streaming", containsQuestion: false };
@@ -95,6 +98,34 @@ export function extractMessageContent(msg: { events?: Array<Record<string, unkno
   let containsQuestion = false;
 
   for (const event of msg.events) {
+    const modernPayload = payloadRecord(event, "payload");
+    if (modernPayload) {
+      const type = payloadString(modernPayload, "type");
+      if (type === "text") {
+        finalBlocks.push({ kind: "text_event", text: payloadString(modernPayload, "text") });
+        continue;
+      }
+      if (type === "tool_call") {
+        processBlocks.push({ kind: "tool_call_card", toolName: payloadString(modernPayload, "tool_name"), status: "running", summary: payloadString(modernPayload, "tool_name"), detail: JSON.stringify(payloadField(modernPayload, "tool_input") || {}) });
+        continue;
+      }
+      if (type === "tool_result") {
+        processBlocks.push({ kind: "event_activity", eventKind: "tool_result", summary: `[tool-result] ${payloadString(modernPayload, "tool_name", "tool")}`, detail: payloadString(modernPayload, "result") });
+        continue;
+      }
+      if (type === "signal") {
+        const signal = payloadString(modernPayload, "signal");
+        if (signal && signal !== "runtime_usage") {
+          processBlocks.push({ kind: "event_activity", eventKind: signal, summary: payloadString(modernPayload, "reason") || signal, detail: JSON.stringify(modernPayload) });
+        }
+        continue;
+      }
+      if (type === "error") {
+        processBlocks.push({ kind: "event_error", eventKind: "error", summary: payloadString(modernPayload, "error"), detail: JSON.stringify(modernPayload) });
+        continue;
+      }
+    }
+
     const { category, kind, payload } = event;
 
     if (category === "content" && kind === "text") {

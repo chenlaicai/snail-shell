@@ -32,7 +32,7 @@ export function StageSuggestionBanner({
 
   async function handleConfirm() {
     try {
-      await api("POST /api/stages/:stageId/advance", { params: { stageId }, body: { target_key: suggestion.target_key, snail_assignments: {} } });
+      await api("POST /api/stages/:stageId/advance", { params: { stageId }, body: { target_key: suggestion.target_key } });
       showToast("阶段已推进");
       setSuggestion(null);
       onAccepted();

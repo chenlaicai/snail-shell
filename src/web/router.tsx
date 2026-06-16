@@ -8,6 +8,7 @@ import { metaQueries } from "./queries/meta.queries";
 import { AppShell } from "./layouts/AppShell";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { HomePage } from "./pages/HomePage";
+import { WorkspaceDirectory } from "./pages/WorkspaceDirectory";
 import { WorkspaceBoard } from "./pages/WorkspaceBoard";
 import { WorkspaceConfig } from "./pages/WorkspaceConfig";
 import { ConversationLayout } from "./pages/ConversationLayout";
@@ -40,15 +41,19 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <HomePage /> },
       {
-        path: "ws/new",
-        element: <WorkspaceConfig />,
+        path: "workspaces",
+        element: <WorkspaceDirectory />,
         loader: async () => {
-          await queryClient.ensureQueryData(sopQueries.list());
+          await queryClient.ensureQueryData(workspaceQueries.list());
           return null;
         },
       },
       {
-        path: "ws/:workspaceId",
+        path: "workspaces/new",
+        element: <WorkspaceConfig />,
+      },
+      {
+        path: "workspaces/:workspaceId",
         element: <WorkspaceBoard />,
         loader: async (args) => {
           const { workspaceId } = requireParams(args, "workspaceId");
@@ -60,7 +65,7 @@ export const router = createBrowserRouter([
         },
       },
       {
-        path: "ws/:workspaceId/issue/:issueId",
+        path: "workspaces/:workspaceId/issue/:issueId",
         element: <ConversationLayout />,
         loader: async (args) => {
           const { issueId } = requireParams(args, "issueId");

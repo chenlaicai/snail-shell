@@ -39,19 +39,11 @@ export class IssueCollaboration implements CollaborationInput {
     const stageKey = input.stage_key ?? issue.sop_snapshot.stage_definitions[0]?.key;
     if (!stageKey) throw new Error(`No stage definitions found for issue: ${input.issue_id}`);
 
-    const stagePreview = this.deps.stagePort.previewStage(issue.id, stageKey);
-    this.ensureAssignments(stagePreview.role_instances.map(role => role.role_instance), input.snail_assignments);
-
     const stage = this.deps.stagePort.createStage({
       issue_id: issue.id,
       key: stageKey,
-      snail_assignments: input.snail_assignments,
     });
     this.initStageCursors(stage);
-
-    if (input.initial_message) {
-      await this.sendMessage(stage.id, input.initial_message, "user");
-    }
 
     return stage;
   }
@@ -93,8 +85,8 @@ export class IssueCollaboration implements CollaborationInput {
     return [...(this.suggestions.get(stageId) ?? [])];
   }
 
-  async advanceStage(stageId: string, targetKey: string, snailAssignments: Record<string, string>): Promise<Stage> {
-    const stage = this.deps.stagePort.advanceStage(stageId, targetKey, snailAssignments);
+  async advanceStage(stageId: string, targetKey: string): Promise<Stage> {
+    const stage = this.deps.stagePort.advanceStage(stageId, targetKey);
     this.initStageCursors(stage);
     return stage;
   }
@@ -416,16 +408,6 @@ export class IssueCollaboration implements CollaborationInput {
       return { type: "error", error: agentEvent.payload.message };
     }
     return { type: "error", error: agentEvent.payload.error };
-  }
-
-  private ensureAssignments(roleInstances: string[], assignments: Record<string, string>): void {
-    const allowed = new Set(roleInstances);
-    for (const roleInstance of roleInstances) {
-      if (!assignments[roleInstance]) throw new Error(`Missing snail assignment for role instance: ${roleInstance}`);
-    }
-    for (const roleInstance of Object.keys(assignments)) {
-      if (!allowed.has(roleInstance)) throw new Error(`Unknown role instance in snail assignments: ${roleInstance}`);
-    }
   }
 
   private initStageCursors(stage: Stage): void {

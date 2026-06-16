@@ -37,6 +37,8 @@ export class FileSnailRepository implements SnailRepository {
     if (!raw?.snails) return;
 
     for (const snail of raw.snails) {
+      if (!snail.key) throw new Error("Invalid snails.json: snail.key is required");
+      if (this.snails.has(snail.key)) throw new Error(`Invalid snails.json: duplicate snail key ${snail.key}`);
       this.snails.set(snail.key, snail);
     }
   }

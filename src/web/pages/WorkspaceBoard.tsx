@@ -1,12 +1,12 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../services/api-client";
 import { showToast } from "../components/Toast";
 import { Dialog } from "../components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import type { WorkspaceDetailDto, IssueDetailDto, SopDto } from "../types";
+import type { WorkspaceDetailDto, IssueDetailDto, SopDto, SnailDenTemplateDto, StagePreviewDto, IssueSnailAssignmentPlanDto } from "../types";
 
 const STATUS_GROUPS = [
   { key: "pending", label: "待处理" },
@@ -75,6 +75,9 @@ export function WorkspaceBoard() {
   const [newSummary, setNewSummary] = useState("");
   const [selectedSopKey, setSelectedSopKey] = useState("");
   const [sops, setSops] = useState<SopDto[]>([]);
+  const [snails, setSnails] = useState<SnailDenTemplateDto[]>([]);
+  const [stagePreviews, setStagePreviews] = useState<StagePreviewDto[]>([]);
+  const [roleAssignments, setRoleAssignments] = useState<IssueSnailAssignmentPlanDto>({});
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const [archiveTarget, setArchiveTarget] = useState<IssueDetailDto | null>(null);
 
@@ -84,10 +87,12 @@ export function WorkspaceBoard() {
     Promise.all([
       api("GET /api/workspaces/:workspaceId", { params: { workspaceId: workspaceId! } }),
       api("GET /api/sops", { query: { source: "platform" } }),
+      api("GET /api/snail-den"),
     ])
-      .then(([workspaceData, sopData]) => {
+      .then(([workspaceData, sopData, snailData]) => {
         setWorkspace(workspaceData);
         setSops(Array.isArray(sopData) ? sopData : []);
+        setSnails(Array.isArray(snailData) ? snailData : []);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -95,20 +100,68 @@ export function WorkspaceBoard() {
 
   useEffect(() => { reload(); }, [workspaceId]);
 
+  const selectedSop = useMemo(
+    () => sops.find((sop) => sop.key === selectedSopKey) ?? null,
+    [selectedSopKey, sops]
+  );
+
+  useEffect(() => {
+    if (!selectedSopKey) {
+      setStagePreviews([]);
+      setRoleAssignments({});
+      return;
+    }
+    let cancelled = false;
+    api("GET /api/sops/:sopKey/stage-previews", {
+      params: { sopKey: selectedSopKey },
+      query: { title: newTitle.trim() || undefined },
+    })
+      .then((previews) => {
+        if (cancelled) return;
+        setStagePreviews(previews);
+        const nextAssignments: IssueSnailAssignmentPlanDto = {};
+        for (const stage of previews) {
+          nextAssignments[stage.key] = {};
+          for (const role of stage.role_instances) {
+            const preferred = snails[0]?.key;
+            if (preferred) nextAssignments[stage.key][role.role_instance] = preferred;
+          }
+        }
+        setRoleAssignments(nextAssignments);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) showToast(`加载 Stage 预览失败：${err instanceof Error ? err.message : String(err)}`, true);
+      });
+    return () => { cancelled = true; };
+  }, [newTitle, selectedSopKey, snails]);
+
+  const missingAssignment = stagePreviews
+    .flatMap((stage) => stage.role_instances.map((role) => ({ stage, role })))
+    .find(({ stage, role }) => !roleAssignments[stage.key]?.[role.role_instance]);
+
   async function handleCreateIssue() {
     if (!newTitle.trim()) { showToast("标题不能为空", true); return; }
     if (!selectedSopKey) { showToast("请选择 SOP", true); return; }
+    if (stagePreviews.length === 0) { showToast("当前 SOP 没有可启动的 Stage", true); return; }
+    if (missingAssignment) { showToast(`请选择 ${missingAssignment.stage.key} / ${missingAssignment.role.role_instance} 对应的 Snail`, true); return; }
     try {
       const result = await api("POST /api/workspaces/:workspaceId/issues", {
         params: { workspaceId: workspaceId! },
-        body: { title: newTitle.trim(), summary: newSummary.trim() || undefined, adopted_sop_key: selectedSopKey },
+        body: {
+          title: newTitle.trim(),
+          summary: newSummary.trim() || undefined,
+          adopted_sop_key: selectedSopKey,
+          snail_assignment_plan: roleAssignments,
+        },
       });
       setCreateDialogOpen(false);
       setNewTitle("");
       setNewSummary("");
       setSelectedSopKey("");
+      setStagePreviews([]);
+      setRoleAssignments({});
       reload();
-      navigate(`/ws/${workspaceId}/issue/${result.issue.id}`);
+      navigate(`/workspaces/${workspaceId}/issue/${result.issue.id}${result.stage ? `?stage=${result.stage.id}` : ""}`);
     } catch (err: unknown) {
       showToast(`创建 Issue 失败：${err instanceof Error ? err.message : String(err)}`, true);
     }
@@ -169,7 +222,7 @@ export function WorkspaceBoard() {
                 <TaskCard
                   key={issue.id}
                   issue={issue}
-                  onClick={() => navigate(`/ws/${workspaceId}/issue/${issue.id}`)}
+                  onClick={() => navigate(`/workspaces/${workspaceId}/issue/${issue.id}`)}
                   onArchive={() => confirmArchive(issue)}
                 />
               ))}
@@ -179,34 +232,82 @@ export function WorkspaceBoard() {
       </div>
 
       <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} title="新建 Issue">
-        <div className="flex flex-col gap-2">
-          <Input
-            placeholder="Issue 标题"
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-            autoFocus
-          />
-          <Textarea
-            placeholder="Issue 摘要（可选）"
-            value={newSummary}
-            onChange={(e) => setNewSummary(e.target.value)}
-            rows={3}
-          />
-          <select
-            value={selectedSopKey}
-            onChange={(e) => setSelectedSopKey(e.target.value)}
-            className="w-full p-[var(--space-sm)] rounded-[var(--radius-sm)] border border-[var(--color-border-default)] bg-[var(--color-bg-input)] text-[var(--color-text-primary)]"
-          >
-            <option value="">选择 SOP *</option>
-            {sops.map((sop) => (
-              <option key={sop.key} value={sop.key}>{sop.name}</option>
-            ))}
-          </select>
-          <div className="flex gap-2 justify-end">
-            <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>取消</Button>
-            <Button onClick={handleCreateIssue}>创建</Button>
+          <div className="flex flex-col gap-3">
+            <Input
+              placeholder="Issue 标题"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              autoFocus
+            />
+            <Textarea
+              placeholder="Issue 摘要（可选）"
+              value={newSummary}
+              onChange={(e) => setNewSummary(e.target.value)}
+              rows={3}
+            />
+            <select
+              value={selectedSopKey}
+              onChange={(e) => setSelectedSopKey(e.target.value)}
+              className="h-10 w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-input)] px-3 text-sm text-[var(--color-text-primary)] shadow-sm outline-none transition-colors focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[rgba(108,141,250,0.25)]"
+            >
+              <option value="">选择 SOP *</option>
+              {sops.map((sop) => (
+                <option key={sop.key} value={sop.key}>{sop.name}</option>
+              ))}
+            </select>
+            {selectedSop && (
+              <section className="rounded-[var(--radius-md)] border border-[var(--color-border-muted)] bg-[var(--color-bg-elevated)] p-[var(--space-md)]">
+                <div className="mb-[var(--space-sm)]">
+                  <div className="text-[var(--font-size-sm)] font-semibold text-[var(--color-text-primary)]">SOP 执行计划</div>
+                  <div className="mt-[2px] text-[var(--font-size-xs)] text-[var(--color-text-muted)]">一次性配置所有 Stage 的 role instance → Snail，后续流转自动复用。</div>
+                </div>
+                {stagePreviews.length === 0 ? (
+                  <div className="text-[var(--font-size-xs)] text-[var(--color-text-muted)]">正在加载 Stage 预览...</div>
+                ) : (
+                  <div className="flex max-h-[360px] flex-col gap-[var(--space-sm)] overflow-auto pr-1">
+                    {stagePreviews.map((stage) => (
+                      <div key={stage.key} className="rounded-[var(--radius-sm)] border border-[var(--color-border-muted)] bg-[var(--color-bg-base)] p-[var(--space-sm)]">
+                        <div className="mb-[var(--space-sm)]">
+                          <div className="text-[var(--font-size-xs)] font-semibold text-[var(--color-text-primary)]">{stage.title}</div>
+                          {stage.description && <div className="mt-[2px] text-[11px] text-[var(--color-text-grey)]">{stage.description}</div>}
+                        </div>
+                        <div className="flex flex-col gap-[var(--space-sm)]">
+                          {stage.role_instances.map((role) => (
+                            <label key={role.role_instance} className="flex flex-col gap-[var(--space-xs)]">
+                              <span className="text-[var(--font-size-xs)] font-semibold text-[var(--color-text-secondary)]">{role.role_instance}</span>
+                              {role.description && <span className="text-[11px] text-[var(--color-text-grey)]">{role.description}</span>}
+                              <select
+                                value={roleAssignments[stage.key]?.[role.role_instance] ?? ""}
+                                onChange={(e) => setRoleAssignments((current) => ({
+                                  ...current,
+                                  [stage.key]: { ...(current[stage.key] ?? {}), [role.role_instance]: e.target.value },
+                                }))}
+                                className="h-10 w-full rounded-md border border-[var(--color-border-default)] bg-[var(--color-bg-input)] px-3 text-sm text-[var(--color-text-primary)] shadow-sm outline-none transition-colors focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[rgba(108,141,250,0.25)]"
+                              >
+                                <option value="">选择 Snail *</option>
+                                {snails.map((snail) => (
+                                  <option key={snail.key} value={snail.key}>{snail.name}</option>
+                                ))}
+                              </select>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+            {selectedSopKey && !selectedSop && (
+              <div className="rounded-[var(--radius-sm)] border border-[rgba(248,113,113,0.35)] bg-[rgba(127,29,29,0.24)] p-[var(--space-sm)] text-[var(--font-size-xs)] text-[var(--color-danger-text)]">
+                当前 SOP 不存在，无法启动 Issue。
+              </div>
+            )}
+            <div className="flex gap-2 justify-end pt-1">
+              <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>取消</Button>
+              <Button onClick={handleCreateIssue} disabled={!!selectedSopKey && (!selectedSop || stagePreviews.length === 0 || !!missingAssignment)}>创建并进入首个 Stage</Button>
+            </div>
           </div>
-        </div>
       </Dialog>
 
       <Dialog open={archiveDialogOpen} onClose={() => setArchiveDialogOpen(false)} title="归档 Issue">

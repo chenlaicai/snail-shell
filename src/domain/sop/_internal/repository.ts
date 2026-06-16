@@ -20,11 +20,11 @@ export class FileSopRepository implements SopRepository {
 
   constructor(private dataStore: FileDataStore, workspaces: Workspace[]) {
     this.platformSops = this.loadSopDir(this.dataStore);
-    for (const ws of workspaces) {
-      const wsStore = this.dataStore.workspace(ws.path);
-      const sops = this.loadSopDir(wsStore)
-        .map(s => ({ ...s, scope: Scope.Workspace, workspace: ws }));
-      this.workspaceSops.set(ws.path, sops);
+    for (const workspace of workspaces) {
+      const workspaceStore = this.dataStore.workspace(workspace.path);
+      const sops = this.loadSopDir(workspaceStore)
+        .map(s => ({ ...s, scope: Scope.Workspace, workspace }));
+      this.workspaceSops.set(workspace.path, sops);
     }
   }
 
@@ -37,8 +37,8 @@ export class FileSopRepository implements SopRepository {
   }
 
   findByWorkspace(workspace: Workspace): Sop[] {
-    const wsSops = this.workspaceSops.get(workspace.path) ?? [];
-    return [...this.platformSops, ...wsSops];
+    const workspaceSops = this.workspaceSops.get(workspace.path) ?? [];
+    return [...this.platformSops, ...workspaceSops];
   }
 
   private loadSopDir(store: FileDataStore): Sop[] {

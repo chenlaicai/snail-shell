@@ -110,10 +110,11 @@ export function useMention(availableRoles: Role[]) {
     setMentionStatus(`当前将发给 ${role.name}`);
   }, [mentionState, hideSuggestions]);
 
-  const updateMention = useCallback(() => {
+  const updateMention = useCallback((nextValue?: string, nextCaret?: number) => {
     const input = inputRef.current;
-    if (!input) return;
-    const mention = extractMentionQuery(input.value, input.selectionStart ?? input.value.length);
+    const value = nextValue ?? input?.value ?? "";
+    const caret = nextCaret ?? input?.selectionStart ?? value.length;
+    const mention = extractMentionQuery(value, caret);
     if (!mention) {
       hideSuggestions();
       setMentionStatus(availableRoles.length ? `可 @ ${availableRoles.map((r) => r.name).join(" / ")}` : "");

@@ -19,11 +19,11 @@ export class FileTenetPromptRepository implements TenetPromptRepository {
 
   constructor(platformStore: FileDataStore, workspaces: Workspace[]) {
     this.platformPrompts = this.loadPromptDir(platformStore, FileTenetPromptRepository.DIR);
-    for (const ws of workspaces) {
-      const wsStore = platformStore.workspace(ws.path);
-      const prompts = this.loadPromptDir(wsStore, FileTenetPromptRepository.DIR)
-        .map(p => ({ ...p, scope: Scope.Workspace, workspace: ws }));
-      this.workspacePrompts.set(ws.path, prompts);
+    for (const workspace of workspaces) {
+      const workspaceStore = platformStore.workspace(workspace.path);
+      const prompts = this.loadPromptDir(workspaceStore, FileTenetPromptRepository.DIR)
+        .map(p => ({ ...p, scope: Scope.Workspace, workspace }));
+      this.workspacePrompts.set(workspace.path, prompts);
     }
   }
 
@@ -32,8 +32,8 @@ export class FileTenetPromptRepository implements TenetPromptRepository {
   }
 
   findByWorkspace(workspace: Workspace, tags?: string[]): PromptDocument[] {
-    const wsPrompts = this.workspacePrompts.get(workspace.path) ?? [];
-    const allPrompts = [...this.platformPrompts, ...wsPrompts];
+    const workspacePrompts = this.workspacePrompts.get(workspace.path) ?? [];
+    const allPrompts = [...this.platformPrompts, ...workspacePrompts];
 
     if (!tags || tags.length === 0) {
       return allPrompts;

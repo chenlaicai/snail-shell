@@ -1,7 +1,32 @@
+import type { SQLiteDatabase } from "@infra/database";
 import type {
   EvolutionItem,
   EvolutionItemListFilters,
 } from "@domain/evolution/model";
+
+const EVOLUTION_SCHEMA = `
+CREATE TABLE IF NOT EXISTS evolution_item (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  status TEXT NOT NULL,
+  issue_id TEXT,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  tags TEXT NOT NULL,
+  result TEXT,
+  metadata TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_evolution_workspace_status_updated ON evolution_item(workspace_id, status, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_evolution_updated ON evolution_item(updated_at DESC);
+`;
+
+type EvolutionItemRow = Omit<EvolutionItem, "tags" | "metadata"> & {
+  tags: string;
+  metadata: string;
+};
 
 /** Evolution 持久层接口 */
 export interface EvolutionRepository {
@@ -12,55 +37,101 @@ export interface EvolutionRepository {
   update(id: string, updates: Partial<Pick<EvolutionItem, "status" | "issue_id" | "result" | "updated_at">>): void;
 }
 
-/** Evolution 内存存储实现 */
-export class InMemoryEvolutionRepository implements EvolutionRepository {
-  private items = new Map<string, EvolutionItem>();
+/** Evolution SQLite 存储实现 */
+export class SQLiteEvolutionRepository implements EvolutionRepository {
+  constructor(private db: SQLiteDatabase) {
+    db.initSchema(EVOLUTION_SCHEMA);
+  }
 
   findById(id: string): EvolutionItem | undefined {
-    return this.items.get(id);
+    const row = this.db.get<EvolutionItemRow>(`SELECT * FROM evolution_item WHERE id = ?`, [id]);
+    return row ? mapEvolutionItem(row) : undefined;
   }
 
   list(filters?: EvolutionItemListFilters): EvolutionItem[] {
-    let result = [...this.items.values()];
+    const rows = this.db.all<EvolutionItemRow>(
+      `SELECT * FROM evolution_item ${buildWhereClause(filters)} ORDER BY updated_at DESC`,
+      buildWhereParams(filters),
+    ).map(mapEvolutionItem);
 
-    if (filters?.workspace_id) {
-      result = result.filter(i => i.workspace_id === filters.workspace_id);
-    }
-    if (filters?.status) {
-      result = result.filter(i => i.status === filters.status);
-    }
-    if (filters?.tags?.length) {
-      result = result.filter(i => filters.tags!.some(t => i.tags.includes(t)));
-    }
-
-    result.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
-
+    const tagFiltered = filterByTags(rows, filters?.tags);
     const offset = filters?.offset ?? 0;
     const limit = filters?.limit ?? 50;
-    return result.slice(offset, offset + limit);
+    return tagFiltered.slice(offset, offset + limit);
   }
 
   search(query: string, filters?: EvolutionItemListFilters): EvolutionItem[] {
     const lowerQuery = query.toLowerCase();
     return this.list(filters)
-      .filter(i => i.title.toLowerCase().includes(lowerQuery) || i.content.toLowerCase().includes(lowerQuery));
+      .filter(item => item.title.toLowerCase().includes(lowerQuery) || item.content.toLowerCase().includes(lowerQuery));
   }
 
   create(item: EvolutionItem): void {
-    if (this.items.has(item.id)) {
-      throw new Error(`Evolution item already exists: ${item.id}`);
-    }
-    this.items.set(item.id, item);
+    this.db.run(
+      `INSERT INTO evolution_item (id, workspace_id, status, issue_id, title, content, tags, result, metadata, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        item.id,
+        item.workspace_id,
+        item.status,
+        item.issue_id,
+        item.title,
+        item.content,
+        JSON.stringify(item.tags),
+        item.result,
+        JSON.stringify(item.metadata),
+        item.created_at,
+        item.updated_at,
+      ],
+    );
   }
 
   update(id: string, updates: Partial<Pick<EvolutionItem, "status" | "issue_id" | "result" | "updated_at">>): void {
-    const item = this.items.get(id);
-    if (!item) {
-      throw new Error(`Evolution item not found: ${id}`);
+    const sets: string[] = [];
+    const params: unknown[] = [];
+    if (updates.status !== undefined) {
+      sets.push("status = ?");
+      params.push(updates.status);
     }
-    if (updates.status !== undefined) item.status = updates.status;
-    if (updates.issue_id !== undefined) item.issue_id = updates.issue_id;
-    if (updates.result !== undefined) item.result = updates.result;
-    item.updated_at = updates.updated_at ?? new Date().toISOString();
+    if (updates.issue_id !== undefined) {
+      sets.push("issue_id = ?");
+      params.push(updates.issue_id);
+    }
+    if (updates.result !== undefined) {
+      sets.push("result = ?");
+      params.push(updates.result);
+    }
+    sets.push("updated_at = ?");
+    params.push(updates.updated_at ?? new Date().toISOString());
+    params.push(id);
+    this.db.run(`UPDATE evolution_item SET ${sets.join(", ")} WHERE id = ?`, params);
   }
+}
+
+function buildWhereClause(filters?: EvolutionItemListFilters): string {
+  const clauses: string[] = [];
+  if (filters?.workspace_id) clauses.push("workspace_id = ?");
+  if (filters?.status) clauses.push("status = ?");
+  return clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+}
+
+function buildWhereParams(filters?: EvolutionItemListFilters): unknown[] {
+  const params: unknown[] = [];
+  if (filters?.workspace_id) params.push(filters.workspace_id);
+  if (filters?.status) params.push(filters.status);
+  return params;
+}
+
+function filterByTags(items: EvolutionItem[], tags?: string[]): EvolutionItem[] {
+  return tags?.length
+    ? items.filter(item => tags.some(tag => item.tags.includes(tag)))
+    : items;
+}
+
+function mapEvolutionItem(row: EvolutionItemRow): EvolutionItem {
+  return {
+    ...row,
+    tags: JSON.parse(row.tags),
+    metadata: JSON.parse(row.metadata),
+  };
 }

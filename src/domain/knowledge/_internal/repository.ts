@@ -34,8 +34,8 @@ export class FileKnowledgeRepository implements KnowledgeRepository {
   }
 
   findByWorkspace(workspace: Workspace): KnowledgeEntry[] {
-    const wsEntries = this.workspaceEntries.get(workspace.path) ?? [];
-    return [...this.platformEntries, ...wsEntries];
+    const workspaceEntries = this.workspaceEntries.get(workspace.path) ?? [];
+    return [...this.platformEntries, ...workspaceEntries];
   }
 
   add(input: CreateKnowledgeInput): KnowledgeEntry {
@@ -53,13 +53,13 @@ export class FileKnowledgeRepository implements KnowledgeRepository {
     const mdContent = this.buildMdContent(entry);
 
     if (input.scope === Scope.Workspace && input.workspace) {
-      const wsStore = this.dataStore.workspace(input.workspace.path);
+      const workspaceStore = this.dataStore.workspace(input.workspace.path);
       const filePath = `${FileKnowledgeRepository.DIR}/${fileName}`;
-      wsStore.writeFile(filePath, mdContent);
+      workspaceStore.writeFile(filePath, mdContent);
 
-      const wsEntries = this.workspaceEntries.get(input.workspace.path) ?? [];
-      wsEntries.push(entry);
-      this.workspaceEntries.set(input.workspace.path, wsEntries);
+      const workspaceEntries = this.workspaceEntries.get(input.workspace.path) ?? [];
+      workspaceEntries.push(entry);
+      this.workspaceEntries.set(input.workspace.path, workspaceEntries);
     } else {
       const filePath = `${FileKnowledgeRepository.DIR}/${fileName}`;
       this.dataStore.writeFile(filePath, mdContent);
@@ -71,7 +71,7 @@ export class FileKnowledgeRepository implements KnowledgeRepository {
 
   remove(input: RemoveKnowledgeInput): void {
     if (input.scope === Scope.Workspace && input.workspace) {
-      const wsStore = this.dataStore.workspace(input.workspace.path);
+      const workspaceStore = this.dataStore.workspace(input.workspace.path);
       const entries = this.workspaceEntries.get(input.workspace.path) ?? [];
       const index = entries.findIndex(e => e.id === input.id);
 
@@ -83,7 +83,7 @@ export class FileKnowledgeRepository implements KnowledgeRepository {
       const fileName = `${entry.id}#${entry.title}.md`;
       const filePath = `${FileKnowledgeRepository.DIR}/${fileName}`;
 
-      wsStore.deleteFile(filePath);
+      workspaceStore.deleteFile(filePath);
       entries.splice(index, 1);
     } else {
       const index = this.platformEntries.findIndex(e => e.id === input.id);
@@ -106,10 +106,10 @@ export class FileKnowledgeRepository implements KnowledgeRepository {
   }
 
   private loadWorkspaceEntries(workspaces: Workspace[]): void {
-    for (const ws of workspaces) {
-      const wsStore = this.dataStore.workspace(ws.path);
-      const entries = this.loadEntries(wsStore, Scope.Workspace);
-      this.workspaceEntries.set(ws.path, entries);
+    for (const workspace of workspaces) {
+      const workspaceStore = this.dataStore.workspace(workspace.path);
+      const entries = this.loadEntries(workspaceStore, Scope.Workspace);
+      this.workspaceEntries.set(workspace.path, entries);
     }
   }
 
