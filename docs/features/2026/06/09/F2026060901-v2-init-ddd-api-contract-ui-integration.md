@@ -241,5 +241,6 @@ npm run check
 ## 后续事项
 
 - 如需恢复产物编辑、role-snail 切换、IM Lobby HTTP、SOP/Evolution 写操作，应先补充当前 v2 domain/app/contract，再接 UI。
+- Review 反馈中除数据库迁移框架外的阻塞项已按当前 v2 设计收敛：Stage/Message 原子写入、message event seq、ACS guard/runtime 边界、Issue 级实时心跳与前端事件消费、contract DTO 对齐、IMHub runtime consumer 生命周期均已复核修正；数据库迁移框架明确不纳入本 PR。
 - 本 PR 先移除测试代码和测试依赖；测试需要围绕 v2 DDD/app/infra-http/web contract 重新设计架构后再补齐，避免保留 AI 生成但不能证明真实链路的低价值测试。
 - Root `tsconfig.json` 当前排除 `src/web`，Web 的类型覆盖主要来自 Vite 构建；后续应在 Web 类型债整理完成后增加独立 web typecheck 脚本。

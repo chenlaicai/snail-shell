@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { decodeWorkspaceId, encodeWorkspaceId, toWorkspaceDto } from "@infra/http/workspace-id";
@@ -112,15 +112,17 @@ export function createIssueRoutes(deps: IssueRoutesDeps) {
 }
 
 
-function listMessages(c: any, deps: IssueRoutesDeps) {
+function listMessages(c: Context, deps: IssueRoutesDeps) {
+  const stageId = requiredParam(c, "stageId");
   const limit = numberQuery(c.req.query("limit"));
   const offset = numberQuery(c.req.query("offset"));
-  return c.json(deps.messagePort.listMessages(c.req.param("stageId"), limit, offset).map(message => toMessageDto(deps, message)));
+  return c.json(deps.messagePort.listMessages(stageId, limit, offset).map(message => toMessageDto(deps, message)));
 }
 
-async function sendMessage(c: any, deps: IssueRoutesDeps) {
-  const body = c.req.valid("json");
-  await deps.collaboration.sendMessage(c.req.param("stageId"), body.text, body.from_speaker);
+async function sendMessage(c: Context, deps: IssueRoutesDeps) {
+  const stageId = requiredParam(c, "stageId");
+  const body = sendMessageBody.parse(await c.req.json());
+  await deps.collaboration.sendMessage(stageId, body.text, body.from_speaker);
   return c.json({ ok: true });
 }
 
@@ -155,6 +157,12 @@ function toMessageDto(deps: Pick<IssueRoutesDeps, "messagePort">, message: Messa
     context: deps.messagePort.getContext(message.id),
     events: deps.messagePort.getMessageEvents(message.id),
   };
+}
+
+function requiredParam(c: Context, key: string): string {
+  const value = c.req.param(key);
+  if (!value) throw new Error(`Missing route param: ${key}`);
+  return value;
 }
 
 function numberQuery(value: string | undefined): number | undefined {

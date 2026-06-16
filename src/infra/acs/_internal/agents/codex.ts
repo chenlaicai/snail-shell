@@ -1,4 +1,5 @@
 import { spawn } from "child_process";
+import fs from "fs";
 import path from "path";
 import type { AgentRuntimePort } from "@infra/acs/port";
 import type { FirstCallRequest, ResumeRequest, AgentEvent, InvokeResult, InvokeOptions, Message } from "@infra/acs/model";
@@ -224,8 +225,39 @@ function dropLatestUserMessage(messages: Message[]): Message[] {
   return messages;
 }
 
-function writeCodexGuardConfig(_deny: string[], _workspacePath: string): void {
-  // 写入 .codex/config.toml 的 sandbox_mode 配置
+function writeCodexGuardConfig(deny: string[], workspacePath: string): void {
+  const codexDir = path.join(workspacePath, ".codex");
+  if (!fs.existsSync(codexDir)) {
+    fs.mkdirSync(codexDir, { recursive: true });
+  }
+  const configPath = path.join(codexDir, "config.toml");
+  const sandboxMode = deny.some((entry) => entry.includes("rm -rf") || entry.includes("chmod")) ? "read-only" : "workspace-write";
+  const sandboxLine = `sandbox_mode = "${sandboxMode}"`;
+
+  if (!fs.existsSync(configPath)) {
+    fs.writeFileSync(configPath, `${sandboxLine}\n`, "utf-8");
+    return;
+  }
+
+  const existing = fs.readFileSync(configPath, "utf-8");
+  fs.writeFileSync(configPath, mergeTomlTopLevelKey(existing, "sandbox_mode", sandboxLine), "utf-8");
+}
+
+function mergeTomlTopLevelKey(toml: string, key: string, newLine: string): string {
+  const lines = toml.split("\n");
+  const sectionStart = lines.findIndex((line) => /^\s*\[/.test(line));
+  const topEnd = sectionStart === -1 ? lines.length : sectionStart;
+  const keyRe = new RegExp(`^\\s*${key}\\s*=`);
+  const keyIdx = lines.slice(0, topEnd).findIndex((line) => keyRe.test(line));
+  if (keyIdx !== -1) {
+    lines[keyIdx] = newLine;
+    return lines.join("\n");
+  }
+  if (sectionStart !== -1) {
+    lines.splice(sectionStart, 0, newLine, "");
+    return lines.join("\n");
+  }
+  return `${toml.trimEnd()}\n${newLine}\n`;
 }
 
 function createParseState(threadId: string | null, model: string, contextWindow: number | null): CodexParseState {

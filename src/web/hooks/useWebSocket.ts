@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useConversationStore } from "../stores/conversationStore";
 import { queryKeys } from "../queries/keys";
-import type { IssueRealtimeMessage, MessageDto } from "../types";
+import type { MessageDto, WsServerMessage } from "../types";
 
 /** 创建占位 MessageDto——用于 WebSocket message_started 和乐观发送 */
 export function createPlaceholderMessage(
@@ -33,28 +33,36 @@ export function createPlaceholderMessage(
   };
 }
 
+function addPlaceholderMessage(
+  queryClient: ReturnType<typeof useQueryClient>,
+  stageId: string,
+  opts: { id: number; role: MessageDto["role"]; from_role?: string | null; client_id?: string | null; status?: MessageDto["status"] },
+): void {
+  queryClient.setQueryData(
+    queryKeys.stages.messages(stageId),
+    (old: MessageDto[] | undefined) => {
+      if (old?.some((m) => m.id === opts.id)) return old;
+      return [...(old ?? []), createPlaceholderMessage(stageId, opts)];
+    },
+  );
+}
+
 function handleRealtimeMessage(
-  msg: IssueRealtimeMessage,
+  msg: WsServerMessage,
   queryClient: ReturnType<typeof useQueryClient>,
 ) {
-  if (msg.type !== "issue_event") return;
+  if (msg.type === "heartbeat") return;
   const { event } = msg;
   const stageId = event.stage_id;
 
   if (event.type === "message_started") {
-    queryClient.setQueryData(
-      queryKeys.stages.messages(stageId),
-      (old: MessageDto[] | undefined) => {
-        if (old?.some((m) => m.id === event.message_id)) return old;
-        return [...(old ?? []), createPlaceholderMessage(stageId, {
-          id: event.message_id,
-          role: event.role,
-          from_role: event.role_name,
-          client_id: event.client_id,
-          status: event.status,
-        })];
-      },
-    );
+    addPlaceholderMessage(queryClient, stageId, {
+      id: event.message_id,
+      role: event.role,
+      from_role: event.role_name,
+      client_id: event.client_id,
+      status: event.status,
+    });
     return;
   }
 
@@ -77,13 +85,31 @@ function handleRealtimeMessage(
         m.id === event.message_id ? { ...m, status: event.status, context: event.context ?? m.context, updated_at: new Date().toISOString() } : m
       ),
     );
+    return;
+  }
+
+  if (event.type === "user_called") {
+    addPlaceholderMessage(queryClient, stageId, {
+      id: event.message_id,
+      role: event.role,
+      from_role: event.role_name,
+      client_id: event.client_id,
+      status: event.status,
+    });
+    return;
+  }
+
+  if (event.type === "stage_transition_suggested") {
+    queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(msg.issue_id) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.stages.detail(stageId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.stages.messages(stageId) });
   }
 }
 
 interface WsHandlers {
   mounted: () => boolean;
   onOpen: () => void;
-  onMessage: (msg: IssueRealtimeMessage) => void;
+  onMessage: (msg: WsServerMessage) => void;
   onClose: () => void;
 }
 

@@ -13,7 +13,7 @@ interface IMHubDeps {
 }
 
 export class IMHub {
-  private readonly consumers = new Map<string, IMStageConsumer>();
+  private readonly consumers = new Map<string, { issueId: string; consumer: IMStageConsumer }>();
 
   constructor(private readonly deps: IMHubDeps) {}
 
@@ -41,14 +41,24 @@ export class IMHub {
   private ensureConsumer(channelType: ChannelType, chatId: string, tenantKey: string | null, stageId: string): void {
     const stage = this.deps.stagePort.findStage(stageId);
     if (!stage) throw new Error(`Stage not found: ${stageId}`);
-    const key = `${channelType}:${tenantKey ?? ""}:${chatId}:${stage.issue_id}`;
+    const chatKey = `${channelType}:${tenantKey ?? ""}:${chatId}`;
+    const key = `${chatKey}:${stage.issue_id}`;
     if (this.consumers.has(key)) {
       return;
     }
 
+    this.unregisterOtherIssueConsumers(chatKey, stage.issue_id);
     const consumer = new IMStageConsumer(this.deps.imAdapter, channelType, chatId);
     this.deps.collaboration.registerIssueConsumer(stage.issue_id, consumer);
-    this.consumers.set(key, consumer);
+    this.consumers.set(key, { issueId: stage.issue_id, consumer });
+  }
+
+  private unregisterOtherIssueConsumers(chatKey: string, issueId: string): void {
+    for (const [key, entry] of this.consumers) {
+      if (!key.startsWith(`${chatKey}:`) || entry.issueId === issueId) continue;
+      this.deps.collaboration.unregisterIssueConsumer(entry.issueId, entry.consumer);
+      this.consumers.delete(key);
+    }
   }
 }
 

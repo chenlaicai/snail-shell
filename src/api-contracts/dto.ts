@@ -2,11 +2,10 @@ export type WorkspaceDto = {
   id: string;
   path: string;
   summary: string | null;
-  issues?: IssueDetailDto[];
 };
 
 export type WorkspaceSummaryDto = WorkspaceDto;
-export type WorkspaceDetailDto = WorkspaceDto;
+export type WorkspaceDetailDto = WorkspaceDto & { issues: IssueDetailDto[] };
 
 export type StageTransition = { to: string; guard: string | null };
 export type RoleSnailAssignment = {
@@ -112,7 +111,8 @@ export type IssueRealtimeMessage = {
     | { type: "stage_transition_suggested"; stage_id: string; suggestion: StageSuggestion };
 };
 
-export type WsServerMessage = IssueRealtimeMessage;
+export type WsHeartbeatMessage = { type: "heartbeat"; issue_id: string; ts: number };
+export type WsServerMessage = IssueRealtimeMessage | WsHeartbeatMessage;
 
 export type MessageStatus = "streaming" | "completed" | "failed" | "interrupted" | "cancelled";
 export type MessageRole = "user" | "assistant" | "system";

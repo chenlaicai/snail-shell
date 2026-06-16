@@ -56,16 +56,18 @@ export class MessageAdapter implements MessagePort {
   }
 
   completeMessage(messageId: number, status: MessageStatus, signalPayload?: Record<string, unknown>): void {
-    const message = this.messageRepo.findById(messageId);
-    if (!message) throw new Error(`Message not found: ${messageId}`);
+    this.messageRepo.transaction(() => {
+      const message = this.messageRepo.findById(messageId);
+      if (!message) throw new Error(`Message not found: ${messageId}`);
 
-    const payload = {
-      type: "signal" as const,
-      signal: status === "completed" ? "message_completed" : `message_${status}`,
-      ...signalPayload,
-    };
-    this.eventRepo.append(messageId, payload);
-    this.messageRepo.update(messageId, { status, ended_at: new Date().toISOString() });
+      const payload = {
+        type: "signal" as const,
+        signal: status === "completed" ? "message_completed" : `message_${status}`,
+        ...signalPayload,
+      };
+      this.eventRepo.append(messageId, payload);
+      this.messageRepo.update(messageId, { status, ended_at: new Date().toISOString() });
+    });
   }
 
   // ── Event ────────────────────────────────────────────────────────────

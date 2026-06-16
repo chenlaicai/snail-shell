@@ -1,4 +1,6 @@
 import { spawn } from "child_process";
+import fs from "fs";
+import path from "path";
 import type { AgentRuntimePort } from "@infra/acs/port";
 import type { FirstCallRequest, ResumeRequest, AgentEvent, InvokeResult, InvokeOptions, Message } from "@infra/acs/model";
 import { manageInvocationProcess } from "@infra/acs/_internal/utils/managed-process";
@@ -49,7 +51,7 @@ export class OpenCodeAgent implements AgentRuntimePort {
     options: InvokeOptions = {},
   ): Promise<InvokeResult> {
     // 注入 capabilities（文件系统级别）
-    writeOpenCodeGuardConfig(request.guard_profile.deny);
+    writeOpenCodeGuardConfig(request.guard_profile.deny, request.workspacePath);
     ensureMcpServers(request.capabilities.mcpServers, request.workspacePath, "opencode");
     ensureSkillSymlinks(request.workspacePath, request.capabilities.skills);
 
@@ -208,8 +210,52 @@ function buildStatefulPromptInput(isFirstCall: boolean, systemPrompt: string, sy
   };
 }
 
-function writeOpenCodeGuardConfig(_deny: string[]): void {
-  // 写入 ~/.config/opencode/opencode.jsonc 的 permission 配置
+function writeOpenCodeGuardConfig(deny: string[], workspacePath: string): void {
+  const configPath = path.join(workspacePath, "opencode.json");
+  let config: Record<string, unknown> = {};
+
+  if (fs.existsSync(configPath)) {
+    try {
+      config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+    } catch {
+      console.warn(`[acs] ${configPath} 解析失败，保留原文件内容不变`);
+      return;
+    }
+  }
+
+  config.$schema = "https://opencode.ai/config.json";
+  config.permission = translateOpenCodePermission(deny);
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n", "utf-8");
+}
+
+function translateOpenCodePermission(deny: string[]): Record<string, unknown> {
+  const permission: Record<string, unknown> = { "*": "allow" };
+  const bashRules: Record<string, string> = { "*": "allow" };
+
+  for (const entry of deny) {
+    const bashMatch = entry.match(/^Bash\((.+)\)$/);
+    if (bashMatch) {
+      bashRules[bashMatch[1].replace(/:\*$/, "*").replace(/:$/, "")] = "deny";
+      continue;
+    }
+
+    switch (entry) {
+      case "AskUserQuestion":
+        permission.question = "deny";
+        break;
+      case "EnterPlanMode":
+      case "ExitPlanMode":
+        break;
+      default:
+        permission[entry.toLowerCase()] = "deny";
+    }
+  }
+
+  if (Object.keys(bashRules).length > 1) {
+    permission.bash = bashRules;
+  }
+
+  return permission;
 }
 
 function consumeOpenCodeOutput(state: OpenCodeParseState, chunk: string, onEvent: (event: AgentEvent) => void): void {

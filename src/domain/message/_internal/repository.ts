@@ -85,6 +85,7 @@ export interface MessageRepository {
   listByStage(stageId: string, limit?: number, offset?: number): Message[];
   create(message: Message): Message;
   update(id: number, updates: Partial<Message>): void;
+  transaction<T>(fn: () => T): T;
 }
 
 export class SQLiteMessageRepository implements MessageRepository {
@@ -151,6 +152,10 @@ export class SQLiteMessageRepository implements MessageRepository {
     params.push(id);
     this.db.run(`UPDATE message SET ${sets.join(", ")} WHERE id = ?`, params);
   }
+
+  transaction<T>(fn: () => T): T {
+    return this.db.transaction(fn);
+  }
 }
 
 // ── Event Repository ──────────────────────────────────────────────────
@@ -173,22 +178,17 @@ export class SQLiteEventRepository implements EventRepository {
   }
 
   append(messageId: number, payload: MessageEventPayload): MessageEvent {
-    const latest = this.db.get<{ max_seq: number | null }>(
-      `SELECT MAX(seq) AS max_seq FROM message_event WHERE message_id = ?`,
-      [messageId],
-    );
-    const newEvent: MessageEvent = {
-      id: 0,
-      message_id: messageId,
-      seq: (latest?.max_seq ?? -1) + 1,
-      payload,
-      created_at: new Date().toISOString(),
-    };
+    const createdAt = new Date().toISOString();
     const id = this.db.run(
-      `INSERT INTO message_event (message_id, seq, payload, created_at) VALUES (?, ?, ?, ?)`,
-      [messageId, newEvent.seq, JSON.stringify(payload), newEvent.created_at],
+      `INSERT INTO message_event (message_id, seq, payload, created_at)
+       SELECT ?, COALESCE(MAX(seq), -1) + 1, ?, ?
+       FROM message_event
+       WHERE message_id = ?`,
+      [messageId, JSON.stringify(payload), createdAt, messageId],
     );
-    return { ...newEvent, id };
+    const row = this.db.get<MessageEventRow>(`SELECT * FROM message_event WHERE id = ?`, [id]);
+    if (!row) throw new Error(`Message event not found after insert: ${id}`);
+    return mapMessageEvent(row);
   }
 }
 

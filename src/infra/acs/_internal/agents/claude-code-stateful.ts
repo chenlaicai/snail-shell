@@ -46,12 +46,13 @@ export class ClaudeCodeStatefulAgent implements AgentRuntimePort {
     // 发送消息
     this.writeMessages(proc, request.messages);
 
-    // 处理输出，结束后清理临时文件
-    const result = await this.processOutput(proc, onEvent, options, null);
-    if (promptFilePath) {
-      cleanupFile(promptFilePath);
+    try {
+      return await this.processOutput(proc, onEvent, options, null);
+    } finally {
+      if (promptFilePath) {
+        cleanupFile(promptFilePath);
+      }
     }
-    return result;
   }
 
   /**
@@ -163,6 +164,7 @@ export class ClaudeCodeStatefulAgent implements AgentRuntimePort {
     let outputEventCount = 0;
     let resultContent = "";
     let stderr = "";
+    let stdoutError: Error | null = null;
     const closeDone = new Promise<void>((resolve) => {
       proc.on("close", () => {
         processController.cleanup();
@@ -175,6 +177,7 @@ export class ClaudeCodeStatefulAgent implements AgentRuntimePort {
     });
 
     proc.stdout?.on("error", (error) => {
+      stdoutError = error;
       stderr += `ClaudeCodeStateful stdout stream error: ${error.message}`;
     });
 
@@ -198,7 +201,17 @@ export class ClaudeCodeStatefulAgent implements AgentRuntimePort {
     });
 
     await closeDone;
+    if (buffer.trim()) {
+      const event = parseJsonLine(buffer, "ClaudeCodeStateful");
+      if (event) {
+        extractedSessionId = handleClaudeCodeStatefulEvent(event, (agentEvent) => {
+          if (isOutputEvent(agentEvent)) outputEventCount += 1;
+          onEvent(agentEvent);
+        }, (content) => { resultContent = content; }, extractedSessionId, options.contextWindow);
+      }
+    }
     await processController.throwIfStopped();
+    if (stdoutError) throw stdoutError;
 
     if (proc.exitCode !== 0 && !resultContent) {
       throw new Error(`claude code stateful exited with code ${proc.exitCode}: ${stderr}`);

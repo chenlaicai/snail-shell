@@ -92,14 +92,17 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
     this.writeMessages(proc, request.messages, request.prompt.systemReminder);
 
     // 等待完成
-    await stdoutDone;
-    proc.stdin?.end();
-    await new Promise<void>(resolve => proc.on("close", () => {
-      processController.cleanup();
+    try {
+      await stdoutDone;
+      proc.stdin?.end();
+      await new Promise<void>(resolve => proc.on("close", () => {
+        processController.cleanup();
+        resolve();
+      }));
+      await processController.throwIfStopped();
+    } finally {
       if (promptFilePath) cleanupFile(promptFilePath);
-      resolve();
-    }));
-    await processController.throwIfStopped();
+    }
 
     if (proc.exitCode !== 0 && !resultContent) {
       throw new Error(`claude code exited with code ${proc.exitCode}: ${stderr}`);
@@ -148,7 +151,13 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
         reject(new Error(`ClaudeCode stdout stream error: ${error.message}`));
       });
 
-      proc.stdout?.on("end", () => resolve());
+      proc.stdout?.on("end", () => {
+        if (buffer.trim()) {
+          const event = parseJsonLine(buffer, "ClaudeCode");
+          if (event) handleClaudeCodeEvent(event, onEvent, onOutputEvent, onResult, contextWindow);
+        }
+        resolve();
+      });
     });
   }
 

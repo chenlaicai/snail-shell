@@ -20,6 +20,19 @@ export function createIssueWebSocketBridge(collaboration: CollaborationInput): I
     route: upgradeWebSocket((c) => {
       const issueId = c.req.query("issue_id");
       let consumer: CollaborationConsumer | null = null;
+      let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+
+      const cleanup = () => {
+        if (heartbeatTimer) {
+          clearInterval(heartbeatTimer);
+          heartbeatTimer = null;
+        }
+        if (issueId && consumer) {
+          console.log(`[issue-events] disconnected issue=${issueId}`);
+          collaboration.unregisterIssueConsumer(issueId, consumer);
+          consumer = null;
+        }
+      };
 
       return {
         onOpen(_event, socket) {
@@ -32,12 +45,17 @@ export function createIssueWebSocketBridge(collaboration: CollaborationInput): I
           console.log(`[issue-events] connected issue=${issueId}`);
           consumer = createConsumer(issueId, socket);
           collaboration.registerIssueConsumer(issueId, consumer);
+          heartbeatTimer = setInterval(() => {
+            try {
+              socket.send(JSON.stringify({ type: "heartbeat", issue_id: issueId, ts: Date.now() }));
+            } catch {
+              socket.close(1001, "heartbeat failed");
+              cleanup();
+            }
+          }, 30_000);
         },
         onClose() {
-          if (issueId && consumer) {
-            console.log(`[issue-events] disconnected issue=${issueId}`);
-            collaboration.unregisterIssueConsumer(issueId, consumer);
-          }
+          cleanup();
         },
       };
     }),

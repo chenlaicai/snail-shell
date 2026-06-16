@@ -123,6 +123,9 @@ CREATE TABLE IF NOT EXISTS lobby_message (
   created_at TEXT NOT NULL
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_lobby_session_channel_unique
+  ON lobby_session(channel_type, channel_chat_id, COALESCE(channel_tenant_key, ''));
+
 CREATE INDEX IF NOT EXISTS idx_lobby_message_session ON lobby_message(lobby_session_id, created_at DESC);
 `;
 
@@ -133,16 +136,16 @@ export class SQLiteLobbyRepository implements LobbySessionRepository {
   }
 
   getOrCreate(channelType: string, channelChatId: string, channelTenantKey: string | null): LobbySession {
-    const existing = this.getByChannel(channelType, channelChatId, channelTenantKey);
-    if (existing) return existing;
     const now = new Date().toISOString();
     const id = randomUUID();
     this.db.run(
-      `INSERT INTO lobby_session (id, channel_type, channel_chat_id, channel_tenant_key, navigation_level, last_command_at, created_at, updated_at)
+      `INSERT OR IGNORE INTO lobby_session (id, channel_type, channel_chat_id, channel_tenant_key, navigation_level, last_command_at, created_at, updated_at)
        VALUES (?, ?, ?, ?, 'lobby', ?, ?, ?)`,
       [id, channelType, channelChatId, channelTenantKey, now, now, now],
     );
-    return this.get(id)!;
+    const session = this.getByChannel(channelType, channelChatId, channelTenantKey);
+    if (!session) throw new Error(`Failed to get or create lobby session: ${channelType}:${channelTenantKey ?? ""}:${channelChatId}`);
+    return session;
   }
 
   getByChannel(channelType: string, channelChatId: string, channelTenantKey: string | null): LobbySession | null {

@@ -16,6 +16,7 @@ export interface StageRepository {
   listByIssue(issueId: string): Stage[];
   create(stage: Stage): void;
   update(stageId: string, updates: Partial<Pick<Stage, "left_at" | "output_artifacts">>): void;
+  transaction<T>(fn: () => T): T;
 }
 
 // ── RoleSnailAssignment Repository ──────────────────────────────────────
@@ -183,7 +184,6 @@ export class SQLiteStageRepository implements StageRepository {
       ],
     );
   }
-
   update(stageId: string, updates: Partial<Pick<Stage, "left_at" | "output_artifacts">>): void {
     const sets: string[] = [];
     const params: unknown[] = [];
@@ -198,6 +198,10 @@ export class SQLiteStageRepository implements StageRepository {
     if (sets.length === 0) return;
     params.push(stageId);
     this.db.run(`UPDATE stage SET ${sets.join(", ")} WHERE id = ?`, params);
+  }
+
+  transaction<T>(fn: () => T): T {
+    return this.db.transaction(fn);
   }
 }
 

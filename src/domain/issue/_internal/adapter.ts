@@ -95,6 +95,10 @@ export class StageAdapter implements StagePort {
   }
 
   createStage(input: CreateStageInput): Stage {
+    return this.stageRepo.transaction(() => this.createStageInTransaction(input));
+  }
+
+  private createStageInTransaction(input: CreateStageInput): Stage {
     const issue = this.mustFindIssue(input.issue_id);
     const stageDef = findStageDefinition(issue.sop_snapshot, input.key);
     const roleInstances = expandRoleInstances(stageDef.roles);
@@ -154,20 +158,22 @@ export class StageAdapter implements StagePort {
   }
 
   advanceStage(currentStageId: string, targetKey: string): Stage {
-    const current = this.stageRepo.findById(currentStageId);
-    if (!current) throw new Error(`Stage not found: ${currentStageId}`);
+    return this.stageRepo.transaction(() => {
+      const current = this.stageRepo.findById(currentStageId);
+      if (!current) throw new Error(`Stage not found: ${currentStageId}`);
 
-    const transition = current.available_transitions.find(t => t.to === targetKey);
-    if (!transition) throw new Error(`Transition to "${targetKey}" not available from stage "${current.key}"`);
+      const transition = current.available_transitions.find(t => t.to === targetKey);
+      if (!transition) throw new Error(`Transition to "${targetKey}" not available from stage "${current.key}"`);
 
-    const leftAt = new Date().toISOString();
-    current.left_at = leftAt;
-    this.stageRepo.update(currentStageId, { left_at: leftAt });
+      const leftAt = new Date().toISOString();
+      current.left_at = leftAt;
+      this.stageRepo.update(currentStageId, { left_at: leftAt });
 
-    return this.createStage({
-      issue_id: current.issue_id,
-      key: targetKey,
-      from_stage_id: current.id,
+      return this.createStageInTransaction({
+        issue_id: current.issue_id,
+        key: targetKey,
+        from_stage_id: current.id,
+      });
     });
   }
 
