@@ -70,9 +70,10 @@ doc_kind: spec
 ### Issue / Stage / Message
 
 - `Issue` 属于 `workspace_path`。
-- `Stage` 是当前协作和消息容器。
-- `Message` 属于 `stage_id`。
-- 前端 WebSocket 和消息查询统一使用 `stage_id`。
+- `Stage` 是 Issue 内的当前协作状态和消息分区。
+- `Message` 属于 `stage_id`，流式过程持久化到 `message_event`，终态上下文持久化到 `message_context`。
+- 前端 WebSocket 使用 Issue 级连接 `/issue-events?issue_id=...`，事件 payload 携带 `stage_id`，进入新 Stage 不重建页面级实时生命周期。
+- HTTP 查询仍以 Stage 读取消息，TanStack Query 作为前端权威缓存；WebSocket 只承载实时增量，重连后通过 API 回补。
 - 旧 PR375 中以 `/api/conversations/*` 为中心的 API 不再作为 v2 后端接口。
 
 ## API Contract
@@ -111,6 +112,7 @@ GET  /api/knowledge/items/search
 GET  /api/knowledge/items/summary
 GET  /api/evolution/items
 GET  /api/evolution/items/:itemId
+GET  /issue-events?issue_id=...
 ```
 
 后端额外保留 `/api/snails` 作为兼容读接口，但当前 Web 不依赖它。
@@ -133,12 +135,34 @@ Web UI 复用 PR375 视觉和布局，但按 v2 contract 重接数据链路：
 - `api-client.ts` 改为端点字面量形式：`api("GET /api/...")`。
 - `ConversationLayout` 以 Issue detail 和当前 Stage 驱动页面。
 - `ConversationView` 使用 Stage detail/messages，不再调用旧 conversation endpoints。
-- `useWebSocket(stageId)` 使用 `/ws?stage_id=...`。
+- `useIssueRealtime(issueId)` 使用 Issue 级 `/issue-events?issue_id=...`，连接状态不再被 Stage 切换窗口误置为长期 reconnecting。
+- Message 气泡、发言人、时间、运行时 usage、Context Panel 采用 PR375 风格 token 和布局，同时保持当前后端 DTO/业务模型。
 - `StageActions` 和 `StageSuggestionBanner` 使用 Stage advance API。
 - `WorkspaceBoard` 创建 Issue 时要求显式选择 SOP，并发送 `adopted_sop_key`。
 - `SopCenter` 调整为只读列表/详情。
 - `Lobby` 暂保留入口，等待当前 IM domain 正式 HTTP routes。
 - `ContextPanel` 中旧的产物编辑和 role-snail 切换写接口未在当前后端提供，已改为只读展示。
+
+## Issue 协作与持久化运行态
+
+本 PR 将 v2 对话链路从 UI/API 接入推进到可运行的 Issue collaboration runtime：
+
+- `issue` / `stage` / `role_snail_assignment` / `message` / `message_event` / `message_context` / `call_signal` 使用 SQLite 持久化。
+- Stage 内用户消息会解析 `@角色实例`，生成 call signal 并由 `StageQueue` 串行 drain。
+- Agent 回复以 `streaming` message 开始，流式事件实时落库，完成后写入终态 context 并更新 message status。
+- `snail_instance` 持久化 stateful runtime session id，避免服务重启后依赖内存 map 恢复会话。
+- Stage transition suggestion 由 Agent 输出解析生成，仍需用户确认后通过 Stage advance API 推进。
+
+## ACS Agent Runtime 修复
+
+本 PR 对照 v1 runtime 实现补齐 v2 ACS adapter 的关键调用边界：
+
+- Claude Code / Claude Code Stateful 捕获 stderr、处理非 0 退出码、保留 result 内容、在进程终止后执行 timeout/interruption 检查。
+- Codex 首次调用显式使用 `-` 从 stdin 读取 prompt，并对 `developer_instructions` 做 TOML basic string 转义。
+- OpenCode 关闭 stdin，避免 `opencode run` 在服务端 spawn 后等待 EOF 导致消息长期 `thinking`。
+- OpenCode 兼容 `part.sessionID`，记录 raw output 诊断，并将 runtime 原生 `error` 事件转为明确失败。
+
+
 
 ## 正式启动链路
 
@@ -198,17 +222,19 @@ npm run build && node dist/src/main.js
 - 未发现 `src/shared` 架构污染；仅业务字段 `shared_handbook` 命中字符串扫描，属于 SOP 业务语义。
 - Vitest alias 已补齐 `@api-contracts`，测试期与构建期解析一致。
 - Web 测试已更新为 Stage 模型断言。
+- Issue 级实时连接、SQLite 消息持久化、stateful snail instance、ACS runtime stdout/stderr/timeout 边界已按 v1 行为复核。
 
 ## 验证
 
 已通过：
 
 ```bash
-npm run lint
-npm run build:web
-npx tsc --noEmit
-npm run test:web
+npm run build
+npm run check
+./bin/snail-service restart
 ```
+
+额外完成 test06 服务侧验证：通过 HTTP API 发送 `@架构师-2 再测试一次，只回复 ok` 后，OpenCode-backed message 正常完成，事件落库为 `step_start` / `text` / `step_finish` / `message_completed`，并持久化 OpenCode session id。
 
 `npm run build:web` 仍有 Vite chunk size warning，属于包体拆分提示，不阻塞当前集成。
 
@@ -216,4 +242,3 @@ npm run test:web
 
 - 如需恢复产物编辑、role-snail 切换、IM Lobby HTTP、SOP/Evolution 写操作，应先补充当前 v2 domain/app/contract，再接 UI。
 - Root `tsconfig.json` 当前排除 `src/web`，Web 的类型覆盖主要来自 Vite/Vitest；后续可增加独立 web typecheck 脚本。
-- `StageSuggestionBanner` 当前 advance 使用空 `snail_assignments`，若后端要求完整角色分配，应与 `StageActions` 一样复用当前 Stage assignments。
