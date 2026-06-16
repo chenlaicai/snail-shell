@@ -23,6 +23,7 @@ config/sop/*.yaml
 # Local agent config (managed by user, not part of snail shell)
 CLAUDE.md
 AGENTS.md
+opencode.json
 agents.md
 KIMI.md
 GEMINI.md

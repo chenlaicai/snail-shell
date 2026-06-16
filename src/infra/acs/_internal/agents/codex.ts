@@ -177,12 +177,22 @@ export class CodexAgent implements AgentRuntimePort {
 // 内部辅助函数
 // ═══════════════════════════════════════════════════════════
 
-function buildFirstCallArgs(model: string, promptText: string, systemPrompt: string): string[] {
+function buildFirstCallArgs(model: string, _promptText: string, systemPrompt: string): string[] {
   const args = ["exec", "--json", "-m", model];
   if (systemPrompt) {
-    args.push("-c", `developer_instructions=${systemPrompt}`);
+    args.push("-c", `developer_instructions=${escapeTomlBasicString(systemPrompt)}`);
   }
+  args.push("-");
   return args;
+}
+
+function escapeTomlBasicString(value: string): string {
+  return '"' + value
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, "\\n")
+    .replace(/\r/g, "\\r")
+    .replace(/\t/g, "\\t") + '"';
 }
 
 function buildResumeArgs(model: string, threadId: string): string[] {

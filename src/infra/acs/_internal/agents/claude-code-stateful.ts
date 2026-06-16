@@ -161,11 +161,21 @@ export class ClaudeCodeStatefulAgent implements AgentRuntimePort {
 
     let extractedSessionId: string | null = existingSessionId;
     let outputEventCount = 0;
+    let resultContent = "";
+    let stderr = "";
     const closeDone = new Promise<void>((resolve) => {
       proc.on("close", () => {
         processController.cleanup();
         resolve();
       });
+    });
+
+    proc.stderr?.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+
+    proc.stdout?.on("error", (error) => {
+      stderr += `ClaudeCodeStateful stdout stream error: ${error.message}`;
     });
 
     // stdout: 解析事件
@@ -182,15 +192,20 @@ export class ClaudeCodeStatefulAgent implements AgentRuntimePort {
           extractedSessionId = handleClaudeCodeStatefulEvent(event, (agentEvent) => {
             if (isOutputEvent(agentEvent)) outputEventCount += 1;
             onEvent(agentEvent);
-          }, extractedSessionId, options.contextWindow);
+          }, (content) => { resultContent = content; }, extractedSessionId, options.contextWindow);
         }
       }
     });
 
     await closeDone;
+    await processController.throwIfStopped();
+
+    if (proc.exitCode !== 0 && !resultContent) {
+      throw new Error(`claude code stateful exited with code ${proc.exitCode}: ${stderr}`);
+    }
 
     if (outputEventCount === 0) {
-      throw new Error("claude code stateful returned no output events");
+      throw new Error(`claude code stateful returned no output events${formatDiagnostics(stderr)}`);
     }
 
     return {
@@ -217,15 +232,23 @@ function parseJsonLine(line: string, source: string): any | null {
   }
 }
 
-function handleClaudeCodeStatefulEvent(event: any, onEvent: (event: AgentEvent) => void, currentSessionId: string | null, contextWindow?: number | null): string | null {
+function handleClaudeCodeStatefulEvent(event: any, onEvent: (event: AgentEvent) => void, onResult: (content: string) => void, currentSessionId: string | null, contextWindow?: number | null): string | null {
   if (event.type === "assistant") {
     emitClaudeAssistantEvents(event, onEvent);
     return currentSessionId;
   }
   if (event.type !== "result") return currentSessionId;
+  if (event.result) {
+    const rawResult = typeof event.result === "string" ? event.result : JSON.stringify(event.result);
+    onResult(rawResult);
+  }
   if (event.usage || event.modelUsage) {
     const usageDetail = usageDetailFromClaudeResult(event, contextWindow);
     if (usageDetail) onEvent(buildRuntimeUsageSignal(usageDetail, "result"));
+  }
+  if (event.is_error) {
+    const rawResult = typeof event.result === "string" ? event.result : JSON.stringify(event.result);
+    onEvent({ type: "message_event", event: { kind: "message_failure", payload: { error: rawResult }, source: { runtime_event_type: "result", runtime_message_id: null } } });
   }
   return event.session_id ?? currentSessionId;
 }
@@ -240,6 +263,13 @@ function emitClaudeAssistantEvents(event: any, onEvent: (event: AgentEvent) => v
       onEvent({ type: "message_event", event: { kind: "tool_call", payload: { tool_name: block.name, call_id: block.id, input: block.input ?? null, title: null }, source: { runtime_event_type: "assistant", runtime_message_id: messageId, runtime_call_id: block.id ?? null } } });
     }
   }
+}
+
+function formatDiagnostics(stderr: string): string {
+  if (!stderr) return "";
+  const maxLength = 500;
+  const truncated = stderr.length > maxLength ? `${stderr.slice(0, maxLength)}...` : stderr;
+  return ` (stderr: ${truncated})`;
 }
 
 function isOutputEvent(event: AgentEvent): boolean {

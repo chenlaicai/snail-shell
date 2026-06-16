@@ -16,7 +16,7 @@ const OPENCODE_ENV_KEYS = [
 interface OpenCodeEvent {
   type: string;
   sessionID?: string;
-  part?: { type: string; text?: string; tool_use?: { name: string; id: string; input: unknown }; tool_result?: { call_id: string; output: string; is_error: boolean } };
+  part?: { type: string; sessionID?: string; text?: string; tool_use?: { name: string; id: string; input: unknown }; tool_result?: { call_id: string; output: string; is_error: boolean } };
   tokens?: unknown;
   error?: { message?: string; code?: string } | string;
   [key: string]: unknown;
@@ -27,6 +27,8 @@ interface OpenCodeParseState {
   outputEventCount: number;
   sessionId: string | null;
   contextWindow: number | null;
+  errors: string[];
+  rawOutput: string[];
 }
 
 /**
@@ -100,7 +102,7 @@ export class OpenCodeAgent implements AgentRuntimePort {
     return spawn("opencode", args, {
       cwd: workspacePath,
       env,
-      stdio: ["pipe", "pipe", "pipe"],
+      stdio: ["ignore", "pipe", "pipe"],
       detached: true,
     });
   }
@@ -120,15 +122,29 @@ export class OpenCodeAgent implements AgentRuntimePort {
     });
 
     let stderr = "";
+    let stopRequested = false;
     const state: OpenCodeParseState = {
       buffer: "",
       outputEventCount: 0,
       sessionId: existingSessionId,
       contextWindow: options.contextWindow ?? null,
+      errors: [],
+      rawOutput: [],
+    };
+
+    const stopAfterRuntimeError = () => {
+      if (stopRequested || state.errors.length === 0 || !proc.pid) return;
+      stopRequested = true;
+      try {
+        process.kill(-proc.pid, "SIGTERM");
+      } catch {
+        if (!proc.killed) proc.kill("SIGTERM");
+      }
     };
 
     proc.stdout?.on("data", (chunk: Buffer) => {
       consumeOpenCodeOutput(state, chunk.toString(), onEvent);
+      stopAfterRuntimeError();
     });
     proc.stderr?.on("data", (chunk: Buffer) => {
       stderr += chunk.toString();
@@ -153,8 +169,12 @@ export class OpenCodeAgent implements AgentRuntimePort {
       throw new Error(`opencode failed (exit ${exitCode}): ${errorMsg}`);
     }
 
+    if (state.errors.length > 0) {
+      throw new Error(`opencode failed: ${state.errors.join("; ")}`);
+    }
+
     if (state.outputEventCount === 0) {
-      throw new Error("opencode returned no output events");
+      throw new Error(`opencode returned no output events${formatOpenCodeDiagnostics(stderr, state)}`);
     }
 
     return { sessionId: state.sessionId, waitForStop: () => processController.waitForStop() };
@@ -193,6 +213,7 @@ function writeOpenCodeGuardConfig(_deny: string[]): void {
 }
 
 function consumeOpenCodeOutput(state: OpenCodeParseState, chunk: string, onEvent: (event: AgentEvent) => void): void {
+  state.rawOutput.push(chunk);
   state.buffer += chunk;
 
   const lines = state.buffer.split("\n");
@@ -210,8 +231,9 @@ function consumeOpenCodeOutput(state: OpenCodeParseState, chunk: string, onEvent
 }
 
 function processOpenCodeEvent(state: OpenCodeParseState, event: OpenCodeEvent, onEvent: (event: AgentEvent) => void): void {
-  if (event.sessionID && !state.sessionId) {
-    state.sessionId = event.sessionID;
+  const sessionId = event.sessionID ?? event.part?.sessionID;
+  if (sessionId && !state.sessionId) {
+    state.sessionId = sessionId;
   }
 
   if (emitOpenCodeSignalEvent(state, event, onEvent)) return;
@@ -281,11 +303,25 @@ function emitOpenCodeStepFinish(state: OpenCodeParseState, event: OpenCodeEvent,
 
 function emitOpenCodeError(state: OpenCodeParseState, event: OpenCodeEvent, onEvent: (event: AgentEvent) => void): void {
   const errorMsg = typeof event.error === "string" ? event.error : event.error?.message ?? "Unknown error";
+  state.errors.push(errorMsg);
   emitOpenCodeEvent(state, onEvent, {
     kind: "error",
     payload: { message: errorMsg },
     source: { runtime_event_type: "error", runtime_message_id: null },
   });
+}
+
+function formatOpenCodeDiagnostics(stderr: string, state: OpenCodeParseState): string {
+  const parts = [
+    stderr ? `stderr: ${truncateDiagnostic(stderr)}` : null,
+    state.rawOutput.length > 0 ? `rawOutput: ${truncateDiagnostic(state.rawOutput.join(""))}` : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? ` (${parts.join("; ")})` : "";
+}
+
+function truncateDiagnostic(text: string): string {
+  const maxLength = 500;
+  return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
 }
 
 function emitOpenCodeEvent(state: OpenCodeParseState, onEvent: (event: AgentEvent) => void, event: AgentEvent["event"]): void {

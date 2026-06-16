@@ -81,7 +81,12 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
 
     // 读取 stdout 事件
     let outputEventCount = 0;
-    const stdoutDone = this.readOutput(proc, onEvent, () => { outputEventCount++; }, options.contextWindow);
+    let resultContent = "";
+    let stderr = "";
+    const stdoutDone = this.readOutput(proc, onEvent, () => { outputEventCount++; }, (content) => { resultContent = content; }, options.contextWindow);
+    proc.stderr?.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
 
     // 写入 stdin 消息
     this.writeMessages(proc, request.messages, request.prompt.systemReminder);
@@ -96,8 +101,12 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
     }));
     await processController.throwIfStopped();
 
+    if (proc.exitCode !== 0 && !resultContent) {
+      throw new Error(`claude code exited with code ${proc.exitCode}: ${stderr}`);
+    }
+
     if (outputEventCount === 0) {
-      throw new Error("claude code returned no output events");
+      throw new Error(`claude code returned no output events${formatDiagnostics(stderr)}`);
     }
 
     return { waitForStop: () => processController.waitForStop() };
@@ -117,6 +126,7 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
     proc: ChildProcess,
     onEvent: (event: AgentEvent) => void,
     onOutputEvent: () => void,
+    onResult: (content: string) => void,
     contextWindow?: number | null,
   ): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -130,7 +140,7 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
         for (const line of lines) {
           if (!line.trim()) continue;
           const event = parseJsonLine(line, "ClaudeCode");
-          if (event) handleClaudeCodeEvent(event, onEvent, onOutputEvent, contextWindow);
+          if (event) handleClaudeCodeEvent(event, onEvent, onOutputEvent, onResult, contextWindow);
         }
       });
 
@@ -189,6 +199,7 @@ function handleClaudeCodeEvent(
   event: any,
   onEvent: (event: AgentEvent) => void,
   onOutputEvent: () => void,
+  onResult: (content: string) => void,
   contextWindow?: number | null,
 ): void {
   if (event.type === "assistant") {
@@ -196,7 +207,7 @@ function handleClaudeCodeEvent(
     return;
   }
   if (event.type === "result") {
-    emitClaudeResultEvents(event, onEvent, contextWindow);
+    emitClaudeResultEvents(event, onEvent, onResult, contextWindow);
   }
 }
 
@@ -214,7 +225,11 @@ function emitClaudeAssistantEvents(event: any, onEvent: (event: AgentEvent) => v
   }
 }
 
-function emitClaudeResultEvents(event: any, onEvent: (event: AgentEvent) => void, contextWindow?: number | null): void {
+function emitClaudeResultEvents(event: any, onEvent: (event: AgentEvent) => void, onResult: (content: string) => void, contextWindow?: number | null): void {
+  if (event.result) {
+    const rawResult = typeof event.result === "string" ? event.result : JSON.stringify(event.result);
+    onResult(rawResult);
+  }
   if (event.usage || event.modelUsage) {
     const usageDetail = usageDetailFromClaudeResult(event, contextWindow);
     if (usageDetail) onEvent(buildRuntimeUsageSignal(usageDetail, "result"));
@@ -223,6 +238,13 @@ function emitClaudeResultEvents(event: any, onEvent: (event: AgentEvent) => void
     const rawResult = typeof event.result === "string" ? event.result : JSON.stringify(event.result);
     onEvent({ type: "message_event", event: { kind: "message_failure", payload: { error: rawResult }, source: { runtime_event_type: "result", runtime_message_id: null } } });
   }
+}
+
+function formatDiagnostics(stderr: string): string {
+  if (!stderr) return "";
+  const maxLength = 500;
+  const truncated = stderr.length > maxLength ? `${stderr.slice(0, maxLength)}...` : stderr;
+  return ` (stderr: ${truncated})`;
 }
 
 export const agent = new ClaudeCodeAgent();
