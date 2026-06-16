@@ -10,17 +10,19 @@ import { extractMessageContent, EventStreamView, ContentBlockView } from "../com
 import { useMention } from "../hooks/useMention";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import type { MessageDto, ConversationDetailDto, Role, RuntimeUsage } from "../types";
+import type { MessageDto, Role, RuntimeUsage } from "../types";
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
 function extractRoleName(msg: MessageDto): string {
-  if (msg.from_role) return msg.from_role;
+  if (typeof msg.from_speaker === "string" && msg.from_speaker) return msg.from_speaker;
+  if (typeof msg.from_role === "string" && msg.from_role) return msg.from_role;
   if (msg.role === "user") return "用户";
   if (msg.role === "assistant") return "AI";
-  return msg.role;
+  if (msg.role === "system") return "系统";
+  return "未知发言人";
 }
 
 function extractRuntimeUsage(msg: MessageDto): RuntimeUsage | null {
@@ -56,93 +58,114 @@ function extractTextSummary(msg: MessageDto): string {
   return "";
 }
 
-/** 单条消息组件——React.memo 避免未变更消息的重复渲染 */
+function formatMessageTime(value: string): string {
+  return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function messageStatusLabel(status: MessageDto["status"]): string | null {
+  if (status === "streaming") return "正在输入";
+  if (status === "failed") return "失败";
+  if (status === "interrupted") return "已中断";
+  if (status === "cancelled") return "已取消";
+  return null;
+}
+
 const MessageItem = memo(function MessageItem({
   msg,
-  conversationId,
+  stageId,
   onReply,
   onApprove,
   onDeny,
 }: {
   msg: MessageDto;
-  conversationId: string;
+  stageId: string;
   onReply: (id: number, preview: string) => void;
-  onApprove: (convId: string, msgId: number) => void;
-  onDeny: (convId: string, msgId: number) => void;
+  onApprove: (stageId: string, msgId: number) => void;
+  onDeny: (stageId: string, msgId: number) => void;
 }) {
   const msgContent = extractMessageContent(msg);
   const roleName = extractRoleName(msg);
   const runtimeUsage = extractRuntimeUsage(msg);
   const hasContent = msgContent.processBlocks.length > 0 || msgContent.finalBlocks.length > 0;
   const shouldFoldProcess = !msgContent.isStreaming && msgContent.finalBlocks.length > 0;
+  const isUser = msg.from_speaker === "user" || msg.role === "user";
+  const statusLabel = messageStatusLabel(msg.status);
 
   return (
-    <div
-      id={`msg-${msg.id}`}
-      className={`max-w-[var(--message-max-width)] px-[14px] py-[var(--space-md)] rounded-[14px] leading-[1.6] whitespace-pre-wrap min-w-0 [overflow-wrap:break-word] ${
-        msg.role === "user"
-          ? "self-end bg-[var(--color-user-msg-bg)] border border-[var(--color-border-muted)] rounded-br-[var(--space-2xs)]"
-          : msg.role === "assistant"
-          ? "self-start bg-[var(--color-assistant-msg-bg)] border border-[var(--color-border-muted)] rounded-bl-[var(--space-2xs)]"
-          : ""
-      }${msgContent.isStreaming ? " border-[var(--color-accent-blue)] border-dashed" : ""}`}
-    >
-      <div className="flex items-center justify-between gap-[var(--space-md)] mb-[var(--space-2xs)]">
-        <div className="text-[var(--font-size-xs)] text-[var(--color-text-blue-muted)] uppercase tracking-[0.08em]">{roleName}</div>
-        <div className="flex items-center justify-end gap-[var(--space-sm)] min-w-0">
-          {runtimeUsage && (
-            <span
-              className={`inline-flex items-center gap-[var(--space-xs)] max-w-[190px] px-[7px] py-[2px] border border-[rgba(125,211,252,0.22)] rounded-full bg-[rgba(14,165,233,0.1)] text-[var(--color-text-cyan-muted)] text-[var(--font-size-xs)] not-italic [font-variant-numeric:tabular-nums] whitespace-nowrap${runtimeUsage.isPlaceholder ? " opacity-50 border-dashed" : ""}`}
-              title={runtimeUsage.title}
-            >
-              <span className="min-w-0 overflow-hidden text-ellipsis">{runtimeUsage.label}</span>
-              <span className="text-[var(--color-warning-text)] font-bold">{runtimeUsage.percentLabel}</span>
-            </span>
-          )}
-          <div className="shrink-0 text-[var(--font-size-xs)] text-[var(--color-text-muted)] [font-variant-numeric:tabular-nums]">{new Date(msg.created_at).toLocaleTimeString()}</div>
-          <button className="bg-transparent text-[var(--color-text-secondary)] border border-[var(--color-border-muted)] rounded-md px-1.5 py-0.5 text-[10px] font-medium cursor-pointer transition-all hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]" onClick={() => onReply(msg.id, extractTextSummary(msg))}>回复</button>
+    <article id={`msg-${msg.id}`} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+      <div className={`max-w-[85%] ${isUser ? "flex flex-col items-end" : "flex items-start gap-2"}`}>
+        {!isUser && (
+          <div className="mt-6 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-shell-500 to-shell-700 text-[11px] font-semibold text-white">
+            {roleName.slice(0, 1).toUpperCase()}
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <div className={`mb-1 flex items-center gap-2 px-1 text-[11px] ${isUser ? "justify-end" : "flex-wrap"}`}>
+            <span className="font-medium text-text-secondary">{roleName}</span>
+            <span className="text-text-grey [font-variant-numeric:tabular-nums]">{formatMessageTime(msg.created_at)}</span>
+            {statusLabel && <span className="rounded-full bg-surface-2 px-1.5 py-px text-[10px] text-shell-400">{statusLabel}</span>}
+          </div>
+          <div className={`rounded-2xl px-4 py-3 text-[13px] leading-relaxed shadow-sm [overflow-wrap:break-word] ${
+            isUser
+              ? "rounded-br-md border border-shell-600/20 bg-shell-600/20 text-text-primary"
+              : "rounded-bl-md border border-white/6 bg-surface-2 text-text-primary"
+          }${msgContent.isStreaming ? " border-shell-600/40" : ""}`}>
+            <div className="mb-2 flex items-center justify-end gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+              {runtimeUsage && (
+                <span
+                  className={`inline-flex max-w-[190px] items-center gap-1.5 whitespace-nowrap rounded-full border border-status-blue/20 bg-status-blue/10 px-[7px] py-[2px] text-[11px] text-status-blue [font-variant-numeric:tabular-nums]${runtimeUsage.isPlaceholder ? " border-dashed opacity-50" : ""}`}
+                  title={runtimeUsage.title}
+                >
+                  <span className="min-w-0 overflow-hidden text-ellipsis">{runtimeUsage.label}</span>
+                  <span className="font-bold text-status-amber">{runtimeUsage.percentLabel}</span>
+                </span>
+              )}
+              <button className="rounded-md border border-white/6 px-1.5 py-0.5 text-[10px] font-medium text-text-muted transition-all hover:border-shell-600/40 hover:text-shell-400" onClick={() => onReply(msg.id, extractTextSummary(msg))}>回复</button>
+            </div>
+            <div className="whitespace-pre-wrap text-text-primary">
+              {msg.quoted_message && (
+                <blockquote className="mb-3 rounded-lg border-l-[3px] border-l-shell-600 bg-surface-3 px-3 py-2 text-[12px] leading-relaxed text-text-secondary whitespace-pre-wrap">
+                  {msg.quoted_message.speaker && <strong>{msg.quoted_message.speaker}: </strong>}
+                  {msg.quoted_message.preview || "(空消息)"}
+                </blockquote>
+              )}
+              {!hasContent && msgContent.isStreaming && <ThinkingIndicator />}
+              {!hasContent && !msgContent.isStreaming && (
+                <div className="text-[12px] text-text-muted">暂无可展示内容</div>
+              )}
+              {msgContent.processBlocks.length > 0 && (
+                <EventStreamView blocks={msgContent.processBlocks} defaultOpen={!shouldFoldProcess || msgContent.containsQuestion}
+                  onApprove={() => onApprove(stageId, msg.id)} onDeny={() => onDeny(stageId, msg.id)} />
+              )}
+              {msgContent.finalBlocks.map((block, i) => (
+                <ContentBlockView key={i} block={block}
+                  onApprove={() => onApprove(stageId, msg.id)} onDeny={() => onDeny(stageId, msg.id)} />
+              ))}
+              {msgContent.isStreaming && hasContent && <ThinkingIndicator className="mt-2" />}
+            </div>
+          </div>
         </div>
       </div>
-      <div className="whitespace-pre-wrap">
-        {msg.quoted_message && (
-          <blockquote className="mb-[var(--space-sm)] px-[var(--space-md)] py-[var(--space-sm)] border-l-[3px] border-l-[var(--color-accent)] bg-[var(--color-bg-elevated)] rounded-[var(--radius-sm)] text-[var(--color-text-secondary)] text-[var(--font-size-sm)] leading-[var(--line-height-normal)] whitespace-pre-wrap">
-            {msg.quoted_message.speaker && <strong>{msg.quoted_message.speaker}: </strong>}
-            {msg.quoted_message.preview || "(空消息)"}
-          </blockquote>
-        )}
-        {!hasContent && msgContent.isStreaming && (
-          <div className="flex items-center gap-[var(--space-md)] text-[var(--color-text-blue-muted)] text-[var(--font-size-base)] not-italic">
-            <div className="relative shrink-0 basis-[54px] h-5 overflow-hidden border-b border-dotted border-b-[rgba(191,219,254,0.52)]">
-              <span className="absolute left-0 -bottom-0.5 inline-block text-[var(--font-size-2xl)] leading-none animate-[snail-crawl_1.8s_ease-in-out_infinite]">🐌</span>
-            </div>
-            <span>Snail is starting</span>
-          </div>
-        )}
-        {!hasContent && !msgContent.isStreaming && <span className="text-[var(--color-text-grey)] text-[var(--font-size-xs)]">(空消息)</span>}
-        {msgContent.processBlocks.length > 0 && (
-          <EventStreamView blocks={msgContent.processBlocks} defaultOpen={!shouldFoldProcess || msgContent.containsQuestion}
-            onApprove={() => onApprove(conversationId, msg.id)} onDeny={() => onDeny(conversationId, msg.id)} />
-        )}
-        {msgContent.finalBlocks.map((block, i) => (
-          <ContentBlockView key={i} block={block}
-            onApprove={() => onApprove(conversationId, msg.id)} onDeny={() => onDeny(conversationId, msg.id)} />
-        ))}
-        {msgContent.isStreaming && hasContent && (
-          <div className="flex items-center gap-[var(--space-md)] text-[var(--color-text-blue-muted)] text-[var(--font-size-base)] not-italic">
-            <div className="relative shrink-0 basis-[54px] h-5 overflow-hidden border-b border-dotted border-b-[rgba(191,219,254,0.52)]">
-              <span className="absolute left-0 -bottom-0.5 inline-block text-[var(--font-size-2xl)] leading-none animate-[snail-crawl_1.8s_ease-in-out_infinite]">🐌</span>
-            </div>
-            <span>Snail is still working</span>
-          </div>
-        )}
-      </div>
-    </div>
+    </article>
   );
 });
 
-interface Props { conversationId: string | null; }
+function ThinkingIndicator({ className = "" }: { className?: string }) {
+  return (
+    <div className={`flex items-center gap-1.5 text-[11px] text-text-muted ${className}`}>
+      <div className="flex gap-0.5">
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-shell-600" />
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-shell-600 [animation-delay:150ms]" />
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-shell-600 [animation-delay:300ms]" />
+      </div>
+      <span>thinking...</span>
+    </div>
+  );
+}
 
-export function ConversationView({ conversationId }: Props) {
+interface Props { stageId: string | null; }
+
+export function ConversationView({ stageId }: Props) {
   const queryClient = useQueryClient();
   const wsStatus = useConversationStore((s) => s.wsStatus);
   const [input, setInput] = useState("");
@@ -154,71 +177,68 @@ export function ConversationView({ conversationId }: Props) {
 
   const { mentionState, mentionStatus, inputRef, updateMention, handleKeyDown: handleMentionKeyDown, isMentionActive, applySelection } = useMention(availableRoles);
 
-  // TanStack Query: 消息列表
-  const { data: messages = [] } = useQuery({
-    ...conversationQueries.messages(conversationId || ""),
-    enabled: !!conversationId,
+  const { data: stage } = useQuery({
+    ...conversationQueries.detail(stageId || ""),
+    enabled: !!stageId,
   });
 
-  // 加载可用角色
-  useEffect(() => {
-    if (!conversationId) return;
-    api("GET /api/conversations/:conversationId", { params: { conversationId } })
-      .then((data: ConversationDetailDto) => {
-        setAvailableRoles((data.participating_roles || []).map((name) => ({ name })));
-      })
-      .catch(() => {});
-  }, [conversationId]);
+  const { data: messages = [] } = useQuery({
+    ...conversationQueries.messages(stageId || ""),
+    enabled: !!stageId,
+    refetchInterval: (query) => {
+      const currentMessages = query.state.data as MessageDto[] | undefined;
+      const hasStreaming = currentMessages?.some((message) => message.status === "streaming") ?? false;
+      return wsStatus !== "connected" || hasStreaming ? 1500 : false;
+    },
+  });
 
-  // 消息变化时滚动到底部
+  useEffect(() => {
+    const roles = stage?.active_roles || stage?.role_instances || [];
+    setAvailableRoles(roles.map((name) => ({ name })));
+  }, [stage]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // 发送消息（乐观渲染）
   async function handleSend() {
-    if (!input.trim() || !conversationId || sending) return;
+    if (!input.trim() || !stageId || sending) return;
     const content = input.trim();
     const optimisticId = Date.now();
-    const optimisticMsg = createPlaceholderMessage(conversationId, { id: optimisticId, role: "user", content });
-    // 乐观插入
-    queryClient.setQueryData(queryKeys.conversations.messages(conversationId), (old: MessageDto[] | undefined) => [...(old ?? []), optimisticMsg]);
+    const optimisticMsg = createPlaceholderMessage(stageId, { id: optimisticId, role: "user", content });
+    queryClient.setQueryData(queryKeys.stages.messages(stageId), (old: MessageDto[] | undefined) => [...(old ?? []), optimisticMsg]);
     setInput(""); setReplyTo(null); setSending(true);
     try {
-      const body: Record<string, unknown> = { content };
-      if (replyTo) body.quoted_message_id = replyTo.id;
-      await api("POST /api/conversations/:conversationId/messages", { params: { conversationId }, body });
-      queryClient.invalidateQueries({ queryKey: queryKeys.conversations.messages(conversationId) });
+      await api("POST /api/stages/:stageId/messages", { params: { stageId }, body: { text: content } });
+      queryClient.invalidateQueries({ queryKey: queryKeys.stages.messages(stageId) });
     } catch (err: unknown) {
       showToast(`发送失败：${err instanceof Error ? err.message : String(err)}`, true);
-      // 回滚乐观消息 + 重新同步相关缓存
-      queryClient.setQueryData(queryKeys.conversations.messages(conversationId), (old: MessageDto[] | undefined) => old?.filter((m) => m.id !== optimisticId));
-      queryClient.invalidateQueries({ queryKey: queryKeys.conversations.detail(conversationId) });
+      queryClient.setQueryData(queryKeys.stages.messages(stageId), (old: MessageDto[] | undefined) => old?.filter((m) => m.id !== optimisticId));
+      queryClient.invalidateQueries({ queryKey: queryKeys.stages.detail(stageId) });
     }
     setSending(false);
   }
 
-  async function handleInterrupt(messageId: number) {
-    if (!conversationId) return;
-    try { await api("POST /api/conversations/:conversationId/messages/:messageId/interrupt", { params: { conversationId, messageId } }); showToast("已发送中断请求"); }
-    catch (err: unknown) { showToast(`中断失败：${err instanceof Error ? err.message : String(err)}`, true); }
+  async function handleInterrupt() {
+    showToast("当前后端暂未提供中断接口", true);
   }
 
-  const handlePermissionApprove = useCallback(async (convId: string, messageId: number) => {
-    try { await api("POST /api/conversations/:conversationId/messages/:messageId/approve-tool", { params: { conversationId: convId, messageId }, body: { approved: true } }); queryClient.invalidateQueries({ queryKey: queryKeys.conversations.messages(convId) }); }
-    catch (err: unknown) { showToast(`审批失败: ${err instanceof Error ? err.message : String(err)}`, true); }
-  }, [queryClient]);
+  const handlePermissionApprove = useCallback(async () => {
+    showToast("当前后端暂未提供工具审批接口", true);
+  }, []);
 
-  const handlePermissionDeny = useCallback(async (convId: string, messageId: number) => {
-    try { await api("POST /api/conversations/:conversationId/messages/:messageId/approve-tool", { params: { conversationId: convId, messageId }, body: { approved: false } }); queryClient.invalidateQueries({ queryKey: queryKeys.conversations.messages(convId) }); }
-    catch (err: unknown) { showToast(`拒绝失败: ${err instanceof Error ? err.message : String(err)}`, true); }
-  }, [queryClient]);
+  const handlePermissionDeny = useCallback(async () => {
+    showToast("当前后端暂未提供工具审批接口", true);
+  }, []);
 
   const handleReply = useCallback((id: number, preview: string) => {
     setReplyTo({ id, preview });
   }, []);
 
-  function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) { setInput(e.target.value); updateMention(); }
+  function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    setInput(e.target.value);
+    updateMention(e.target.value, e.target.selectionStart ?? e.target.value.length);
+  }
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter" && e.shiftKey) { e.preventDefault(); handleSend(); return; }
@@ -229,68 +249,91 @@ export function ConversationView({ conversationId }: Props) {
   const isAiRunning = !!streamingMessage;
   const canSend = input.trim() && !sending && !isAiRunning;
 
-  if (!conversationId) {
-    return <div id="messages" className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">选择一个 Conversation</div>;
+  if (!stageId) {
+    return <div id="messages" className="flex h-full items-center justify-center text-[13px] text-[var(--color-text-muted)]">选择一个 Stage</div>;
   }
 
   return (
-    <>
-      <div id="messages" className="flex-1 overflow-auto p-6" ref={messagesContainerRef}>
-        {messages.length === 0 && <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">暂无消息</div>}
-        {messages.map((msg) => (
-          <MessageItem
-            key={msg.id}
-            msg={msg}
-            conversationId={conversationId}
-            onReply={handleReply}
-            onApprove={handlePermissionApprove}
-            onDeny={handlePermissionDeny}
-          />
-        ))}
-        <div ref={messagesEndRef} />
+    <div className="flex min-h-0 flex-1 flex-col bg-surface-0">
+      <div className="flex min-h-0 flex-1 overflow-auto px-6 py-6" ref={messagesContainerRef}>
+        <div className="mx-auto flex w-full max-w-[920px] flex-col gap-5">
+          {messages.length === 0 && (
+            <div className="m-auto flex max-w-[440px] flex-col items-center justify-center rounded-2xl border border-dashed border-white/6 bg-surface-2 px-8 py-10 text-center">
+              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-shell-600/15 text-shell-400">S</div>
+              <div className="text-sm font-semibold text-text-primary">还没有消息</div>
+              <div className="mt-2 text-[12px] leading-relaxed text-text-muted">
+                当前 Stage 已创建，等待你发送第一条消息。
+              </div>
+            </div>
+          )}
+          {messages.map((msg) => (
+            <MessageItem
+              key={msg.id}
+              msg={msg}
+              stageId={stageId}
+              onReply={handleReply}
+              onApprove={handlePermissionApprove}
+              onDeny={handlePermissionDeny}
+            />
+          ))}
+          <div ref={messagesEndRef} />
+        </div>
       </div>
 
-      <div className="border-t border-[var(--color-border-muted)] bg-[var(--color-bg-base)] p-[var(--space-md)] px-[var(--space-lg)] shrink-0">
-        {replyTo && (
-          <div className="flex items-center justify-between mb-[var(--space-sm)] px-[var(--space-md)] py-[var(--space-xs)] bg-[var(--color-bg-elevated)] rounded-[var(--radius-sm)] text-[var(--font-size-sm)] text-[var(--color-text-secondary)]">
-            <div id="reply-banner-text">回复：{replyTo.preview}</div>
-            <button className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] text-xs" onClick={() => setReplyTo(null)}>取消</button>
+      <div className="shrink-0 px-6 pb-8 pt-4">
+        {wsStatus !== "connected" && (
+          <div className="mx-auto mb-2 flex max-w-[920px] items-center gap-2 rounded-md bg-status-amber/10 px-3 py-2 text-[11px] text-status-amber">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-status-amber" />
+            {wsStatus === "reconnecting" ? "Reconnecting..." : "Disconnected"}
           </div>
         )}
-        <div className="flex flex-col gap-[var(--space-xs)]">
-          <Textarea ref={inputRef} id="input" value={input} onChange={handleInputChange}
-            placeholder="输入 @开发者 与指定 role 对话；未指定时默认发送给当前主 role" rows={2} onKeyDown={handleKeyDown} />
-          <div className="flex items-center gap-[var(--space-md)] text-[var(--font-size-xs)] text-[var(--color-text-grey)]">
-            <span>Shift+Enter 发送</span>
-            {mentionStatus && <span className="text-[var(--color-accent)]">{mentionStatus}</span>}
+        <div className="relative mx-auto flex max-w-[920px] flex-col overflow-hidden rounded-2xl border border-white/6 bg-surface-2 transition-all focus-within:border-shell-600/40 focus-within:ring-1 focus-within:ring-shell-600/15">
+          <div className="flex items-center justify-between border-b border-white/4 px-4 py-2.5">
+            <div className="flex min-w-0 items-center gap-2 text-[11px] text-text-muted">
+              <span className={`h-1.5 w-1.5 rounded-full ${wsStatus === "connected" ? "bg-status-green" : "bg-status-amber"}`} />
+              <span className="font-medium text-text-secondary">Ask Agent</span>
+              {stage?.default_role_instance && <span className="truncate">默认发送给 {stage.default_role_instance}</span>}
+            </div>
+            <span className="text-[10px] text-text-grey">Shift+Enter 发送</span>
           </div>
+          {replyTo && (
+            <div className="mx-3 mt-3 flex items-center justify-between rounded-lg border border-white/6 bg-surface-3 px-3 py-1.5 text-[12px] text-text-secondary">
+              <div id="reply-banner-text" className="min-w-0 truncate">回复：{replyTo.preview}</div>
+              <button className="ml-3 shrink-0 text-xs text-text-muted hover:text-text-primary" onClick={() => setReplyTo(null)}>取消</button>
+            </div>
+          )}
+          <Textarea ref={inputRef} id="input" value={input} onChange={handleInputChange}
+            placeholder="输入消息，或 @某个角色定向对话" rows={2} onKeyDown={handleKeyDown}
+            className="min-h-20 resize-none border-0 bg-transparent px-4 py-3 text-[13px] leading-relaxed text-text-primary shadow-none outline-none placeholder:text-text-muted focus-visible:ring-0" />
           {isMentionActive && (
-            <div className="absolute bottom-full left-0 right-0 mb-1 bg-[var(--color-bg-elevated)] border border-[var(--color-border-muted)] rounded-[var(--radius-md)] shadow-lg max-h-[200px] overflow-auto z-10">
+            <div className="absolute bottom-full left-3 right-3 z-10 mb-2 max-h-[220px] overflow-auto rounded-lg border border-white/6 bg-surface-2 shadow-lg">
               {mentionState.suggestions.map((role, i) => (
-                <div key={role.name} className={`flex items-center gap-[var(--space-sm)] px-[var(--space-md)] py-[var(--space-xs)] cursor-pointer text-[var(--font-size-sm)] ${
-                  i === mentionState.selectedIndex ? "bg-[var(--color-bg-active)] text-[var(--color-accent)]" : "text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]"
+                <div key={role.name} className={`flex cursor-pointer items-center gap-2 px-3 py-1.5 text-[12px] ${
+                  i === mentionState.selectedIndex ? "bg-surface-3 text-shell-400" : "text-text-secondary hover:bg-surface-3"
                 }`}
                   onMouseDown={(e) => { e.preventDefault(); applySelection(i); }}>
                   <span className="font-semibold">{role.name}</span>
-                  {role.description && <span className="text-[var(--color-text-grey)] text-[var(--font-size-xs)]">{role.description}</span>}
+                  {role.description && <span className="text-[11px] text-text-grey">{role.description}</span>}
                 </div>
               ))}
             </div>
           )}
-        </div>
-        <div className="flex gap-[var(--space-xs)] flex-wrap">
-          {streamingMessage ? (
-            <Button variant="destructive" onClick={() => handleInterrupt(streamingMessage.id)}>中断 Snail</Button>
-          ) : (
-            <Button onClick={handleSend} disabled={!canSend}>发送</Button>
-          )}
-        </div>
-        <div className="text-[11px] text-[var(--color-text-grey)] px-6">
-          {wsStatus === "connected" && <span className="text-[var(--color-accent-cyan)]">● 已连接</span>}
-          {wsStatus === "disconnected" && <span className="text-[var(--color-danger-text)]">● 已断开</span>}
-          {wsStatus === "reconnecting" && <span className="text-[var(--color-warning-soft)]">● 重连中...</span>}
+          <div className="flex items-center justify-between gap-3 border-t border-white/4 px-3 py-2">
+            <div className="flex min-w-0 items-center gap-3 text-[11px] text-text-grey">
+              <span>Markdown</span>
+              <span>{availableRoles.length > 0 ? `${availableRoles.length} 个可对话角色` : "当前 Stage 暂无可对话角色"}</span>
+              {mentionStatus && <span className="truncate text-shell-400">{mentionStatus}</span>}
+            </div>
+            <div className="flex shrink-0 gap-1">
+              {streamingMessage ? (
+                <Button variant="destructive" onClick={() => handleInterrupt()}>中断 Snail</Button>
+              ) : (
+                <Button onClick={handleSend} disabled={!canSend} className="h-7 rounded-md bg-shell-600 px-3 text-xs text-white hover:bg-shell-500">发送</Button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

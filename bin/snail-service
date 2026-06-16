@@ -2,55 +2,318 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-CONTROL_SCRIPT="$ROOT_DIR/dist/src/bin/server-control.js"
+LOG_DIR="$ROOT_DIR/logs"
+PID_DIR="$ROOT_DIR/pids"
+SERVER_PID_FILE="$PID_DIR/server.pid"
+WEB_PID_FILE="$PID_DIR/web.pid"
+SERVER_LOG_FILE="$LOG_DIR/server.log"
+WEB_LOG_FILE="$LOG_DIR/web.log"
+SERVER_DEFAULT_PORT=3000
+WEB_DEFAULT_PORT=5173
 
-if [ $# -lt 1 ]; then
-  echo "Usage: ./bin/snail-service <command> [--update-main] [--port <port>] [--db-path <path>]" >&2
-  echo "Commands: start, stop, restart, reboot, status" >&2
+usage() {
+  echo "Usage: ./bin/snail-service <start|stop|restart|status>" >&2
+}
+
+ensure_dirs() {
+  mkdir -p "$LOG_DIR" "$PID_DIR"
+}
+
+read_config_value() {
+  local key="$1"
+  local fallback="$2"
+  node -e "const fs=require('fs'); const path=require('path'); const {parse}=require('yaml'); const file=path.join(process.argv[1], 'config', 'server.yaml'); let config={}; if (fs.existsSync(file)) config=parse(fs.readFileSync(file, 'utf8')) || {}; const value=config[process.argv[2]]; console.log(Number.isInteger(value) && value > 0 ? value : process.argv[3]);" "$ROOT_DIR" "$key" "$fallback"
+}
+
+server_port() {
+  read_config_value port "$SERVER_DEFAULT_PORT"
+}
+
+web_port() {
+  read_config_value web_port "$WEB_DEFAULT_PORT"
+}
+
+is_alive() {
+  local pid="$1"
+  kill -0 "$pid" 2>/dev/null
+}
+
+read_pid() {
+  local file="$1"
+  if [ -f "$file" ]; then
+    cat "$file"
+  fi
+}
+
+port_pids() {
+  local port="$1"
+  local output
+  output="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
+  if [ -n "$output" ]; then
+    printf '%s\n' "$output" | sort -u | tr '\n' ' '
+  fi
+}
+
+print_urls() {
+  local server_port_value="$1"
+  local web_port_value="$2"
+  echo "configured ports: server=$server_port_value web=$web_port_value"
+  echo "server url: http://localhost:$server_port_value"
+  echo "web url: http://127.0.0.1:$web_port_value/"
+}
+
+print_log_tail() {
+  local name="$1"
+  local log_file="$2"
+  if [ -f "$log_file" ]; then
+    echo "$name log tail ($log_file):"
+    tail -20 "$log_file"
+  fi
+}
+
+assert_port_free() {
+  local name="$1"
+  local port="$2"
+  local pids
+  pids="$(port_pids "$port")"
+  if [ -n "${pids// /}" ]; then
+    echo "$name port $port is already in use by pid(s): $pids" >&2
+    return 1
+  fi
+}
+
+wait_for_exit() {
+  local pid="$1"
+  for _ in $(seq 1 25); do
+    if ! is_alive "$pid"; then
+      return 0
+    fi
+    sleep 0.2
+  done
+  return 1
+}
+
+stop_pid() {
+  local name="$1"
+  local pid="$2"
+  if ! is_alive "$pid"; then
+    return 0
+  fi
+
+  kill "$pid" 2>/dev/null || true
+  if wait_for_exit "$pid"; then
+    echo "$name stopped (pid=$pid)"
+    return 0
+  fi
+
+  kill -9 "$pid" 2>/dev/null || true
+  wait_for_exit "$pid" || true
+  echo "$name killed (pid=$pid)"
+}
+
+stop_pid_file() {
+  local name="$1"
+  local file="$2"
+  local pid
+  pid="$(read_pid "$file")"
+
+  if [ -z "${pid:-}" ]; then
+    return 0
+  fi
+
+  if is_alive "$pid"; then
+    stop_pid "$name" "$pid"
+  else
+    echo "$name stale pid removed (pid=$pid)"
+  fi
+  rm -f "$file"
+}
+
+report_port_pids() {
+  local name="$1"
+  local port="$2"
+  local pids
+  pids="$(port_pids "$port")"
+  if [ -n "${pids// /}" ]; then
+    echo "$name port $port still occupied by pid(s): $pids"
+  fi
+}
+
+wait_for_port_owner() {
+  local name="$1"
+  local port="$2"
+  local pid="$3"
+  local log_file="$4"
+
+  for _ in $(seq 1 50); do
+    if ! is_alive "$pid"; then
+      rm -f "$5"
+      echo "$name process exited before listening on port $port" >&2
+      print_log_tail "$name" "$log_file" >&2
+      return 1
+    fi
+
+    local pids
+    pids="$(port_pids "$port")"
+    for owner in $pids; do
+      if [ "$owner" = "$pid" ]; then
+        return 0
+      fi
+    done
+    sleep 0.2
+  done
+
+  echo "$name did not listen on port $port in time" >&2
+  print_log_tail "$name" "$log_file" >&2
+  return 1
+}
+
+wait_for_http_ok() {
+  local name="$1"
+  local url="$2"
+  local log_file="$3"
+
+  for _ in $(seq 1 50); do
+    local status
+    status="$(curl -sS -o /dev/null -w '%{http_code}' "$url" 2>/dev/null || true)"
+    if [ "$status" = "200" ]; then
+      return 0
+    fi
+    sleep 0.2
+  done
+
+  echo "$name did not return HTTP 200 at $url" >&2
+  print_log_tail "$name" "$log_file" >&2
+  return 1
+}
+
+start_process() {
+  local name="$1"
+  local pid_file="$2"
+  local log_file="$3"
+  shift 3
+
+  rm -f "$pid_file"
+  : > "$log_file"
+
+  echo "starting $name..." >&2
+  (
+    cd "$ROOT_DIR"
+    exec "$@"
+  ) >> "$log_file" 2>&1 &
+
+  local pid="$!"
+  echo "$pid" > "$pid_file"
+  echo "$name spawned (pid=$pid, log=$log_file)" >&2
+  echo "$pid"
+}
+
+start_all() {
+  ensure_dirs
+  local server_port_value
+  local web_port_value
+  server_port_value="$(server_port)"
+  web_port_value="$(web_port)"
+  print_urls "$server_port_value" "$web_port_value"
+
+  assert_port_free "server" "$server_port_value"
+  assert_port_free "web" "$web_port_value"
+
+  echo "building server..."
+  (cd "$ROOT_DIR" && npm run build)
+
+  local server_pid
+  server_pid="$(start_process "server" "$SERVER_PID_FILE" "$SERVER_LOG_FILE" node dist/src/main.js)"
+  if ! wait_for_port_owner "server" "$server_port_value" "$server_pid" "$SERVER_LOG_FILE" "$SERVER_PID_FILE"; then
+    stop_pid_file "server" "$SERVER_PID_FILE"
+    return 1
+  fi
+  echo "server running (pid=$server_pid, url=http://localhost:$server_port_value, log=$SERVER_LOG_FILE)"
+
+  local web_pid
+  web_pid="$(start_process "web" "$WEB_PID_FILE" "$WEB_LOG_FILE" node node_modules/vite/bin/vite.js --config src/web/vite.config.ts --host 127.0.0.1)"
+  if ! wait_for_port_owner "web" "$web_port_value" "$web_pid" "$WEB_LOG_FILE" "$WEB_PID_FILE" || ! wait_for_http_ok "web" "http://127.0.0.1:$web_port_value/" "$WEB_LOG_FILE"; then
+    stop_pid_file "web" "$WEB_PID_FILE"
+    stop_pid_file "server" "$SERVER_PID_FILE"
+    return 1
+  fi
+  echo "web running (pid=$web_pid, url=http://127.0.0.1:$web_port_value/, log=$WEB_LOG_FILE)"
+  echo "snail-shell running"
+}
+
+stop_all() {
+  ensure_dirs
+  local server_port_value
+  local web_port_value
+  server_port_value="$(server_port)"
+  web_port_value="$(web_port)"
+  print_urls "$server_port_value" "$web_port_value"
+
+  stop_pid_file "web" "$WEB_PID_FILE"
+  stop_pid_file "server" "$SERVER_PID_FILE"
+  report_port_pids "web" "$web_port_value"
+  report_port_pids "server" "$server_port_value"
+}
+
+status_one() {
+  local name="$1"
+  local pid_file="$2"
+  local port="$3"
+  local log_file="$4"
+  local pid
+  local pids
+  pid="$(read_pid "$pid_file")"
+  pids="$(port_pids "$port")"
+
+  if [ -n "${pid:-}" ] && is_alive "$pid"; then
+    echo "$name managed pid alive: $pid"
+  elif [ -n "${pid:-}" ]; then
+    echo "$name stale pid removed: $pid"
+    rm -f "$pid_file"
+  else
+    echo "$name managed pid: none"
+  fi
+
+  if [ -n "${pids// /}" ]; then
+    echo "$name port $port listener pid(s): $pids"
+  else
+    echo "$name port $port listener: none"
+  fi
+  echo "$name log: $log_file"
+}
+
+status_all() {
+  ensure_dirs
+  local server_port_value
+  local web_port_value
+  server_port_value="$(server_port)"
+  web_port_value="$(web_port)"
+  print_urls "$server_port_value" "$web_port_value"
+  status_one "server" "$SERVER_PID_FILE" "$server_port_value" "$SERVER_LOG_FILE"
+  status_one "web" "$WEB_PID_FILE" "$web_port_value" "$WEB_LOG_FILE"
+}
+
+if [ $# -ne 1 ]; then
+  usage
   exit 1
 fi
 
-COMMAND="$1"
-shift
-
-UPDATE_MAIN=0
-if [ "$COMMAND" = "reboot" ]; then
-  COMMAND="restart"
-  UPDATE_MAIN=1
-fi
-
-ARGS=()
-while [ $# -gt 0 ]; do
-  case "$1" in
-    --update-main)
-      UPDATE_MAIN=1
-      shift
-      ;;
-    *)
-      ARGS+=("$1")
-      shift
-      ;;
-  esac
-done
-
-cd "$ROOT_DIR"
-
-if [ "$UPDATE_MAIN" = "1" ]; then
-  if [ "$COMMAND" != "restart" ]; then
-    echo "--update-main can only be used with restart" >&2
+case "$1" in
+  start)
+    start_all
+    ;;
+  stop)
+    stop_all
+    ;;
+  restart)
+    stop_all
+    start_all
+    ;;
+  status)
+    status_all
+    ;;
+  *)
+    usage
     exit 1
-  fi
-  git fetch origin main
-  git pull --ff-only origin main
-  npm install
-fi
-
-if [ "$COMMAND" = "start" ] || [ "$COMMAND" = "restart" ] || [ ! -f "$CONTROL_SCRIPT" ]; then
-  npm run build >/dev/null
-fi
-
-if [ ${#ARGS[@]} -eq 0 ]; then
-  exec node "$CONTROL_SCRIPT" "$COMMAND"
-fi
-
-exec node "$CONTROL_SCRIPT" "$COMMAND" "${ARGS[@]}"
+    ;;
+esac

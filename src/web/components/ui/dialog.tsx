@@ -16,7 +16,6 @@ export function Dialog({ open, onClose, title, children }: DialogProps) {
     if (!el) return;
     if (open && !el.open) {
       el.showModal();
-      // 延迟聚焦，确保动态内容已渲染
       requestAnimationFrame(() => {
         const autofocus = el.querySelector<HTMLElement>("[data-autofocus]");
         const target = autofocus ?? el.querySelector<HTMLElement>(
@@ -28,18 +27,21 @@ export function Dialog({ open, onClose, title, children }: DialogProps) {
     if (!open && el.open) el.close();
   }, [open]);
 
-  // Escape 关闭由原生 <dialog> 处理，onClose 通过 close 事件触发
   return (
     <dialog
       ref={ref}
       onClose={onClose}
       onClick={(e) => { if (e.target === ref.current) onClose(); }}
       aria-labelledby={titleId}
-      className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-card)] text-[var(--color-text-primary)] p-0 max-w-[420px] w-[90vw] backdrop:bg-black/50"
+      className="m-auto max-w-[640px] w-[min(640px,calc(100vw-32px))] rounded-[var(--radius-lg)] border border-[var(--color-border-muted)] bg-[var(--color-bg-card)] p-0 text-[var(--color-text-primary)] shadow-[0_24px_80px_rgba(0,0,0,0.55)] backdrop:bg-black/60"
     >
-      <div className="p-[var(--space-lg)]">
-        <h3 id={titleId} className="m-0 mb-[var(--space-md)] text-[var(--font-size-md)]">{title}</h3>
-        {children}
+      <div className="flex max-h-[calc(100vh-48px)] flex-col overflow-hidden">
+        <div className="border-b border-[var(--color-border-muted)] px-[var(--space-lg)] py-[var(--space-md)]">
+          <h3 id={titleId} className="m-0 text-[var(--font-size-md)] font-semibold">{title}</h3>
+        </div>
+        <div className="overflow-y-auto px-[var(--space-lg)] py-[var(--space-lg)]">
+          {children}
+        </div>
       </div>
     </dialog>
   );

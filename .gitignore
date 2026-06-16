@@ -10,6 +10,9 @@ dist/
 
 # Local config (keep *.example tracked)
 config/*.json
+config/*.yaml
+!config/*.example
+!config/*.yaml.example
 config/sop/*.yaml
 
 # IDE
@@ -20,6 +23,7 @@ config/sop/*.yaml
 # Local agent config (managed by user, not part of snail shell)
 CLAUDE.md
 AGENTS.md
+opencode.json
 agents.md
 KIMI.md
 GEMINI.md

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import type { WorkspaceSummaryDto, IssueDto } from "../types";
 
 const NAV_ITEMS = [
-  { path: "/", label: "Workspaces" },
+  { path: "/workspaces", label: "Workspaces" },
   { path: "/evolution", label: "Evolution Center" },
   { path: "/knowledge", label: "知识库" },
   { path: "/sops", label: "SOP" },
@@ -28,9 +28,9 @@ export function AppShell() {
   const path = location.pathname;
 
   // Load workspace/issue data for context panel
-  const wsMatch = path.match(/^\/ws\/([^/]+)/);
-  const issueMatch = path.match(/^\/ws\/[^/]+\/issue\/([^/]+)/);
-  const workspaceId = wsMatch?.[1];
+  const workspaceMatch = path.match(/^\/workspaces\/([^/]+)/);
+  const issueMatch = path.match(/^\/workspaces\/[^/]+\/issue\/([^/]+)/);
+  const workspaceId = workspaceMatch?.[1];
   const issueId = issueMatch?.[1];
 
   useEffect(() => {
@@ -44,31 +44,17 @@ export function AppShell() {
   }, [issueId]);
 
   const currentView = path === "/" ? "workspaces" : path.split("/")[1] || "workspaces";
-  const isBoard = /^\/ws\/[^/]+$/.test(path);
-  const isConversation = /^\/ws\/[^/]+\/issue\/[^/]+$/.test(path);
+  const isBoard = /^\/workspaces\/[^/]+$/.test(path);
+  const isConversation = /^\/workspaces\/[^/]+\/issue\/[^/]+$/.test(path);
   const dataWorkspaceView = isConversation ? "conversation" : isBoard ? "board" : undefined;
 
   function isActive(navPath: string) {
-    if (navPath === "/") return path.startsWith("/ws");
+    if (navPath === "/workspaces") return path === "/workspaces" || path.startsWith("/workspaces/");
     return path.startsWith(navPath);
   }
 
-  async function handleNav(navPath: string) {
-    // Workspaces 按钮跳转到第一个工作区
-    if (navPath === "/") {
-      try {
-        const workspaces = await api("GET /api/workspaces");
-        if (workspaces.length > 0) {
-          navigate(`/ws/${workspaces[0].id}`);
-        } else {
-          navigate("/");
-        }
-      } catch {
-        navigate("/");
-      }
-    } else {
-      navigate(navPath);
-    }
+  function handleNav(navPath: string) {
+    navigate(navPath);
     setSidebarExpanded(false);
   }
 
@@ -152,7 +138,7 @@ export function AppShell() {
 
         {/* CONTEXT PANEL — 只在对话页显示 */}
         {isConversation && (
-          <aside className="w-[var(--context-panel-width)] shrink-0 bg-[var(--color-bg-surface)] border-l border-[var(--color-border-muted)] overflow-auto">
+          <aside className="w-[280px] shrink-0 bg-[var(--color-bg-surface)] border-l border-[var(--color-border-muted)] overflow-y-auto">
             <ContextPanel workspace={workspace} issue={issue} />
           </aside>
         )}
@@ -163,13 +149,13 @@ export function AppShell() {
 
 function renderSidebarContent(path: string, navigate: (path: string) => void) {
   // 工作区路由显示工作区树（首页不显示）
-  if (path.startsWith("/ws")) {
+  if (path === "/workspaces" || path.startsWith("/workspaces/")) {
     return (
       <div className="flex flex-col min-h-0" data-view-related="workspaces">
         <div id="workspace-summary-card" hidden />
         <div className="flex items-center justify-between px-[var(--space-md)] py-[var(--space-sm)]">
           <div className="text-xs font-semibold text-[var(--color-text-muted)]">Workspaces</div>
-          <Button size="sm" onClick={() => navigate("/ws/new")}>新建</Button>
+          <Button size="sm" onClick={() => navigate("/workspaces/new")}>新建</Button>
         </div>
         <section className="flex-1 min-h-0 overflow-auto px-[var(--space-sm)]">
           <WorkspaceTree />

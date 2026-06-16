@@ -25,16 +25,16 @@ export function SnailDen() {
           ) : (
             <div className="grid gap-2">
               {templates.map((t) => (
-                <div key={t.id} className="flex gap-2.5 py-3 px-3.5 bg-[var(--color-bg-surface)] border border-[var(--color-border-muted)] rounded-[var(--radius-sm)] mb-1.5 cursor-pointer transition-all duration-150 relative hover:border-[var(--color-border-default)] hover:bg-[var(--color-bg-active)]">
+                <div key={t.key} className="flex gap-2.5 py-3 px-3.5 bg-[var(--color-bg-surface)] border border-[var(--color-border-muted)] rounded-[var(--radius-sm)] mb-1.5 cursor-pointer transition-all duration-150 relative hover:border-[var(--color-border-default)] hover:bg-[var(--color-bg-active)]">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1.5">
                       <span className="text-[13px] font-semibold text-[var(--color-text-primary)] flex-1 whitespace-nowrap overflow-hidden text-ellipsis">{t.name}</span>
-                      <span className="text-[10px] text-[var(--color-text-grey)] font-mono shrink-0">{t.id}</span>
+                      <span className="text-[10px] text-[var(--color-text-grey)] font-mono shrink-0">{t.key}</span>
                     </div>
                     <div className="text-xs text-[var(--color-text-muted)] leading-normal mb-2 line-clamp-2">
-                      {t.runtime && `${t.runtime}`}
+                      {t.agent_name && `${t.agent_name}`}
                       {t.model && ` · ${t.model}`}
-                      {t.contextWindow && ` · ${Math.round(t.contextWindow / 1000)}K`}
+                      {t.context_window && ` · ${Math.round(t.context_window / 1000)}K`}
                     </div>
                   </div>
                 </div>

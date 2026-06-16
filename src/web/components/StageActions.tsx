@@ -4,6 +4,7 @@ import { showToast } from "./Toast";
 
 interface Stage {
   id: string;
+  key: string;
   type: string;
   status: string;
   stage_definition?: { title?: string; sequence?: number };
@@ -16,8 +17,9 @@ interface Issue {
 }
 
 export interface Transition {
-  from_stage_key: string;
-  to_stage_key: string;
+  from: string;
+  to: string;
+  guard: string | null;
 }
 
 export function StageActions({
@@ -37,44 +39,28 @@ export function StageActions({
   if (!currentStage || issue.closed_at) return null;
 
   const forward = transitions.filter(
-    (t) => t.from_stage_key === currentStage.type && t.to_stage_key !== currentStage.type
+    (transition) => transition.from === currentStage.key && transition.to !== currentStage.key
   );
 
   const needsSelection = forward.length > 1 && !selectedTarget;
-
   async function handleAdvance() {
-    if (advancing || forward.length === 0 || needsSelection) return;
+    if (!currentStage || advancing || forward.length === 0 || needsSelection) return;
     setAdvancing(true);
     try {
       const targetKey = forward.length === 1
-        ? forward[0].to_stage_key
+        ? forward[0].to
         : selectedTarget;
       if (!targetKey) { showToast("请选择目标阶段", true); setAdvancing(false); return; }
-      const result = await api("POST /api/issues/:issueId/advance", { params: { issueId: issue.id }, body: { target_stage_key: targetKey } });
+      await api("POST /api/stages/:stageId/advance", {
+        params: { stageId: currentStage.id },
+        body: { target_key: targetKey },
+      });
       showToast("阶段已推进");
-      // 自动触发 AI 工作
-      if (result?.conversation?.id) {
-        api("POST /api/conversations/:conversationId/messages", { params: { conversationId: result.conversation.id }, body: { content: "开始执行。" } }).catch(() => {});
-      }
       onStageChanged();
     } catch (err: unknown) {
       showToast(`推进失败：${err instanceof Error ? err.message : String(err)}`, true);
     }
     setAdvancing(false);
-  }
-
-  async function handleBounce(toKey: string) {
-    try {
-      const result = await api("POST /api/issues/:issueId/bounce-stage", { params: { issueId: issue.id }, body: { target_stage_key: toKey } });
-      showToast("阶段已转移");
-      // 自动触发 AI 工作
-      if (result?.conversation?.id) {
-        api("POST /api/conversations/:conversationId/messages", { params: { conversationId: result.conversation.id }, body: { content: "开始执行。" } }).catch(() => {});
-      }
-      onStageChanged();
-    } catch (err: unknown) {
-      showToast(`转移失败：${err instanceof Error ? err.message : String(err)}`, true);
-    }
   }
 
   return (
@@ -86,8 +72,8 @@ export function StageActions({
           onChange={(e) => setSelectedTarget(e.target.value)}
         >
           <option value="">选择目标阶段</option>
-          {forward.map((t) => (
-            <option key={t.to_stage_key} value={t.to_stage_key}>{t.to_stage_key}</option>
+          {forward.map((transition) => (
+            <option key={transition.to} value={transition.to}>{transition.to}</option>
           ))}
         </select>
       )}
@@ -99,15 +85,6 @@ export function StageActions({
       >
         推进
       </button>
-      {forward.length > 1 && (
-        <button
-          className="px-[var(--space-md)] py-[var(--space-xs)] rounded-[var(--radius-sm)] text-[12px] border border-[var(--color-border-muted)] text-[var(--color-text-muted)] hover:border-[var(--color-border-default)] hover:text-[var(--color-text-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
-          onClick={() => { if (selectedTarget) handleBounce(selectedTarget); }}
-          disabled={!selectedTarget}
-        >
-          转移
-        </button>
-      )}
     </div>
   );
 }

@@ -1,260 +1,120 @@
-import express from "express";
-import path from "path";
-import { ConversationStore } from "./persistence/store";
-import { getSchemaVersion } from "./persistence/schema";
-import { ClaudeCodeAgent } from "./agent/claude-code";
-import { ClaudeCodeStatefulAgent } from "./agent/claude-code-stateful";
-import { OpenCodeAgent } from "./agent/opencode";
-import { CodexAgent } from "./agent/codex";
-import { RuntimeSnailAgentResolver } from "./agent/resolver";
-import type { SnailRuntime } from "./agent/interface";
-import { loadLlmConfig, OpenAIClient } from "./llm";
-import { SystemAISnail } from "./snail-den/system-ai";
-import { WorkspaceManager } from "./workspace-workflow/manager";
-import { createServer } from "./interaction-entry/api/server";
-import { SnailDen } from "./snail-den";
-import { logger } from "./logger";
-import { ConversationGateway } from "./interaction-entry/gateway";
-import { FeishuSdkTransport, loadFeishuConfig } from "./interaction-entry/feishu";
-import { WecomSdkTransport, loadWecomConfig } from "./interaction-entry/wecom";
-import { LobbyAwareChannel } from "./interaction-entry/im-channel";
-import { LobbySessionStore, LobbyRouter, LobbyCommandExecutor, PlainTextLobbyRenderer, type LobbySession } from "./lobby";
-import { startMcpServer } from "./mcp";
-
-const PORT = Number(process.env.PORT) || 3000;
-const DB_PATH = process.env.DB_PATH || path.join(process.cwd(), "data", "snail-shell.db");
-
-async function initializeAgents(): Promise<SnailRuntime[]> {
-	  const agents: SnailRuntime[] = [
-	    new ClaudeCodeAgent(),
-	    new ClaudeCodeStatefulAgent(),
-	    new OpenCodeAgent(),
-	    new CodexAgent(),
-	  ];
-
-	  return agents;
-	}
-
-function registerHealthRoute(app: express.Express, agentResolver: RuntimeSnailAgentResolver): void {
-  app.get("/health", (_req, res) => {
-    res.json({ status: "ok", agents: agentResolver.list().map((agent) => agent.name) });
-  });
-}
-
-function registerServerDiagnostics(server: ReturnType<typeof createServer>["server"]): void {
-  server.on("error", (error) => {
-    logger.error("HTTP server error", { error });
-  });
-
-  server.on("close", () => {
-    logger.info("HTTP server closed");
-  });
-}
-
-/** unhandledRejection 的 reason 可能是任意类型，按类型分别序列化以保留关键信息。 */
-function serializeReason(reason: unknown): Record<string, unknown> {
-  if (reason instanceof Error) {
-    return { error: reason };
-  }
-  return { reason: reason === null ? "null" : typeof reason === "object" ? reason : String(reason) };
-}
-
-function registerProcessDiagnostics(): void {
-  process.on("uncaughtException", (error) => {
-    logger.error("Uncaught exception", { error });
-  });
-
-  process.on("unhandledRejection", (reason) => {
-    logger.error("Unhandled rejection", serializeReason(reason));
-  });
-}
-
-function registerShutdownHandlers(server: ReturnType<typeof createServer>["server"], store: ConversationStore, workspaceManager: WorkspaceManager, shutdownTasks: Array<() => Promise<void> | void> = []): void {
-  async function shutdown(signal: NodeJS.Signals) {
-    logger.info("Shutdown signal received", { signal });
-    /**
-     * 关闭顺序：markShuttingDown → wait → server.close → exit。
-     * 1. markShuttingDown 设置标志（拒绝新 send 请求）并立即中断所有运行中的 agent。
-     *    中断后 agent 开始清理，HTTP handler 的 await 逐步释放，活跃连接随之关闭。
-     * 2. wait 等待所有 agent 子进程的 SIGINT → SIGTERM → SIGKILL 清理链路收敛。
-     * 3. server.close 停止接受新连接并等待残余连接排空后执行回调。
-     *    此时已无活跃 agent，回调可以立即触发。
-     * 4. 执行 shutdown 任务、关闭数据库、退出进程。
-     *
-     * 为什么不能把 interrupt 放在 server.close 回调内：
-     * server.close 会等待所有活跃 HTTP 连接关闭后才触发回调。REST send_message 等待
-     * agent 跑完才返回，连接不会释放。interrupt 在回调内 → 回调不触发 → agent 不被中断
-     * → 连接不释放 → 死锁。
-     */
-    workspaceManager.markShuttingDown();
-    await workspaceManager.waitForAllAgentProcessesStopped();
-    logger.info("All agent processes stopped");
-    server.close(async () => {
-      logger.info("HTTP server closed");
-      for (const task of shutdownTasks) await task();
-      store.close();
-      process.exit(0);
-    });
-  }
-
-  process.on("SIGINT", () => shutdown("SIGINT"));
-  process.on("SIGTERM", () => shutdown("SIGTERM"));
-}
-
-function createOpenAIClient(llmConfig: ReturnType<typeof loadLlmConfig>): OpenAIClient {
-  return new OpenAIClient({
-    apiKey: llmConfig.openai.api_key,
-    model: llmConfig.openai.model,
-    baseUrl: llmConfig.openai.base_url,
-    timeoutMs: llmConfig.openai.timeout_ms,
-  });
-}
-
-function createWorkspaceManager(
-  store: ConversationStore,
-  agentResolver: RuntimeSnailAgentResolver,
-  deps: { snailDen: SnailDen; llmConfig: ReturnType<typeof loadLlmConfig> }
-): WorkspaceManager {
-  const openAIClient = createOpenAIClient(deps.llmConfig);
-  const systemAI = new SystemAISnail(openAIClient);
-  return new WorkspaceManager(store, agentResolver, { systemAI, snailDen: deps.snailDen });
-}
-
-async function startFeishuChannel(
-  conversationGateway: ConversationGateway,
-  workspaceManager: WorkspaceManager,
-  store: ConversationStore,
-): Promise<{ stop: () => Promise<void>; lobbyChannel: LobbyAwareChannel | null } | null> {
-  const feishuConfig = loadFeishuConfig();
-  if (!feishuConfig.enabled) return null;
-  if (!feishuConfig.app_id || !feishuConfig.app_secret) {
-    throw new Error("Feishu integration is enabled but app_id/app_secret are not configured in config/feishu.json");
-  }
-  const transport = new FeishuSdkTransport({ appId: feishuConfig.app_id, appSecret: feishuConfig.app_secret });
-  await transport.prepare({});
-
-  const sessionStore = new LobbySessionStore(store.getDb());
-  const responseRenderer = new PlainTextLobbyRenderer();
-  const commandExecutor = new LobbyCommandExecutor(workspaceManager, store, sessionStore, responseRenderer);
-  const lobbyRouter = new LobbyRouter({ sessionStore, commandExecutor, responseRenderer, gateway: conversationGateway });
-  const channel = new LobbyAwareChannel(
-    {
-      channelType: "feishu",
-      maxTextLength: feishuConfig.message_push.max_text_length,
-      allowedChats: feishuConfig.allowed_chats,
-      streamingEnabled: feishuConfig.message_push.streaming?.enabled ?? false,
-      streamingFlushIntervalMs: feishuConfig.message_push.streaming?.flush_interval_ms,
-    },
-    { transport, lobbyRouter, gateway: conversationGateway, responseRenderer, sessionStore },
-  );
-  await channel.start();
-  return { stop: () => channel.stop(), lobbyChannel: channel };
-}
-
-async function startWecomChannel(
-  app: express.Express,
-  conversationGateway: ConversationGateway,
-  workspaceManager: WorkspaceManager,
-  store: ConversationStore,
-): Promise<{ stop: () => Promise<void>; lobbyChannel: LobbyAwareChannel | null } | null> {
-  const wecomConfig = loadWecomConfig();
-  if (!wecomConfig.enabled) return null;
-  if (!wecomConfig.corp_id || !wecomConfig.corp_secret || !wecomConfig.token || !wecomConfig.encoding_aes_key) {
-    throw new Error("WeCom integration is enabled but corp_id/corp_secret/token/encoding_aes_key are not configured in config/wecom.json");
-  }
-  const transport = new WecomSdkTransport(wecomConfig);
-  await transport.prepare({ app });
-
-  const sessionStore = new LobbySessionStore(store.getDb());
-  const responseRenderer = new PlainTextLobbyRenderer();
-  const commandExecutor = new LobbyCommandExecutor(workspaceManager, store, sessionStore, responseRenderer);
-  const lobbyRouter = new LobbyRouter({ sessionStore, commandExecutor, responseRenderer, gateway: conversationGateway });
-  const channel = new LobbyAwareChannel(
-    { channelType: "wecom", maxTextLength: wecomConfig.message_push.max_text_length, allowedChats: wecomConfig.allowed_chats },
-    { transport, lobbyRouter, gateway: conversationGateway, responseRenderer, sessionStore },
-  );
-  await channel.start();
-  return { stop: () => channel.stop(), lobbyChannel: channel };
-}
-
-async function createRuntimeContext(store: ConversationStore): Promise<{ agentResolver: RuntimeSnailAgentResolver; snailDen: SnailDen; workspaceManager: WorkspaceManager }> {
-  const llmConfig = loadLlmConfig();
-  if (llmConfig.provider !== "openai") throw new Error(`Unsupported llm provider: ${llmConfig.provider}`);
-  if (!llmConfig.openai.api_key) throw new Error("config/llm.json openai.api_key is required for conversation summary generation");
-  const agents = await initializeAgents();
-  const agentResolver = new RuntimeSnailAgentResolver(agents);
-  const snailDen = new SnailDen(agentResolver);
-
-  return { agentResolver, snailDen, workspaceManager: createWorkspaceManager(store, agentResolver, { snailDen, llmConfig }) };
-}
-
-interface ChannelSetup {
-  shutdownTasks: Array<() => Promise<void> | void>;
-  onSessionCleanup: (session: LobbySession) => void;
-  startWecom: (app: express.Express) => Promise<void>;
-}
-
-async function setupImChannels(
-  conversationGateway: ConversationGateway,
-  workspaceManager: WorkspaceManager,
-  store: ConversationStore,
-): Promise<ChannelSetup> {
-  const shutdownTasks: Array<() => Promise<void> | void> = [];
-
-  // 飞书通道不需要 Express app，可先启动
-  const feishuResult = await startFeishuChannel(conversationGateway, workspaceManager, store);
-  if (feishuResult) shutdownTasks.push(feishuResult.stop);
-
-  // wecomChannel 在 startWecom 内部设置
-  let wecomChannel: LobbyAwareChannel | null = null;
-
-  return {
-    shutdownTasks,
-    onSessionCleanup: (session: LobbySession) => {
-      feishuResult?.lobbyChannel?.cleanupSessionSubscriptions(session);
-      wecomChannel?.cleanupSessionSubscriptions(session);
-    },
-    startWecom: async (app: express.Express) => {
-      // 企业微信通道需要 Express app 挂载路由，在 createServer 之后启动
-      const wecomResult = await startWecomChannel(app, conversationGateway, workspaceManager, store);
-      if (wecomResult) {
-        shutdownTasks.push(wecomResult.stop);
-        wecomChannel = wecomResult.lobbyChannel;
-      }
-    },
-  };
-}
+import { serve } from "@hono/node-server";
+import { FileDataStore } from "@infra/file-data-store";
+import { ConfigStore } from "@infra/config-store";
+import { loadServerSettings, type ServerSettings } from "@infra/server-config";
+import { SQLiteDatabase } from "@infra/database";
+import { createApp } from "@infra/http/app";
+import { init as initAcs } from "@infra/acs/_internal/initor";
+import { init as initWorkspace } from "@domain/workspace/_internal/initor";
+import { init as initTenetPrompt } from "@domain/tenet-prompt/_internal/initor";
+import { init as initSkill } from "@domain/skill/_internal/initor";
+import { init as initSop } from "@domain/sop/_internal/initor";
+import { init as initMCPServer } from "@domain/snail-mcp-server/_internal/initor";
+import { initHono as initIM } from "@domain/im/_internal/hono-initor";
+import { init as initKnowledge } from "@domain/knowledge/_internal/initor";
+import { init as initIssue } from "@domain/issue/_internal/initor";
+import { init as initMessage } from "@domain/message/_internal/initor";
+import { init as initEvolution } from "@domain/evolution/_internal/initor";
+import { init as initFeatureChain } from "@domain/feature-chain/_internal/initor";
+import { init as initGuardProfile } from "@domain/guard-profile/_internal/initor";
+import { init as initSnail } from "@domain/snail/_internal/initor";
+import { init as initLiteAI } from "@domain/lite-ai/_internal/initor";
+import { init as initMCP } from "@domain/mcp/_internal/initor";
+import { init as initIssueCollaboration } from "@app/issue-collaboration/initor";
+import { init as initIMHub } from "@app/im-hub/initor";
+import { createMcpHandler } from "@infra/mcp-server/handler";
+import { createIssueWebSocketBridge } from "@infra/http/stage-websocket";
 
 async function main() {
-  const store = new ConversationStore(DB_PATH);
-  logger.info("Server initialization started", { port: PORT, database: DB_PATH, schemaVersion: getSchemaVersion() });
-  store.rebuildFeatureChainIndex();
-  const { agentResolver, snailDen, workspaceManager } = await createRuntimeContext(store);
-  await workspaceManager.waitForStartupRecovery();
-  const conversationGateway = new ConversationGateway(workspaceManager);
+  const repoRoot = process.cwd();
+  const serverSettings = loadServerSettings(repoRoot);
+  const modules = await initModules(repoRoot, serverSettings);
 
-  const imChannels = await setupImChannels(conversationGateway, workspaceManager, store);
-  const lobbySessionStore = new LobbySessionStore(store.getDb());
-  const { app, server } = createServer(workspaceManager, snailDen, store, conversationGateway, { sessionStore: lobbySessionStore, onSessionCleanup: imChannels.onSessionCleanup });
+  modules.featureChain.adapter.rebuild();
+  logStartupSummary(modules);
+  startHttpServer(modules, serverSettings);
+}
 
-  await imChannels.startWecom(app);
+async function initModules(repoRoot: string, serverSettings: ServerSettings) {
+  const db = new SQLiteDatabase(repoRoot);
+  const dataStore = FileDataStore.fromRepoRoot(repoRoot);
+  const configStore = new ConfigStore(repoRoot);
+  const { registry } = await initAcs();
+  const workspace = initWorkspace(dataStore);
+  const workspaces = workspace.adapter.list();
+  const tenetPrompt = initTenetPrompt(dataStore, workspaces);
+  const skill = initSkill(dataStore, workspaces);
+  const sop = initSop(dataStore, workspaces);
+  const knowledge = initKnowledge(dataStore, workspaces);
+  const issue = initIssue(sop.adapter, db);
+  const message = initMessage(db);
+  const evolutionRef: { current?: ReturnType<typeof initEvolution> } = {};
+  const snailMCPServer = initMCPServer({
+    updateEvolution: (id, updates) => {
+      if (!evolutionRef.current) throw new Error("Evolution module is not initialized");
+      return Promise.resolve(evolutionRef.current.adapter.update(id, updates));
+    },
+    knowledge: knowledge.adapter,
+    message: message.adapter,
+  });
+  const mcp = initMCP({ dataStore, workspaces, snailMCPServer: snailMCPServer.adapter, serverSettings });
+  const featureChain = initFeatureChain(repoRoot);
+  const guardProfile = initGuardProfile(dataStore);
+  const liteAI = initLiteAI(dataStore);
+  const snail = initSnail(dataStore, db, { registry, tenetPrompt: tenetPrompt.adapter, skill: skill.adapter, mcp: mcp.adapter, guardProfile: guardProfile.adapter });
+  const evolution = initEvolution(db, issue.issueAdapter, snail.adapter);
+  evolutionRef.current = evolution;
+  const collaboration = initIssueCollaboration({ issuePort: issue.issueAdapter, stagePort: issue.stageAdapter, messagePort: message.adapter, snailPort: snail.adapter, liteAIPort: liteAI.adapter });
+  const im = initIM({ workspacePort: workspace.adapter, issuePort: issue.issueAdapter, stagePort: issue.stageAdapter, configStore, db });
+  const imHub = initIMHub({ imAdapter: im.adapter, lobbyAdapter: im.lobbyAdapter, collaboration: collaboration.adapter, stagePort: issue.stageAdapter });
+  await im.adapter.startChannels();
+  return { registry, workspace, tenetPrompt, skill, sop, snailMCPServer, mcp, featureChain, snail, im, imHub, liteAI, evolution, issue, message, collaboration, knowledge, configStore };
+}
 
-  app.use(express.static(path.join(__dirname, "web")));
-  registerHealthRoute(app, agentResolver);
-  registerServerDiagnostics(server);
-  registerShutdownHandlers(server, store, workspaceManager, imChannels.shutdownTasks);
+function logStartupSummary(modules: Awaited<ReturnType<typeof initModules>>): void {
+  console.log(`Loaded ${modules.workspace.adapter.list().length} workspaces`);
+  console.log(`Loaded ${modules.tenetPrompt.adapter.list().length} prompts`);
+  console.log(`Loaded ${modules.skill.adapter.list().length} skills`);
+  console.log(`Loaded ${modules.sop.adapter.list().length} SOPs`);
+  console.log(`MCP Servers: ${modules.snailMCPServer.adapter.listServers().map(s => s.name).join(", ")}`);
+  console.log(`MCP Configs: ${modules.mcp.adapter.list().map(c => c.name).join(", ")}`);
+  console.log(`Feature Chain: ${modules.featureChain.adapter.search("").length} docs indexed`);
+  console.log(`Snails: ${modules.snail.adapter.list().map(s => s.key).join(", ")}`);
+  console.log(`IM: ready (${modules.im.adapter.listChannelConfigs().map(c => c.type).join(", ") || "no channels"})`);
+  console.log(`IM Hub: ready (${Boolean(modules.imHub.adapter)})`);
+  console.log(`Lite AI: ${modules.liteAI.adapter.getConfig() ? "configured" : "not configured"}`);
+  console.log(`Evolution: ready`);
+  console.log(`Registered agents: ${modules.registry.listAgentRuntimes().join(", ")}`);
+}
 
-  logger.info("Starting HTTP server", { port: PORT });
-  server.listen(PORT, () => {
-    // 启动 MCP server：注册平台级 MCP + 注册 JSON-RPC endpoint
-    startMcpServer(app, store, PORT);
-    logger.info("Server started", { port: PORT, agents: agentResolver.list().map((agent) => agent.name), database: DB_PATH });
+function startHttpServer(modules: Awaited<ReturnType<typeof initModules>>, serverSettings: ServerSettings): void {
+  const mcpHandler = createMcpHandler(modules.snailMCPServer.adapter);
+  const app = createApp({
+    workspaceAdapter: modules.workspace.adapter,
+    issuePort: modules.issue.issueAdapter,
+    stagePort: modules.issue.stageAdapter,
+    messagePort: modules.message.adapter,
+    collaboration: modules.collaboration.adapter,
+    tenetPrompt: modules.tenetPrompt.adapter,
+    skill: modules.skill.adapter,
+    sop: modules.sop.adapter,
+    snail: modules.snail.adapter,
+    mcp: modules.mcp.adapter,
+    knowledge: modules.knowledge.adapter,
+    evolution: modules.evolution.adapter,
+    mcpHandler,
+  });
+  app.route("/im", modules.im.app);
+  const port = serverSettings.port;
+  const websocketBridge = createIssueWebSocketBridge(modules.collaboration.adapter);
+  app.get("/issue-events", websocketBridge.route);
+  serve({ fetch: app.fetch, port, websocket: { server: websocketBridge.server } }, (info) => {
+    console.log(`HTTP server listening on http://localhost:${info.port}`);
   });
 }
 
-registerProcessDiagnostics();
 
-void main().catch((error) => {
-  logger.error("Failed to start server", { error });
+main().catch((err) => {
+  console.error("Failed to start", err);
   process.exit(1);
 });

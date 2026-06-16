@@ -1,0 +1,172 @@
+import { Hono, type Context } from "hono";
+import { zValidator } from "@hono/zod-validator";
+import { z } from "zod";
+import { decodeWorkspaceId, encodeWorkspaceId, toWorkspaceDto } from "@infra/http/workspace-id";
+import type { WorkspaceAdapter } from "@domain/workspace/_internal/adapter";
+import type { IssuePort, StagePort } from "@domain/issue/port";
+import type { MessagePort } from "@domain/message/port";
+import type { CollaborationInput } from "@app/issue-collaboration/port";
+import type { Issue, Stage } from "@domain/issue/model";
+import type { Message } from "@domain/message/model";
+
+interface IssueRoutesDeps {
+  workspaceAdapter: WorkspaceAdapter;
+  issuePort: IssuePort;
+  stagePort: StagePort;
+  messagePort: MessagePort;
+  collaboration: CollaborationInput;
+}
+
+const snailAssignmentPlanSchema = z.record(z.record(z.string()));
+
+const createIssueBody = z.object({
+  title: z.string().min(1),
+  summary: z.string().optional(),
+  adopted_sop_key: z.string().min(1),
+  snail_assignment_plan: snailAssignmentPlanSchema,
+});
+
+const launchBody = z.object({
+  stage_key: z.string().optional(),
+});
+
+const sendMessageBody = z.object({
+  text: z.string().min(1),
+  from_speaker: z.string().optional(),
+});
+
+const advanceStageBody = z.object({
+  target_key: z.string().min(1),
+});
+
+export function createIssueRoutes(deps: IssueRoutesDeps) {
+  const app = new Hono();
+
+  app.get("/api/workspaces/:workspaceId", (c) => {
+    const workspacePath = decodeWorkspaceId(c.req.param("workspaceId"));
+    const workspace = deps.workspaceAdapter.list().find(item => item.path === workspacePath);
+    if (!workspace) return c.json(null, 404);
+    const issues = deps.issuePort.listIssues(workspace.path);
+    return c.json({ ...toWorkspaceDto(workspace), issues: issues.map(issue => toIssueDetail(deps, issue)) });
+  });
+
+  app.get("/api/workspaces/:workspaceId/issues", (c) => {
+    const workspacePath = decodeWorkspaceId(c.req.param("workspaceId"));
+    const issues = deps.issuePort.listIssues(workspacePath);
+    return c.json(issues.map(issue => toIssueDetail(deps, issue)));
+  });
+
+  app.get("/api/sops/:sopKey/stage-previews", (c) => {
+    return c.json(deps.issuePort.previewSopStages(c.req.param("sopKey"), c.req.query("title") ?? ""));
+  });
+
+  app.post("/api/workspaces/:workspaceId/issues", zValidator("json", createIssueBody), async (c) => {
+    const body = c.req.valid("json");
+    const issue = deps.issuePort.createIssue({
+      workspace_path: decodeWorkspaceId(c.req.param("workspaceId")),
+      title: body.title,
+      summary: body.summary,
+      adopted_sop_key: body.adopted_sop_key,
+      snail_assignment_plan: body.snail_assignment_plan,
+    });
+    const stage = await deps.collaboration.launchIssue({ issue_id: issue.id });
+    return c.json({ issue: toIssueDetail(deps, issue), stage: toStageDto(deps, stage) }, 201);
+  });
+
+  app.get("/api/issues/:issueId", (c) => {
+    const issue = deps.issuePort.findIssue(c.req.param("issueId"));
+    if (!issue) return c.json(null, 404);
+    return c.json(toIssueDetail(deps, issue));
+  });
+
+  app.post("/api/issues/:issueId/launch", zValidator("json", launchBody), async (c) => {
+    const stage = await deps.collaboration.launchIssue({ issue_id: c.req.param("issueId"), ...c.req.valid("json") });
+    return c.json(toStageDto(deps, stage), 201);
+  });
+
+  app.get("/api/issues/:issueId/stages", (c) => {
+    return c.json(deps.stagePort.listStages(c.req.param("issueId")).map(stage => toStageDto(deps, stage)));
+  });
+
+  app.get("/api/stages/:stageId", (c) => {
+    const stage = deps.stagePort.findStage(c.req.param("stageId"));
+    if (!stage) return c.json(null, 404);
+    return c.json(toStageDto(deps, stage));
+  });
+
+  app.get("/api/stages/:stageId/messages", (c) => listMessages(c, deps));
+
+  app.post("/api/stages/:stageId/messages", zValidator("json", sendMessageBody), async (c) => sendMessage(c, deps));
+
+  app.get("/api/stages/:stageId/transition-suggestions", (c) => {
+    return c.json(deps.collaboration.listStageTransitionSuggestions(c.req.param("stageId")));
+  });
+
+  app.post("/api/stages/:stageId/advance", zValidator("json", advanceStageBody), async (c) => {
+    const body = c.req.valid("json");
+    const stage = await deps.collaboration.advanceStage(c.req.param("stageId"), body.target_key);
+    return c.json(toStageDto(deps, stage), 201);
+  });
+
+  return app;
+}
+
+
+function listMessages(c: Context, deps: IssueRoutesDeps) {
+  const stageId = requiredParam(c, "stageId");
+  const limit = numberQuery(c.req.query("limit"));
+  const offset = numberQuery(c.req.query("offset"));
+  return c.json(deps.messagePort.listMessages(stageId, limit, offset).map(message => toMessageDto(deps, message)));
+}
+
+async function sendMessage(c: Context, deps: IssueRoutesDeps) {
+  const stageId = requiredParam(c, "stageId");
+  const body = sendMessageBody.parse(await c.req.json());
+  await deps.collaboration.sendMessage(stageId, body.text, body.from_speaker);
+  return c.json({ ok: true });
+}
+
+function toIssueDetail(deps: Pick<IssueRoutesDeps, "stagePort">, issue: Issue) {
+  const stages = deps.stagePort.listStages(issue.id).map(stage => toStageDto(deps, stage));
+  return {
+    ...issue,
+    workspace_id: encodeWorkspaceId(issue.workspace_path),
+    stages,
+    current_stage: stages.find(stage => !stage.left_at) ?? stages.at(-1) ?? null,
+  };
+}
+
+function toStageDto(deps: Pick<IssueRoutesDeps, "stagePort">, stage: Stage) {
+  return {
+    ...stage,
+    active_roles: stage.role_instances,
+    assignments: deps.stagePort.getRoleSnailAssignments(stage.id),
+    status: stage.left_at ? "completed" : "in_progress",
+  };
+}
+
+function toMessageDto(deps: Pick<IssueRoutesDeps, "messagePort">, message: Message) {
+  const role = message.from_speaker === "user" ? "user" : message.from_speaker ? "assistant" : "system";
+  return {
+    ...message,
+    conversation_id: message.stage_id,
+    from_role: message.from_speaker,
+    to_roles: message.to_speakers,
+    role,
+    updated_at: message.ended_at ?? message.created_at,
+    context: deps.messagePort.getContext(message.id),
+    events: deps.messagePort.getMessageEvents(message.id),
+  };
+}
+
+function requiredParam(c: Context, key: string): string {
+  const value = c.req.param(key);
+  if (!value) throw new Error(`Missing route param: ${key}`);
+  return value;
+}
+
+function numberQuery(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}

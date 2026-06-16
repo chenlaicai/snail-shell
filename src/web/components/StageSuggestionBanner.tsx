@@ -10,33 +10,29 @@ import { showToast } from "./Toast";
 import type { StageSuggestion } from "../types";
 
 export function StageSuggestionBanner({
-  issueId,
+  stageId,
   onAccepted,
 }: {
-  issueId: string | null;
+  stageId: string | null;
   onAccepted: () => void;
 }) {
   const [suggestion, setSuggestion] = useState<StageSuggestion | null>(null);
 
-  // 检查是否有待确认的阶段转移建议
   useEffect(() => {
-    if (!issueId) { setSuggestion(null); return; }
-    api("GET /api/issues/:issueId/stage-suggestion", { params: { issueId } })
-      .then((data) => {
-        if (data && data.issueId === issueId) {
-          setSuggestion(data);
-        } else {
-          setSuggestion(null);
-        }
-      })
+    if (!stageId) {
+      setSuggestion(null);
+      return;
+    }
+    api("GET /api/stages/:stageId/transition-suggestions", { params: { stageId } })
+      .then((data) => setSuggestion(Array.isArray(data) ? data.at(0) ?? null : null))
       .catch(() => setSuggestion(null));
-  }, [issueId]);
+  }, [stageId]);
 
   if (!suggestion) return null;
 
   async function handleConfirm() {
     try {
-      await api("POST /api/issues/:issueId/advance", { params: { issueId }, body: { target_stage_key: suggestion!.toStageKey } });
+      await api("POST /api/stages/:stageId/advance", { params: { stageId }, body: { target_key: suggestion.target_key } });
       showToast("阶段已推进");
       setSuggestion(null);
       onAccepted();
@@ -53,7 +49,7 @@ export function StageSuggestionBanner({
     <div className="flex items-center justify-between gap-[var(--space-md)] mx-[var(--space-lg)] my-[var(--space-sm)] px-[var(--space-md)] py-[var(--space-sm)] bg-[rgba(108,141,250,0.08)] border border-[rgba(108,141,250,0.2)] rounded-[var(--radius-md)]">
       <div className="flex-1 min-w-0">
         <span className="text-[var(--font-size-sm)] text-[var(--color-text-primary)]">
-          AI 建议从 <strong className="text-[var(--color-accent)]">{suggestion.fromStageKey}</strong> 推进到 <strong className="text-[var(--color-accent)]">{suggestion.toStageKey}</strong>
+          AI 建议从 <strong className="text-[var(--color-accent)]">{suggestion.from_speaker}</strong> 推进到 <strong className="text-[var(--color-accent)]">{suggestion.target_key}</strong>
           {suggestion.reason && "："}
         </span>
         {suggestion.reason && <span className="text-[var(--font-size-xs)] text-[var(--color-text-secondary)]">{suggestion.reason}</span>}

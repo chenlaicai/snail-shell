@@ -34,7 +34,7 @@ export const queryKeys = {
   },
   stages: {
     detail: (stageId: string) => ["stages", stageId] as const,
-    conversations: (stageId: string) => ["stages", stageId, "conversations"] as const,
+    messages: (stageId: string) => ["stages", stageId, "messages"] as const,
   },
   conversations: {
     detail: (id: string) => ["conversations", id] as const,

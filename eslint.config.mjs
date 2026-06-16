@@ -1,133 +1,36 @@
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 
-/**
- * 模块边界守护规则
- *
- * 基于 docs/issues/2026/05/13/I2026051307-module-refactor.md 定义的依赖方向：
- * shared ← persistence
- * shared ← prompt-center (← agent/) ← skill-center
- * shared ← snail-den (← agent/, llm/)
- * shared ← message-bus (← persistence, agent/)
- * 以上全部 ← workspace-workflow
- * 以上全部 ← knowledge-center
- * 以上全部 ← interaction-entry
- *
- * logger 是跨切面基础设施，不属于模块边界守护范围。
- */
-
-/**
- * 生成多层级相对路径 pattern
- *
- * 为什么需要多层级：当前 pattern 只覆盖一层相对路径（如 ../meta），
- * 但嵌套目录可以用 ../../meta 绕过。为了确保边界守护的完整性，
- * 需要覆盖最多 5 层相对路径。
- *
- * 注意：不包含空层级（''），因为这会匹配模块内部导入（如 ./message-bus），
- * 而模块内部导入不应该被禁止。
- *
- * @param {string[]} modules - 模块名称列表
- * @returns {string[]} 包含多层级的 pattern 列表
- */
-function generateMultiLevelPatterns(modules) {
-  const patterns = [];
-  const levels = ['../', '../../', '../../../', '../../../../', '../../../../../'];
-
-  for (const module of modules) {
-    for (const level of levels) {
-      patterns.push(`${level}${module}`);
-      patterns.push(`${level}${module}/**`);
-    }
-  }
-
-  return patterns;
-}
-
-/** 内部模块列表（用于 shared 模块的禁止导入规则） */
-const internalModules = [
-  "persistence",
-  "meta",
-  "prompt-center",
-  "skill-center",
-  "snail-den",
-  "snails",
-  "agent",
-  "llm",
-  "message-bus",
-  "workspace-workflow",
-  "knowledge-center",
-  "interaction-entry",
-];
-
-/** 多层级内部模块 pattern */
-const internalModulesMultiLevel = generateMultiLevelPatterns(internalModules);
-
-/**
- * 生成特定模块的禁止导入 pattern
- *
- * @param {string[]} allowedModules - 允许导入的模块列表
- * @returns {string[]} 禁止导入的 pattern 列表
- */
-function generateForbiddenPatterns(allowedModules) {
-  const forbiddenModules = internalModules.filter(m => !allowedModules.includes(m));
-  return generateMultiLevelPatterns(forbiddenModules);
-}
-
 export default tseslint.config(
   {
-    ignores: ["dist/**", "node_modules/**", ".claude/**", ".meta/**", ".git/**", "data/**", "logs/**", "docs/**"],
+    ignores: ["dist/**", "node_modules/**", ".claude/**", ".meta/**", ".git/**", "data/**", "logs/**", "docs/**", "v1/**"],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ["src/web/**/*.js"],
-    languageOptions: {
-      globals: {
-        alert: "readonly",
-        CSS: "readonly",
-        clearTimeout: "readonly",
-        document: "readonly",
-        fetch: "readonly",
-        location: "readonly",
-        Node: "readonly",
-        prompt: "readonly",
-        ResizeObserver: "readonly",
-        setTimeout: "readonly",
-        WebSocket: "readonly",
-        window: "readonly",
-      }
-    },
-    rules: {
-      "complexity": ["error", 40],
-      "max-lines": ["error", { max: 900, skipBlankLines: true, skipComments: true }],
-      "max-lines-per-function": ["error", { max: 160, skipBlankLines: true, skipComments: true }],
-      "max-statements": ["error", 40]
-    }
-  },
-  {
-    files: ["src/web/app.js"],
-    rules: {
-      "complexity": ["error", 40],
-      "max-lines": ["error", { max: 980, skipBlankLines: true, skipComments: true }],
-      "max-lines-per-function": ["error", { max: 160, skipBlankLines: true, skipComments: true }],
-      "max-statements": ["error", 40]
-    }
-  },
-  {
     files: ["src/**/*.ts"],
     rules: {
-      "complexity": ["error", 10],
+      "complexity": ["error", 12],
       "max-depth": ["error", 4],
-      "max-lines": ["error", { max: 400, skipBlankLines: true, skipComments: true }],
-      "max-lines-per-function": ["error", { max: 50, skipBlankLines: true, skipComments: true }],
-      "max-params": ["error", 4],
-      "max-statements": ["error", 20],
+      "max-lines": ["error", { max: 450, skipBlankLines: true, skipComments: true }],
+      "max-lines-per-function": ["error", { max: 60, skipBlankLines: true, skipComments: true }],
+      "max-params": ["error", 5],
+      "max-statements": ["error", 25],
       "no-console": "off",
       "@typescript-eslint/consistent-type-imports": "error",
       "@typescript-eslint/explicit-function-return-type": "off",
       "@typescript-eslint/explicit-module-boundary-types": "off",
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-require-imports": "off",
+      "@typescript-eslint/no-restricted-imports": [
+        "error",
+        {
+          patterns: [{
+            group: ["./*", "../*", "@shared", "@shared/*", "src/shared", "src/shared/*", "**/shared", "**/shared/*"],
+            message: "src 内统一使用 @domain/@infra/@app/@api-contracts 路径别名；严禁引入 shared 目录"
+          }]
+        }
+      ],
       "@typescript-eslint/no-unused-vars": [
         "error",
         {
@@ -136,14 +39,6 @@ export default tseslint.config(
           caughtErrorsIgnorePattern: "^_"
         }
       ]
-    }
-  },
-  {
-    files: ["src/bin/**/*.ts"],
-    rules: {
-      "complexity": ["error", 14],
-      "max-lines-per-function": ["error", { max: 80, skipBlankLines: true, skipComments: true }],
-      "max-statements": ["error", 30]
     }
   },
   {
@@ -156,130 +51,112 @@ export default tseslint.config(
     }
   },
   {
-    files: [
-      "src/interaction-entry/api/server.ts",
-      "src/agent/claude-code.ts",
-      "src/agent/claude-code-stateful.ts",
-      "src/message-bus/collaboration.ts",
-      "src/workspace-workflow/tool-use.ts",
-      "src/snails/prompt-builder.ts",
-      "src/prompt-center/builder.ts",
-      "src/persistence/store.ts",
-      "src/persistence/file-config-store.ts"
-    ],
+    files: ["src/app/**/*.ts", "src/**/*initor.ts", "src/**/initor.ts", "src/infra/acs/_internal/agents/*.ts", "src/main.ts", "src/**/*/_internal/adapter.ts", "src/domain/snail-mcp-server/_internal/servers/*.ts"],
     rules: {
-      "complexity": ["error", 18],
-      "max-lines": ["error", { max: 620, skipBlankLines: true, skipComments: true }],
+      "complexity": ["error", 14],
+      "max-lines": ["error", { max: 600, skipBlankLines: true, skipComments: true }],
       "max-lines-per-function": ["error", { max: 80, skipBlankLines: true, skipComments: true }],
       "max-params": ["error", 6],
-      "max-statements": ["error", 40]
-    }
-  },
-  {
-    files: [
-      "src/workspace-workflow/manager.ts",
-    ],
-    rules: {
-      "complexity": ["error", 18],
-      "max-lines": ["error", { max: 620, skipBlankLines: true, skipComments: true }],
-      "max-lines-per-function": ["error", { max: 80, skipBlankLines: true, skipComments: true }],
-      "max-params": ["error", 6],
-      "max-statements": ["error", 40]
-    }
-  },
-  {
-    files: [
-      "src/message-bus/agent-message.ts",
-      "src/message-bus/message-out.ts",
-      "src/project/message-parts.ts",
-      "src/persistence/knowledge-model.ts",
-      "src/persistence/helpers.ts",
-      "src/api/knowledge-routes.ts"
-    ],
-    rules: {
-      "complexity": ["error", 27],
-      "max-lines-per-function": ["error", { max: 80, skipBlankLines: true, skipComments: true }],
-      "max-statements": ["error", 30]
+      "max-statements": ["error", 35]
     }
   },
 
-  // ========== 模块边界守护规则 ==========
-
-  // shared/: 零依赖基础类型层，不能导入任何内部模块
   {
-    files: ["src/shared/**/*.ts"],
+    files: ["src/shared/**/*"],
+    rules: {
+      "no-restricted-syntax": ["error", { selector: "Program", message: "严禁创建 src/shared 目录；DTO 放 api-contracts/web，业务模型放 domain" }]
+    }
+  },
+
+  // ========== _internal 私有性约束 ==========
+  // 禁止跨模块 import _internal 目录
+  {
+    files: ["src/domain/workspace/**/*.ts"],
     rules: {
       "@typescript-eslint/no-restricted-imports": ["error", {
         patterns: [{
-          group: internalModulesMultiLevel,
-          message: "shared 是零依赖基础类型层，不能导入其他内部模块"
+          group: ["@domain/tenet-prompt/_internal/*", "@domain/skill/_internal/*", "@domain/sop/_internal/*", "@domain/mcp-server/_internal/*", "@domain/mcp-client/_internal/*", "@domain/im/_internal/*", "@domain/knowledge/_internal/*"],
+          message: "_internal 是模块私有目录，不能跨模块 import"
+        }]
+      }]
+    }
+  },
+  {
+    files: ["src/domain/tenet-prompt/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": ["error", {
+        patterns: [{
+          group: ["@domain/workspace/_internal/*", "@domain/skill/_internal/*", "@domain/sop/_internal/*", "@domain/mcp-server/_internal/*", "@domain/mcp-client/_internal/*", "@domain/im/_internal/*", "@domain/knowledge/_internal/*"],
+          message: "_internal 是模块私有目录，不能跨模块 import"
+        }]
+      }]
+    }
+  },
+  {
+    files: ["src/domain/skill/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": ["error", {
+        patterns: [{
+          group: ["@domain/workspace/_internal/*", "@domain/tenet-prompt/_internal/*", "@domain/sop/_internal/*", "@domain/mcp-server/_internal/*", "@domain/mcp-client/_internal/*", "@domain/im/_internal/*", "@domain/knowledge/_internal/*"],
+          message: "_internal 是模块私有目录，不能跨模块 import"
+        }]
+      }]
+    }
+  },
+  {
+    files: ["src/domain/sop/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": ["error", {
+        patterns: [{
+          group: ["@domain/workspace/_internal/*", "@domain/tenet-prompt/_internal/*", "@domain/skill/_internal/*", "@domain/mcp-server/_internal/*", "@domain/mcp-client/_internal/*", "@domain/im/_internal/*", "@domain/knowledge/_internal/*"],
+          message: "_internal 是模块私有目录，不能跨模块 import"
+        }]
+      }]
+    }
+  },
+  {
+    files: ["src/domain/im/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": ["error", {
+        patterns: [{
+          group: ["@domain/workspace/_internal/*", "@domain/tenet-prompt/_internal/*", "@domain/skill/_internal/*", "@domain/sop/_internal/*", "@domain/mcp-server/_internal/*", "@domain/mcp-client/_internal/*", "@domain/knowledge/_internal/*"],
+          message: "_internal 是模块私有目录，不能跨模块 import"
+        }]
+      }]
+    }
+  },
+  {
+    files: ["src/domain/knowledge/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": ["error", {
+        patterns: [{
+          group: ["@domain/workspace/_internal/*", "@domain/tenet-prompt/_internal/*", "@domain/skill/_internal/*", "@domain/sop/_internal/*", "@domain/mcp-server/_internal/*", "@domain/mcp-client/_internal/*", "@domain/im/_internal/*"],
+          message: "_internal 是模块私有目录，不能跨模块 import"
         }]
       }]
     }
   },
 
-  // persistence/: 只能依赖 shared
   {
-    files: ["src/persistence/**/*.ts"],
+    files: ["src/web/**/*.{ts,tsx}"],
     rules: {
-      "@typescript-eslint/no-restricted-imports": ["error", {
-        patterns: [{
-          group: generateForbiddenPatterns(["shared"]),
-          message: "persistence 只能依赖 shared，不能导入其他内部模块"
-        }]
-      }]
+      "@typescript-eslint/no-restricted-imports": [
+        "error",
+        {
+          patterns: [{
+            group: ["@shared", "@shared/*", "src/shared", "src/shared/*", "**/shared", "**/shared/*"],
+            message: "严禁引入 shared 目录；DTO 放 api-contracts/web，业务模型放 domain"
+          }]
+        }
+      ]
     }
   },
 
-  // prompt-center/: 可以依赖 shared、agent（评估 prompt 需要 agent 类型）
+  // main.ts 可以 import 所有 _internal（组装层）
   {
-    files: ["src/prompt-center/**/*.ts"],
+    files: ["src/main.ts"],
     rules: {
-      "@typescript-eslint/no-restricted-imports": ["error", {
-        patterns: [{
-          group: generateForbiddenPatterns(["shared", "agent"]),
-          message: "prompt-center 只能依赖 shared、agent，不能导入其他内部模块"
-        }]
-      }]
-    }
-  },
-
-  // skill-center/: 可以依赖 shared、prompt-center
-  {
-    files: ["src/skill-center/**/*.ts"],
-    rules: {
-      "@typescript-eslint/no-restricted-imports": ["error", {
-        patterns: [{
-          group: generateForbiddenPatterns(["shared", "prompt-center"]),
-          message: "skill-center 只能依赖 shared、prompt-center，不能导入其他内部模块"
-        }]
-      }]
-    }
-  },
-
-  // snail-den/: 可以依赖 shared、agent、llm
-  {
-    files: ["src/snail-den/**/*.ts"],
-    rules: {
-      "@typescript-eslint/no-restricted-imports": ["error", {
-        patterns: [{
-          group: generateForbiddenPatterns(["shared", "agent", "llm"]),
-          message: "snail-den 只能依赖 shared、agent、llm，不能导入其他内部模块"
-        }]
-      }]
-    }
-  },
-
-  // message-bus/: 可以依赖 shared、persistence、agent
-  {
-    files: ["src/message-bus/**/*.ts"],
-    rules: {
-      "@typescript-eslint/no-restricted-imports": ["error", {
-        patterns: [{
-          group: generateForbiddenPatterns(["shared", "persistence", "agent"]),
-          message: "message-bus 只能依赖 shared、persistence、agent，不能导入其他内部模块"
-        }]
-      }]
+      "@typescript-eslint/no-restricted-imports": "off"
     }
   }
 );

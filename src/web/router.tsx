@@ -1,15 +1,14 @@
 import { createBrowserRouter, type LoaderFunctionArgs } from "react-router-dom";
 import { queryClient } from "./queries/client";
-import { workspaceQueries } from "./queries/workspace.queries";
-import { conversationQueries } from "./queries/conversation.queries";
+import { workspaceQueries, issueQueries } from "./queries/workspace.queries";
 import { sopQueries } from "./queries/sop.queries";
 import { evolutionQueries } from "./queries/evolution.queries";
 import { knowledgeQueries } from "./queries/knowledge.queries";
-import { lobbyQueries } from "./queries/lobby.queries";
 import { metaQueries } from "./queries/meta.queries";
 import { AppShell } from "./layouts/AppShell";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { HomePage } from "./pages/HomePage";
+import { WorkspaceDirectory } from "./pages/WorkspaceDirectory";
 import { WorkspaceBoard } from "./pages/WorkspaceBoard";
 import { WorkspaceConfig } from "./pages/WorkspaceConfig";
 import { ConversationLayout } from "./pages/ConversationLayout";
@@ -42,15 +41,19 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <HomePage /> },
       {
-        path: "ws/new",
-        element: <WorkspaceConfig />,
+        path: "workspaces",
+        element: <WorkspaceDirectory />,
         loader: async () => {
-          await queryClient.ensureQueryData(sopQueries.list());
+          await queryClient.ensureQueryData(workspaceQueries.list());
           return null;
         },
       },
       {
-        path: "ws/:workspaceId",
+        path: "workspaces/new",
+        element: <WorkspaceConfig />,
+      },
+      {
+        path: "workspaces/:workspaceId",
         element: <WorkspaceBoard />,
         loader: async (args) => {
           const { workspaceId } = requireParams(args, "workspaceId");
@@ -62,11 +65,11 @@ export const router = createBrowserRouter([
         },
       },
       {
-        path: "ws/:workspaceId/issue/:issueId",
+        path: "workspaces/:workspaceId/issue/:issueId",
         element: <ConversationLayout />,
         loader: async (args) => {
           const { issueId } = requireParams(args, "issueId");
-          await queryClient.ensureQueryData(conversationQueries.messages(issueId));
+          await queryClient.ensureQueryData(issueQueries.detail(issueId));
           return null;
         },
       },
@@ -129,10 +132,6 @@ export const router = createBrowserRouter([
       {
         path: "lobby",
         element: <Lobby />,
-        loader: async () => {
-          await queryClient.ensureQueryData(lobbyQueries.sessions());
-          return null;
-        },
       },
       { path: "*", element: <NotFound /> },
     ],

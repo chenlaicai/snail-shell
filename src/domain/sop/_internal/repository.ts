@@ -1,0 +1,143 @@
+import { parse as parseYaml } from "yaml";
+import type { Workspace } from "@domain/workspace/model";
+import { Scope } from "@domain/workspace/model";
+import type { Sop, StageDefinition, RoleDefinition, Transition } from "@domain/sop/model";
+import type { FileDataStore } from "@infra/file-data-store";
+
+/** SOP 持久层接口 */
+export interface SopRepository {
+  list(): Sop[];
+  findByKey(key: string): Sop | undefined;
+  findByWorkspace(workspace: Workspace): Sop[];
+}
+
+/** SOP 文件存储实现 */
+export class FileSopRepository implements SopRepository {
+  private static readonly DIR = "sops";
+
+  private platformSops: Sop[] = [];
+  private workspaceSops = new Map<string, Sop[]>();
+
+  constructor(private dataStore: FileDataStore, workspaces: Workspace[]) {
+    this.platformSops = this.loadSopDir(this.dataStore);
+    for (const workspace of workspaces) {
+      const workspaceStore = this.dataStore.workspace(workspace.path);
+      const sops = this.loadSopDir(workspaceStore)
+        .map(s => ({ ...s, scope: Scope.Workspace, workspace }));
+      this.workspaceSops.set(workspace.path, sops);
+    }
+  }
+
+  list(): Sop[] {
+    return [...this.platformSops, ...this.workspaceSops.values()].flat();
+  }
+
+  findByKey(key: string): Sop | undefined {
+    return this.list().find(s => s.key === key);
+  }
+
+  findByWorkspace(workspace: Workspace): Sop[] {
+    const workspaceSops = this.workspaceSops.get(workspace.path) ?? [];
+    return [...this.platformSops, ...workspaceSops];
+  }
+
+  private loadSopDir(store: FileDataStore): Sop[] {
+    const relativeDir = FileSopRepository.DIR;
+    if (!store.exists(relativeDir)) return [];
+
+    const entries = store.listDirs(relativeDir);
+    const sops: Sop[] = [];
+
+    for (const entry of entries) {
+      const yamlPath = `${relativeDir}/${entry}/${entry}.yaml`;
+      const raw = store.readFile(yamlPath);
+      if (!raw) continue;
+
+      try {
+        const data = parseYaml(raw);
+        const sop = this.parseSop(entry, data, `${relativeDir}/${entry}`);
+        sops.push(sop);
+      } catch (err) {
+        console.warn(`Failed to parse SOP: ${yamlPath}`, err);
+      }
+    }
+
+    return sops;
+  }
+
+  private parseSop(key: string, data: Record<string, unknown>, sopDir: string): Sop {
+    if (!data.name) throw new Error(`SOP missing name: ${key}`);
+
+    const stageDefinitions = (data.stage_definitions as Array<Record<string, unknown>>)?.map(sd =>
+      this.parseStageDefinition(sd, sopDir)
+    ) ?? [];
+
+    const transitions = (data.transitions as Array<Record<string, unknown>>)?.map(t =>
+      this.parseTransition(t)
+    ) ?? [];
+
+    return {
+      key,
+      name: data.name as string,
+      description: (data.description as string) ?? null,
+      shared_handbook: this.resolveFileRef(data.shared_handbook as string | undefined, sopDir),
+      stage_definitions: stageDefinitions,
+      transitions,
+      scope: Scope.Platform,
+    };
+  }
+
+  private parseStageDefinition(data: Record<string, unknown>, sopDir: string): StageDefinition {
+    if (!data.key) throw new Error("Stage definition missing key");
+    if (!data.title) throw new Error(`Stage definition missing title: ${data.key}`);
+
+    const roles = (data.roles as Array<Record<string, unknown>>)?.map(r =>
+      this.parseRoleDefinition(r, sopDir)
+    ) ?? [];
+
+    return {
+      key: data.key as string,
+      title: data.title as string,
+      description: (data.description as string) ?? "",
+      roles,
+    };
+  }
+
+  private parseRoleDefinition(data: Record<string, unknown>, sopDir: string): RoleDefinition {
+    if (!data.key) throw new Error("Role definition missing key");
+    if (!data.name) throw new Error(`Role definition missing name: ${data.key}`);
+
+    return {
+      key: data.key as string,
+      name: data.name as string,
+      description: (data.description as string) ?? "",
+      is_primary: (data.is_primary as boolean) ?? false,
+      count: (data.count as number) ?? 1,
+      handbook: this.resolveFileRef(data.handbook as string | undefined, sopDir),
+    };
+  }
+
+  private parseTransition(data: Record<string, unknown>): Transition {
+    if (!data.from) throw new Error("Transition missing from");
+    if (!data.to) throw new Error("Transition missing to");
+
+    return {
+      from: data.from as string,
+      to: data.to as string,
+      guard: (data.guard as string) ?? null,
+    };
+  }
+
+  private resolveFileRef(ref: string | undefined, sopDir: string): string | null {
+    if (!ref) return null;
+    if (!ref.startsWith("@")) return ref;
+
+    const fileName = ref.slice(1);
+    const filePath = `${sopDir}/${fileName}`;
+    const content = this.dataStore.readFile(filePath);
+    if (content) return content.trim();
+
+    console.warn(`File reference not found: ${filePath}`);
+    return ref;
+  }
+}

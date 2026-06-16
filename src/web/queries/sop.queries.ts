@@ -9,9 +9,9 @@ export const sopQueries = {
       queryFn: () => api("GET /api/sops", { query: source ? { source } : undefined }),
     }),
 
-  detail: (sopId: string) =>
+  detail: (sopKey: string) =>
     queryOptions({
-      queryKey: queryKeys.sops.detail(sopId),
-      queryFn: () => api("GET /api/sops/:sopId", { params: { sopId } }),
+      queryKey: queryKeys.sops.detail(sopKey),
+      queryFn: () => api("GET /api/sops/:sopKey", { params: { sopKey } }),
     }),
 };

@@ -6,7 +6,6 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "../services/api-client";
 import { metaQueries } from "../queries/meta.queries";
 import { Input } from "@/components/ui/input";
 
@@ -22,20 +21,10 @@ export function PromptCenter() {
   );
 
   // 选择 prompt 查看详情
-  async function selectPrompt(id: string) {
+  function selectPrompt(id: string) {
     setSelected(id);
     const prompt = prompts.find((p) => p.id === id);
-    if (prompt?.content) {
-      setSelectedContent(prompt.content);
-    } else {
-      // 如果内容未加载，尝试从 API 获取
-      try {
-        const data = await api("GET /api/meta/prompts/:promptId", { params: { promptId: id } });
-        setSelectedContent(data.content || "无内容");
-      } catch {
-        setSelectedContent("无法加载内容");
-      }
-    }
+    setSelectedContent(prompt?.content || "无内容");
   }
 
   if (isLoading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;

@@ -1,19 +1,19 @@
 import { queryOptions } from "@tanstack/react-query";
 import { api } from "../services/api-client";
 import { queryKeys } from "./keys";
-import { MessageDtoSchema } from "../../api-contracts/validators";
+import { MessageDtoSchema } from "@api-contracts/validators";
 
 export const conversationQueries = {
-  detail: (conversationId: string) =>
+  detail: (stageId: string) =>
     queryOptions({
-      queryKey: queryKeys.conversations.detail(conversationId),
-      queryFn: () => api("GET /api/conversations/:conversationId", { params: { conversationId } }),
+      queryKey: queryKeys.stages.detail(stageId),
+      queryFn: () => api("GET /api/stages/:stageId", { params: { stageId } }),
     }),
 
-  messages: (conversationId: string, query?: { limit?: number; offset?: number }) =>
+  messages: (stageId: string, query?: { limit?: number; offset?: number }) =>
     queryOptions({
-      queryKey: queryKeys.conversations.messages(conversationId),
-      queryFn: () => api("GET /api/conversations/:conversationId/messages", { params: { conversationId }, query, schema: MessageDtoSchema.array() }),
-      staleTime: 0, // 消息实时性要求高，WebSocket 推送会主动更新缓存
+      queryKey: queryKeys.stages.messages(stageId),
+      queryFn: () => api("GET /api/stages/:stageId/messages", { params: { stageId }, query, schema: MessageDtoSchema.array() }),
+      staleTime: 0,
     }),
 };

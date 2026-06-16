@@ -1,0 +1,14 @@
+# 飞书配置
+# 复制为 feishu.yaml 后填写
+
+# 是否启用飞书渠道
+enabled: false
+
+# 飞书应用 ID
+appId: "your-app-id"
+
+# 飞书应用密钥
+appSecret: "your-app-secret"
+
+# 允许的群聊 ID 列表（留空表示不限制）
+allowedChats: []

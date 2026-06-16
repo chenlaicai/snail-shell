@@ -74,7 +74,7 @@ export function SkillCenter() {
                   <p className="text-[var(--color-text-secondary)] mb-[var(--space-lg)]">{selectedSkill.description}</p>
                 )}
                 <div className="text-[var(--font-size-xs)] text-[var(--color-text-grey)]">
-                  路径：{selectedSkill.filePath}
+                  路径：{selectedSkill.dir_path}
                 </div>
               </div>
             ) : (

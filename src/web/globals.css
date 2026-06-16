@@ -24,6 +24,24 @@
   --color-input: #121720;
   --color-ring: #6c8dfa;
 
+  --color-surface-0: #0a0d12;
+  --color-surface-1: #0f1218;
+  --color-surface-2: #151a23;
+  --color-surface-3: #1a2030;
+  --color-text-primary: #e8ecf1;
+  --color-text-secondary: #a5adba;
+  --color-text-muted: #8892a4;
+  --color-text-grey: #5c6678;
+  --color-shell-300: #a7bbff;
+  --color-shell-400: #8fa8ff;
+  --color-shell-500: #7895ff;
+  --color-shell-600: #6c8dfa;
+  --color-shell-700: #5874d8;
+  --color-status-amber: #fbbf24;
+  --color-status-green: #34d399;
+  --color-status-red: #f87171;
+  --color-status-blue: #60a5fa;
+
   --spacing: 4px;
 
   --radius-sm: 4px;
@@ -129,43 +147,46 @@
 }
 
 /* Base reset */
-* { box-sizing: border-box; margin: 0; padding: 0; }
+@layer base {
+  * { box-sizing: border-box; margin: 0; padding: 0; }
 
-body {
-  font-family: var(--font-sans);
-  background: var(--color-bg-base);
-  color: var(--color-text-body);
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
+  body {
+    font-family: var(--font-sans);
+    background: var(--color-bg-base);
+    color: var(--color-text-body);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #app-root {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  button {
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    border: none;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  textarea, input, select {
+    width: 100%;
+    background: var(--color-bg-surface);
+    color: var(--color-text-body);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-button);
+    padding: var(--space-md);
+    font: inherit;
+  }
+
+  textarea { resize: vertical; }
+
+  button:disabled { opacity: 0.55; cursor: not-allowed; }
 }
-
-#app-root {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-button {
-  background: transparent;
-  color: inherit;
-  text-align: left;
-  border: none;
-  font: inherit;
-  cursor: pointer;
-}
-
-textarea, input, select {
-  width: 100%;
-  background: var(--color-bg-surface);
-  color: var(--color-text-body);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-button);
-  padding: var(--space-md);
-  font: inherit;
-}
-textarea { resize: vertical; }
-
-button:disabled { opacity: 0.55; cursor: not-allowed; }

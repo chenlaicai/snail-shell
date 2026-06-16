@@ -6,24 +6,9 @@
  */
 
 import { useNavigate } from "react-router-dom";
-import { api } from "../services/api-client";
-import { showToast } from "../components/Toast";
 
 export function HomePage() {
   const navigate = useNavigate();
-
-  async function handleEnterWorkspace() {
-    try {
-      const workspaces = await api("GET /api/workspaces");
-      if (workspaces.length > 0) {
-        navigate(`/ws/${workspaces[0].id}`);
-      } else {
-        showToast("暂无工作区，请先创建", true);
-      }
-    } catch (err: unknown) {
-      showToast(`加载工作区失败：${err instanceof Error ? err.message : String(err)}`, true);
-    }
-  }
 
   return (
     <div className="flex flex-col h-full min-h-0" data-view-pane="workspaces">
@@ -37,10 +22,10 @@ export function HomePage() {
             Snail Shell 是一个 AI 协作平台，帮助你管理项目、跟踪进度、与 AI 助手高效协作。
           </p>
           <div className="flex gap-[var(--space-md)] justify-center">
-            <button className="bg-[var(--color-bg-elevated)] text-[var(--color-accent)] border border-[var(--color-accent)] rounded-md px-2.5 py-1 text-xs font-medium cursor-pointer transition-all hover:bg-[rgba(108,141,250,0.08)]" onClick={handleEnterWorkspace}>
+            <button className="bg-[var(--color-bg-elevated)] text-[var(--color-accent)] border border-[var(--color-accent)] rounded-md px-2.5 py-1 text-xs font-medium cursor-pointer transition-all hover:bg-[rgba(108,141,250,0.08)]" onClick={() => navigate("/workspaces")}>
               进入工作区
             </button>
-            <button className="bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] border border-[var(--color-border-muted)] rounded-md px-2.5 py-1 text-xs font-medium cursor-pointer transition-all hover:border-[var(--color-border-default)] hover:text-[var(--color-text-primary)]" onClick={() => navigate("/ws/new")}>
+            <button className="bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] border border-[var(--color-border-muted)] rounded-md px-2.5 py-1 text-xs font-medium cursor-pointer transition-all hover:border-[var(--color-border-default)] hover:text-[var(--color-text-primary)]" onClick={() => navigate("/workspaces/new")}>
               新建工作区
             </button>
           </div>

@@ -5,27 +5,17 @@
  */
 
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "../services/api-client";
 import { evolutionQueries } from "../queries/evolution.queries";
-import { queryKeys } from "../queries/keys";
 import { showToast } from "../components/Toast";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import type { EvolutionItemDto } from "../types";
 
 export function EvolutionCenter() {
-  const queryClient = useQueryClient();
   const { data: items = [], isLoading } = useQuery(evolutionQueries.list({ limit: 100 }));
   const [selectedItem, setSelectedItem] = useState<EvolutionItemDto | null>(null);
-  const [mode, setMode] = useState<"list" | "detail" | "create">("list");
-
-  // 创建表单
-  const [formTitle, setFormTitle] = useState("");
-  const [formContent, setFormContent] = useState("");
-  const [formType, setFormType] = useState("preference");
+  const [mode, setMode] = useState<"list" | "detail">("list");
 
   async function selectItem(itemId: string) {
     try {
@@ -34,29 +24,6 @@ export function EvolutionCenter() {
       setMode("detail");
     } catch (err: unknown) {
       showToast(`加载详情失败：${err instanceof Error ? err.message : String(err)}`, true);
-    }
-  }
-
-  async function handleCreate() {
-    if (!formTitle.trim()) {
-      showToast("标题不能为空", true);
-      return;
-    }
-    try {
-      await api("POST /api/evolution/items", {
-        body: {
-          title: formTitle.trim(),
-          content: formContent.trim(),
-          type: formType,
-        },
-      });
-      showToast("演进项已创建");
-      setMode("list");
-      setFormTitle("");
-      setFormContent("");
-      queryClient.invalidateQueries({ queryKey: queryKeys.evolution.list() });
-    } catch (err: unknown) {
-      showToast(`创建失败：${err instanceof Error ? err.message : String(err)}`, true);
     }
   }
 
@@ -69,9 +36,6 @@ export function EvolutionCenter() {
           <div className="flex items-baseline gap-2 flex-1 min-w-0">
             <span className="text-sm font-semibold text-[var(--color-text-primary)]">Evolution Center</span>
             <span className="text-[11px] text-[var(--color-text-grey)]">{items.length} 项</span>
-          </div>
-          <div className="flex gap-1.5">
-            <Button size="sm" onClick={() => { setMode("create"); setFormTitle(""); setFormContent(""); }}>+ 新增</Button>
           </div>
         </div>
 
@@ -104,34 +68,6 @@ export function EvolutionCenter() {
 
           {/* 右侧详情/创建 */}
           <div className="flex-1 overflow-auto p-[var(--space-xl)]">
-            {mode === "create" && (
-              <div className="max-w-[480px]">
-                <h2 className="mb-[var(--space-lg)]">新增演进项</h2>
-                <div className="mb-[var(--space-md)]">
-                  <label className="block mb-1 text-[var(--font-size-sm)]">标题</label>
-                  <Input value={formTitle} onChange={(e) => setFormTitle(e.target.value)} placeholder="演进项标题" />
-                </div>
-                <div className="mb-[var(--space-md)]">
-                  <label className="block mb-1 text-[var(--font-size-sm)]">类型</label>
-                  <select value={formType} onChange={(e) => setFormType(e.target.value)} className="w-full p-[var(--space-sm)] rounded-[var(--radius-sm)] border border-[var(--color-border-default)] bg-[var(--color-bg-input)] text-[var(--color-text-primary)]">
-                    <option value="preference">偏好</option>
-                    <option value="rule">规则</option>
-                    <option value="pattern">模式</option>
-                    <option value="lesson">教训</option>
-                    <option value="decision">决策</option>
-                  </select>
-                </div>
-                <div className="mb-[var(--space-lg)]">
-                  <label className="block mb-1 text-[var(--font-size-sm)]">内容</label>
-                  <Textarea value={formContent} onChange={(e) => setFormContent(e.target.value)} placeholder="详细描述" rows={5} />
-                </div>
-                <div className="flex gap-[var(--space-sm)]">
-                  <Button onClick={handleCreate}>创建</Button>
-                  <Button variant="outline" onClick={() => setMode("list")}>取消</Button>
-                </div>
-              </div>
-            )}
-
             {mode === "detail" && selectedItem && (
               <div>
                 <div className="mb-[var(--space-lg)]">

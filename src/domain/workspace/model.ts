@@ -1,0 +1,21 @@
+/**
+ * Workspace 本质就是一个目录。
+ * path 是主键，也是 agent 的工作目录。
+ */
+
+/** 作用域：平台级或工作区级 */
+export enum Scope {
+  Platform = "platform",
+  Workspace = "workspace",
+}
+
+export interface Workspace {
+  /** 工作区绝对路径，主键 */
+  path: string;
+  summary: string | null;
+}
+
+export interface CreateWorkspaceInput {
+  path: string;
+  summary?: string;
+}

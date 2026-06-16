@@ -1,0 +1,22 @@
+{
+  "_comment": "Snail Den 配置文件示例。复制为 snail-den.json 并根据实际环境修改。",
+  "_contextWindow_note": "contextWindow 为 Snail 的上下文窗口大小配置（单位：token）。如果 agent 运行时返回了 contextWindow 值，将以运行时返回值为准；此配置仅在运行时未返回值时生效。",
+  "snails": [
+    {
+      "id": "claude-code-stateful",
+      "name": "Claude-mimo",
+      "runtime": "claude-code-stateful-cli",
+      "model": "opus[1m]",
+      "contextWindow": 200000,
+      "contextProvider": "shell"
+    },
+    {
+      "id": "opencode-default",
+      "name": "OpenCode-mimo",
+      "runtime": "opencode-cli",
+      "model": "my-mimo-plan/mimo-v2.5-pro",
+      "contextWindow": 270000,
+      "contextProvider": "shell"
+    }
+  ]
+}

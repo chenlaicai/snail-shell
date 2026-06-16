@@ -4,40 +4,31 @@ import { queryKeys } from "../queries/keys";
 import { createPlaceholderMessage } from "../hooks/useWebSocket";
 import type { MessageDto } from "../types";
 
-export function useSendMessage(conversationId: string) {
+export function useSendMessage(stageId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { content?: string; events?: Array<{ kind: "text" | "content_block"; payload: unknown }>; from_role?: string; quoted_message_id?: number; client_id?: string }) =>
-      api("POST /api/conversations/:conversationId/messages", { params: { conversationId }, body }),
+    mutationFn: (body: { text: string; from_speaker?: string }) =>
+      api("POST /api/stages/:stageId/messages", { params: { stageId }, body }),
 
     onMutate: async (body) => {
-      await qc.cancelQueries({ queryKey: queryKeys.conversations.messages(conversationId) });
-      const previous = qc.getQueryData<MessageDto[]>(queryKeys.conversations.messages(conversationId));
+      await qc.cancelQueries({ queryKey: queryKeys.stages.messages(stageId) });
+      const previous = qc.getQueryData<MessageDto[]>(queryKeys.stages.messages(stageId));
       const optimisticId = Date.now();
-      qc.setQueryData(queryKeys.conversations.messages(conversationId), (old: MessageDto[] | undefined) => [
+      qc.setQueryData(queryKeys.stages.messages(stageId), (old: MessageDto[] | undefined) => [
         ...(old ?? []),
-        createPlaceholderMessage(conversationId, { id: optimisticId, role: "user", content: body.content }),
+        createPlaceholderMessage(stageId, { id: optimisticId, role: "user", content: body.text }),
       ]);
       return { previous, optimisticId };
     },
 
     onError: (_err, _body, context) => {
       if (context?.previous) {
-        qc.setQueryData(queryKeys.conversations.messages(conversationId), context.previous);
+        qc.setQueryData(queryKeys.stages.messages(stageId), context.previous);
       }
     },
 
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.conversations.messages(conversationId) });
+      qc.invalidateQueries({ queryKey: queryKeys.stages.messages(stageId) });
     },
-  });
-}
-
-export function useCreateConversation(issueId: string, stageId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (body: { workspace_id: string; title: string; kind: string }) =>
-      api("POST /api/issues/:issueId/stages/:stageId/conversations", { params: { issueId, stageId }, body }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.issues.conversations(issueId) }); },
   });
 }
