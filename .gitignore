@@ -47,8 +47,15 @@ Thumbs.db
 *.log
 npm-debug.log*
 
-# Runtime data
-data/
+# Runtime data (keep data/file/ subdirectories and *.example tracked)
+data/*
+!data/file/
+data/file/*
+!data/file/knowledge/
+!data/file/prompts/
+!data/file/skills/
+!data/file/sops/
+!data/file/*.example
 logs/
 pids
 *.pid
@@ -112,4 +119,3 @@ temp/
 .mcp.json
 config/sop/mcp-e2e-sop/
 config/sop/mcp-e2e-sop/
-data/

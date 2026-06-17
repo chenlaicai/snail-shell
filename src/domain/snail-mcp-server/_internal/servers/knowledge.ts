@@ -22,7 +22,7 @@ export function createKnowledgeServer(knowledge: KnowledgePort): MCPServerConfig
 function createSearchKnowledgeTool(knowledge: KnowledgePort): MCPTool {
   return {
     name: "search_knowledge",
-    description: "搜索知识库条目",
+    description: "全文搜索知识库条目（走 FTS5 索引）",
     inputSchema: {
       type: "object",
       properties: {
@@ -32,9 +32,9 @@ function createSearchKnowledgeTool(knowledge: KnowledgePort): MCPTool {
       required: ["query"],
     },
     handler: async (params) => {
-      const entries = listEntries(knowledge, params.workspace_path);
-      const query = String(params.query ?? "").toLowerCase();
-      return { items: entries.filter(e => e.title.toLowerCase().includes(query) || e.content.toLowerCase().includes(query)) };
+      const workspace = toWorkspace(params.workspace_path);
+      const results = knowledge.search(String(params.query ?? ""), workspace);
+      return { items: results.map((r) => ({ ...r.entry, snippet: r.snippet })) };
     },
   };
 }

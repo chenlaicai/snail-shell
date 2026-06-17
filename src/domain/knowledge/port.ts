@@ -1,10 +1,16 @@
 import type { Workspace } from "@domain/workspace/model";
 import type { KnowledgeEntry, CreateKnowledgeInput, RemoveKnowledgeInput } from "@domain/knowledge/model";
 
+/** 搜索结果 */
+export interface SearchResult {
+  entry: KnowledgeEntry;
+  snippet: string;
+}
+
 /**
  * Knowledge 端口定义。
  *
- * 知识库对外提供新增/移除/查看知识条目的方法。
+ * 知识库对外提供新增/移除/查看/搜索知识条目的方法。
  * 平台级和 workspace 级分开存储，每个 workspace 读取到平台 + 本 workspace 的合集。
  */
 export interface KnowledgePort {
@@ -19,4 +25,7 @@ export interface KnowledgePort {
 
   /** 移除条目（按 scope + workspace + id 定位） */
   remove(input: RemoveKnowledgeInput): void;
+
+  /** 全文搜索（走 FTS5 索引） */
+  search(query: string, workspace?: Workspace): SearchResult[];
 }

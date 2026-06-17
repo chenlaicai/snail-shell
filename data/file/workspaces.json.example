@@ -1,0 +1,8 @@
+{
+  "_help": "Workspace 配置。数组中每个元素是一个 workspace 的绝对路径。复制本文件为 workspace.json 后填写。",
+  "_item_help": "workspace 根目录的绝对路径。该目录下应存在 .snail/ 子目录（含 init.json 等配置）。",
+  "workspaces": [
+    "/Users/username/projects/my-project",
+    "/Users/username/projects/another-project"
+  ]
+}

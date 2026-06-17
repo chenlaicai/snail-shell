@@ -32,6 +32,7 @@ async function main() {
 
   modules.featureChain.adapter.rebuild();
   logStartupSummary(modules);
+  registerShutdownHooks(modules);
   startHttpServer(modules, serverSettings);
 }
 
@@ -45,7 +46,7 @@ async function initModules(repoRoot: string, serverSettings: ServerSettings) {
   const tenetPrompt = initTenetPrompt(dataStore, workspaces);
   const skill = initSkill(dataStore, workspaces);
   const sop = initSop(dataStore, workspaces);
-  const knowledge = initKnowledge(dataStore, workspaces);
+  const knowledge = initKnowledge(dataStore, workspaces, repoRoot);
   const issue = initIssue(sop.adapter, db);
   const message = initMessage(db);
   const evolutionRef: { current?: ReturnType<typeof initEvolution> } = {};
@@ -85,6 +86,19 @@ function logStartupSummary(modules: Awaited<ReturnType<typeof initModules>>): vo
   console.log(`Lite AI: ${modules.liteAI.adapter.getConfig() ? "configured" : "not configured"}`);
   console.log(`Evolution: ready`);
   console.log(`Registered agents: ${modules.registry.listAgentRuntimes().join(", ")}`);
+}
+
+function registerShutdownHooks(modules: Awaited<ReturnType<typeof initModules>>): void {
+  let closed = false;
+  const shutdown = () => {
+    if (closed) return;
+    closed = true;
+    console.log("[shutdown] Closing knowledge search index...");
+    modules.knowledge.index.close();
+  };
+  process.on("exit", shutdown);
+  process.on("SIGINT", () => { shutdown(); process.exit(0); });
+  process.on("SIGTERM", () => { shutdown(); process.exit(0); });
 }
 
 function startHttpServer(modules: Awaited<ReturnType<typeof initModules>>, serverSettings: ServerSettings): void {
