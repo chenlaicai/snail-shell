@@ -3,6 +3,19 @@ import { marked } from "marked";
 
 marked.setOptions({ gfm: true, breaks: true });
 
+const ALLOWED_TAGS = new Set([
+  "a", "blockquote", "br", "code", "del", "em",
+  "h1", "h2", "h3", "h4", "h5", "h6", "hr",
+  "li", "ol", "p", "pre", "strong", "table", "tbody", "td", "th", "thead", "tr", "ul",
+]);
+
+const ALLOWED_ATTRIBUTES: Record<string, Set<string>> = {
+  a: new Set(["href", "title", "target", "rel"]),
+  code: new Set(["class"]),
+  td: new Set(["align"]),
+  th: new Set(["align"]),
+};
+
 export function RichTextRenderer({ content }: { content: string }) {
   const blocks = useMemo(() => splitMermaidBlocks(content), [content]);
 
@@ -18,10 +31,11 @@ export function RichTextRenderer({ content }: { content: string }) {
 
 function MarkdownBlock({ content }: { content: string }) {
   const html = useMemo(() => marked.parse(content) as string, [content]);
+  const safeHtml = useMemo(() => sanitizeHtml(html), [html]);
   return (
     <div
       className="max-w-none text-[13px] leading-6 text-text-primary [&_a]:text-shell-400 [&_a]:no-underline hover:[&_a]:underline [&_code]:text-shell-300 [&_li]:my-1 [&_ol]:my-2 [&_p]:my-2 [&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:border-white/6 [&_pre]:bg-surface-0 [&_pre]:p-3 [&_ul]:my-2"
-      dangerouslySetInnerHTML={{ __html: html }}
+      dangerouslySetInnerHTML={{ __html: safeHtml }}
     />
   );
 }
@@ -65,4 +79,56 @@ function splitMermaidBlocks(input: string): Array<{ type: "markdown" | "mermaid"
   }
   if (last < input.length) blocks.push({ type: "markdown", content: input.slice(last) });
   return blocks.length > 0 ? blocks : [{ type: "markdown", content: input }];
+}
+
+function sanitizeHtml(html: string): string {
+  if (!html) return "";
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  sanitizeNode(template.content);
+  return template.innerHTML;
+}
+
+function sanitizeNode(node: Node) {
+  if (node.nodeType === Node.TEXT_NODE) return;
+  if (node.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
+    Array.from(node.childNodes).forEach((child) => sanitizeNode(child));
+    return;
+  }
+  if (node.nodeType !== Node.ELEMENT_NODE) {
+    node.remove();
+    return;
+  }
+
+  if (!(node instanceof Element)) {
+    node.remove();
+    return;
+  }
+
+  const tag = node.tagName.toLowerCase();
+  if (!ALLOWED_TAGS.has(tag)) {
+    const text = document.createTextNode(node.textContent || "");
+    node.replaceWith(text);
+    return;
+  }
+
+  const allowed = ALLOWED_ATTRIBUTES[tag];
+  Array.from(node.attributes).forEach((attribute) => {
+    const name = attribute.name.toLowerCase();
+    if (!allowed || !allowed.has(name)) {
+      node.removeAttribute(attribute.name);
+      return;
+    }
+    if (name === "href") {
+      const href = attribute.value.trim();
+      if (!/^(https?:|mailto:|#)/i.test(href)) {
+        node.removeAttribute("href");
+      } else if (!href.startsWith("#")) {
+        node.setAttribute("target", "_blank");
+        node.setAttribute("rel", "noopener noreferrer");
+      }
+    }
+  });
+
+  Array.from(node.childNodes).forEach((child) => sanitizeNode(child));
 }

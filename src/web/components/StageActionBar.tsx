@@ -17,11 +17,10 @@ export function StageActionBar({
 
   const transitions = useMemo<StageTransition[]>(() => {
     if (!currentStage) return [];
-    const fromStage = currentStage.key;
-    const candidates = currentStage.available_transitions?.length
-      ? currentStage.available_transitions
-      : issue.sop_snapshot?.transitions ?? [];
-    return candidates.filter((transition) => transition.from === fromStage && transition.to !== fromStage);
+    if (currentStage.available_transitions.length > 0) {
+      return currentStage.available_transitions.filter((transition) => transition.to !== currentStage.key);
+    }
+    return (issue.sop_snapshot?.transitions ?? []).filter((transition) => transition.from === currentStage.key && transition.to !== currentStage.key);
   }, [currentStage, issue.sop_snapshot?.transitions]);
 
   if (!currentStage || issue.closed_at || currentStage.status !== "in_progress") return null;
