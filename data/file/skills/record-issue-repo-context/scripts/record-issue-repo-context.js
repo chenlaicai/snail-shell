@@ -1,0 +1,154 @@
+#!/usr/bin/env node
+"use strict";
+
+// record-issue-repo-context skill — Issue repo 上下文记录入口。
+// 不直接访问数据库；通过 db-bridge 完成数据操作。
+
+const { execFileSync } = require("child_process");
+const path = require("path");
+const fs = require("fs");
+
+function findBridge() {
+  // 1. Same repo: sibling under .meta/scripts/
+  const sibling = path.join(__dirname, "..", "..", "..", "scripts", "db-bridge.js");
+  if (fs.existsSync(sibling)) return sibling;
+  // 2. From cwd + walk up (covers worktree → main repo)
+  let dir = process.cwd();
+  while (true) {
+    const candidate = path.join(dir, ".meta", "scripts", "db-bridge.js");
+    if (fs.existsSync(candidate)) return candidate;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  // 3. Walk up from __dirname
+  dir = __dirname;
+  while (true) {
+    const candidate = path.join(dir, ".meta", "scripts", "db-bridge.js");
+    if (fs.existsSync(candidate)) return candidate;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return sibling;
+}
+
+const BRIDGE = findBridge();
+
+let bridgeEnv = process.env;
+
+function main() {
+  const argv = process.argv.slice(2);
+  const getValue = (name) => { const i = argv.indexOf(name); return (i >= 0 && i < argv.length - 1) ? argv[i + 1] : ""; };
+  const dbPath = getValue("--db-path");
+  if (dbPath) bridgeEnv = { ...process.env, DB_PATH: dbPath };
+  const issueId = optionalArg(getValue("--issue-id"));
+  const stageId = optionalArg(getValue("--stage-id"));
+
+  // Parse --set key=value pairs
+  const entries = {};
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === "--set" && i + 1 < argv.length) {
+      const pair = argv[i + 1];
+      const eqIndex = pair.indexOf("=");
+      if (eqIndex > 0) {
+        const key = pair.substring(0, eqIndex).trim();
+        const value = pair.substring(eqIndex + 1).trim();
+        if (key) {
+          // Try to parse JSON values (objects/arrays) so {value, keep} is stored as an object
+          if ((value.startsWith("{") && value.endsWith("}")) || (value.startsWith("[") && value.endsWith("]"))) {
+            try { entries[key] = JSON.parse(value); } catch (_) { entries[key] = value; }
+          } else {
+            entries[key] = value;
+          }
+        }
+      }
+    }
+  }
+
+  if (Object.keys(entries).length === 0) {
+    process.stderr.write("At least one --set key=value pair is required\n");
+    process.exit(1);
+  }
+
+  // Stage resolution
+  let resolvedStageId = stageId;
+  let discoveryMethod = "";
+
+  if (!resolvedStageId) {
+    // Auto-discover from working directory
+    resolvedStageId = resolveStageFromWorkdir(process.cwd());
+    if (resolvedStageId) discoveryMethod = "workdir";
+  }
+
+  if (!resolvedStageId && issueId) {
+    // Priority 3: --issue-id lookup (legacy, requires DB UUID)
+    try {
+      const raw = execFileSync(process.execPath, [BRIDGE, "--mode", "stage-get-active", "--issue-id", issueId], {
+        encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: bridgeEnv,
+      });
+      const data = JSON.parse(raw);
+      if (data.stage) {
+        resolvedStageId = data.stage.id;
+        discoveryMethod = "issue-id";
+      } else {
+        process.stderr.write(
+          `No active stage found for issue "${issueId}".\n` +
+          "HINT: Issue IDs in the database are UUIDs, not document codes.\n" +
+          "Try running without --issue-id to auto-discover from current directory, or use --stage-id directly.\n"
+        );
+        process.exit(1);
+      }
+    } catch (e) {
+      process.stderr.write(e.stderr || e.message + "\n");
+      process.exit(e.status || 1);
+    }
+  }
+
+  if (!resolvedStageId) {
+    process.stderr.write(
+      "Could not determine target stage.\n" +
+      "Pass --stage-id {{stage_id}} (system prompt context) for reliable use.\n"
+    );
+    process.exit(1);
+  }
+
+  if (!discoveryMethod) discoveryMethod = "stage-id";
+
+  // Delegate to bridge
+  const bridgeArgs = ["--mode", "stage-record-context", "--stage-id", resolvedStageId, "--entries", JSON.stringify(entries)];
+  try {
+    const raw = execFileSync(process.execPath, [BRIDGE, ...bridgeArgs], {
+      encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: bridgeEnv,
+    });
+    const result = JSON.parse(raw);
+    result.discovered_by = discoveryMethod;
+    process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+  } catch (e) {
+    process.stderr.write(e.stderr || e.message + "\n");
+    process.exit(e.status || 1);
+  }
+}
+
+function resolveStageFromWorkdir(cwd) {
+  let resolvedCwd;
+  try { resolvedCwd = fs.realpathSync(cwd); } catch (_) { return null; }
+
+  try {
+    const raw = execFileSync(process.execPath, [BRIDGE, "--mode", "stage-list-for-workdir"], {
+      encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: bridgeEnv,
+    });
+    const data = JSON.parse(raw);
+    for (const s of data.stages) {
+      if (!s.worktree_path) continue;
+      let resolvedWd;
+      try { resolvedWd = fs.realpathSync(s.worktree_path); } catch (_) { continue; }
+      if (resolvedCwd === resolvedWd || resolvedCwd.startsWith(resolvedWd + path.sep)) return s.id;
+    }
+  } catch (_) {}
+  return null;
+}
+
+function optionalArg(value) { return value === "" ? undefined : value; }
+
+try { main(); } catch (e) { process.stderr.write(e.stderr || e.message + "\n"); process.exit(e.status || 1); }
