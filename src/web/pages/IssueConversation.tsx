@@ -1,6 +1,6 @@
 import { useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { api } from "@/services/api-client";
 import { queryKeys } from "@/queries/keys";
 import { TopBar } from "@/components/TopBar";
@@ -54,6 +54,15 @@ export function IssueConversation() {
     [...messages].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()),
     [messages],
   );
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) {
+      requestAnimationFrame(() => el.scrollTop = el.scrollHeight);
+    }
+  }, [sorted]);
 
   const sendMutation = useMutation({
     mutationFn: (text: string) =>
@@ -120,7 +129,7 @@ export function IssueConversation() {
 
       <div className="flex flex-1 min-h-0">
         <div className="flex-1 flex flex-col min-w-0">
-          <div className="flex-1 overflow-y-auto px-6 py-6">
+          <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6">
             <div className="mx-auto flex w-full max-w-[920px] flex-col gap-5">
 
               {/* Issue header */}

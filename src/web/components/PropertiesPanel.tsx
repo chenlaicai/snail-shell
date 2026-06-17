@@ -27,9 +27,11 @@ export function PropertiesPanel({ issue, stage }: PropertiesPanelProps) {
           <PropRow label="Created">
             <span className="text-[13px] text-text-secondary">{formatDate(issue.created_at)}</span>
           </PropRow>
-          <PropRow label="Created">
-            <span className="text-[13px] text-text-secondary">{formatDate(issue.created_at)}</span>
-          </PropRow>
+          {issue.closed_at && (
+            <PropRow label="Closed">
+              <span className="text-[13px] text-text-secondary">{formatDate(issue.closed_at)}</span>
+            </PropRow>
+          )}
         </Section>
 
         <Divider />
@@ -74,12 +76,33 @@ export function PropertiesPanel({ issue, stage }: PropertiesPanelProps) {
           </>
         )}
 
+        {currentStage?.assignments && currentStage.assignments.length > 0 && (
+          <>
+            <Section title="Participants">
+              <div className="space-y-2">
+                {currentStage.assignments.map((a) => (
+                  <div key={a.role_instance} className="flex items-center gap-2">
+                    <div className="w-5 h-5 rounded-full bg-shell-600 flex items-center justify-center text-[9px] font-medium text-white shrink-0">
+                      {a.snail_key.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[12px] text-text-primary truncate">{a.snail_key}</div>
+                      <div className="text-[10px] text-text-muted truncate">{a.role_instance}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Section>
+            <Divider />
+          </>
+        )}
+
         <Section title="Stages">
           <div className="space-y-1">
             {issue.stages.map((s) => (
               <div key={s.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-white/5 transition-colors">
                 <div className={`w-2 h-2 rounded-full shrink-0 ${s.status === "completed" ? "bg-status-green" : s.status === "in_progress" ? "bg-status-blue" : "bg-status-gray"}`} />
-                <span className="text-[12px] text-text-secondary flex-1">{s.stage_definition?.title ?? s.type}</span>
+                <span className="text-[12px] text-text-secondary flex-1">{s.title || s.key}</span>
                 <span className="text-[10px] text-text-muted">{s.status === "completed" ? "done" : s.status === "in_progress" ? "active" : ""}</span>
               </div>
             ))}

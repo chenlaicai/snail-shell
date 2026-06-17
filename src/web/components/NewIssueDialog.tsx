@@ -125,13 +125,13 @@ export function NewIssueDialog({ workspaceId, open, onClose }: NewIssueDialogPro
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface-0/80 px-4" onClick={handleClose}>
-      <div className="bg-surface-2 border border-white/6 rounded-xl w-full max-w-2xl max-h-[86vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="px-6 py-4 border-b border-white/6">
+      <div className="bg-surface-2 border border-white/6 rounded-xl w-full max-w-2xl h-[86vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b border-white/6 shrink-0">
           <h2 className="text-lg font-semibold">New Issue</h2>
           <p className="text-[12px] text-text-muted mt-1">Create an issue with a complete SOP role assignment plan.</p>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="max-h-[calc(86vh-128px)] overflow-y-auto px-6 py-5 space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
             <div>
               <label className="block text-xs text-text-muted mb-1">Title</label>
               <input
@@ -217,7 +217,7 @@ export function NewIssueDialog({ workspaceId, open, onClose }: NewIssueDialogPro
               </section>
             )}
           </div>
-          <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-white/6">
+          <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-white/6 shrink-0">
             <button type="button" onClick={handleClose} className="px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors">
               Cancel
             </button>
