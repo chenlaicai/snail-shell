@@ -21,19 +21,19 @@ export function NewIssueDialog({ workspaceId, open, onClose }: NewIssueDialogPro
   const [roleAssignments, setRoleAssignments] = useState<IssueSnailAssignmentPlanDto>({});
   const [submitting, setSubmitting] = useState(false);
 
-  const { data: sops = [] } = useQuery({
+  const { data: sopsData } = useQuery({
     queryKey: queryKeys.sops.all,
     queryFn: () => api("GET /api/sops", { query: { source: "platform" } }),
     enabled: open,
   });
 
-  const { data: snails = [] } = useQuery({
+  const { data: snailsData } = useQuery({
     queryKey: queryKeys.meta.snailDen,
     queryFn: () => api("GET /api/snail-den"),
     enabled: open,
   });
 
-  const { data: stagePreviews = [], isFetching: previewsLoading } = useQuery({
+  const { data: stagePreviewsData, isFetching: previewsLoading } = useQuery({
     queryKey: ["sops", sopKey, "stage-previews", title.trim()],
     queryFn: () => api("GET /api/sops/:sopKey/stage-previews", {
       params: { sopKey },
@@ -42,21 +42,25 @@ export function NewIssueDialog({ workspaceId, open, onClose }: NewIssueDialogPro
     enabled: open && !!sopKey,
   });
 
+  const sops = useMemo(() => (Array.isArray(sopsData) ? sopsData : []) as SopDto[], [sopsData]);
+  const stableStagePreviews = useMemo(() => (Array.isArray(stagePreviewsData) ? stagePreviewsData : []) as StagePreviewDto[], [stagePreviewsData]);
+  const stableSnails = useMemo(() => (Array.isArray(snailsData) ? snailsData : []) as SnailDenTemplateDto[], [snailsData]);
+
   const selectedSop = useMemo(
-    () => (Array.isArray(sops) ? sops : []).find((sop: SopDto) => sop.key === sopKey) ?? null,
+    () => sops.find((sop) => sop.key === sopKey) ?? null,
     [sops, sopKey],
   );
 
   useEffect(() => {
-    if (!open || !sopKey || !Array.isArray(stagePreviews)) {
+    if (!open || !sopKey || stableStagePreviews.length === 0) {
       setRoleAssignments({});
       return;
     }
 
     setRoleAssignments((current) => {
       const next: IssueSnailAssignmentPlanDto = {};
-      const preferred = (Array.isArray(snails) ? snails : [])[0]?.key ?? "";
-      for (const stage of stagePreviews as StagePreviewDto[]) {
+      const preferred = stableSnails[0]?.key ?? "";
+      for (const stage of stableStagePreviews) {
         next[stage.key] = {};
         for (const role of stage.role_instances) {
           next[stage.key][role.role_instance] = current[stage.key]?.[role.role_instance] ?? preferred;
@@ -64,14 +68,14 @@ export function NewIssueDialog({ workspaceId, open, onClose }: NewIssueDialogPro
       }
       return next;
     });
-  }, [open, sopKey, stagePreviews, snails]);
+  }, [open, sopKey, stableStagePreviews, stableSnails]);
 
   const missingAssignment = useMemo(() => {
-    if (!Array.isArray(stagePreviews)) return null;
-    return (stagePreviews as StagePreviewDto[])
+    if (stableStagePreviews.length === 0) return null;
+    return stableStagePreviews
       .flatMap((stage) => stage.role_instances.map((role) => ({ stage, role })))
       .find(({ stage, role }) => !roleAssignments[stage.key]?.[role.role_instance]) ?? null;
-  }, [roleAssignments, stagePreviews]);
+  }, [roleAssignments, stableStagePreviews]);
 
   function resetForm() {
     setTitle("");
@@ -91,7 +95,7 @@ export function NewIssueDialog({ workspaceId, open, onClose }: NewIssueDialogPro
     e.preventDefault();
     if (!title.trim() || !sopKey || submitting) return;
     if (!selectedSop) { showToast("请选择有效 SOP", true); return; }
-    if (!Array.isArray(stagePreviews) || stagePreviews.length === 0) { showToast("当前 SOP 没有可启动的 Stage", true); return; }
+    if (stableStagePreviews.length === 0) { showToast("当前 SOP 没有可启动的 Stage", true); return; }
     if (missingAssignment) {
       showToast(`请选择 ${missingAssignment.stage.key} / ${missingAssignment.role.role_instance} 对应的 Snail`, true);
       return;
@@ -156,7 +160,7 @@ export function NewIssueDialog({ workspaceId, open, onClose }: NewIssueDialogPro
                 className="w-full bg-surface-0 border border-white/6 rounded-md px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-shell-600/40"
               >
                 <option value="">Select SOP...</option>
-                {(Array.isArray(sops) ? sops : []).map((sop: SopDto) => (
+                {sops.map((sop) => (
                   <option key={sop.key} value={sop.key}>{sop.name}</option>
                 ))}
               </select>
@@ -173,11 +177,11 @@ export function NewIssueDialog({ workspaceId, open, onClose }: NewIssueDialogPro
                   <div className="text-[12px] text-text-muted py-4">Loading stage preview...</div>
                 ) : !selectedSop ? (
                   <div className="rounded-md border border-status-red/30 bg-status-red/10 p-3 text-[12px] text-status-red">Selected SOP does not exist.</div>
-                ) : stagePreviews.length === 0 ? (
+                ) : stableStagePreviews.length === 0 ? (
                   <div className="text-[12px] text-text-muted py-4">No launchable stages in this SOP.</div>
                 ) : (
                   <div className="space-y-3">
-                    {(stagePreviews as StagePreviewDto[]).map((stage) => (
+                    {stableStagePreviews.map((stage) => (
                       <div key={stage.key} className="rounded-lg border border-white/6 bg-surface-0 p-3">
                         <div className="mb-3">
                           <div className="text-[12px] font-medium text-text-primary">{stage.title}</div>
@@ -199,7 +203,7 @@ export function NewIssueDialog({ workspaceId, open, onClose }: NewIssueDialogPro
                                 className="bg-surface-2 border border-white/6 rounded-md px-2.5 py-1.5 text-[12px] text-text-primary focus:outline-none focus:border-shell-600/40"
                               >
                                 <option value="">Select Snail...</option>
-                                {(Array.isArray(snails) ? snails : []).map((snail: SnailDenTemplateDto) => (
+                                {stableSnails.map((snail) => (
                                   <option key={snail.key} value={snail.key}>{snail.name}</option>
                                 ))}
                               </select>
@@ -219,7 +223,7 @@ export function NewIssueDialog({ workspaceId, open, onClose }: NewIssueDialogPro
             </button>
             <button
               type="submit"
-              disabled={!title.trim() || !sopKey || !selectedSop || stagePreviews.length === 0 || !!missingAssignment || submitting}
+              disabled={!title.trim() || !sopKey || !selectedSop || stableStagePreviews.length === 0 || !!missingAssignment || submitting}
               className="px-4 py-1.5 rounded-md bg-shell-600 hover:bg-shell-500 text-white text-sm font-medium transition-colors disabled:opacity-50"
             >
               {submitting ? "Creating..." : "Create"}

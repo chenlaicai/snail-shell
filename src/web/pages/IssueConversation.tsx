@@ -34,7 +34,8 @@ export function IssueConversation() {
     }
     return issue.current_stage;
   }, [issue, selectedStageId]);
-  const stageId = activeStage?.id ?? null;
+
+  const stageId = useMemo(() => activeStage?.id ?? null, [activeStage]);
 
   useIssueRealtime(issueId ?? null, stageId);
 
