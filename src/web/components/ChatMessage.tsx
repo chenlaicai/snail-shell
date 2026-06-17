@@ -94,7 +94,7 @@ export function ChatMessage({ message }: { message: MessageDto }) {
               ? "rounded-br-md bg-shell-600/20 border border-shell-600/20"
               : "rounded-bl-md bg-surface-2 border border-white/6"
           }`}>
-            <MessageContent events={message.events} context={message.context} />
+            <MessageContent events={message.events} context={message.context} content={message.content ?? null} />
           </div>
 
           {message.status === "streaming" && (
@@ -215,7 +215,7 @@ function EventItem({ event }: { event: MessageEvent }) {
   return null;
 }
 
-function MessageContent({ events, context }: { events: MessageEvent[]; context: MessageContext | null }) {
+function MessageContent({ events, context, content }: { events: MessageEvent[]; context: MessageContext | null; content: string | null }) {
   const textParts: string[] = [];
   for (const event of events) {
     if (event.payload?.type === "text" && event.payload && "text" in event.payload) {
@@ -225,6 +225,7 @@ function MessageContent({ events, context }: { events: MessageEvent[]; context: 
   const text = textParts.join("");
 
   if (context?.context) return <RichTextRenderer content={context.context} />;
+  if (content) return <RichTextRenderer content={content} />;
   if (!text) return <span className="text-text-muted italic">No content</span>;
   return <RichTextRenderer content={text} />;
 }

@@ -79,11 +79,9 @@ export type IssueDto = {
   extendable_context: Record<string, unknown>;
   created_at: string;
   closed_at: string | null;
-  stages?: StageDetailDto[];
-  current_stage?: StageDetailDto | null;
 };
-export type IssueDetailDto = IssueDto & { stages: StageDetailDto[]; current_stage: StageDetailDto | null };
-export type CreateIssueResult = { issue: IssueDetailDto; stage: StageDetailDto | null };
+export type IssueDetailDto = IssueDto & { stages: StageDetailDto[]; current_stage: StageDetailDto };
+export type CreateIssueResult = { issue: IssueDetailDto; stage: StageDetailDto };
 export type AdvanceIssueResult = StageDetailDto;
 export type IssueCleanupResult = { ok: true };
 export type RepoCleanupResult = { ok: true };

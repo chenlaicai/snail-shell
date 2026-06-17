@@ -10,18 +10,20 @@ import type { EvolutionRepository } from "@domain/evolution/_internal/repository
 import type { IssuePort } from "@domain/issue/port";
 import type { IssueSnailAssignmentPlan } from "@domain/issue/model";
 import type { SnailPort } from "@domain/snail/port";
+import type { CollaborationInput } from "@app/issue-collaboration/port";
 
 /**
  * Evolution 适配器。
  *
  * 职责：候选入库、查询、状态管理、基于 item 创建 issue。
- * IssuePort 为必需依赖 — createIssue() 内部调用。
+ * IssuePort 为必需依赖 — previewSopStages() 内部用于生成 snail assignment plan。
  */
 export class EvolutionAdapter implements EvolutionPort {
   constructor(
     private repo: EvolutionRepository,
     private issuePort: IssuePort,
     private snailPort: SnailPort,
+    private collaboration: CollaborationInput,
   ) {}
 
   findById(id: string): EvolutionItem | undefined {
@@ -73,14 +75,14 @@ export class EvolutionAdapter implements EvolutionPort {
     return this.repo.findById(id)!;
   }
 
-  createIssue(itemId: string): EvolutionItem {
+  async createIssue(itemId: string): Promise<EvolutionItem> {
     const item = this.repo.findById(itemId);
     if (!item) throw new Error(`Evolution item not found: ${itemId}`);
     if (item.status !== EvolutionStatus.Candidate) {
       throw new Error(`Cannot create issue for item in status "${item.status}", must be "candidate"`);
     }
 
-    const issue = this.issuePort.createIssue({
+    const { issue } = await this.collaboration.createIssue({
       workspace_path: item.workspace_id,
       title: `[Evolution] ${item.title}`,
       summary: item.content,

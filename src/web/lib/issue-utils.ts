@@ -1,17 +1,17 @@
 import type { IssueDetailDto, StageStatus } from "@/types";
 
-/** Group issues by stage status, placing those with no current_stage into "unknown" */
+/** Group issues by stage status. Every issue is expected to have a current stage. */
 export function groupByStatus(issues: IssueDetailDto[]): Record<string, IssueDetailDto[]> {
   const groups: Record<string, IssueDetailDto[]> = {};
   for (const issue of issues) {
-    const status = issue.current_stage?.status ?? "unknown";
+    const status = issue.current_stage.status;
     if (!groups[status]) groups[status] = [];
     groups[status].push(issue);
   }
   return groups;
 }
 
-export const statusColumns: { status: StageStatus | "unknown"; label: string; dot: string }[] = [
+export const statusColumns: { status: StageStatus; label: string; dot: string }[] = [
   { status: "in_progress", label: "In Progress", dot: "bg-status-blue" },
   { status: "completed", label: "Done", dot: "bg-status-green" },
 ];

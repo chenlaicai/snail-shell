@@ -22,7 +22,7 @@ export interface EvolutionPort {
   update(id: string, updates: UpdateEvolutionItemInput): EvolutionItem;
 
   /** 基于 item 创建 issue（Candidate → InProgress）。item 自身提供全部信息。 */
-  createIssue(itemId: string): EvolutionItem;
+  createIssue(itemId: string): Promise<EvolutionItem>;
 }
 
 /** 更新演进项输入 */

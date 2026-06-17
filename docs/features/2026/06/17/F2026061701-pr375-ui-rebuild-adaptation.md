@@ -106,11 +106,11 @@ PR #375 只作为视觉初稿，交互语义必须继承当前 main：
 
 - Workspace 名称使用 `WorkspaceDto.path`，当前 DTO 不提供 `name`。
 - Issue 更新时间当前 DTO 不提供 `updated_at`，卡片和列表使用 `created_at` 作为时间展示。
-- 分组基于 `issue.current_stage?.status`，无 current stage 的 issue 归入 `unknown`，当前看板列只显示 `in_progress` 与 `completed`。
+- 分组基于 `issue.current_stage.status`；current stage 被视为 issue 的业务不变量，后端若无法提供该字段应直接报错而不是下放到 UI 容错。
 
 ### Issue Conversation
 
-- 当前对话上下文由 URL `?stage=` + issue detail 派生；无有效 URL stage 时 fallback 到 `issue.current_stage` 或最后一个 stage。
+- 当前对话上下文由 URL `?stage=` + issue detail 派生；无有效 URL stage 时 fallback 到 `issue.current_stage`，不把无 current stage 视为合法状态。
 - 页面调用 `useIssueRealtime(issueId ?? null, stageId)`，恢复 `message_started`、`message_event_appended`、`message_status_changed`、`stage_transition_suggested` 实时更新。
 - 消息读取 `GET /api/stages/:stageId/messages`。
 - 消息发送 `POST /api/stages/:stageId/messages`，并沿用 `createPlaceholderMessage` 做乐观插入。

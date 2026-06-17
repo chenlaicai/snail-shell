@@ -94,8 +94,12 @@ export class StageAdapter implements StagePort {
     return stagePlan;
   }
 
+  transaction<T>(fn: () => T): T {
+    return this.stageRepo.transaction(fn);
+  }
+
   createStage(input: CreateStageInput): Stage {
-    return this.stageRepo.transaction(() => this.createStageInTransaction(input));
+    return this.createStageInTransaction(input);
   }
 
   private createStageInTransaction(input: CreateStageInput): Stage {

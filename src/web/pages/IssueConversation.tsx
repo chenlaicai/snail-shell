@@ -32,7 +32,7 @@ export function IssueConversation() {
       const matched = issue.stages.find((stage) => stage.id === selectedStageId);
       if (matched) return matched;
     }
-    return issue.current_stage ?? issue.stages[issue.stages.length - 1] ?? null;
+    return issue.current_stage;
   }, [issue, selectedStageId]);
   const stageId = activeStage?.id ?? null;
 

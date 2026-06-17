@@ -26,10 +26,6 @@ const createIssueBody = z.object({
   snail_assignment_plan: snailAssignmentPlanSchema,
 });
 
-const launchBody = z.object({
-  stage_key: z.string().optional(),
-});
-
 const sendMessageBody = z.object({
   text: z.string().min(1),
   from_speaker: z.string().optional(),
@@ -62,26 +58,20 @@ export function createIssueRoutes(deps: IssueRoutesDeps) {
 
   app.post("/api/workspaces/:workspaceId/issues", zValidator("json", createIssueBody), async (c) => {
     const body = c.req.valid("json");
-    const issue = deps.issuePort.createIssue({
+    const result = await deps.collaboration.createIssue({
       workspace_path: decodeWorkspaceId(c.req.param("workspaceId")),
       title: body.title,
       summary: body.summary,
       adopted_sop_key: body.adopted_sop_key,
       snail_assignment_plan: body.snail_assignment_plan,
     });
-    const stage = await deps.collaboration.launchIssue({ issue_id: issue.id });
-    return c.json({ issue: toIssueDetail(deps, issue), stage: toStageDto(deps, stage) }, 201);
+    return c.json({ issue: toIssueDetail(deps, result.issue), stage: toStageDto(deps, result.stage) }, 201);
   });
 
   app.get("/api/issues/:issueId", (c) => {
     const issue = deps.issuePort.findIssue(c.req.param("issueId"));
     if (!issue) return c.json(null, 404);
     return c.json(toIssueDetail(deps, issue));
-  });
-
-  app.post("/api/issues/:issueId/launch", zValidator("json", launchBody), async (c) => {
-    const stage = await deps.collaboration.launchIssue({ issue_id: c.req.param("issueId"), ...c.req.valid("json") });
-    return c.json(toStageDto(deps, stage), 201);
   });
 
   app.get("/api/issues/:issueId/stages", (c) => {
@@ -128,11 +118,13 @@ async function sendMessage(c: Context, deps: IssueRoutesDeps) {
 
 function toIssueDetail(deps: Pick<IssueRoutesDeps, "stagePort">, issue: Issue) {
   const stages = deps.stagePort.listStages(issue.id).map(stage => toStageDto(deps, stage));
+  const currentStage = stages.find(stage => !stage.left_at) ?? stages.at(-1);
+  if (!currentStage) throw new Error(`Issue has no current stage: ${issue.id}`);
   return {
     ...issue,
     workspace_id: encodeWorkspaceId(issue.workspace_path),
     stages,
-    current_stage: stages.find(stage => !stage.left_at) ?? stages.at(-1) ?? null,
+    current_stage: currentStage,
   };
 }
 

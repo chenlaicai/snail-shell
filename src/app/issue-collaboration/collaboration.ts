@@ -1,16 +1,17 @@
 import type { Message, MessageContext, MessageEvent, MessageEventPayload } from "@domain/message/model";
 import type { MessagePort } from "@domain/message/port";
 import type { IssuePort, StagePort } from "@domain/issue/port";
-import type { Issue, Stage } from "@domain/issue/model";
+import type { CreateIssueInput, Issue, Stage } from "@domain/issue/model";
 import type { SnailPort } from "@domain/snail/port";
 import type { SnailFirstCallRequest, SnailResumeRequest } from "@domain/snail/model";
 import type { LiteAIPort } from "@domain/lite-ai/port";
 import type { AgentEvent, Message as AgentMessage, InvokeOptions } from "@infra/acs/model";
-import type { CollaborationConsumer, CollaborationInput, LaunchIssueInput, StageTransitionSuggestion } from "@app/issue-collaboration/port";
+import type { CollaborationConsumer, CollaborationInput, CreateIssueResult, StageTransitionSuggestion } from "@app/issue-collaboration/port";
 import { StageQueue } from "@app/issue-collaboration/stage-queue";
 
 interface CollaborationDeps {
   issuePort: IssuePort;
+  createIssue: (input: CreateIssueInput) => Issue;
   stagePort: StagePort;
   messagePort: MessagePort;
   snailPort: SnailPort;
@@ -33,20 +34,12 @@ export class IssueCollaboration implements CollaborationInput {
     this.maxCollaborationRounds = deps.maxCollaborationRounds ?? 30;
   }
 
-  async launchIssue(input: LaunchIssueInput): Promise<Stage> {
-    const issue = this.deps.issuePort.findIssue(input.issue_id);
-    if (!issue) throw new Error(`Issue not found: ${input.issue_id}`);
-
-    const stageKey = input.stage_key ?? issue.sop_snapshot.stage_definitions[0]?.key;
-    if (!stageKey) throw new Error(`No stage definitions found for issue: ${input.issue_id}`);
-
-    const stage = this.deps.stagePort.createStage({
-      issue_id: issue.id,
-      key: stageKey,
+  async createIssue(input: CreateIssueInput): Promise<CreateIssueResult> {
+    return this.deps.stagePort.transaction(() => {
+      const issue = this.deps.createIssue(input);
+      const stage = this.createInitialStage(issue);
+      return { issue, stage };
     });
-    this.initStageCursors(stage);
-
-    return stage;
   }
 
   async sendMessage(stageId: string, text: string, fromSpeaker = "user"): Promise<void> {
@@ -94,6 +87,16 @@ export class IssueCollaboration implements CollaborationInput {
 
   enqueueStage(stageId: string): void {
     this.queue.enqueue(stageId, async () => this.drainStage(stageId));
+  }
+
+  private createInitialStage(issue: Issue, stageKey = issue.sop_snapshot.stage_definitions[0]?.key): Stage {
+    if (!stageKey) throw new Error(`No stage definitions found for issue: ${issue.id}`);
+    const stage = this.deps.stagePort.createStage({
+      issue_id: issue.id,
+      key: stageKey,
+    });
+    this.initStageCursors(stage);
+    return stage;
   }
 
   private async drainStage(stageId: string): Promise<void> {
