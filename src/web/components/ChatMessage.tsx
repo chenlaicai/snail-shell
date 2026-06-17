@@ -92,19 +92,22 @@ export function ChatMessage({ message }: { message: MessageDto }) {
           <div className={`rounded-2xl px-4 py-3 text-[13px] leading-relaxed ${
             isUser
               ? "rounded-br-md bg-shell-600/20 border border-shell-600/20"
-              : "rounded-bl-md bg-surface-2 border border-white/6"
+              : message.status === "streaming"
+                ? "rounded-bl-md bg-surface-2 border border-shell-500/50 shadow-[0_0_12px_rgba(214,138,62,0.15)]"
+                : "rounded-bl-md bg-surface-2 border border-white/6"
           }`}>
             <MessageContent events={message.events} context={message.context} content={message.content ?? null} />
+            {message.status === "streaming" && <span className="inline-block w-[2px] h-[14px] bg-shell-400 ml-0.5 align-text-bottom animate-blink" />}
           </div>
 
           {message.status === "streaming" && (
-            <div className="flex items-center gap-1.5 mt-1 px-1">
+            <div className="flex items-center gap-1.5 mt-1.5 px-1">
               <div className="flex gap-0.5">
                 <div className="w-1.5 h-1.5 rounded-full bg-shell-400 animate-bounce" />
                 <div className="w-1.5 h-1.5 rounded-full bg-shell-400 animate-bounce [animation-delay:150ms]" />
                 <div className="w-1.5 h-1.5 rounded-full bg-shell-400 animate-bounce [animation-delay:300ms]" />
               </div>
-              <span className="text-[11px] text-text-muted">thinking...</span>
+              <span className="text-[11px] text-shell-400">AI is responding...</span>
             </div>
           )}
         </div>
