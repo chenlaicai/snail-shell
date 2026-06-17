@@ -1,5 +1,5 @@
 import type { MCPServerConfig } from "@domain/snail-mcp-server/model";
-import { launchContext, checkLoginStatus, waitForLogin } from "@domain/snail-mcp-server/_internal/servers/rednote-research/browser";
+import { launchContext, checkLoginStatus, waitForLogin, cleanupStaleBrowserProfiles, type BrowserConfig } from "@domain/snail-mcp-server/_internal/servers/rednote-research/browser";
 import { expandKeywords } from "@domain/snail-mcp-server/_internal/servers/rednote-research/engine/keywords";
 import { searchMultiple } from "@domain/snail-mcp-server/_internal/servers/rednote-research/engine/search";
 import { deduplicate } from "@domain/snail-mcp-server/_internal/servers/rednote-research/engine/dedup";
@@ -7,12 +7,23 @@ import { scoreResults, rescoreWithDesc } from "@domain/snail-mcp-server/_interna
 import { fetchDetails } from "@domain/snail-mcp-server/_internal/servers/rednote-research/engine/detail";
 import type { SearchResultItem, DetailResult, ResearchResult } from "@domain/snail-mcp-server/_internal/servers/rednote-research/types";
 
-function mcpSuccess(data: unknown): unknown {
-  return { content: [{ type: "text", text: JSON.stringify(data) }] };
+/** rednote-research MCP Server 配置 */
+export interface RednoteResearchConfig {
+  /** 浏览器配置 */
+  browser?: BrowserConfig;
+  /** login 超时时间（毫秒），默认 120000 */
+  loginTimeoutMs?: number;
 }
 
-function mcpError(message: string): unknown {
-  return { content: [{ type: "text", text: JSON.stringify({ error: message }) }] };
+/** 自定义错误类型，用于区分业务错误 */
+class RednoteError extends Error {
+  constructor(
+    message: string,
+    public readonly code: string,
+  ) {
+    super(message);
+    this.name = "RednoteError";
+  }
 }
 
 interface ResearchParams {
@@ -22,9 +33,9 @@ interface ResearchParams {
   topN: number;
 }
 
-function parseResearchParams(params: Record<string, unknown>): ResearchParams | string {
+function parseResearchParams(params: Record<string, unknown>): ResearchParams {
   const topic = typeof params.topic === "string" ? params.topic.trim() : "";
-  if (!topic) return "validation_error: topic is required";
+  if (!topic) throw new RednoteError("topic is required", "validation_error");
   const opts = (params.options ?? {}) as Record<string, unknown>;
   const depth = opts.depth === "quick" ? "quick" : "deep";
   const days = typeof opts.days === "number" && opts.days > 0 ? opts.days : 0;
@@ -67,78 +78,77 @@ async function executeSearchPipeline(
   context: Awaited<ReturnType<typeof launchContext>>,
   keywords: string[],
   maxPages: number,
-): Promise<SearchResultItem[] | string> {
+): Promise<SearchResultItem[]> {
   try {
     return await searchMultiple(context, keywords, 3, maxPages);
   } catch (err) {
     if (err instanceof Error && err.message === "auth_required") {
-      return "auth_required: 登录已过期，请调用 login 工具扫码登录";
+      throw new RednoteError("登录已过期，请调用 login 工具扫码登录", "auth_required");
     }
     throw err;
   }
 }
 
-async function handleResearchNotes(params: Record<string, unknown>): Promise<unknown> {
+async function handleResearchNotes(params: Record<string, unknown>, config?: RednoteResearchConfig): Promise<unknown> {
   const parsed = parseResearchParams(params);
-  if (typeof parsed === "string") return mcpError(parsed);
   const { topic, depth, days, topN } = parsed;
   const keywords = expandKeywords(topic);
 
   let context;
   try {
-    context = await launchContext(true);
+    context = await launchContext(true, config?.browser);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return mcpError(msg.includes("未找到 Chrome") ? msg : `启动浏览器失败: ${msg}`);
+    throw new RednoteError(
+      msg.includes("未找到 Chrome") ? msg : `启动浏览器失败: ${msg}`,
+      "browser_error",
+    );
   }
 
   try {
     const searchResult = await executeSearchPipeline(context, keywords, depth === "deep" ? 3 : 1);
-    if (typeof searchResult === "string") return mcpError(searchResult);
-    if (searchResult.length === 0) return mcpError("no_results: 未找到相关笔记，请尝试其他关键词");
+    if (searchResult.length === 0) {
+      throw new RednoteError("未找到相关笔记，请尝试其他关键词", "no_results");
+    }
 
     const windowDays = days > 0 ? days : 365;
     const scored = scoreResults(deduplicate(searchResult), topic, windowDays);
     const topItems = scored.slice(0, topN);
     const details = await fetchDetails(context, topItems, depth === "quick" ? 5 : 8, 500);
     const rescored = rescoreWithDesc(topItems, details, topic, windowDays);
-    return mcpSuccess(buildResearchResult({
+    return buildResearchResult({
       topic, keywords, scored: attachDetails(rescored, details), totalSearched: searchResult.length, totalAfterDedup: scored.length, topN,
-    }));
+    });
   } finally {
     await context.close();
   }
 }
 
-async function handleLogin(): Promise<unknown> {
-  try {
-    const success = await waitForLogin(120_000);
-    if (success) {
-      return mcpSuccess({ status: "success", message: "登录成功" });
-    }
-    return mcpSuccess({ status: "timeout", message: "登录超时，请重试" });
-  } catch (err) {
-    return mcpError(`登录失败: ${err instanceof Error ? err.message : String(err)}`);
+async function handleLogin(config?: RednoteResearchConfig): Promise<unknown> {
+  const timeoutMs = config?.loginTimeoutMs ?? 120_000;
+  const success = await waitForLogin(timeoutMs, config?.browser);
+  if (success) {
+    return { status: "success", message: "登录成功" };
   }
+  return { status: "timeout", message: "登录超时，请重试" };
 }
 
-async function handleCheckLogin(): Promise<unknown> {
-  try {
-    const isLoggedIn = await checkLoginStatus();
-    return mcpSuccess({
-      logged_in: isLoggedIn,
-      message: isLoggedIn ? "已登录" : "未登录或登录已过期",
-    });
-  } catch (err) {
-    return mcpError(`检查登录状态失败: ${err instanceof Error ? err.message : String(err)}`);
-  }
+async function handleCheckLogin(config?: RednoteResearchConfig): Promise<unknown> {
+  const isLoggedIn = await checkLoginStatus(config?.browser);
+  return {
+    logged_in: isLoggedIn,
+    message: isLoggedIn ? "已登录" : "未登录或登录已过期",
+  };
 }
 
 /**
  * rednote-research MCP Server。
  * 提供小红书一站式关键词搜索和内容调研能力。
  */
-export function createRednoteResearchServer(): MCPServerConfig {
+export function createRednoteResearchServer(config?: RednoteResearchConfig): MCPServerConfig {
+  // 启动时清理过期的浏览器临时目录
+  cleanupStaleBrowserProfiles();
+
   return {
     name: "rednote-research",
     version: "1.0.0",
@@ -165,19 +175,19 @@ export function createRednoteResearchServer(): MCPServerConfig {
           },
           required: ["topic"],
         },
-        handler: async (params) => handleResearchNotes(params),
+        handler: async (params) => handleResearchNotes(params, config),
       },
       {
         name: "login",
         description: "打开小红书登录页面，显示二维码等待扫码。超时 120 秒。",
         inputSchema: { type: "object", properties: {} },
-        handler: async () => handleLogin(),
+        handler: async () => handleLogin(config),
       },
       {
         name: "check_login",
         description: "检查当前小红书登录状态。",
         inputSchema: { type: "object", properties: {} },
-        handler: async () => handleCheckLogin(),
+        handler: async () => handleCheckLogin(config),
       },
     ],
   };

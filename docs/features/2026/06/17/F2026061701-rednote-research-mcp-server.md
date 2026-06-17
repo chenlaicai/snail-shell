@@ -131,9 +131,9 @@ Chromium 同一时间只允许一个进程访问同一 userDataDir。通过互�
 
 | 文件 | 改动类型 | 说明 |
 |------|----------|------|
-| `src/domain/snail-mcp-server/_internal/servers/rednote-research.ts` | 新增 | MCP Server 定义 + handler（research_notes/login/check_login） |
+| `src/domain/snail-mcp-server/_internal/servers/rednote-research.ts` | 新增 | MCP Server 定义 + handler，支持 RednoteResearchConfig 配置 |
 | `src/domain/snail-mcp-server/_internal/servers/rednote-research/types.ts` | 新增 | Feed、SearchResult、DetailResult 等类型定义 |
-| `src/domain/snail-mcp-server/_internal/servers/rednote-research/browser.ts` | 新增 | Playwright 浏览器生命周期管理、登录检测、异步锁 |
+| `src/domain/snail-mcp-server/_internal/servers/rednote-research/browser.ts` | 新增 | Playwright 浏览器生命周期管理、登录检测、异步锁、临时目录清理 |
 | `src/domain/snail-mcp-server/_internal/servers/rednote-research/engine/keywords.ts` | 新增 | 关键词扩展（意图分类 + 噪音词剥离 + 后缀扩展） |
 | `src/domain/snail-mcp-server/_internal/servers/rednote-research/engine/scoring.ts` | 新增 | 三维评分算法（相关性 + 时效性 + 互动量） |
 | `src/domain/snail-mcp-server/_internal/servers/rednote-research/engine/dedup.ts` | 新增 | 两层去重（feed_id + Jaccard 标题） |
@@ -141,7 +141,7 @@ Chromium 同一时间只允许一个进程访问同一 userDataDir。通过互�
 | `src/domain/snail-mcp-server/_internal/servers/rednote-research/engine/detail.ts` | 新增 | 笔记详情 + 评论抓取 |
 | `src/domain/snail-mcp-server/_internal/initor.ts` | 修改 | 注册 rednote-research 为平台级 MCP Server |
 | `package.json` | 修改 | 新增 `playwright-core` 依赖 |
-| `docs/features/2026/06/09/F2026060901-*.md` | 新增 | 本文档 |
+| `docs/features/2026/06/17/F2026061701-*.md` | 新增 | 本文档 |
 
 ## 验证
 
@@ -183,3 +183,4 @@ Chromium 同一时间只允许一个进程访问同一 userDataDir。通过互�
 | # | 变更类型 | 变更内容 | 原因 | 日期 |
 |---|----------|----------|------|------|
 | 1 | 架构迁移 | 从 v1 `src/mcp/` 迁移到 v2 `src/domain/snail-mcp-server/`，文档编号更新为 F2026061701 | 适配 v2 domain-driven 架构，避免编号冲突 | 2026-06-17 |
+| 2 | Review 修复 | 添加 RednoteResearchConfig 配置接口；修复 mutex 并发 bug；统一错误处理为抛异常模式；使用临时目录 + 自动清理 | 对抗性检视反馈 | 2026-06-17 |
