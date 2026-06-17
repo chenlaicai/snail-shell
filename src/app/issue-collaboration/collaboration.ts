@@ -143,7 +143,8 @@ export class IssueCollaboration implements CollaborationInput {
     await this.notifyConsumers(stageId, "onMessageStarted", agentMessage);
 
     const handbook = this.deps.stagePort.getRoleHandbook(stageId, assignment.role_key);
-    const systemReminder = this.buildSystemReminder({ issue, stage, roleInstance, roleKey: assignment.role_key, handbook });
+    const invocationContext = this.buildInvocationContext({ issue, stage, roleInstance, currentAssignment: assignment, handbook });
+    const systemReminder = this.renderInvocationContext(invocationContext);
     const firstCallHandbook = [handbook, systemReminder].filter(Boolean).join("\n\n");
     const invokeOptions: InvokeOptions = {
       contextEnv: { issue_id: issue.id, stage_id: stage.id, message_id: String(agentMessage.id), role_instance: roleInstance },
@@ -155,11 +156,8 @@ export class IssueCollaboration implements CollaborationInput {
         messages: unreadMessages.map(message => this.toAgentMessage(message)),
         handbook: firstCallHandbook || undefined,
         context: {
-          issue_id: issue.id,
-          stage_id: stage.id,
+          ...invocationContext,
           message_id: String(agentMessage.id),
-          stage_key: stage.key,
-          role_instance: roleInstance,
           system_reminder: systemReminder,
         },
       };
@@ -395,21 +393,69 @@ export class IssueCollaboration implements CollaborationInput {
     }).join("\n");
   }
 
-  private buildSystemReminder(input: { issue: Issue; stage: Stage; roleInstance: string; roleKey: string; handbook: string | null }): string {
-    const { issue, stage, roleInstance, roleKey, handbook } = input;
-    const transitions = stage.available_transitions.map(transition => `- ${transition.to}${transition.guard ? `: ${transition.guard}` : ""}`).join("\n");
-    const artifacts = Object.entries(stage.output_artifacts).map(([key, value]) => `${key}: ${value}`).join("\n");
-    const sections = [
-      `<issue>\nissue_id: ${issue.id}\nworkspace_path: ${issue.workspace_path}\nissue_title: ${issue.title}\nissue_summary: ${issue.summary ?? ""}\n</issue>`,
-      `<stage>\nstage_id: ${stage.id}\nstage_key: ${stage.key}\nstage_title: ${stage.title}\nstage_description: ${stage.description}\nrole_key: ${roleKey}\nrole_instance: ${roleInstance}\nall_role_instances: ${stage.role_instances.join(", ")}\n</stage>`,
-      `<available_transitions>\n${transitions || "none"}\n</available_transitions>`,
-      `<stage_artifacts>\n${artifacts || "none"}\n</stage_artifacts>`,
-      `<collaboration_rules>\n- You may @mention another role instance to request its response.\n- If the stage appears complete, suggest a stage_transition for the user to confirm.\n- Never auto-advance the Stage.\n</collaboration_rules>`,
-    ];
+  private buildInvocationContext(input: { issue: Issue; stage: Stage; roleInstance: string; currentAssignment: NonNullable<ReturnType<StagePort["getRoleSnailAssignment"]>>; handbook: string | null }): Record<string, unknown> {
+    const { issue, stage, roleInstance, currentAssignment, handbook } = input;
+    const assignments = this.deps.stagePort.getRoleSnailAssignments(stage.id);
+    const stageDefinition = issue.sop_snapshot.stage_definitions.find(definition => definition.key === stage.key);
+    const roleDefinitions = new Map(stageDefinition?.roles.map(role => [role.key, role]) ?? []);
+    const roles = assignments.map(assignment => {
+      const roleDefinition = roleDefinitions.get(assignment.role_key);
+      return {
+        role_instance: assignment.role_instance,
+        role_key: assignment.role_key,
+        role_name: roleDefinition?.name ?? assignment.role_instance,
+        responsibility: roleDefinition?.description ?? assignment.description,
+        is_current: assignment.role_instance === roleInstance,
+        is_primary: roleDefinition?.is_primary ?? assignment.role_instance === stage.default_role_instance,
+        snail_key: assignment.snail_key,
+        snail_instance_id: assignment.snail_instance_id,
+      };
+    });
 
-    if (issue.sop_snapshot.shared_handbook) sections.push(`<shared_handbook>\n${issue.sop_snapshot.shared_handbook}\n</shared_handbook>`);
-    if (handbook) sections.push(`<role_handbook>\n${handbook}\n</role_handbook>`);
-    return sections.join("\n\n");
+    return {
+      project: {
+        workspace_path: issue.workspace_path,
+      },
+      issue: {
+        issue_id: issue.id,
+        title: issue.title,
+        summary: issue.summary ?? "",
+        extendable_context: issue.extendable_context,
+      },
+      sop: {
+        key: issue.sop_snapshot.key,
+        name: issue.sop_snapshot.name,
+        description: issue.sop_snapshot.description ?? "",
+        scope: issue.sop_snapshot.scope,
+        shared_handbook: issue.sop_snapshot.shared_handbook ?? "",
+      },
+      stage: {
+        stage_id: stage.id,
+        key: stage.key,
+        title: stage.title,
+        description: stage.description,
+        default_role_instance: stage.default_role_instance,
+        available_transitions: stage.available_transitions,
+        output_artifacts: stage.output_artifacts,
+      },
+      collaboration: {
+        current_role_instance: roleInstance,
+        current_role_key: currentAssignment.role_key,
+        current_role_handbook: handbook ?? "",
+        roles,
+      },
+      rules: [
+        "Use the issue, SOP, stage, and role assignment context as the source of truth for this reply.",
+        "Reply as the current role instance and stay within its responsibility.",
+        "You may @mention another role instance to request its response.",
+        "If the stage appears complete, suggest a stage_transition for the user to confirm.",
+        "Never auto-advance the Stage.",
+      ],
+    };
+  }
+
+  private renderInvocationContext(context: Record<string, unknown>): string {
+    return `<snail-invocation-context>\n${JSON.stringify(context, null, 2)}\n</snail-invocation-context>`;
   }
 
   private toAgentMessage(message: Message): AgentMessage {

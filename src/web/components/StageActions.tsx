@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "../services/api-client";
 import { showToast } from "./Toast";
+import type { StageDetailDto } from "../types";
 
 interface Stage {
   id: string;
@@ -31,7 +32,7 @@ export function StageActions({
   issue: Issue;
   currentStage: Stage | null;
   transitions: Transition[];
-  onStageChanged: () => void;
+  onStageChanged: (stage: StageDetailDto) => void;
 }) {
   const [advancing, setAdvancing] = useState(false);
   const [selectedTarget, setSelectedTarget] = useState<string>("");
@@ -51,12 +52,12 @@ export function StageActions({
         ? forward[0].to
         : selectedTarget;
       if (!targetKey) { showToast("请选择目标阶段", true); setAdvancing(false); return; }
-      await api("POST /api/stages/:stageId/advance", {
+      const stage = await api("POST /api/stages/:stageId/advance", {
         params: { stageId: currentStage.id },
         body: { target_key: targetKey },
       });
       showToast("阶段已推进");
-      onStageChanged();
+      onStageChanged(stage);
     } catch (err: unknown) {
       showToast(`推进失败：${err instanceof Error ? err.message : String(err)}`, true);
     }

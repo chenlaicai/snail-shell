@@ -83,18 +83,19 @@ export interface MessageContent {
 
 /** 从消息事件中提取内容，分为流式过程和最终答复 */
 export function extractMessageContent(msg: { events?: Array<Record<string, unknown>>; content?: string; status?: string; context?: { context?: string | null } | null }): MessageContent {
-  const fallbackText = msg.content || msg.context?.context || "";
+  const isStreaming = msg.status === "streaming" || msg.status === "pending" || msg.status === "thinking";
+  const finalText = msg.context?.context || msg.content || "";
+  const finalBlocks: ContentBlock[] = finalText ? [{ kind: "text_event", text: finalText }] : [];
   if (!msg.events || msg.events.length === 0) {
     return {
       processBlocks: [],
-      finalBlocks: fallbackText ? [{ kind: "text_event", text: fallbackText }] : [],
-      isStreaming: msg.status === "streaming",
+      finalBlocks,
+      isStreaming,
       containsQuestion: false,
     };
   }
 
   const processBlocks: ContentBlock[] = [];
-  const finalBlocks: ContentBlock[] = [];
   let containsQuestion = false;
 
   for (const event of msg.events) {
@@ -102,7 +103,7 @@ export function extractMessageContent(msg: { events?: Array<Record<string, unkno
     if (modernPayload) {
       const type = payloadString(modernPayload, "type");
       if (type === "text") {
-        finalBlocks.push({ kind: "text_event", text: payloadString(modernPayload, "text") });
+        processBlocks.push({ kind: "text_event", text: payloadString(modernPayload, "text") });
         continue;
       }
       if (type === "tool_call") {
@@ -115,7 +116,7 @@ export function extractMessageContent(msg: { events?: Array<Record<string, unkno
       }
       if (type === "signal") {
         const signal = payloadString(modernPayload, "signal");
-        if (signal && signal !== "runtime_usage") {
+        if (signal && signal !== "runtime_usage" && signal !== "message_completed") {
           processBlocks.push({ kind: "event_activity", eventKind: signal, summary: payloadString(modernPayload, "reason") || signal, detail: JSON.stringify(modernPayload) });
         }
         continue;
@@ -129,23 +130,19 @@ export function extractMessageContent(msg: { events?: Array<Record<string, unkno
     const { category, kind, payload } = event;
 
     if (category === "content" && kind === "text") {
-      finalBlocks.push({ kind: "text_event", text: payloadString(payload, "text") });
+      processBlocks.push({ kind: "text_event", text: payloadString(payload, "text") });
     } else if (category === "content" && kind === "markdown") {
-      finalBlocks.push({ kind: "markdown", text: payloadString(payload, "text") });
+      processBlocks.push({ kind: "markdown", text: payloadString(payload, "text") });
     } else if (category === "content_block") {
       const block = mapContentBlock(payload);
-      if (block.kind === "text_event" || block.kind === "markdown" || block.kind === "question") {
-        if (block.kind === "question") containsQuestion = true;
-        finalBlocks.push(block);
-      } else {
-        processBlocks.push(block);
-      }
+      if (block.kind === "question") containsQuestion = true;
+      processBlocks.push(block);
     } else if (category === "signal") {
       const signalType = payloadString(payload, "type") || kind;
       if (signalType === "runtime_usage") {
         // skip — 已在消息头 badge 展示
       } else if (signalType === "permission_required") {
-        finalBlocks.push({ kind: "permission_request", tool: payloadString(payload, "tool"), input: payloadRecord(payload, "input") });
+        processBlocks.push({ kind: "permission_request", tool: payloadString(payload, "tool"), input: payloadRecord(payload, "input") });
       } else if (!["message_completed", "message_pending_approval", "step_start", "step_finish"].includes(signalType)) {
         processBlocks.push({ kind: "event_activity", eventKind: signalType, summary: payloadString(payload, "detail") || payloadString(payload, "reason") || signalType, detail: JSON.stringify(payload) });
       }
@@ -156,14 +153,9 @@ export function extractMessageContent(msg: { events?: Array<Record<string, unkno
     }
   }
 
-  const isStreaming = msg.status === "streaming" || msg.status === "pending" || msg.status === "thinking";
-  const visibleFinalBlocks = finalBlocks.filter((b) => b.text || b.summary || b.question);
-  if (visibleFinalBlocks.length === 0 && fallbackText) {
-    visibleFinalBlocks.push({ kind: "text_event", text: fallbackText });
-  }
   return {
-    processBlocks: processBlocks.filter((b) => b.text || b.summary || b.toolName || b.question),
-    finalBlocks: visibleFinalBlocks,
+    processBlocks: processBlocks.filter((block) => block.kind !== "text_event" || block.text),
+    finalBlocks: finalBlocks.filter((block) => block.kind !== "text_event" || block.text),
     isStreaming,
     containsQuestion,
   };
@@ -214,12 +206,12 @@ export function EventStreamView({ blocks, defaultOpen, onApprove, onDeny }: {
 }) {
   if (blocks.length === 0) return null;
   return (
-    <details className="border border-[var(--color-border-muted)] rounded-[var(--radius-sm)] bg-[var(--color-bg-elevated)] overflow-hidden" open={defaultOpen}>
-      <summary className="flex items-center justify-between gap-[var(--space-md)] p-[var(--space-md)] cursor-pointer list-none text-[var(--color-accent)] text-[var(--font-size-sm)] font-semibold">
+    <details className="overflow-hidden rounded-xl border border-white/8 bg-black/20" open={defaultOpen}>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-[12px] font-semibold text-shell-300">
         <span className="flex-1 tracking-[0.04em]">流式过程</span>
-        <span className="text-[var(--color-text-secondary)] text-[var(--font-size-xs)] font-medium">{blocks.length} 个事件</span>
+        <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-medium text-text-muted">{blocks.length} 个事件</span>
       </summary>
-      <div className="flex flex-col gap-[var(--space-sm)] p-[var(--space-md)] border-t border-[var(--color-border-muted)] bg-[var(--color-bg-deep)]">
+      <div className="flex flex-col gap-2 border-t border-white/6 bg-surface-0/35 p-3">
         {blocks.map((block, i) => (
           <ContentBlockView key={i} block={block} onApprove={onApprove} onDeny={onDeny} />
         ))}
@@ -243,12 +235,12 @@ export function ContentBlockView({ block, onApprove, onDeny }: {
 
     case "event_activity":
       return (
-        <details className="border border-[var(--color-border-muted)] rounded-[var(--radius-sm)] mt-[var(--space-sm)] overflow-hidden" open={block.defaultOpen}>
-          <summary className={`flex items-center gap-[var(--space-sm)] px-[var(--space-md)] py-[var(--space-sm)] cursor-pointer text-[var(--font-size-sm)] text-[var(--color-text-secondary)]${block.tone === "error" ? " text-[var(--color-danger-text)]" : ""}`}>
-            <span className="text-[var(--font-size-xs)] text-[var(--color-text-link)] uppercase tracking-[0.05em] font-semibold">{block.eventKind}</span>
-            <span className="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{block.summary}</span>
+        <details className="mt-2 overflow-hidden rounded-lg border border-white/8 bg-white/[0.03]">
+          <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-[12px] text-text-secondary">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-shell-300">{block.eventKind}</span>
+            <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{block.summary}</span>
           </summary>
-          {block.detail && <pre className="px-[var(--space-md)] py-[var(--space-sm)] font-[var(--font-mono)] text-[var(--font-size-xs)] text-[var(--color-text-muted)] bg-[var(--color-bg-deep)] border-t border-[var(--color-border-muted)] max-h-[300px] overflow-auto whitespace-pre-wrap">{block.detail}</pre>}
+          {block.detail && <pre className="max-h-[300px] overflow-auto whitespace-pre-wrap border-t border-white/6 bg-black/20 px-3 py-2 font-mono text-[11px] text-text-muted">{block.detail}</pre>}
         </details>
       );
 
@@ -265,17 +257,17 @@ export function ContentBlockView({ block, onApprove, onDeny }: {
 
     case "tool_call_card":
       return (
-        <div className={`border border-[var(--color-border-muted)] rounded-[var(--radius-sm)] bg-[var(--color-bg-elevated)] mt-[var(--space-sm)] overflow-hidden ${block.status || ""}`}>
-          <div className="flex items-center justify-between px-[var(--space-md)] py-[var(--space-sm)] bg-[rgba(108,141,250,0.06)] border-b border-[var(--color-border-muted)]">
-            <span className="font-semibold text-[var(--font-size-sm)] text-[var(--color-accent)]">{block.toolName}</span>
-            <span className={`text-[var(--font-size-xs)] px-[6px] py-px rounded-lg ${
+        <div className={`mt-2 overflow-hidden rounded-lg border border-white/8 bg-white/[0.03] ${block.status || ""}`}>
+          <div className="flex items-center justify-between border-b border-white/6 bg-shell-500/8 px-3 py-2">
+            <span className="text-[12px] font-semibold text-shell-300">{block.toolName}</span>
+            <span className={`rounded-full px-2 py-0.5 text-[10px] ${
               block.status === "completed"
-                ? "bg-[rgba(52,211,153,0.15)] text-[var(--color-success-text)]"
-                : "bg-[rgba(251,191,36,0.15)] text-[var(--color-warning-text)]"
+                ? "bg-status-green/15 text-status-green"
+                : "bg-status-amber/15 text-status-amber"
             }`}>{block.status || "running"}</span>
           </div>
-          {block.summary && <div className="px-[var(--space-md)] py-[var(--space-sm)] text-[var(--font-size-sm)] text-[var(--color-text-secondary)]">{block.summary}</div>}
-          {block.detail && <pre className="px-[var(--space-md)] py-[var(--space-sm)] font-[var(--font-mono)] text-[var(--font-size-xs)] text-[var(--color-text-muted)] bg-[var(--color-bg-deep)] max-h-[200px] overflow-auto whitespace-pre-wrap border-t border-[var(--color-border-muted)]">{block.detail}</pre>}
+          {block.summary && <div className="px-3 py-2 text-[12px] text-text-secondary">{block.summary}</div>}
+          {block.detail && <pre className="max-h-[200px] overflow-auto whitespace-pre-wrap border-t border-white/6 bg-black/20 px-3 py-2 font-mono text-[11px] text-text-muted">{block.detail}</pre>}
         </div>
       );
 

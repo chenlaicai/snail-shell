@@ -93,23 +93,23 @@ const MessageItem = memo(function MessageItem({
 
   return (
     <article id={`msg-${msg.id}`} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-      <div className={`max-w-[85%] ${isUser ? "flex flex-col items-end" : "flex items-start gap-2"}`}>
+      <div className={`max-w-[88%] ${isUser ? "flex flex-col items-end" : "flex items-start gap-3"}`}>
         {!isUser && (
-          <div className="mt-6 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-shell-500 to-shell-700 text-[11px] font-semibold text-white">
+          <div className="mt-6 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-shell-500/30 bg-gradient-to-br from-shell-500/90 to-shell-800/90 text-[12px] font-bold text-white shadow-[0_10px_24px_rgba(58,92,255,0.22)]">
             {roleName.slice(0, 1).toUpperCase()}
           </div>
         )}
-        <div className="min-w-0 flex-1">
-          <div className={`mb-1 flex items-center gap-2 px-1 text-[11px] ${isUser ? "justify-end" : "flex-wrap"}`}>
-            <span className="font-medium text-text-secondary">{roleName}</span>
+        <div className="group min-w-0 flex-1">
+          <div className={`mb-1.5 flex items-center gap-2 px-1 text-[11px] ${isUser ? "justify-end" : "flex-wrap"}`}>
+            <span className="font-semibold text-text-secondary">{roleName}</span>
             <span className="text-text-grey [font-variant-numeric:tabular-nums]">{formatMessageTime(msg.created_at)}</span>
-            {statusLabel && <span className="rounded-full bg-surface-2 px-1.5 py-px text-[10px] text-shell-400">{statusLabel}</span>}
+            {statusLabel && <span className="rounded-full border border-shell-500/20 bg-shell-500/10 px-1.5 py-px text-[10px] text-shell-300">{statusLabel}</span>}
           </div>
-          <div className={`rounded-2xl px-4 py-3 text-[13px] leading-relaxed shadow-sm [overflow-wrap:break-word] ${
+          <div className={`rounded-2xl px-4 py-3 text-[13px] leading-relaxed shadow-[0_14px_40px_rgba(0,0,0,0.18)] [overflow-wrap:break-word] ${
             isUser
-              ? "rounded-br-md border border-shell-600/20 bg-shell-600/20 text-text-primary"
-              : "rounded-bl-md border border-white/6 bg-surface-2 text-text-primary"
-          }${msgContent.isStreaming ? " border-shell-600/40" : ""}`}>
+              ? "rounded-br-md border border-shell-500/25 bg-shell-500/15 text-text-primary"
+              : "rounded-bl-md border border-white/8 bg-[linear-gradient(180deg,rgba(31,38,61,0.96),rgba(20,25,41,0.96))] text-text-primary"
+          }${msgContent.isStreaming ? " ring-1 ring-shell-500/30" : ""}`}>
             <div className="mb-2 flex items-center justify-end gap-2 opacity-0 transition-opacity group-hover:opacity-100">
               {runtimeUsage && (
                 <span
@@ -134,13 +134,19 @@ const MessageItem = memo(function MessageItem({
                 <div className="text-[12px] text-text-muted">暂无可展示内容</div>
               )}
               {msgContent.processBlocks.length > 0 && (
-                <EventStreamView blocks={msgContent.processBlocks} defaultOpen={!shouldFoldProcess || msgContent.containsQuestion}
-                  onApprove={() => onApprove(stageId, msg.id)} onDeny={() => onDeny(stageId, msg.id)} />
+                <div className={msgContent.finalBlocks.length > 0 ? "mb-3" : ""}>
+                  <EventStreamView blocks={msgContent.processBlocks} defaultOpen={!shouldFoldProcess || msgContent.containsQuestion}
+                    onApprove={() => onApprove(stageId, msg.id)} onDeny={() => onDeny(stageId, msg.id)} />
+                </div>
               )}
-              {msgContent.finalBlocks.map((block, i) => (
-                <ContentBlockView key={i} block={block}
-                  onApprove={() => onApprove(stageId, msg.id)} onDeny={() => onDeny(stageId, msg.id)} />
-              ))}
+              {msgContent.finalBlocks.length > 0 && (
+                <div className={msgContent.processBlocks.length > 0 ? "border-t border-white/6 pt-3" : ""}>
+                  {msgContent.finalBlocks.map((block, i) => (
+                    <ContentBlockView key={i} block={block}
+                      onApprove={() => onApprove(stageId, msg.id)} onDeny={() => onDeny(stageId, msg.id)} />
+                  ))}
+                </div>
+              )}
               {msgContent.isStreaming && hasContent && <ThinkingIndicator className="mt-2" />}
             </div>
           </div>
@@ -163,9 +169,9 @@ function ThinkingIndicator({ className = "" }: { className?: string }) {
   );
 }
 
-interface Props { stageId: string | null; }
+interface Props { stageId: string | null; stageStatus?: "in_progress" | "completed" | null; }
 
-export function ConversationView({ stageId }: Props) {
+export function ConversationView({ stageId, stageStatus }: Props) {
   const queryClient = useQueryClient();
   const wsStatus = useConversationStore((s) => s.wsStatus);
   const [input, setInput] = useState("");
@@ -201,8 +207,10 @@ export function ConversationView({ stageId }: Props) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const isStageWritable = stageStatus !== "completed";
+
   async function handleSend() {
-    if (!input.trim() || !stageId || sending) return;
+    if (!isStageWritable || !input.trim() || !stageId || sending) return;
     const content = input.trim();
     const optimisticId = Date.now();
     const optimisticMsg = createPlaceholderMessage(stageId, { id: optimisticId, role: "user", content });
@@ -247,7 +255,7 @@ export function ConversationView({ stageId }: Props) {
 
   const streamingMessage = useMemo(() => messages.find((m) => m.status === "streaming"), [messages]);
   const isAiRunning = !!streamingMessage;
-  const canSend = input.trim() && !sending && !isAiRunning;
+  const canSend = isStageWritable && input.trim() && !sending && !isAiRunning;
 
   if (!stageId) {
     return <div id="messages" className="flex h-full items-center justify-center text-[13px] text-[var(--color-text-muted)]">选择一个 Stage</div>;
@@ -281,21 +289,19 @@ export function ConversationView({ stageId }: Props) {
       </div>
 
       <div className="shrink-0 px-6 pb-8 pt-4">
-        {wsStatus !== "connected" && (
-          <div className="mx-auto mb-2 flex max-w-[920px] items-center gap-2 rounded-md bg-status-amber/10 px-3 py-2 text-[11px] text-status-amber">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-status-amber" />
-            {wsStatus === "reconnecting" ? "Reconnecting..." : "Disconnected"}
+        {!isStageWritable ? (
+          <div className="mx-auto max-w-[920px] rounded-2xl border border-white/6 bg-surface-2 px-4 py-3 text-[12px] text-text-muted">
+            当前 Stage 已结束，历史对话保留为只读。请切换到当前 Stage 继续对话。
           </div>
-        )}
-        <div className="relative mx-auto flex max-w-[920px] flex-col overflow-hidden rounded-2xl border border-white/6 bg-surface-2 transition-all focus-within:border-shell-600/40 focus-within:ring-1 focus-within:ring-shell-600/15">
-          <div className="flex items-center justify-between border-b border-white/4 px-4 py-2.5">
-            <div className="flex min-w-0 items-center gap-2 text-[11px] text-text-muted">
-              <span className={`h-1.5 w-1.5 rounded-full ${wsStatus === "connected" ? "bg-status-green" : "bg-status-amber"}`} />
-              <span className="font-medium text-text-secondary">Ask Agent</span>
-              {stage?.default_role_instance && <span className="truncate">默认发送给 {stage.default_role_instance}</span>}
+        ) : (
+          <div className="relative mx-auto flex max-w-[920px] flex-col overflow-hidden rounded-2xl border border-white/6 bg-surface-2 transition-all focus-within:border-shell-600/40 focus-within:ring-1 focus-within:ring-shell-600/15">
+            <div className="flex items-center justify-between border-b border-white/4 px-4 py-2.5">
+              <div className="flex min-w-0 items-center gap-2 text-[11px] text-text-muted">
+                <span className="font-medium text-text-secondary">Ask Agent</span>
+                {stage?.default_role_instance && <span className="truncate">默认发送给 {stage.default_role_instance}</span>}
+              </div>
+              <span className="text-[10px] text-text-grey">Shift+Enter 发送</span>
             </div>
-            <span className="text-[10px] text-text-grey">Shift+Enter 发送</span>
-          </div>
           {replyTo && (
             <div className="mx-3 mt-3 flex items-center justify-between rounded-lg border border-white/6 bg-surface-3 px-3 py-1.5 text-[12px] text-text-secondary">
               <div id="reply-banner-text" className="min-w-0 truncate">回复：{replyTo.preview}</div>
@@ -333,6 +339,7 @@ export function ConversationView({ stageId }: Props) {
             </div>
           </div>
         </div>
+        )}
       </div>
     </div>
   );

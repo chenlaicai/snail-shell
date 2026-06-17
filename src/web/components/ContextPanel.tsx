@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useConversationStore } from "../stores/conversationStore";
 import { api } from "../services/api-client";
 import { metaQueries } from "../queries/meta.queries";
 import { queryKeys } from "../queries/keys";
@@ -9,25 +8,25 @@ import type { WorkspaceSummaryDto, IssueDto, Participant, StageDetailDto, RoleSn
 export function ContextPanel({
   workspace,
   issue,
+  stage,
 }: {
   workspace: WorkspaceSummaryDto | null;
   issue: IssueDto | null;
+  stage: { id: string } | null;
 }) {
-  const { currentStage, wsStatus } = useConversationStore();
-
   const { data: stageDetail } = useQuery({
-    queryKey: queryKeys.stages.detail(currentStage?.id ?? ""),
-    queryFn: (): Promise<StageDetailDto> => api("GET /api/stages/:stageId", { params: { stageId: currentStage!.id } }),
-    enabled: !!currentStage?.id,
+    queryKey: queryKeys.stages.detail(stage?.id ?? ""),
+    queryFn: (): Promise<StageDetailDto> => api("GET /api/stages/:stageId", { params: { stageId: stage!.id } }),
+    enabled: !!stage?.id,
   });
 
   const { data: templates = [] } = useQuery(metaQueries.snailDen());
 
+  const currentStage = stageDetail ?? stage;
   const participants = useMemo((): Participant[] => {
-    const stage = stageDetail ?? currentStage;
-    if (!stage) return [];
+    if (!currentStage) return [];
 
-    const assignments = (stage.assignments ?? []) as RoleSnailAssignment[];
+    const assignments = (currentStage.assignments ?? []) as RoleSnailAssignment[];
     if (assignments.length > 0) {
       return assignments.map((assignment) => ({
         name: assignment.role_instance,
@@ -36,17 +35,17 @@ export function ContextPanel({
           description: assignment.description,
           snail_template_id: assignment.snail_key,
         },
-        isPrimary: assignment.role_instance === stage.default_role_instance,
+        isPrimary: assignment.role_instance === currentStage.default_role_instance,
       }));
     }
 
-    const roleNames = stage.active_roles || stage.role_instances || [];
+    const roleNames = currentStage.active_roles || currentStage.role_instances || [];
     return roleNames.map((name: string) => ({
       name,
       roleDef: null,
-      isPrimary: name === stage.default_role_instance,
+      isPrimary: name === currentStage.default_role_instance,
     }));
-  }, [currentStage, stageDetail]);
+  }, [currentStage]);
 
   const toStringRecord = (r: Record<string, unknown> | undefined): Record<string, string> => {
     if (!r) return {};
@@ -57,9 +56,8 @@ export function ContextPanel({
   const outputArtifacts = useMemo(() => toStringRecord(stageDetail?.output_artifacts), [stageDetail?.output_artifacts]);
   const inputArtifacts = useMemo(() => toStringRecord(stageDetail?.input_artifacts), [stageDetail?.input_artifacts]);
 
-  const stage = stageDetail ?? currentStage;
-  const stageTitle = stage?.title || stage?.key || "无";
-  const stageDescription = stage?.description || "暂无阶段说明";
+  const stageTitle = currentStage?.title || currentStage?.key || "无";
+  const stageDescription = currentStage?.description || "暂无阶段说明";
 
   return (
     <aside className="flex flex-col gap-4 px-4 py-4 text-[12px]">
@@ -68,33 +66,22 @@ export function ContextPanel({
           <DetailRow label="Workspace" value={workspace?.summary || workspace?.path || "未选择"} />
           <DetailRow label="Issue" value={issue?.title || "未选择"} />
           <DetailRow label="Stage" value={stageTitle} />
-          <div className="flex items-center justify-between gap-3 py-1.5">
-            <span className="text-text-muted">WebSocket</span>
-            <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium ${
-              wsStatus === "connected"
-                ? "bg-status-green/10 text-status-green"
-                : "bg-status-amber/10 text-status-amber"
-            }`}>
-              <span className="h-1.5 w-1.5 rounded-full bg-current" />
-              {wsStatus === "connected" ? "Connected" : wsStatus === "reconnecting" ? "Reconnecting" : "Disconnected"}
-            </span>
-          </div>
         </div>
       </PanelSection>
 
       <Divider />
 
-      {stage && (
+      {currentStage && (
         <PanelSection title="Current Stage">
           <div className="rounded-lg border border-white/6 bg-surface-2 p-3">
             <div className="mb-2 flex items-center justify-between gap-2">
               <div className="min-w-0 truncate text-[13px] font-medium text-text-primary">{stageTitle}</div>
               <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                stage.status === "in_progress"
+                currentStage.status === "in_progress"
                   ? "bg-shell-600/15 text-shell-400"
                   : "bg-surface-3 text-text-muted"
               }`}>
-                {stage.status}
+                {currentStage.status}
               </span>
             </div>
             <p className="text-[12px] leading-relaxed text-text-muted">{stageDescription}</p>
@@ -102,7 +89,7 @@ export function ContextPanel({
         </PanelSection>
       )}
 
-      {stage && <Divider />}
+      {currentStage && <Divider />}
 
       {participants.length > 0 && (
         <PanelSection title="Agents">
@@ -137,7 +124,7 @@ export function ContextPanel({
 
       {participants.length > 0 && <Divider />}
 
-      {stage && (
+      {currentStage && (
         <PanelSection title="Artifacts">
           <ArtifactList title="Output" artifacts={outputArtifacts} color="blue" />
           {Object.keys(inputArtifacts).length > 0 && <ArtifactList title="Input" artifacts={inputArtifacts} color="green" />}
