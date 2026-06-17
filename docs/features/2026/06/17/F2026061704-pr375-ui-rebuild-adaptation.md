@@ -1,5 +1,5 @@
 ---
-id: F2026061701
+id: F2026061704
 title: pr375-ui-rebuild-adaptation
 from_ids:
   - F2026060901
@@ -16,7 +16,7 @@ modules:
 doc_kind: spec
 ---
 
-# F2026061701 [web][Feature] PR #375 UI 设计重建适配
+# F2026061704 [web][Feature] PR #375 UI 设计重建适配
 
 ## 背景
 

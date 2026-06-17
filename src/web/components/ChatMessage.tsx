@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { formatDateTime } from "@/lib/utils";
 import { RichTextRenderer } from "@/components/RichTextRenderer";
-import type { MessageDto, MessageEvent, MessageContext } from "@/types";
+import type { MessageDto, MessageEvent } from "@/types";
 
 function extractAllText(events: MessageEvent[]): string {
   return events
@@ -47,6 +47,9 @@ export function ChatMessage({ message }: { message: MessageDto }) {
   }
 
   const contextUsage = extractContextUsage(message.events);
+  const isStreaming = message.status === "streaming";
+  const hasContext = !!message.context?.context;
+  const hasEvents = message.events.length > 0;
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
@@ -87,20 +90,28 @@ export function ChatMessage({ message }: { message: MessageDto }) {
             )}
           </div>
 
-          {message.role === "assistant" && <EventStream events={message.events} />}
+          {/* 流式过程：完成后折叠展示所有 events */}
+          {!isStreaming && hasEvents && hasContext && (
+            <EventStream events={message.events} />
+          )}
 
+          {/* 最终答复：优先 context，否则从 events 提取 text */}
           <div className={`rounded-2xl px-4 py-3 text-[13px] leading-relaxed ${
             isUser
               ? "rounded-br-md bg-shell-600/20 border border-shell-600/20"
-              : message.status === "streaming"
+              : isStreaming
                 ? "rounded-bl-md bg-surface-2 border border-shell-500/50 shadow-[0_0_12px_rgba(214,138,62,0.15)]"
                 : "rounded-bl-md bg-surface-2 border border-white/6"
           }`}>
-            <MessageContent events={message.events} context={message.context} content={message.content ?? null} />
-            {message.status === "streaming" && <span className="inline-block w-[2px] h-[14px] bg-shell-400 ml-0.5 align-text-bottom animate-blink" />}
+            {hasContext ? (
+              <RichTextRenderer content={message.context!.context} />
+            ) : (
+              <EventTextContent events={message.events} />
+            )}
+            {isStreaming && <span className="inline-block w-[2px] h-[14px] bg-shell-400 ml-0.5 align-text-bottom animate-blink" />}
           </div>
 
-          {message.status === "streaming" && (
+          {isStreaming && (
             <div className="flex items-center gap-1.5 mt-1.5 px-1">
               <div className="flex gap-0.5">
                 <div className="w-1.5 h-1.5 rounded-full bg-shell-400 animate-bounce" />
@@ -116,16 +127,25 @@ export function ChatMessage({ message }: { message: MessageDto }) {
   );
 }
 
+/** 从 events 中提取 text 事件拼接为内容（流式过程中或无 context 时使用） */
+function EventTextContent({ events }: { events: MessageEvent[] }) {
+  const textParts: string[] = [];
+  for (const event of events) {
+    if (event.payload?.type === "text" && event.payload && "text" in event.payload) {
+      textParts.push((event.payload as unknown as { text: string }).text);
+    }
+  }
+  const text = textParts.join("");
+  if (!text) return <span className="text-text-muted italic">No content</span>;
+  return <RichTextRenderer content={text} />;
+}
+
+/** 流式过程折叠区：展示所有 events（tool_call、text、command 等） */
 function EventStream({ events }: { events: MessageEvent[] }) {
   const [expanded, setExpanded] = useState(false);
-  const streamEvents = events.filter((e) =>
-    e.payload?.type === "tool_call" || e.payload?.type === "tool_result" || e.payload?.type === "command" || e.payload?.type === "command_result"
-  );
 
-  if (streamEvents.length === 0) return null;
-
-  const toolCalls = streamEvents.filter((e) => e.payload?.type === "tool_call").length;
-  const commands = streamEvents.filter((e) => e.payload?.type === "command").length;
+  const toolCalls = events.filter((e) => e.payload?.type === "tool_call").length;
+  const commands = events.filter((e) => e.payload?.type === "command").length;
 
   return (
     <div className="mb-2">
@@ -137,15 +157,15 @@ function EventStream({ events }: { events: MessageEvent[] }) {
           <path d="m9 18 6-6-6-6"/>
         </svg>
         <span>
-          {toolCalls > 0 && `${toolCalls} tool call${toolCalls > 1 ? "s" : ""}`}
-          {toolCalls > 0 && commands > 0 && " · "}
-          {commands > 0 && `${commands} command${commands > 1 ? "s" : ""}`}
+          {events.length} event{events.length > 1 ? "s" : ""}
+          {toolCalls > 0 && ` · ${toolCalls} tool call${toolCalls > 1 ? "s" : ""}`}
+          {commands > 0 && ` · ${commands} command${commands > 1 ? "s" : ""}`}
         </span>
       </button>
 
       {expanded && (
         <div className="space-y-1 pl-3 border-l-2 border-white/6 ml-3 mt-1">
-          {streamEvents.map((event) => (
+          {events.map((event) => (
             <EventItem key={event.id} event={event} />
           ))}
         </div>
@@ -156,6 +176,16 @@ function EventStream({ events }: { events: MessageEvent[] }) {
 
 function EventItem({ event }: { event: MessageEvent }) {
   const type = event.payload?.type;
+
+  if (type === "text") {
+    const p = event.payload as unknown as { text: string };
+    return (
+      <div className="px-2 py-1 text-[11px] text-text-muted truncate max-h-[40px] overflow-hidden">
+        {p.text?.slice(0, 120)}{(p.text?.length ?? 0) > 120 ? "..." : ""}
+      </div>
+    );
+  }
+
   if (type === "tool_call") {
     const p = event.payload as unknown as { tool_name: string; title?: string | null };
     return (
@@ -216,19 +246,4 @@ function EventItem({ event }: { event: MessageEvent }) {
   }
 
   return null;
-}
-
-function MessageContent({ events, context, content }: { events: MessageEvent[]; context: MessageContext | null; content: string | null }) {
-  const textParts: string[] = [];
-  for (const event of events) {
-    if (event.payload?.type === "text" && event.payload && "text" in event.payload) {
-      textParts.push((event.payload as unknown as { text: string }).text);
-    }
-  }
-  const text = textParts.join("");
-
-  if (context?.context) return <RichTextRenderer content={context.context} />;
-  if (content) return <RichTextRenderer content={content} />;
-  if (!text) return <span className="text-text-muted italic">No content</span>;
-  return <RichTextRenderer content={text} />;
 }
