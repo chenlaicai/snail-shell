@@ -1,0 +1,18 @@
+{
+  "_help": "Lite AI 配置 — 用于 mention 提取、摘要生成等轻量 AI 任务。复制本文件为 lite-ai.json 后填写。不要提交真实 API Key。",
+  "_provider_help": "AI 提供商。当前仅支持：openai（兼容 OpenAI API 的任何服务）。",
+  "provider": "openai",
+  "openai": {
+    "_api_key_help": "OpenAI API Key。不要提交真实密钥。",
+    "api_key": "sk-your-api-key-here",
+
+    "_model_help": "使用的模型 ID。",
+    "model": "gpt-4.1-mini",
+
+    "_base_url_help": "API 基础 URL。支持任何 OpenAI 兼容服务（如 Azure OpenAI、本地代理等）。",
+    "base_url": "https://api.openai.com/v1",
+
+    "_timeout_ms_help": "单次请求超时（毫秒）。",
+    "timeout_ms": 60000
+  }
+}
