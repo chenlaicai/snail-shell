@@ -2,7 +2,7 @@
  * Playwright 浏览器生命周期管理。
  *
  * 每次请求启动/销毁（方案 B），使用 persistent context 保持 session。
- * 默认使用系统临时目录下的稳定浏览器 profile，跨进程保留 session。
+ * 默认使用系统临时目录下的固定 profile 目录，跨进程保留 session。
  */
 
 import { chromium, type BrowserContext, type Page } from "playwright-core";
@@ -17,7 +17,7 @@ const DEFAULT_USER_DATA_DIR = path.join(os.tmpdir(), `${TEMP_PROFILE_PREFIX}brow
 
 /** 浏览器配置 */
 export interface BrowserConfig {
-  /** 用户数据目录（默认：系统临时目录下稳定目录，跨进程保留 session） */
+  /** 用户数据目录（默认：系统临时目录下的固定 profile 目录，跨进程保留 session） */
   userDataDir?: string;
   /** Chrome 可执行路径（默认：自动查找或 CHROME_PATH 环境变量） */
   chromePath?: string;
@@ -25,7 +25,7 @@ export interface BrowserConfig {
 
 /**
  * 获取或创建浏览器用户数据目录。
- * 优先使用配置的路径，否则创建稳定临时目录。
+ * 优先使用配置的路径，否则创建系统临时目录下的固定 profile 目录。
  */
 function getOrCreateUserDataDir(config?: BrowserConfig): string {
   if (config?.userDataDir) {
