@@ -1,5 +1,5 @@
 ---
-id: F2026061702
+id: F2026061703
 title: test-paradigm-sop-alignment
 from_ids:
   - F2026060701
@@ -14,7 +14,7 @@ modules:
 doc_kind: spec
 ---
 
-# F2026061702 [testing] 测试范式 SOP 对齐：默认不写测试 + 行为契约守护
+# F2026061703 [testing] 测试范式 SOP 对齐：默认不写测试 + 行为契约守护
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段完成并锁定 -->
 
