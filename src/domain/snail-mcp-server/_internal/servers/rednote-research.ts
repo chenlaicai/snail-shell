@@ -26,6 +26,20 @@ class RednoteError extends Error {
   }
 }
 
+async function runRednoteTool(fn: () => Promise<unknown>): Promise<unknown> {
+  try {
+    return await fn();
+  } catch (err) {
+    if (err instanceof RednoteError) {
+      return { error: err.code, message: err.message };
+    }
+    return {
+      error: "internal_error",
+      message: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
 interface ResearchParams {
   topic: string;
   depth: "quick" | "deep";
@@ -175,19 +189,19 @@ export function createRednoteResearchServer(config?: RednoteResearchConfig): MCP
           },
           required: ["topic"],
         },
-        handler: async (params) => handleResearchNotes(params, config),
+        handler: async (params) => runRednoteTool(() => handleResearchNotes(params, config)),
       },
       {
         name: "login",
         description: "打开小红书登录页面，显示二维码等待扫码。超时 120 秒。",
         inputSchema: { type: "object", properties: {} },
-        handler: async () => handleLogin(config),
+        handler: async () => runRednoteTool(() => handleLogin(config)),
       },
       {
         name: "check_login",
         description: "检查当前小红书登录状态。",
         inputSchema: { type: "object", properties: {} },
-        handler: async () => handleCheckLogin(config),
+        handler: async () => runRednoteTool(() => handleCheckLogin(config)),
       },
     ],
   };

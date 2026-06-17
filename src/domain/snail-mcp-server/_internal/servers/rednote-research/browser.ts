@@ -2,7 +2,7 @@
  * Playwright 浏览器生命周期管理。
  *
  * 每次请求启动/销毁（方案 B），使用 persistent context 保持 session。
- * 默认使用系统临时目录下的浏览器 profile，进程退出时自动清理。
+ * 默认使用系统临时目录下的稳定浏览器 profile，跨进程保留 session。
  */
 
 import { chromium, type BrowserContext, type Page } from "playwright-core";
@@ -11,11 +11,13 @@ import os from "os";
 import fs from "fs";
 
 const DEFAULT_TIMEOUT = 30_000;
-const CLEANUP_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 小时
+const CLEANUP_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 天
+const TEMP_PROFILE_PREFIX = "snail-rednote-";
+const DEFAULT_USER_DATA_DIR = path.join(os.tmpdir(), `${TEMP_PROFILE_PREFIX}browser-profile`);
 
 /** 浏览器配置 */
 export interface BrowserConfig {
-  /** 用户数据目录（默认：系统临时目录下自动生成） */
+  /** 用户数据目录（默认：系统临时目录下稳定目录，跨进程保留 session） */
   userDataDir?: string;
   /** Chrome 可执行路径（默认：自动查找或 CHROME_PATH 环境变量） */
   chromePath?: string;
@@ -23,7 +25,7 @@ export interface BrowserConfig {
 
 /**
  * 获取或创建浏览器用户数据目录。
- * 优先使用配置的路径，否则创建临时目录。
+ * 优先使用配置的路径，否则创建稳定临时目录。
  */
 function getOrCreateUserDataDir(config?: BrowserConfig): string {
   if (config?.userDataDir) {
@@ -31,27 +33,25 @@ function getOrCreateUserDataDir(config?: BrowserConfig): string {
     return config.userDataDir;
   }
 
-  // 使用系统临时目录，带进程标识避免冲突
-  const tmpDir = path.join(os.tmpdir(), `snail-rednote-${process.pid}`);
-  fs.mkdirSync(tmpDir, { recursive: true });
-  return tmpDir;
+  fs.mkdirSync(DEFAULT_USER_DATA_DIR, { recursive: true });
+  return DEFAULT_USER_DATA_DIR;
 }
 
 /**
  * 清理过期的浏览器临时目录。
- * 扫描 /tmp/snail-rednote-* 目录，删除超过 24 小时的。
+ * 扫描 /tmp/snail-rednote-* 目录，删除超过 30 天且不是当前默认 profile 的目录。
  */
 export function cleanupStaleBrowserProfiles(): void {
   const tmpBase = os.tmpdir();
-  const prefix = "snail-rednote-";
   try {
     const entries = fs.readdirSync(tmpBase);
     for (const entry of entries) {
-      if (!entry.startsWith(prefix)) continue;
+      if (!entry.startsWith(TEMP_PROFILE_PREFIX)) continue;
       const fullPath = path.join(tmpBase, entry);
       try {
         const stat = fs.statSync(fullPath);
         if (!stat.isDirectory()) continue;
+        if (fullPath === DEFAULT_USER_DATA_DIR) continue;
         if (Date.now() - stat.mtimeMs > CLEANUP_MAX_AGE_MS) {
           fs.rmSync(fullPath, { recursive: true, force: true });
         }

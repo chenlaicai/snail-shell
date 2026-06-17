@@ -79,7 +79,7 @@ doc_kind: spec
 
 **浏览器生命周期**：每次请求启动/销毁（方案 B）。理由：简单，无状态泄漏，避免长驻进程的内存占用。每次搜索的延迟主要来自页面导航和 React hydration（3-6 秒），浏览器启动开销（1-2 秒）占比不大。
 
-**Session 持久化**：Playwright persistent context，userDataDir 为 `~/.rednote-research/browser-profile/`。首次需要扫码登录，之后 session 自动保持。
+**Session 持久化**：Playwright persistent context，默认 userDataDir 为系统临时目录下的稳定路径 `snail-rednote-browser-profile`。首次需要扫码登录，之后 session 可跨 Snail Shell 进程重启保持。调用方如需使用其他目录，可通过 `RednoteResearchConfig.browser.userDataDir` 显式配置。
 
 ### 搜索引擎
 
@@ -111,8 +111,8 @@ Chromium 同一时间只允许一个进程访问同一 userDataDir。通过互�
 ### Auth 检测
 
 两层检测：
-1. 搜索前：检查页面 URL 是否包含 `login` 或 `passport` → 返回 `auth_required`
-2. 搜索后：结果为空时返回 `no_results`（区分于认证错误）
+1. 搜索前：检查页面 URL 是否包含 `login` 或 `passport` → 返回 `{ error: "auth_required", message }`
+2. 搜索后：结果为空时返回 `{ error: "no_results", message }`（区分于认证错误）
 
 ### 设计决策
 
@@ -183,4 +183,4 @@ Chromium 同一时间只允许一个进程访问同一 userDataDir。通过互�
 | # | 变更类型 | 变更内容 | 原因 | 日期 |
 |---|----------|----------|------|------|
 | 1 | 架构迁移 | 从 v1 `src/mcp/` 迁移到 v2 `src/domain/snail-mcp-server/`，文档编号更新为 F2026061701 | 适配 v2 domain-driven 架构，避免编号冲突 | 2026-06-17 |
-| 2 | Review 修复 | 添加 RednoteResearchConfig 配置接口；修复 mutex 并发 bug；统一错误处理为抛异常模式；使用临时目录 + 自动清理 | 对抗性检视反馈 | 2026-06-17 |
+| 2 | Review 修复 | 添加 RednoteResearchConfig 配置接口；修复 mutex 并发 bug；默认使用稳定临时 profile 并清理 stale profile；业务错误返回 `{ error, message }` 结构 | 对抗性检视反馈 | 2026-06-17 |
