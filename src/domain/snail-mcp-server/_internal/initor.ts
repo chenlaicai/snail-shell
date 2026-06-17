@@ -2,6 +2,7 @@ import { SnailMCPServerAdapter } from "@domain/snail-mcp-server/_internal/adapte
 import { createFinalResponseServer } from "@domain/snail-mcp-server/_internal/servers/snail-final-response";
 import { createEvolutionServer } from "@domain/snail-mcp-server/_internal/servers/evolution";
 import { createKnowledgeServer } from "@domain/snail-mcp-server/_internal/servers/knowledge";
+import { createRednoteResearchServer } from "@domain/snail-mcp-server/_internal/servers/rednote-research";
 import type { KnowledgePort } from "@domain/knowledge/port";
 import type { MessagePort } from "@domain/message/port";
 
@@ -26,6 +27,7 @@ export function init(deps: SnailMCPServerDeps) {
   adapter.registerServer(createFinalResponseServer(deps.message));
   adapter.registerServer(createEvolutionServer(deps.updateEvolution));
   adapter.registerServer(createKnowledgeServer(deps.knowledge));
+  adapter.registerServer(createRednoteResearchServer());
 
   return { adapter };
 }
