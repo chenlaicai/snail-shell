@@ -17,7 +17,7 @@ function extractContextUsage(events: MessageEvent[]): { label: string; percent: 
       if (p.detail) {
         const d = p.detail;
         const contextWindow = Number(d.context_window ?? d.contextWindow ?? 0);
-        const contextUsage = Number(d.context_usage ?? d.contextWindow ?? 0);
+        const contextUsage = Number(d.context_usage ?? 0);
         if (contextWindow && contextUsage) {
           const percent = Math.round((contextUsage / contextWindow) * 100);
           return { label: `${Math.round(contextUsage / 1000)}k/${Math.round(contextWindow / 1000)}k`, percent };
@@ -95,7 +95,7 @@ export function ChatMessage({ message }: { message: MessageDto }) {
             <EventStream events={message.events} />
           )}
 
-          {/* 最终答复：优先 context，否则从 events 提取 text */}
+          {/* 最终答复：优先 context，其次 content，否则从 events 提取 text */}
           <div className={`rounded-2xl px-4 py-3 text-[13px] leading-relaxed ${
             isUser
               ? "rounded-br-md bg-shell-600/20 border border-shell-600/20"
@@ -105,6 +105,8 @@ export function ChatMessage({ message }: { message: MessageDto }) {
           }`}>
             {hasContext ? (
               <RichTextRenderer content={message.context!.context} />
+            ) : message.content ? (
+              <RichTextRenderer content={message.content} />
             ) : (
               <EventTextContent events={message.events} />
             )}

@@ -12,6 +12,7 @@ export function StageSuggestionCard({
   onAccepted: (stage: StageDetailDto) => void;
 }) {
   const [dismissedKey, setDismissedKey] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const { data: suggestions = [], refetch } = useQuery({
     queryKey: ["stages", stageId, "transition-suggestions"],
     queryFn: () => api("GET /api/stages/:stageId/transition-suggestions", { params: { stageId: stageId! } }),
@@ -22,6 +23,8 @@ export function StageSuggestionCard({
   if (!stageId || !suggestion) return null;
 
   async function handleConfirm() {
+    if (submitting) return;
+    setSubmitting(true);
     try {
       const stage = await api("POST /api/stages/:stageId/advance", {
         params: { stageId },
@@ -32,6 +35,8 @@ export function StageSuggestionCard({
       refetch();
     } catch (err: unknown) {
       showToast(`推进失败：${err instanceof Error ? err.message : String(err)}`, true);
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -46,7 +51,7 @@ export function StageSuggestionCard({
           </div>
         </div>
         <div className="flex shrink-0 gap-2">
-          <button onClick={handleConfirm} className="rounded-md bg-shell-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-shell-500">Confirm</button>
+          <button onClick={handleConfirm} disabled={submitting} className="rounded-md bg-shell-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-shell-500 disabled:opacity-50">{submitting ? "Advancing..." : "Confirm"}</button>
           <button
             onClick={() => setDismissedKey(`${suggestion.stage_id}:${suggestion.target_key}:${suggestion.created_at}`)}
             className="rounded-md border border-white/6 px-3 py-1.5 text-xs text-text-secondary transition-colors hover:bg-white/5 hover:text-text-primary"

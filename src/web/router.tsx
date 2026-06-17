@@ -1,4 +1,4 @@
-import { createBrowserRouter, type LoaderFunctionArgs } from "react-router-dom";
+import { createBrowserRouter, redirect, type LoaderFunctionArgs } from "react-router-dom";
 import { queryClient } from "./queries/client";
 import { workspaceQueries, issueQueries } from "./queries/workspace.queries";
 import { sopQueries } from "./queries/sop.queries";
@@ -51,6 +51,10 @@ export const router = createBrowserRouter([
       {
         path: "workspaces/new",
         element: <WorkspaceConfig />,
+      },
+      {
+        path: "workspaces/:workspaceId",
+        loader: (args) => redirect(`/workspaces/${args.params.workspaceId}/board`),
       },
       {
         path: "workspaces/:workspaceId/board",

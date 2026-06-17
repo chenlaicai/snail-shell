@@ -29,10 +29,10 @@ export function StageActionBar({
 
   async function handleAdvance() {
     if (!currentStage || advancing || transitions.length === 0 || needsSelection) return;
+    const targetKey = transitions.length === 1 ? transitions[0].to : selectedTarget;
+    if (!targetKey) { showToast("请选择目标阶段", true); return; }
     setAdvancing(true);
     try {
-      const targetKey = transitions.length === 1 ? transitions[0].to : selectedTarget;
-      if (!targetKey) { showToast("请选择目标阶段", true); return; }
       const stage = await api("POST /api/stages/:stageId/advance", {
         params: { stageId: currentStage.id },
         body: { target_key: targetKey },
@@ -42,8 +42,9 @@ export function StageActionBar({
       setSelectedTarget("");
     } catch (err: unknown) {
       showToast(`推进失败：${err instanceof Error ? err.message : String(err)}`, true);
+    } finally {
+      setAdvancing(false);
     }
-    setAdvancing(false);
   }
 
   return (

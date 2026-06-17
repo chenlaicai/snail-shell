@@ -1,5 +1,5 @@
 import { useParams, useSearchParams } from "react-router-dom";
-import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { api } from "@/services/api-client";
 import { queryKeys } from "@/queries/keys";
@@ -10,9 +10,9 @@ import { ChatInput } from "@/components/ChatInput";
 import { PropertiesPanel } from "@/components/PropertiesPanel";
 import { StageActionBar } from "@/components/StageActionBar";
 import { StageSuggestionCard } from "@/components/StageSuggestionCard";
-import { showToast } from "@/components/Toast";
-import { createPlaceholderMessage, useIssueRealtime } from "@/hooks/useWebSocket";
-import type { IssueDetailDto, StageDetailDto, MessageDto } from "@/types";
+import { useIssueRealtime } from "@/hooks/useWebSocket";
+import { useSendMessage } from "@/mutations/conversation.mutations";
+import type { IssueDetailDto, StageDetailDto } from "@/types";
 
 export function IssueConversation() {
   const { workspaceId, issueId } = useParams();
@@ -64,26 +64,11 @@ export function IssueConversation() {
     }
   }, [sorted]);
 
-  const sendMutation = useMutation({
-    mutationFn: (text: string) =>
-      api("POST /api/stages/:stageId/messages", { params: { stageId: stageId! }, body: { text } }),
-    onMutate: (text) => {
-      if (!stageId) return;
-      const optimistic = createPlaceholderMessage(stageId, { id: Date.now(), role: "user", content: text });
-      queryClient.setQueryData(queryKeys.stages.messages(stageId), (old: MessageDto[] | undefined) => [...(old ?? []), optimistic]);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.stages.messages(stageId!) });
-    },
-    onError: (err: unknown) => {
-      showToast(`发送失败：${err instanceof Error ? err.message : String(err)}`, true);
-      if (stageId) queryClient.invalidateQueries({ queryKey: queryKeys.stages.messages(stageId) });
-    },
-  });
+  const sendMutation = useSendMessage(stageId ?? "");
 
   const handleSend = useCallback((content: string) => {
     if (!stageId) return;
-    sendMutation.mutate(content);
+    sendMutation.mutate({ text: content });
   }, [stageId, sendMutation]);
 
   const handleStageChanged = useCallback((nextStage: StageDetailDto) => {
@@ -149,7 +134,7 @@ export function IssueConversation() {
                     return (
                       <button
                         key={item.id}
-                        onClick={() => setSearchParams({ stage: item.id })}
+                        onClick={() => setSearchParams({ stage: item.id }, { replace: true })}
                         className={`rounded-md px-2.5 py-1.5 text-xs transition-colors ${active ? "bg-white/8 text-text-primary" : "text-text-secondary hover:bg-white/5 hover:text-text-primary"}`}
                       >
                         {item.stage_definition?.title ?? item.title ?? item.type}

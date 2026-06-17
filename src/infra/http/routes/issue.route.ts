@@ -117,7 +117,7 @@ async function sendMessage(c: Context, deps: IssueRoutesDeps) {
 }
 
 function toIssueDetail(deps: Pick<IssueRoutesDeps, "stagePort">, issue: Issue) {
-  const stages = deps.stagePort.listStages(issue.id).map(stage => toStageDto(deps, stage));
+  const stages = deps.stagePort.listStages(issue.id).map(stage => toStageDto(deps, stage, issue));
   const currentStage = stages.find(stage => !stage.left_at) ?? stages.at(-1);
   if (!currentStage) throw new Error(`Issue has no current stage: ${issue.id}`);
   return {
@@ -128,12 +128,16 @@ function toIssueDetail(deps: Pick<IssueRoutesDeps, "stagePort">, issue: Issue) {
   };
 }
 
-function toStageDto(deps: Pick<IssueRoutesDeps, "stagePort">, stage: Stage) {
+function toStageDto(deps: Pick<IssueRoutesDeps, "stagePort">, stage: Stage, issue?: Issue) {
+  const stageDef = issue?.sop_snapshot.stage_definitions.find(sd => sd.key === stage.key);
   return {
     ...stage,
+    type: stage.key,
+    created_at: stage.entered_at,
     active_roles: stage.role_instances,
     assignments: deps.stagePort.getRoleSnailAssignments(stage.id),
     status: stage.left_at ? "completed" : "in_progress",
+    stage_definition: stageDef ? { title: stageDef.title, roles: stageDef.roles } : undefined,
   };
 }
 

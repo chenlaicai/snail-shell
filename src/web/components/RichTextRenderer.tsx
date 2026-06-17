@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { marked } from "marked";
 
-marked.setOptions({ gfm: true, breaks: true });
+const MARKED_OPTIONS = { gfm: true, breaks: true } as const;
 
 const ALLOWED_TAGS = new Set([
   "a", "blockquote", "br", "code", "del", "em",
@@ -30,7 +30,7 @@ export function RichTextRenderer({ content }: { content: string }) {
 }
 
 function MarkdownBlock({ content }: { content: string }) {
-  const html = useMemo(() => marked.parse(content) as string, [content]);
+  const html = useMemo(() => marked.parse(content, MARKED_OPTIONS) as string, [content]);
   const safeHtml = useMemo(() => sanitizeHtml(html), [html]);
   return (
     <div
