@@ -143,9 +143,7 @@ export class IssueCollaboration implements CollaborationInput {
     await this.notifyConsumers(stageId, "onMessageStarted", agentMessage);
 
     const handbook = this.deps.stagePort.getRoleHandbook(stageId, assignment.role_key);
-    const invocationContext = this.buildInvocationContext({ issue, stage, roleInstance, currentAssignment: assignment, handbook });
-    const systemReminder = this.renderInvocationContext(invocationContext);
-    const firstCallHandbook = [handbook, systemReminder].filter(Boolean).join("\n\n");
+    const systemReminder = this.buildSystemReminder({ issue, stage, roleInstance, roleKey: assignment.role_key, handbook });
     const invokeOptions: InvokeOptions = {
       contextEnv: { issue_id: issue.id, stage_id: stage.id, message_id: String(agentMessage.id), role_instance: roleInstance },
     };
@@ -154,11 +152,13 @@ export class IssueCollaboration implements CollaborationInput {
       const firstCallRequest = {
         workspace_path: issue.workspace_path,
         messages: unreadMessages.map(message => this.toAgentMessage(message)),
-        handbook: firstCallHandbook || undefined,
+        handbook: systemReminder || undefined,
         context: {
-          ...invocationContext,
+          issue_id: issue.id,
+          stage_id: stage.id,
           message_id: String(agentMessage.id),
-          system_reminder: systemReminder,
+          stage_key: stage.key,
+          role_instance: roleInstance,
         },
       };
 
@@ -456,6 +456,102 @@ export class IssueCollaboration implements CollaborationInput {
 
   private renderInvocationContext(context: Record<string, unknown>): string {
     return `<snail-invocation-context>\n${JSON.stringify(context, null, 2)}\n</snail-invocation-context>`;
+  }
+
+  private buildSystemReminder(input: { issue: Issue; stage: Stage; roleInstance: string; roleKey: string; handbook: string | null }): string {
+    const { issue, stage, roleInstance, roleKey, handbook } = input;
+    const transitions = stage.available_transitions.map(transition => `- ${transition.to}${transition.guard ? `: ${transition.guard}` : ""}`).join("\n");
+    const artifacts = Object.entries(stage.output_artifacts).map(([key, value]) => `${key}: ${value}`).join("\n");
+
+    // 提取当前角色的信息，用于identity锚定
+    const stageDefinition = issue.sop_snapshot.stage_definitions.find(definition => definition.key === stage.key);
+    const currentRoleDefinition = stageDefinition?.roles.find(role => role.key === roleKey);
+    const currentRoleName = currentRoleDefinition?.name ?? roleInstance;
+
+    // 角色职责fallback：优先从SOP提取，否则从handbook中提取第一段描述
+    const currentRoleResponsibility = this.extractRoleResponsibility(currentRoleDefinition, handbook);
+
+    // 从handbook中提取禁止项和自检规则
+    const prohibition = this.extractHandbookItem(handbook, "禁止", "超出职责范围的行为");
+    const selfCheck = this.extractHandbookItem(handbook, "自检", "如果发现自己在做职责范围外的事情，立即停止");
+
+    // 构建identity部分（最突出，第一句话）
+    const identity = `# 你是${currentRoleName}
+
+**角色实例**：${roleInstance}
+**职责**：${currentRoleResponsibility}
+**禁止**：${prohibition}
+**自检**：${selfCheck}`;
+
+    // 构建handbook部分（核心规则和流程）
+    let handbookContent = "";
+    if (issue.sop_snapshot.shared_handbook) {
+      handbookContent += `## 通用规则\n\n${issue.sop_snapshot.shared_handbook}\n\n`;
+    }
+    if (handbook) {
+      handbookContent += `## 角色手册\n\n${handbook}`;
+    }
+
+    // 构建context部分（简化版，只保留必要信息）
+    const context = `## 项目上下文
+
+**Issue**：${issue.title}
+**Issue ID**：${issue.id}
+**工作区**：${issue.workspace_path}
+**Issue 摘要**：${issue.summary ?? "无"}
+**可扩展上下文**：${issue.extendable_context != null ? JSON.stringify(issue.extendable_context) : "无"}
+
+## 当前阶段
+
+**阶段**：${stage.title} (${stage.key})
+**阶段描述**：${stage.description}
+**阶段产物**：\n${artifacts || "无"}
+**所有角色实例**：${stage.role_instances.join(", ")}
+
+## 可用流转
+
+${transitions || "无"}
+
+## 协作规则
+
+- 你可以通过 @角色实例 请求其他角色回应
+- 如果阶段看起来完成了，建议 stage_transition 等待用户确认
+- 永远不要自动推进 Stage`;
+
+    // 组装完整的system-reminder
+    const parts = [
+      `<identity>\n${identity}\n</identity>`,
+      `<handbook>\n${handbookContent}\n</handbook>`,
+      `<context>\n${context}\n</context>`,
+    ];
+
+    return parts.join("\n\n");
+  }
+
+  private extractRoleResponsibility(roleDefinition: { description?: string } | undefined, handbook: string | null): string {
+    // 优先从SOP提取
+    const responsibility = roleDefinition?.description ?? "";
+    if (responsibility) return responsibility;
+
+    // 从handbook中提取第一段非空描述
+    if (handbook) {
+      const lines = handbook.split("\n").filter(line => line.trim());
+      const firstDescription = lines.find(line => line.startsWith("- ") || line.startsWith("* "));
+      if (firstDescription) {
+        return firstDescription.replace(/^[-*]\s*/, "").trim();
+      }
+      if (lines.length > 0) {
+        return lines[0].trim();
+      }
+    }
+
+    return "请参考下方角色手册";
+  }
+
+  private extractHandbookItem(handbook: string | null, itemName: string, defaultValue: string): string {
+    if (!handbook) return defaultValue;
+    const match = handbook.match(new RegExp(`\\*\\*${itemName}\\*\\*[：:](.+)`));
+    return match ? match[1].trim() : defaultValue;
   }
 
   private toAgentMessage(message: Message): AgentMessage {
