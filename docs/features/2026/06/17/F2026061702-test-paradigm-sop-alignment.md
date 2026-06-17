@@ -39,15 +39,20 @@ F2026060701 已建立"行为契约测试"范式，但未明确"什么时候写�
 
 ### P1 — SOP 调整
 
-- 修改 `development#developer.handbook.md`：增加"测试编写准入条件"章节
+- 修改 `development#developer.handbook.md`：增加"测试编写判断原则"章节；合并 `reference/测试.md`（自检覆盖）、`reference/提交.md`（Review 修复后验证、Review 完成判定）中的唯一内容
 - 修改 `docs/README.md`（feature 模板）："核心业务行为"章节改为可选
-- 修改 `review#reviewer.handbook.md`：测试质量检查改为"有测试时检查，无测试时不阻塞"
-- 修改 `.meta/prompts/reference/测试.md`：同步更新准入条件
+- 修改 `review#reviewer.handbook.md`：测试质量检查改为"有测试时检查，无测试时不阻塞"；合并 `reference/检视.md` 中的源码字符串匹配反模式细节
+- 修改 `design#designer.handbook.md`：合并 `reference/设计分析.md` 中的"可视化对齐"
 
 ### P2 — 清理 v1 测试
 
-- 删除 `v1/src/web/tests/` 目录下的实现绑定测试
-- 删除 v1 的测试依赖（如有）
+- 删除 `v1/src/web/tests/` 目录下的实现绑定测试（保留 v1 目录作为参考，不在本次 PR 处理）
+
+### P3 — 清理 prompts/reference 中的角色专属内容
+
+- 将 `prompts/reference/` 中的角色专属内容合并到对应 handbook，然后删除角色专属文件
+- 保留通用文件：`通用指南.md`、`决策记录.md`、`提示词治理.md`、`演进治理.md`
+- 删除角色专属文件：`测试.md`、`实现.md`、`提交.md`、`检视.md`、`设计分析.md`
 
 ## 非目标
 
@@ -153,24 +158,31 @@ AI 作为开发者，应根据实际情况自行判断是否写测试。判断�
 | 文件 | 改动类型 | 说明 |
 |---|---|---|
 | `docs/features/2026/06/17/F2026061702-test-paradigm-sop-alignment.md` | 新增 | 本文档 |
-| `config/sop/code-delivery/development#developer.handbook.md` | 修改 | 增加"测试编写准入条件"章节 |
+| `config/sop/code-delivery/development#developer.handbook.md` | 修改 | 增加"测试编写判断原则"；合并自检覆盖、Review 修复后验证、Review 完成判定 |
 | `docs/README.md` | 修改 | "核心业务行为"章节改为可选 |
-| `config/sop/code-delivery/review#reviewer.handbook.md` | 修改 | 测试质量检查改为"有测试时检查，无测试时不阻塞" |
-| `.meta/prompts/reference/测试.md` | 修改 | 同步更新准入条件 |
-| `v1/src/web/tests/` | 删除 | 清理 v1 实现绑定测试 |
+| `config/sop/code-delivery/review#reviewer.handbook.md` | 修改 | 测试质量增加源码字符串匹配反模式 |
+| `config/sop/code-delivery/design#designer.handbook.md` | 修改 | 增加"可视化对齐" |
+| `v1/.meta/prompts/reference/测试.md` | 删除 | 内容已合并到 developer handbook |
+| `v1/.meta/prompts/reference/实现.md` | 删除 | 已过时（handbook 禁 migration）或重复（不兼容变更=item 8） |
+| `v1/.meta/prompts/reference/提交.md` | 删除 | 内容已合并到 developer handbook |
+| `v1/.meta/prompts/reference/检视.md` | 删除 | 内容已合并到 reviewer handbook |
+| `v1/.meta/prompts/reference/设计分析.md` | 删除 | 内容已合并到 designer handbook |
 
 ## 验证
 
 ### P1
 
-- [ ] developer handbook 包含"测试编写准入条件"章节
+- [ ] developer handbook 包含"测试编写判断原则"章节
+- [ ] developer handbook 包含"自检覆盖"规则（item 14）
+- [ ] developer handbook 包含"Review 修复后验证"和"Review 完成判定"
 - [ ] feature 模板"核心业务行为"章节标注为可选
-- [ ] reviewer handbook 测试质量检查改为"有测试时检查，无测试时不阻塞"
-- [ ] 参考约束"测试.md"同步更新
+- [ ] reviewer handbook 测试质量增加源码字符串匹配反模式
+- [ ] designer handbook 增加"可视化对齐"
 
-### P2
+### P3
 
-- [ ] v1/src/web/tests/ 目录已删除
+- [ ] `prompts/reference/` 只保留通用文件（通用指南、决策记录、提示词治理、演进治理）
+- [ ] 角色专属文件已删除（测试、实现、提交、检视、设计分析）
 - [ ] 编译通过（npm run check）
 
 ### 通用
