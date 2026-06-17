@@ -45,7 +45,7 @@ async function initModules(repoRoot: string, serverSettings: ServerSettings) {
   const tenetPrompt = initTenetPrompt(dataStore, workspaces);
   const skill = initSkill(dataStore, workspaces);
   const sop = initSop(dataStore, workspaces);
-  const knowledge = initKnowledge(dataStore, workspaces);
+  const knowledge = initKnowledge(dataStore, workspaces, repoRoot);
   const issue = initIssue(sop.adapter, db);
   const message = initMessage(db);
   const evolutionRef: { current?: ReturnType<typeof initEvolution> } = {};
