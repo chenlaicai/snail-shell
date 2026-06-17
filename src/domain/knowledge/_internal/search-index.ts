@@ -1,19 +1,19 @@
+import crypto from "crypto";
 import Database from "better-sqlite3";
 import type { KnowledgeEntry } from "@domain/knowledge/model";
-
-/** 搜索结果 */
-export interface SearchResult {
-  entry: KnowledgeEntry;
-  snippet: string;
-}
+import type { SearchResult } from "@domain/knowledge/port";
 
 /**
  * 知识库搜索索引（FTS5）。
  *
  * 职责：
- * - 提供高性能全文搜索（中文分词、snippet 高亮）
+ * - 提供高性能全文搜索（snippet 高亮）
  * - 从文件真相源重建索引
  * - 索引损坏时自动恢复
+ *
+ * 限制：
+ * - unicode61 分词器不支持中文分词，中文短语会被拆分为单字匹配
+ * - 如需精确中文短语搜索，需使用 jieba 等分词插件
  *
  * 索引文件位置：data/knowledge-search.db
  * 与平台级数据同目录，不属于 workspace。
@@ -31,8 +31,8 @@ export class KnowledgeSearchIndex {
     this.initSchema();
 
     this.insertEntryStmt = this.db.prepare(`
-      INSERT OR REPLACE INTO knowledge_entries (id, scope, workspace_path, title, content, updated_at)
-      VALUES (?, ?, ?, ?, ?, datetime('now'))
+      INSERT OR REPLACE INTO knowledge_entries (id, scope, workspace_path, title, content, tags, content_hash, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
     `);
     this.insertSearchStmt = this.db.prepare(`
       INSERT INTO knowledge_search (entry_id, scope, workspace_path, title, content)
@@ -50,6 +50,8 @@ export class KnowledgeSearchIndex {
         workspace_path TEXT,
         title TEXT NOT NULL,
         content TEXT NOT NULL,
+        tags TEXT NOT NULL DEFAULT '[]',
+        content_hash TEXT NOT NULL,
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
 
@@ -66,55 +68,65 @@ export class KnowledgeSearchIndex {
 
   /** 全文搜索 */
   search(query: string, workspacePath?: string): SearchResult[] {
-    const ftsQuery = this.buildFtsQuery(query);
-    let sql = `
-      SELECT
-        ks.entry_id,
-        ks.scope,
-        ks.workspace_path,
-        snippet(knowledge_search, 4, '[', ']', '...', 24) AS snippet,
-        ke.title,
-        ke.content
-      FROM knowledge_search ks
-      JOIN knowledge_entries ke ON ke.id = ks.entry_id
-      WHERE knowledge_search MATCH ?
-    `;
-    const params: string[] = [ftsQuery];
+    try {
+      const ftsQuery = this.buildFtsQuery(query);
+      let sql = `
+        SELECT
+          ks.entry_id,
+          ks.scope,
+          ks.workspace_path,
+          snippet(knowledge_search, 4, '[', ']', '...', 24) AS snippet,
+          ke.title,
+          ke.content,
+          ke.tags
+        FROM knowledge_search ks
+        JOIN knowledge_entries ke ON ke.id = ks.entry_id
+        WHERE knowledge_search MATCH ?
+      `;
+      const params: string[] = [ftsQuery];
 
-    if (workspacePath) {
-      sql += ` AND (ks.workspace_path IS NULL OR ks.workspace_path = ?)`;
-      params.push(workspacePath);
+      if (workspacePath) {
+        sql += ` AND (ks.workspace_path IS NULL OR ks.workspace_path = ?)`;
+        params.push(workspacePath);
+      }
+
+      sql += ` ORDER BY rank LIMIT 50`;
+
+      const rows = this.db.prepare(sql).all(...params) as Array<{
+        entry_id: string;
+        scope: string;
+        workspace_path: string | null;
+        title: string;
+        content: string;
+        tags: string;
+        snippet: string;
+      }>;
+
+      return rows.map((row) => ({
+        entry: {
+          id: row.entry_id,
+          title: row.title,
+          content: row.content,
+          scope: row.scope as KnowledgeEntry["scope"],
+          tags: JSON.parse(row.tags || "[]"),
+          workspace: row.workspace_path ? { path: row.workspace_path, summary: null } : undefined,
+        },
+        snippet: row.snippet,
+      }));
+    } catch (err) {
+      console.error("[knowledge-search] Search failed:", err);
+      return [];
     }
-
-    sql += ` ORDER BY rank LIMIT 50`;
-
-    const rows = this.db.prepare(sql).all(...params) as Array<{
-      entry_id: string;
-      scope: string;
-      workspace_path: string | null;
-      title: string;
-      content: string;
-      snippet: string;
-    }>;
-
-    return rows.map((row) => ({
-      entry: {
-        id: row.entry_id,
-        title: row.title,
-        content: row.content,
-        scope: row.scope as KnowledgeEntry["scope"],
-        tags: [],
-      },
-      snippet: row.snippet,
-    }));
   }
 
   /** 同步单条目到索引（upsert） */
   upsert(entry: KnowledgeEntry): void {
     const workspacePath = entry.workspace?.path ?? null;
+    const contentHash = this.computeHash(entry.title, entry.content);
+    const tagsJson = JSON.stringify(entry.tags ?? []);
 
     const tx = this.db.transaction(() => {
-      this.insertEntryStmt.run(entry.id, entry.scope, workspacePath, entry.title, entry.content);
+      this.insertEntryStmt.run(entry.id, entry.scope, workspacePath, entry.title, entry.content, tagsJson, contentHash);
       this.deleteSearchStmt.run(entry.id);
       this.insertSearchStmt.run(entry.id, entry.scope, workspacePath, entry.title, entry.content);
     });
@@ -137,20 +149,49 @@ export class KnowledgeSearchIndex {
       this.db.exec(`DELETE FROM knowledge_entries`);
       for (const entry of entries) {
         const workspacePath = entry.workspace?.path ?? null;
-        this.insertEntryStmt.run(entry.id, entry.scope, workspacePath, entry.title, entry.content);
+        const contentHash = this.computeHash(entry.title, entry.content);
+        const tagsJson = JSON.stringify(entry.tags ?? []);
+        this.insertEntryStmt.run(entry.id, entry.scope, workspacePath, entry.title, entry.content, tagsJson, contentHash);
         this.insertSearchStmt.run(entry.id, entry.scope, workspacePath, entry.title, entry.content);
       }
     });
     tx();
   }
 
-  /** 校验索引完整性，返回缺失的条目 ID 列表 */
-  validate(fileEntryIds: string[]): string[] {
-    const indexedIds = (this.db.prepare(`SELECT id FROM knowledge_entries`).all() as Array<{ id: string }>).map(
-      (r) => r.id,
-    );
-    const indexedSet = new Set(indexedIds);
-    return fileEntryIds.filter((id) => !indexedSet.has(id));
+  /**
+   * 校验索引完整性。
+   * 返回需要更新的条目 ID 列表（缺失或内容过时）。
+   */
+  validate(fileEntries: KnowledgeEntry[]): string[] {
+    const indexedRows = this.db.prepare(
+      `SELECT id, content_hash FROM knowledge_entries`
+    ).all() as Array<{ id: string; content_hash: string }>;
+
+    const indexedMap = new Map(indexedRows.map((r) => [r.id, r.content_hash]));
+    const needsUpdate: string[] = [];
+
+    for (const entry of fileEntries) {
+      const indexedHash = indexedMap.get(entry.id);
+      if (!indexedHash) {
+        needsUpdate.push(entry.id);
+      } else {
+        const currentHash = this.computeHash(entry.title, entry.content);
+        if (indexedHash !== currentHash) {
+          needsUpdate.push(entry.id);
+        }
+      }
+    }
+
+    return needsUpdate;
+  }
+
+  /** 关闭数据库连接 */
+  close(): void {
+    this.db.close();
+  }
+
+  private computeHash(title: string, content: string): string {
+    return crypto.createHash("sha256").update(`${title}\n${content}`).digest("hex").slice(0, 16);
   }
 
   private buildFtsQuery(query: string): string {
@@ -159,9 +200,5 @@ export class KnowledgeSearchIndex {
     return terms
       .map((t) => `"${t.replace(/"/g, '""')}"`)
       .join(" AND ");
-  }
-
-  close(): void {
-    this.db.close();
   }
 }

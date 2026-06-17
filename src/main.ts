@@ -32,6 +32,7 @@ async function main() {
 
   modules.featureChain.adapter.rebuild();
   logStartupSummary(modules);
+  registerShutdownHooks(modules);
   startHttpServer(modules, serverSettings);
 }
 
@@ -85,6 +86,16 @@ function logStartupSummary(modules: Awaited<ReturnType<typeof initModules>>): vo
   console.log(`Lite AI: ${modules.liteAI.adapter.getConfig() ? "configured" : "not configured"}`);
   console.log(`Evolution: ready`);
   console.log(`Registered agents: ${modules.registry.listAgentRuntimes().join(", ")}`);
+}
+
+function registerShutdownHooks(modules: Awaited<ReturnType<typeof initModules>>): void {
+  const shutdown = () => {
+    console.log("[shutdown] Closing knowledge search index...");
+    modules.knowledge.index.close();
+  };
+  process.on("exit", shutdown);
+  process.on("SIGINT", () => { shutdown(); process.exit(0); });
+  process.on("SIGTERM", () => { shutdown(); process.exit(0); });
 }
 
 function startHttpServer(modules: Awaited<ReturnType<typeof initModules>>, serverSettings: ServerSettings): void {
