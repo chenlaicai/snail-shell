@@ -89,7 +89,10 @@ function logStartupSummary(modules: Awaited<ReturnType<typeof initModules>>): vo
 }
 
 function registerShutdownHooks(modules: Awaited<ReturnType<typeof initModules>>): void {
+  let closed = false;
   const shutdown = () => {
+    if (closed) return;
+    closed = true;
     console.log("[shutdown] Closing knowledge search index...");
     modules.knowledge.index.close();
   };
