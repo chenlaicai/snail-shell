@@ -1,54 +1,51 @@
 import { useQuery } from "@tanstack/react-query";
-import { knowledgeQueries } from "../queries/knowledge.queries";
-import type { KnowledgeEntryDto } from "../types";
+import { knowledgeQueries } from "@/queries/knowledge.queries";
+import { TopBar } from "@/components/TopBar";
+import type { KnowledgeEntryDto } from "@/types";
 
 export function KnowledgeLibrary() {
-  const { data: globalData, isLoading: loadingGlobal } = useQuery(knowledgeQueries.list({ scope: "global", limit: 50 }));
-  const { data: workspaceData, isLoading: loadingWorkspace } = useQuery(knowledgeQueries.list({ scope: "workspace", limit: 50 }));
-  const globalItems = globalData ?? [];
-  const workspaceItems = workspaceData ?? [];
+  const { data: globalItems = [], isLoading: loadingGlobal } = useQuery(knowledgeQueries.list({ scope: "global", limit: 50 }));
+  const { data: workspaceItems = [], isLoading: loadingWorkspace } = useQuery(knowledgeQueries.list({ scope: "workspace", limit: 50 }));
   const loading = loadingGlobal || loadingWorkspace;
 
-  if (loading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
+  if (loading) return <div className="flex h-full items-center justify-center text-[13px] text-text-muted">加载中...</div>;
 
   return (
-    <div className="flex flex-col h-full min-h-0" data-view-pane="knowledge">
-      <div className="flex flex-col flex-1 overflow-hidden min-w-0">
-        <div className="flex items-center gap-4 p-3 px-6 border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0">
-          <div className="flex items-baseline gap-2 flex-1 min-w-0">
-            <span className="text-sm font-semibold text-[var(--color-text-primary)]">知识库</span>
-            <span className="text-[11px] text-[var(--color-text-grey)]">{globalItems.length + workspaceItems.length} 条</span>
-          </div>
+    <>
+      <TopBar breadcrumbs={[{ label: "Knowledge Library" }]} />
+      <div className="flex-1 overflow-y-auto px-6 py-6">
+        <div className="mb-6">
+          <h1 className="text-xl font-semibold text-text-primary">Knowledge Library</h1>
+          <p className="mt-1 text-[13px] text-text-secondary">{globalItems.length + workspaceItems.length} entries collected from governance work.</p>
         </div>
-        <div className="p-6 overflow-auto flex-1">
-          <h3 className="text-xs text-[var(--color-text-muted)] mb-3">Global</h3>
-          {globalItems.length === 0 ? <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">暂无全局知识</div> : (
-            <div className="grid gap-2 mb-6">
-              {globalItems.map((item) => <KnowledgeCard key={item.id} item={item} />)}
-            </div>
-          )}
-          <h3 className="text-xs text-[var(--color-text-muted)] mb-3">Workspace</h3>
-          {workspaceItems.length === 0 ? <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">暂无工作区知识</div> : (
-            <div className="grid gap-2">
-              {workspaceItems.map((item) => <KnowledgeCard key={item.id} item={item} />)}
-            </div>
-          )}
-        </div>
+        <KnowledgeSection title="Global" items={globalItems} />
+        <KnowledgeSection title="Workspace" items={workspaceItems} />
       </div>
-    </div>
+    </>
+  );
+}
+
+function KnowledgeSection({ title, items }: { title: string; items: KnowledgeEntryDto[] }) {
+  return (
+    <section className="mb-8">
+      <h2 className="mb-3 text-xs font-medium uppercase tracking-wider text-text-muted">{title}</h2>
+      {items.length === 0 ? <div className="py-3 text-[13px] text-text-muted">暂无知识</div> : (
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          {items.map((item) => <KnowledgeCard key={item.id} item={item} />)}
+        </div>
+      )}
+    </section>
   );
 }
 
 function KnowledgeCard({ item }: { item: KnowledgeEntryDto }) {
   return (
-    <div className="flex gap-2.5 py-3 px-3.5 bg-[var(--color-bg-surface)] border border-[var(--color-border-muted)] rounded-[var(--radius-sm)] mb-1.5 cursor-pointer transition-all duration-150 relative hover:border-[var(--color-border-default)] hover:bg-[var(--color-bg-active)]">
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1.5">
-          <span className="text-[13px] font-semibold text-[var(--color-text-primary)] flex-1 whitespace-nowrap overflow-hidden text-ellipsis">{item.title}</span>
-          <span className="text-[10px] text-[var(--color-text-grey)] font-mono shrink-0">{item.scope}</span>
-        </div>
-        <div className="text-xs text-[var(--color-text-muted)] leading-normal mb-2 line-clamp-2">{item.content.slice(0, 100)}</div>
+    <div className="rounded-lg border border-white/6 bg-surface-1 p-4 transition-colors hover:bg-surface-2">
+      <div className="mb-2 flex items-center gap-2">
+        <span className="truncate text-[13px] font-medium text-text-primary">{item.title}</span>
+        <span className="shrink-0 rounded bg-shell-600/15 px-1.5 py-0.5 text-[10px] font-medium text-shell-400">{item.scope}</span>
       </div>
+      <p className="line-clamp-3 text-[12px] leading-5 text-text-secondary">{item.content.slice(0, 160)}</p>
     </div>
   );
 }

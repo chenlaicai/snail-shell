@@ -51,13 +51,15 @@ PR #375 曾假设 `/ws/:id/board` 与 conversation-oriented 前端模型；当�
 - 简化 `AppShell` 为 `Sidebar + Outlet`。
 - 删除旧对话页、旧消息渲染器和旧 workspace 看板。
 
-### 3. 先建立视觉一致性，再逐步补齐高级交互
+### 3. 视觉替换必须保留 latest main 的核心交互
 
-本次聚焦 issue 看板与 issue 对话界面的基础视觉结构。以下交互保留后续优化空间：
+PR #375 只作为视觉初稿，交互语义必须继承当前 main：
 
-- 新建 Issue 仍需当前后端要求的 `snail_assignment_plan`，当前 UI 先保留 SOP 选择并传空 assignment plan，完整 role instance → snail 分配可后续补回。
-- 工具审批卡片组件已保留，但当前 `MessageStatus` 未包含 `pending_approval`，暂不在对话页自动挂载。
-- Stage advance/complete 操作在新对话页先保留视觉按钮，后续接入现有 mutation 与缓存更新策略。
+- 新建 Issue 必须完成 SOP stage preview 与 role instance → snail assignment plan。
+- Issue 对话必须接入 `useIssueRealtime(issueId, stageId)`，保持流式消息与 stage suggestion 实时更新。
+- 当前 stage 必须由 URL `?stage=` + issue detail 派生，支持刷新和分享。
+- Stage advance / transition suggestion 是核心工作流，不能降级为假按钮。
+- 全站旧 `var(--*)` 样式变量必须迁移到新 token，不保留兼容层。
 
 ## 改动概览
 
@@ -74,7 +76,12 @@ PR #375 曾假设 `/ws/:id/board` 与 conversation-oriented 前端模型；当�
 | `src/web/components/ChatInput.tsx` | 新增 | 对话输入框 |
 | `src/web/components/PropertiesPanel.tsx` | 新增 | Issue 右侧属性面板 |
 | `src/web/components/NewIssueDialog.tsx` | 新增 | 新建 Issue 弹窗，适配当前创建接口 |
+| `src/web/components/StageActionBar.tsx` | 新增 | 新样式 Stage 推进操作 |
+| `src/web/components/StageSuggestionCard.tsx` | 新增 | 新样式 Stage transition suggestion 确认卡片 |
+| `src/web/components/RichTextRenderer.tsx` | 新增 | Markdown/code/link/Mermaid 富文本渲染 |
 | `src/web/components/ToolApprovalCard.tsx` | 新增 | 工具审批卡片组件，暂未自动挂载 |
+| `src/web/pages/WorkspaceDirectory.tsx` | 新增 | 新样式 workspace 列表入口 |
+| `src/web/pages/WorkspaceConfig.tsx` | 新增 | 新样式 workspace 创建入口 |
 | `src/web/pages/IssueBoard.tsx` | 新增 | 新看板页 |
 | `src/web/pages/IssueList.tsx` | 新增 | 新列表页 |
 | `src/web/pages/IssueConversation.tsx` | 新增 | 新对话页，使用当前 stage API |
@@ -85,11 +92,13 @@ PR #375 曾假设 `/ws/:id/board` 与 conversation-oriented 前端模型；当�
 
 | 路由 | 页面 | 说明 |
 |------|------|------|
+| `/workspaces` | `WorkspaceDirectory` | Workspace 列表入口 |
+| `/workspaces/new` | `WorkspaceConfig` | Workspace 创建入口 |
 | `/workspaces/:workspaceId/board` | `IssueBoard` | Workspace Issue 看板 |
 | `/workspaces/:workspaceId/list` | `IssueList` | Workspace Issue 列表 |
 | `/workspaces/:workspaceId/issue/:issueId` | `IssueConversation` | Issue 对话页 |
 
-旧 `/workspaces/:workspaceId` 入口不再作为主看板入口，侧边栏统一指向 `/workspaces/:workspaceId/board`。
+侧边栏统一指向 `/workspaces/:workspaceId/board`；首页 CTA 保持 `/workspaces` 与 `/workspaces/new` 有效。
 
 ## 数据适配
 
@@ -101,10 +110,23 @@ PR #375 曾假设 `/ws/:id/board` 与 conversation-oriented 前端模型；当�
 
 ### Issue Conversation
 
-- 当前对话上下文由 `issue.current_stage ?? issue.stages[0]` 派生。
+- 当前对话上下文由 URL `?stage=` + issue detail 派生；无有效 URL stage 时 fallback 到 `issue.current_stage` 或最后一个 stage。
+- 页面调用 `useIssueRealtime(issueId ?? null, stageId)`，恢复 `message_started`、`message_event_appended`、`message_status_changed`、`stage_transition_suggested` 实时更新。
 - 消息读取 `GET /api/stages/:stageId/messages`。
 - 消息发送 `POST /api/stages/:stageId/messages`，并沿用 `createPlaceholderMessage` 做乐观插入。
 - `ChatMessage` 将 PR #375 的 `event.kind` 访问适配为当前 `MessageEvent.payload.type`。
+- Stage suggestion 读取 `GET /api/stages/:stageId/transition-suggestions`，确认后调用 `POST /api/stages/:stageId/advance` 并更新 issue cache 与 URL。
+
+### Issue Creation
+
+- 新建 Issue 恢复旧 `WorkspaceBoard` 的完整契约：加载 SOP、加载 snail-den、选择 SOP 后加载 stage previews。
+- 前端为每个 `stage.key / role_instance` 生成 `snail_assignment_plan`，提交前校验缺失 assignment。
+- 创建成功后跳转 `/workspaces/:workspaceId/issue/:issueId?stage=:stageId`。
+
+### 全站样式
+
+- `src/web` 下旧 `var(--color-*)`、`var(--space-*)`、`var(--font-size-*)`、`var(--radius-button)` 等引用已清零。
+- `HomePage`、`EvolutionCenter`、`KnowledgeLibrary`、`SopCenter`、`PromptCenter`、`SkillCenter`、`SnailDen`、`McpCenter`、`Lobby`、`NotFound`、`ErrorBoundary`、`QueryState`、`Toast`、`ui/dialog` 已迁移到新 token。
 
 ## 删除的旧实现
 
@@ -113,12 +135,10 @@ PR #375 曾假设 `/ws/:id/board` 与 conversation-oriented 前端模型；当�
 - `ConversationLayout.tsx`
 - `ConversationView.tsx`
 - `WorkspaceBoard.tsx`
-- `WorkspaceConfig.tsx`
-- `WorkspaceDirectory.tsx`
 - `ContextPanel.tsx`
 - `MessageRenderer.tsx`
-- `MarkdownRenderer.tsx`
-- `MermaidDiagram.tsx`
+- `MarkdownRenderer.tsx`（能力迁移到 `RichTextRenderer.tsx`）
+- `MermaidDiagram.tsx`（能力迁移到 `RichTextRenderer.tsx`）
 - `StageActions.tsx`
 - `StageSuggestionBanner.tsx`
 - `Sidebar/WorkspaceTree.tsx`
@@ -127,13 +147,11 @@ PR #375 曾假设 `/ws/:id/board` 与 conversation-oriented 前端模型；当�
 
 ## 验证
 
-- `npx vite build --config src/web/vite.config.ts` 通过。
-- CSS 产物从约 `46.62 kB` 降至约 `41.03 kB`。
-- JS 产物从约 `477.21 kB` 降至约 `475.11 kB`。
+- `git grep "var(--color-\|var(--space-\|var(--font-size-\|var(--radius-button" -- src/web` 无结果。
+- `npm run build` 通过（包含 lint、tsc、tsc-alias、build:web）。
+- `build:web` 通过；Mermaid 动态 import 会产生分块和体积 warning，但不阻塞。
 
 ## 后续事项
 
-1. 补回完整新建 Issue 的 role instance → snail assignment UI。
-2. 将 Stage advance/complete 按钮接入 mutation 与缓存更新。
-3. 根据后端工具审批协议，将 `ToolApprovalCard` 挂载到真实 permission-required 消息。
-4. 如需保留 `/workspaces/:workspaceId` 兼容入口，可增加 redirect 到 `/workspaces/:workspaceId/board`。
+1. 根据后端工具审批协议，将 `ToolApprovalCard` 挂载到真实 permission-required 消息。
+2. 如需保留 `/workspaces/:workspaceId` 兼容入口，可增加 redirect 到 `/workspaces/:workspaceId/board`。

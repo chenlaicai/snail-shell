@@ -8,6 +8,8 @@ import { metaQueries } from "./queries/meta.queries";
 import { AppShell } from "./layouts/AppShell";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { HomePage } from "./pages/HomePage";
+import { WorkspaceDirectory } from "./pages/WorkspaceDirectory";
+import { WorkspaceConfig } from "./pages/WorkspaceConfig";
 import { IssueBoard } from "./pages/IssueBoard";
 import { IssueList } from "./pages/IssueList";
 import { IssueConversation } from "./pages/IssueConversation";
@@ -38,6 +40,18 @@ export const router = createBrowserRouter([
     errorElement: <ErrorBoundary><div /></ErrorBoundary>,
     children: [
       { index: true, element: <HomePage /> },
+      {
+        path: "workspaces",
+        element: <WorkspaceDirectory />,
+        loader: async () => {
+          await queryClient.ensureQueryData(workspaceQueries.list());
+          return null;
+        },
+      },
+      {
+        path: "workspaces/new",
+        element: <WorkspaceConfig />,
+      },
       {
         path: "workspaces/:workspaceId/board",
         element: <IssueBoard />,

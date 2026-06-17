@@ -1,14 +1,10 @@
 import { NavLink } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/services/api-client";
+import { workspaceQueries } from "@/queries/workspace.queries";
 import { cn } from "@/lib/utils";
-import type { WorkspaceSummaryDto } from "@/types";
 
 export function Sidebar() {
-  const { data: workspaces } = useQuery({
-    queryKey: ["workspaces"],
-    queryFn: () => api("GET /api/workspaces") as Promise<WorkspaceSummaryDto[]>,
-  });
+  const { data: workspaces } = useQuery(workspaceQueries.list());
 
   return (
     <aside className="w-[240px] shrink-0 bg-surface-1 border-r border-white/6 flex flex-col h-screen">

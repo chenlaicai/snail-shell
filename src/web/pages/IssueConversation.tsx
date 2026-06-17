@@ -1,6 +1,6 @@
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { api } from "@/services/api-client";
 import { queryKeys } from "@/queries/keys";
 import { TopBar } from "@/components/TopBar";
@@ -8,12 +8,15 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { ChatMessage } from "@/components/ChatMessage";
 import { ChatInput } from "@/components/ChatInput";
 import { PropertiesPanel } from "@/components/PropertiesPanel";
+import { StageActionBar } from "@/components/StageActionBar";
+import { StageSuggestionCard } from "@/components/StageSuggestionCard";
 import { showToast } from "@/components/Toast";
-import { createPlaceholderMessage } from "@/hooks/useWebSocket";
+import { createPlaceholderMessage, useIssueRealtime } from "@/hooks/useWebSocket";
 import type { IssueDetailDto, StageDetailDto, MessageDto } from "@/types";
 
 export function IssueConversation() {
   const { workspaceId, issueId } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
 
   const { data: issue, isLoading: issueLoading } = useQuery({
@@ -22,8 +25,23 @@ export function IssueConversation() {
     enabled: !!issueId,
   });
 
-  const activeStage: StageDetailDto | null = issue?.current_stage ?? issue?.stages?.[0] ?? null;
+  const selectedStageId = searchParams.get("stage");
+  const activeStage: StageDetailDto | null = useMemo(() => {
+    if (!issue) return null;
+    if (selectedStageId) {
+      const matched = issue.stages.find((stage) => stage.id === selectedStageId);
+      if (matched) return matched;
+    }
+    return issue.current_stage ?? issue.stages[issue.stages.length - 1] ?? null;
+  }, [issue, selectedStageId]);
   const stageId = activeStage?.id ?? null;
+
+  useIssueRealtime(issueId ?? null, stageId);
+
+  useEffect(() => {
+    if (!stageId || selectedStageId === stageId) return;
+    setSearchParams({ stage: stageId }, { replace: true });
+  }, [stageId, selectedStageId, setSearchParams]);
 
   const { data: messages = [] } = useQuery({
     queryKey: queryKeys.stages.messages(stageId ?? ""),
@@ -57,6 +75,20 @@ export function IssueConversation() {
     if (!stageId) return;
     sendMutation.mutate(content);
   }, [stageId, sendMutation]);
+
+  const handleStageChanged = useCallback((nextStage: StageDetailDto) => {
+    if (!issueId) return;
+    queryClient.setQueryData(queryKeys.issues.detail(issueId), (old: IssueDetailDto | null | undefined) => {
+      if (!old) return old;
+      const stages = old.stages.some((stage) => stage.id === nextStage.id)
+        ? old.stages.map((stage) => stage.id === nextStage.id ? nextStage : stage)
+        : [...old.stages, nextStage];
+      return { ...old, stages, current_stage: nextStage };
+    });
+    queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(issueId) });
+    if (workspaceId) queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.issues(workspaceId) });
+    setSearchParams({ stage: nextStage.id }, { replace: true });
+  }, [issueId, queryClient, setSearchParams, workspaceId]);
 
   const stage = activeStage;
 
@@ -100,6 +132,23 @@ export function IssueConversation() {
                 {issue.summary && <p className="text-[14px] text-text-secondary leading-relaxed">{issue.summary}</p>}
               </div>
 
+              {issue.stages.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {issue.stages.map((item) => {
+                    const active = item.id === stageId;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => setSearchParams({ stage: item.id })}
+                        className={`rounded-md px-2.5 py-1.5 text-xs transition-colors ${active ? "bg-white/8 text-text-primary" : "text-text-secondary hover:bg-white/5 hover:text-text-primary"}`}
+                      >
+                        {item.stage_definition?.title ?? item.title ?? item.type}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               {/* Issue properties grid */}
               <div className="bg-surface-2 rounded-lg border border-white/6 overflow-hidden">
                 <div className="grid grid-cols-2 divide-x divide-white/6">
@@ -116,23 +165,8 @@ export function IssueConversation() {
                 </div>
               </div>
 
-              {/* Stage actions */}
-              {stage?.status === "in_progress" && (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => showToast("Advance 功能暂未接入", true)}
-                    className="px-3 py-1.5 rounded-md bg-shell-600 hover:bg-shell-500 text-white text-xs font-medium transition-colors"
-                  >
-                    Advance Stage
-                  </button>
-                  <button
-                    onClick={() => showToast("Complete 功能暂未接入", true)}
-                    className="px-3 py-1.5 rounded-md border border-status-green/30 text-status-green hover:bg-status-green/10 text-xs font-medium transition-colors"
-                  >
-                    Complete
-                  </button>
-                </div>
-              )}
+              <StageSuggestionCard stageId={stageId} onAccepted={handleStageChanged} />
+              <StageActionBar issue={issue} currentStage={stage} onStageChanged={handleStageChanged} />
 
               <div className="h-px bg-white/6" />
 
@@ -151,7 +185,13 @@ export function IssueConversation() {
           {/* Input */}
           <div className="shrink-0 px-6 pb-8 pt-4">
             <div className="mx-auto max-w-[920px]">
-              <ChatInput onSend={handleSend} disabled={!stageId || stage?.status !== "in_progress"} />
+              {stage?.status === "completed" ? (
+                <div className="rounded-2xl border border-white/6 bg-surface-2 px-4 py-3 text-[12px] text-text-muted">
+                  当前 Stage 已结束，历史对话保留为只读。请切换到当前 Stage 继续对话。
+                </div>
+              ) : (
+                <ChatInput onSend={handleSend} disabled={!stageId || stage?.status !== "in_progress"} />
+              )}
             </div>
           </div>
         </div>

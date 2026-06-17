@@ -1,100 +1,68 @@
-/**
- * Evolution Center - 演进中心
- *
- * 功能：列表、详情、创建演进项
- */
-
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "../services/api-client";
-import { evolutionQueries } from "../queries/evolution.queries";
-import { showToast } from "../components/Toast";
+import { api } from "@/services/api-client";
+import { evolutionQueries } from "@/queries/evolution.queries";
+import { showToast } from "@/components/Toast";
 import { Badge } from "@/components/ui/badge";
-import type { EvolutionItemDto } from "../types";
+import { TopBar } from "@/components/TopBar";
+import type { EvolutionItemDto } from "@/types";
 
 export function EvolutionCenter() {
   const { data: items = [], isLoading } = useQuery(evolutionQueries.list({ limit: 100 }));
   const [selectedItem, setSelectedItem] = useState<EvolutionItemDto | null>(null);
-  const [mode, setMode] = useState<"list" | "detail">("list");
 
   async function selectItem(itemId: string) {
     try {
-      const data = await api("GET /api/evolution/items/:itemId", { params: { itemId } });
-      setSelectedItem(data);
-      setMode("detail");
+      setSelectedItem(await api("GET /api/evolution/items/:itemId", { params: { itemId } }));
     } catch (err: unknown) {
       showToast(`加载详情失败：${err instanceof Error ? err.message : String(err)}`, true);
     }
   }
 
-  if (isLoading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
+  if (isLoading) return <div className="flex h-full items-center justify-center text-[13px] text-text-muted">加载中...</div>;
 
   return (
-    <div className="flex flex-col h-full min-h-0" data-view-pane="evolution">
-      <div className="flex flex-col flex-1 overflow-hidden min-w-0">
-        <div className="flex items-center gap-4 p-3 px-6 border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0">
-          <div className="flex items-baseline gap-2 flex-1 min-w-0">
-            <span className="text-sm font-semibold text-[var(--color-text-primary)]">Evolution Center</span>
-            <span className="text-[11px] text-[var(--color-text-grey)]">{items.length} 项</span>
+    <>
+      <TopBar breadcrumbs={[{ label: "Evolution Center" }]} />
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        <aside className="w-[300px] shrink-0 overflow-y-auto border-r border-white/6 p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-xs font-medium text-text-muted uppercase tracking-wider">Evolution</span>
+            <span className="text-[11px] text-text-muted">{items.length}</span>
           </div>
-        </div>
-
-        <div className="flex flex-1 overflow-hidden min-h-0">
-          {/* 左侧列表 */}
-          <div className="w-[300px] shrink-0 border-r border-[var(--color-border-muted)] overflow-auto p-[var(--space-md)]">
-            {items.length === 0 ? (
-              <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">暂无演进项</div>
-            ) : (
-              items.map((item) => (
-                <div
-                  key={item.id}
-                  className={`cursor-pointer p-[var(--space-sm)] rounded-[var(--radius-sm)] mb-1 transition-colors ${
-                    selectedItem?.id === item.id
-                      ? "bg-[var(--color-bg-active)] text-[var(--color-accent)]"
-                      : "text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]"
-                  }`}
-                  onClick={() => selectItem(item.id)}
-                >
-                  <div className="font-semibold text-[var(--font-size-sm)]">{item.title}</div>
-                  <div className="flex gap-1 mt-1">
-                    {item.tags?.slice(0, 2).map((tag: string) => (
-                      <Badge key={tag} variant="outline">{tag}</Badge>
-                    ))}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          {/* 右侧详情/创建 */}
-          <div className="flex-1 overflow-auto p-[var(--space-xl)]">
-            {mode === "detail" && selectedItem && (
-              <div>
-                <div className="mb-[var(--space-lg)]">
-                  <h2 className="m-0">{selectedItem.title}</h2>
-                  <div className="flex gap-1 mt-[var(--space-sm)]">
-                    {selectedItem.tags?.map((tag: string) => (
-                      <Badge key={tag} variant="outline">{tag}</Badge>
-                    ))}
-                  </div>
-                  <div className="text-[var(--font-size-xs)] text-[var(--color-text-grey)] mt-1">
-                    创建于 {new Date(selectedItem.created_at).toLocaleString()}
-                  </div>
-                </div>
-                {selectedItem.content && (
-                  <div className="p-[var(--space-md)] bg-[var(--color-bg-elevated)] rounded-[var(--radius-sm)] whitespace-pre-wrap leading-relaxed">
-                    {selectedItem.content}
-                  </div>
-                )}
+          {items.length === 0 ? (
+            <div className="py-4 text-[13px] text-text-muted">暂无演进项</div>
+          ) : items.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => selectItem(item.id)}
+              className={`mb-1 w-full rounded-lg p-3 text-left transition-colors ${selectedItem?.id === item.id ? "bg-white/8 text-text-primary" : "text-text-secondary hover:bg-white/5"}`}
+            >
+              <div className="text-[13px] font-medium">{item.title}</div>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {item.tags?.slice(0, 2).map((tag) => <Badge key={tag} variant="outline">{tag}</Badge>)}
               </div>
-            )}
+            </button>
+          ))}
+        </aside>
 
-            {mode === "list" && !selectedItem && (
-              <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">选择一个演进项查看详情</div>
-            )}
-          </div>
-        </div>
+        <main className="flex-1 overflow-y-auto p-6">
+          {selectedItem ? (
+            <div className="max-w-3xl">
+              <div className="mb-6">
+                <h1 className="text-xl font-semibold text-text-primary">{selectedItem.title}</h1>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {selectedItem.tags?.map((tag) => <Badge key={tag} variant="outline">{tag}</Badge>)}
+                </div>
+                <div className="mt-2 text-[11px] text-text-muted">创建于 {new Date(selectedItem.created_at).toLocaleString()}</div>
+              </div>
+              {selectedItem.content && <div className="rounded-lg border border-white/6 bg-surface-1 p-4 whitespace-pre-wrap text-[13px] leading-6 text-text-secondary">{selectedItem.content}</div>}
+            </div>
+          ) : (
+            <div className="py-4 text-[13px] text-text-muted">选择一个演进项查看详情</div>
+          )}
+        </main>
       </div>
-    </div>
+    </>
   );
 }

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { formatDateTime } from "@/lib/utils";
+import { RichTextRenderer } from "@/components/RichTextRenderer";
 import type { MessageDto, MessageEvent, MessageContext } from "@/types";
 
 function extractAllText(events: MessageEvent[]): string {
@@ -223,9 +224,7 @@ function MessageContent({ events, context }: { events: MessageEvent[]; context: 
   }
   const text = textParts.join("");
 
-  if (context?.context) {
-    return <div className="text-text-primary whitespace-pre-wrap">{context.context}</div>;
-  }
+  if (context?.context) return <RichTextRenderer content={context.context} />;
   if (!text) return <span className="text-text-muted italic">No content</span>;
-  return <div className="text-text-primary whitespace-pre-wrap">{text}</div>;
+  return <RichTextRenderer content={text} />;
 }

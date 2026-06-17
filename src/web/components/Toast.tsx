@@ -24,19 +24,19 @@ export function Toast() {
   }, []);
 
   return (
-    <div className="pointer-events-none fixed right-[var(--space-lg)] top-[var(--space-lg)] z-[1000] flex w-[min(420px,calc(100vw-32px))] flex-col gap-[var(--space-sm)]">
+    <div className="pointer-events-none fixed right-4 top-4 z-[1000] flex w-[min(420px,calc(100vw-32px))] flex-col gap-2">
       {toasts.map((t) => (
         <div
           key={t.id}
           role="status"
-          className={`pointer-events-auto rounded-[var(--radius-lg)] border px-[var(--space-md)] py-[var(--space-sm)] text-[var(--font-size-sm)] shadow-[0_16px_40px_rgba(0,0,0,0.35)] backdrop-blur ${
+          className={`pointer-events-auto rounded-lg border px-3 py-2 text-xs shadow-[0_16px_40px_rgba(0,0,0,0.35)] backdrop-blur ${
             t.isError
-              ? "border-[rgba(248,113,113,0.35)] bg-[rgba(127,29,29,0.92)] text-[var(--color-danger-text)]"
-              : "border-[rgba(108,141,250,0.35)] bg-[rgba(15,18,24,0.94)] text-[var(--color-text-primary)]"
+              ? "border-status-red/35 bg-status-red/15 text-status-red"
+              : "border-shell-600/35 bg-surface-2/95 text-text-primary"
           }`}
         >
           <div className="font-semibold">{t.isError ? "操作失败" : "操作成功"}</div>
-          <div className="mt-[2px] text-[var(--font-size-xs)] opacity-85">{t.message}</div>
+          <div className="mt-0.5 text-[11px] opacity-85">{t.message}</div>
         </div>
       ))}
     </div>
