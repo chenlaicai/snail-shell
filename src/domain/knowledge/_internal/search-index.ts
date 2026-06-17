@@ -160,29 +160,30 @@ export class KnowledgeSearchIndex {
 
   /**
    * 校验索引完整性。
-   * 返回需要更新的条目 ID 列表（缺失或内容过时）。
+   * 返回是否需要重建索引（检测缺失、过时、或残留条目）。
    */
-  validate(fileEntries: KnowledgeEntry[]): string[] {
+  validate(fileEntries: KnowledgeEntry[]): boolean {
     const indexedRows = this.db.prepare(
       `SELECT id, content_hash FROM knowledge_entries`
     ).all() as Array<{ id: string; content_hash: string }>;
 
     const indexedMap = new Map(indexedRows.map((r) => [r.id, r.content_hash]));
-    const needsUpdate: string[] = [];
+    const fileIds = new Set(fileEntries.map((e) => e.id));
 
-    for (const entry of fileEntries) {
-      const indexedHash = indexedMap.get(entry.id);
-      if (!indexedHash) {
-        needsUpdate.push(entry.id);
-      } else {
-        const currentHash = this.computeHash(entry.title, entry.content);
-        if (indexedHash !== currentHash) {
-          needsUpdate.push(entry.id);
-        }
-      }
+    // 检测索引中存在但文件中已删除的条目（残留）
+    for (const id of indexedMap.keys()) {
+      if (!fileIds.has(id)) return true;
     }
 
-    return needsUpdate;
+    // 检测文件中存在但索引中缺失/过时的条目
+    for (const entry of fileEntries) {
+      const indexedHash = indexedMap.get(entry.id);
+      if (!indexedHash) return true;
+      const currentHash = this.computeHash(entry.title, entry.content);
+      if (indexedHash !== currentHash) return true;
+    }
+
+    return false;
   }
 
   /** 关闭数据库连接 */

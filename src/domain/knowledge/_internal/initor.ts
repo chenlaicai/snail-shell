@@ -18,11 +18,10 @@ export function init(dataStore: FileDataStore, workspaces: Workspace[], repoRoot
   const indexPath = path.join(repoRoot, "data", "knowledge-search.db");
   const index = new KnowledgeSearchIndex(indexPath);
 
-  // 启动时校验索引完整性（检测缺失和内容过时）
+  // 启动时校验索引完整性（检测缺失、过时、残留）
   const fileEntries = repo.list();
-  const needsUpdate = index.validate(fileEntries);
-  if (needsUpdate.length > 0) {
-    console.log(`[knowledge] Rebuilding search index (${needsUpdate.length} entries need update)`);
+  if (index.validate(fileEntries)) {
+    console.log(`[knowledge] Rebuilding search index (${fileEntries.length} entries)`);
     index.rebuild(fileEntries);
   }
 
