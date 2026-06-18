@@ -2,6 +2,9 @@ import fs from "fs";
 import path from "path";
 import { registerAgentRuntime, getAgentRuntimeClass, listAgentRuntimes, hasAgentRuntime } from "@infra/acs/_internal/registry";
 import type { AgentRuntimePort, AgentRegistryPort } from "@infra/acs/port";
+import { getLogger } from "@infra/logger";
+
+const log = getLogger({ module: "acs" });
 
 /**
  * 初始化 ACS 模块。
@@ -19,7 +22,7 @@ export async function init(): Promise<{ registry: AgentRegistryPort }> {
       const module = await import(path.join(agentsDir, file));
       registerRuntimeFromModule(module);
     } catch (err) {
-      console.warn(`[acs] Failed to load agent from ${file}:`, err);
+      log.warn({ file, err }, "Failed to load agent");
     }
   }
 

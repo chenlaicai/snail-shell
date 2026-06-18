@@ -2,6 +2,9 @@ import type { Workspace } from "@domain/workspace/model";
 import { Scope } from "@domain/workspace/model";
 import type { KnowledgeEntry, CreateKnowledgeInput, RemoveKnowledgeInput } from "@domain/knowledge/model";
 import type { FileDataStore } from "@infra/file-data-store";
+import { getLogger } from "@infra/logger";
+
+const log = getLogger({ module: "knowledge" });
 
 /** Knowledge 持久层接口 */
 export interface KnowledgeRepository {
@@ -134,12 +137,12 @@ export class FileKnowledgeRepository implements KnowledgeRepository {
           const newFilePath = `${dir}/${expectedFileName}`;
           store.writeFile(newFilePath, raw);
           store.deleteFile(filePath);
-          console.warn(`Renamed knowledge file: ${file} → ${expectedFileName}`);
+          log.warn({ file, expectedFileName }, "Renamed knowledge file");
         }
 
         entries.push(entry);
       } catch (err) {
-        console.warn(`Failed to parse knowledge entry: ${filePath}`, err);
+        log.warn({ err, filePath }, "Failed to parse knowledge entry");
       }
     }
 

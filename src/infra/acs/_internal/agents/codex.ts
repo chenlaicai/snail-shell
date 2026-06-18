@@ -1,7 +1,10 @@
 import { spawn } from "child_process";
 import fs from "fs";
 import path from "path";
+import { getLogger } from "@infra/logger";
 import type { AgentRuntimePort } from "@infra/acs/port";
+
+const log = getLogger({ module: "acs" });
 import type { FirstCallRequest, ResumeRequest, AgentEvent, InvokeResult, InvokeOptions, Message } from "@infra/acs/model";
 import { manageInvocationProcess } from "@infra/acs/_internal/utils/managed-process";
 import { renderStatefulPrompt, type StatefulPromptInput } from "@infra/acs/_internal/utils/stateful-prompt-format";
@@ -281,15 +284,15 @@ function consumeCodexOutput(state: CodexParseState, chunk: string, onEvent: (eve
   const lines = state.buffer.split("\n");
   state.buffer = lines.pop() ?? "";
 
-  for (const line of lines) {
-    if (!line.trim()) continue;
-    try {
-      const event: CodexEvent = JSON.parse(line);
-      processCodexEvent(state, event, onEvent);
-    } catch (error) {
-      console.warn("[acs] failed to parse Codex output line:", error);
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      try {
+        const event: CodexEvent = JSON.parse(line);
+        processCodexEvent(state, event, onEvent);
+      } catch (err) {
+        log.warn({ err }, "failed to parse Codex output line");
+      }
     }
-  }
 }
 
 function processCodexEvent(state: CodexParseState, event: CodexEvent, onEvent: (event: AgentEvent) => void): void {
@@ -366,8 +369,8 @@ function flushCodexOutput(state: CodexParseState, onEvent: (event: AgentEvent) =
     try {
       const event: CodexEvent = JSON.parse(state.buffer);
       processCodexEvent(state, event, onEvent);
-    } catch (error) {
-      console.warn("[acs] failed to parse buffered Codex output:", error);
+    } catch (err) {
+      log.warn({ err }, "failed to parse buffered Codex output");
     }
   }
 }

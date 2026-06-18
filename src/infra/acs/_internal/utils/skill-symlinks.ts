@@ -1,6 +1,9 @@
 import fs from "fs";
 import path from "path";
+import { getLogger } from "@infra/logger";
 import type { SkillCapability } from "@infra/acs/model";
+
+const log = getLogger({ module: "acs" });
 
 /**
  * 在 worktree 内创建符号链接目录，将 ACS skills 暴露为 agent 原生 skill 目录。
@@ -29,7 +32,7 @@ export function ensureSkillSymlinks(workspacePath: string, skills: SkillCapabili
 function ensureSingleSkillSymlink(linkDir: string, skill: SkillCapability): void {
   // 防止路径遍历攻击：skill.name 来自 SKILL.md frontmatter，是外部输入
   if (skill.name.includes('/') || skill.name.includes('\\') || skill.name.includes('..')) {
-    console.warn(`[acs] invalid skill name (contains path separator or traversal): ${skill.name}`);
+    log.warn({ skillName: skill.name }, "invalid skill name (contains path separator or traversal)");
     return;
   }
 
@@ -42,7 +45,7 @@ function ensureSingleSkillSymlink(linkDir: string, skill: SkillCapability): void
     fs.unlinkSync(linkPath);
   } catch {
     if (fs.existsSync(linkPath)) {
-      console.warn(`[acs] skill symlink target already exists (not a symlink), skipping: ${linkPath}`);
+      log.warn({ linkPath }, "skill symlink target already exists (not a symlink), skipping");
       return;
     }
   }
@@ -50,7 +53,7 @@ function ensureSingleSkillSymlink(linkDir: string, skill: SkillCapability): void
   try {
     fs.symlinkSync(targetPath, linkPath);
   } catch (err) {
-    console.warn(`[acs] failed to create skill symlink ${linkPath} → ${targetPath}: ${err}`);
+    log.warn({ err, linkPath, targetPath }, "failed to create skill symlink");
   }
 }
 

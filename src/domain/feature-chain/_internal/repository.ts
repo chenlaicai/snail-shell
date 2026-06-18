@@ -1,5 +1,8 @@
 import type { FeatureDoc, FeatureSearchResult, FeatureChain } from "@domain/feature-chain/model";
 import type { FileLoader } from "@infra/file-loader";
+import { getLogger } from "@infra/logger";
+
+const log = getLogger({ module: "feature-chain" });
 
 /** Feature Chain 持久层接口 */
 export interface FeatureChainRepository {
@@ -98,7 +101,7 @@ export class FileFeatureChainRepository implements FeatureChainRepository {
           }
         }
       } catch (err) {
-        console.warn(`Failed to parse feature doc: ${filePath}`, err);
+        log.warn({ err, filePath }, "Failed to parse feature doc");
       }
     }
   }

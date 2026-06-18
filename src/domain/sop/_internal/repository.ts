@@ -3,6 +3,9 @@ import type { Workspace } from "@domain/workspace/model";
 import { Scope } from "@domain/workspace/model";
 import type { Sop, StageDefinition, RoleDefinition, Transition } from "@domain/sop/model";
 import type { FileDataStore } from "@infra/file-data-store";
+import { getLogger } from "@infra/logger";
+
+const log = getLogger({ module: "sop" });
 
 /** SOP 持久层接口 */
 export interface SopRepository {
@@ -58,7 +61,7 @@ export class FileSopRepository implements SopRepository {
         const sop = this.parseSop(entry, data, `${relativeDir}/${entry}`);
         sops.push(sop);
       } catch (err) {
-        console.warn(`Failed to parse SOP: ${yamlPath}`, err);
+        log.warn({ err, yamlPath }, "Failed to parse SOP");
       }
     }
 
@@ -137,7 +140,7 @@ export class FileSopRepository implements SopRepository {
     const content = this.dataStore.readFile(filePath);
     if (content) return content.trim();
 
-    console.warn(`File reference not found: ${filePath}`);
+    log.warn({ filePath }, "File reference not found");
     return ref;
   }
 }

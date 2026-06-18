@@ -1,8 +1,11 @@
 import type { MiddlewareHandler } from "hono";
 import { upgradeWebSocket } from "@hono/node-server";
 import { WebSocketServer } from "ws";
+import { getLogger } from "@infra/logger";
 import type { CollaborationConsumer, CollaborationInput, StageTransitionSuggestion } from "@app/issue-collaboration/port";
 import type { Message } from "@domain/message/model";
+
+const log = getLogger({ module: "websocket" });
 
 type IssueSocket = {
   send(data: string): void;
@@ -28,7 +31,7 @@ export function createIssueWebSocketBridge(collaboration: CollaborationInput): I
           heartbeatTimer = null;
         }
         if (issueId && consumer) {
-          console.log(`[issue-events] disconnected issue=${issueId}`);
+          log.info({ issueId }, "disconnected");
           collaboration.unregisterIssueConsumer(issueId, consumer);
           consumer = null;
         }
@@ -38,11 +41,11 @@ export function createIssueWebSocketBridge(collaboration: CollaborationInput): I
         onOpen(_event, socket) {
           if (consumer) return;
           if (!issueId) {
-            console.warn("[issue-events] rejected websocket without issue_id");
+            log.warn("rejected websocket without issue_id");
             socket.close(1008, "issue_id is required");
             return;
           }
-          console.log(`[issue-events] connected issue=${issueId}`);
+          log.info({ issueId }, "connected");
           consumer = createConsumer(issueId, socket);
           collaboration.registerIssueConsumer(issueId, consumer);
           heartbeatTimer = setInterval(() => {

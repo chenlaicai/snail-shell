@@ -9,7 +9,10 @@
 
 import fs from "fs";
 import path from "path";
+import { getLogger } from "@infra/logger";
 import type { MCPServerCapability } from "@infra/acs/model";
+
+const log = getLogger({ module: "acs" });
 
 function buildMcpRemoteEntry(url: string): { command: string; args: string[] } {
   return { command: "npx", args: ["mcp-remote@1", url] };
@@ -48,7 +51,7 @@ function writeClaudeMcpConfig(servers: MCPServerCapability[], workspacePath: str
     try {
       mcpConfig = JSON.parse(fs.readFileSync(mcpJsonPath, "utf-8"));
     } catch {
-      console.warn(`[acs] ${mcpJsonPath} 解析失败，保留原文件内容不变`);
+      log.warn({ mcpJsonPath }, "mcp.json 解析失败，保留原文件内容不变");
       return;
     }
   }
@@ -75,7 +78,7 @@ function syncEnabledMcpjsonServers(claudeDir: string, serverNames: string[]): vo
     try {
       settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
     } catch {
-      console.warn(`[acs] ${settingsPath} 解析失败，保留原文件内容不变`);
+      log.warn({ settingsPath }, "settings.json 解析失败，保留原文件内容不变");
       return;
     }
   }
@@ -93,7 +96,7 @@ function writeOpenCodeMcpConfig(servers: MCPServerCapability[], workspacePath: s
       const raw = fs.readFileSync(configPath, "utf-8");
       config = JSON.parse(parseJsonc(raw));
     } catch {
-      console.warn(`[acs] ${configPath} 解析失败，保留原文件内容不变`);
+      log.warn({ configPath }, "opencode.json 解析失败，保留原文件内容不变");
       return;
     }
   }
@@ -142,7 +145,7 @@ function readConfigFile(configPath: string): string | null {
   try {
     return fs.readFileSync(configPath, "utf-8");
   } catch {
-    console.warn(`[acs] ${configPath} 读取失败，保留原文件内容不变`);
+    log.warn({ configPath }, "读取失败，保留原文件内容不变");
     return null;
   }
 }

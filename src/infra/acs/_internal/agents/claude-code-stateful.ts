@@ -3,7 +3,10 @@ import { writeFileSync, unlinkSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { randomUUID } from "crypto";
+import { getLogger } from "@infra/logger";
 import type { AgentRuntimePort } from "@infra/acs/port";
+
+const log = getLogger({ module: "acs" });
 import type { FirstCallRequest, ResumeRequest, AgentEvent, InvokeResult, InvokeOptions, GuardProfile, Message } from "@infra/acs/model";
 import { buildResultTextEvent } from "@infra/acs/_internal/utils/event-utils";
 import { manageInvocationProcess } from "@infra/acs/_internal/utils/managed-process";
@@ -246,16 +249,16 @@ export class ClaudeCodeStatefulAgent implements AgentRuntimePort {
 function cleanupFile(filePath: string): void {
   try {
     unlinkSync(filePath);
-  } catch (error) {
-    console.warn(`[acs] failed to cleanup prompt file ${filePath}:`, error);
+  } catch (err) {
+    log.warn({ err, filePath }, "failed to cleanup prompt file");
   }
 }
 
 function parseJsonLine(line: string, source: string): any | null {
   try {
     return JSON.parse(line);
-  } catch (error) {
-    console.warn(`[acs] failed to parse ${source} output line:`, error);
+  } catch (err) {
+    log.warn({ err, source }, "failed to parse output line");
     return null;
   }
 }

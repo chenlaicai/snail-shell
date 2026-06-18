@@ -1,5 +1,8 @@
 import type { IMInboundMessage } from "@domain/im/model";
 import type { IMTransport } from "@domain/im/port";
+import { getLogger } from "@infra/logger";
+
+const log = getLogger({ module: "im" });
 
 /**
  * 企微传输层实现。
@@ -60,7 +63,7 @@ export class WecomTransport implements IMTransport {
 
   async patchText(_messageId: string, _text: string): Promise<void> {
     // 企微不支持 patchText，降级为发送新消息
-    console.warn("企微不支持 patchText，降级为发送新消息");
+    log.warn("企微不支持 patchText，降级为发送新消息");
   }
 
   /** 处理 webhook 回调 */
