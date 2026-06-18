@@ -17,27 +17,19 @@ export function Sidebar() {
             <circle cx="15" cy="10" r="1" fill="currentColor"/>
           </svg>
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium truncate">Snail Shell</div>
-          <div className="text-xs text-text-secondary">Workspace</div>
-        </div>
+        <div className="text-sm font-medium truncate">Snail Shell</div>
       </div>
 
       <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
-        <div className="space-y-0.5">
+        <div className="px-3 py-1 text-[11px] font-medium text-text-muted uppercase tracking-wider">Modules</div>
+        <div className="space-y-0.5 mt-1">
           <SidebarLink to="/evolution" icon={<EvolutionIcon />} label="Evolution" />
           <SidebarLink to="/knowledge" icon={<KnowledgeIcon />} label="Knowledge" />
           <SidebarLink to="/sops" icon={<SopIcon />} label="SOPs" />
           <SidebarLink to="/lobby" icon={<LobbyIcon />} label="IM Lobby" />
-        </div>
-
-        <div className="pt-4">
-          <div className="px-3 py-1 text-[11px] font-medium text-text-muted uppercase tracking-wider">Workspaces</div>
-          <div className="space-y-0.5 mt-1">
-            {workspaces?.map((ws) => (
-              <SidebarLink key={ws.id} to={`/workspaces/${ws.id}/board`} icon={<LayersIcon />} label={ws.path} />
-            ))}
-          </div>
+          {workspaces?.map((ws) => (
+            <SidebarLink key={ws.id} to={`/workspaces/${ws.id}/board`} icon={<LayersIcon />} label={ws.path} />
+          ))}
         </div>
 
         <div className="pt-4">
