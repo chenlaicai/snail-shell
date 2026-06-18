@@ -19,7 +19,8 @@ export function ChatInput({ onSend, disabled, placeholder = "Reply to this issue
   }, [value, disabled, onSend]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    /** 恢复 F2026060401 设计：Enter 换行、Shift+Enter 发送，与 Slack/Discord 默认一致 */
+    if (e.key === "Enter" && e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
