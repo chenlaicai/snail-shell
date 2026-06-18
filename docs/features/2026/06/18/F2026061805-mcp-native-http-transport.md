@@ -40,7 +40,7 @@ Snail Shell 的 MCP Server 以 HTTP 模式运行（`http://localhost:3000/mcp/`�
 
 | # | 场景 | 预期行为 | 测试覆盖 |
 |---|------|----------|----------|
-| B1 | 当 Snail Shell 启动并初始化 Claude Code agent 的 MCP 配置时 | 生成的 `.claude/mcp.json` 应使用 `{ type: "http", url }` 格式，而非 `mcp-remote` 桥接格式 | `src/infra/acs/_internal/utils/mcp-config.test.ts::testClaudeGeneratesNativeHttpFormat` + `v1/tests/agent/mcp-config-test.ts::testClaudeCreatesNewConfig` |
+| B1 | 当 Snail Shell 启动并初始化 Claude Code agent 的 MCP 配置时 | 生成的 `.claude/mcp.json` 应使用 `{ type: "http", url }` 格式，而非 `mcp-remote` 桥接格式 | 手动验证 |
 | B2 | 当 Claude Code agent 启动时 | 应能识别并加载所有 MCP Server，`claude mcp list` 显示已配置的 server | 手动验证 |
 | B3 | 当 agent 调用 `set_final_body` MCP 工具时 | 应能成功调用并返回 `{ ok: true }` | 手动验证 |
 
@@ -110,16 +110,13 @@ function buildMcpHttpEntry(url: string): { type: string; url: string } {
 | 文件 | 变更类型 | 说明 |
 |------|----------|------|
 | `src/infra/acs/_internal/utils/mcp-config.ts` | 修改 | `buildMcpRemoteEntry` → `buildMcpHttpEntry`，返回 `{ type: "http", url }`；移除 `syncEnabledMcpjsonServers` 调用；新增清理逻辑删除 settings.json 中残留的 `enabledMcpjsonServers` |
-| `src/infra/acs/_internal/utils/mcp-config.test.ts` | 新增 | 验证 Claude Code agent 生成的 mcp.json 格式 |
-| `v1/src/agent/mcp-config.ts` | 修改 | 同步修复 `buildMcpRemoteEntry` |
-| `v1/tests/agent/mcp-config-test.ts` | 修改 | 更新 3 处断言匹配新格式 |
 | `.claude/settings.json` | 自动清理 | 代码清理后自动移除 `enabledMcpjsonServers` |
 
 ## 验证
 
 ### P1
 
-- [x] `grep -r "mcp-remote" src/ v1/src/ --include="*.ts"` 输出为 0 匹配（仅注释中提及迁移说明）
+- [x] `grep -r "mcp-remote" src/ --include="*.ts"` 输出为 0 匹配（仅注释中提及迁移说明）
 - [ ] `claude mcp list` 显示已配置的 MCP Server（手动验证）
 - [ ] `curl -s http://localhost:3000/mcp/snail-final-response` 正常响应（手动验证）
 - [ ] agent 能成功调用 `set_final_body` MCP 工具（手动验证）
@@ -127,8 +124,6 @@ function buildMcpHttpEntry(url: string): { type: string; url: string } {
 ### 通用
 
 - [x] TypeScript 编译通过
-- [x] 现有测试通过
-- [x] 新增 mcp-config 测试通过
 
 ## 关联
 
@@ -142,10 +137,13 @@ function buildMcpHttpEntry(url: string): { type: string; url: string } {
 |---|--------|----------|----------|----------|----------|--------|------|
 | D1 | 桥接 vs 原生 HTTP transport | 原生 HTTP 消除外部依赖（npx、npm registry、网络），更可靠；Claude Code 已原生支持 | 需要确认 `--mcp-config` 支持原生格式 | 选择原生 HTTP transport | 已验证 `claude mcp add --transport http` 使用 `{ type: "http", url }` 格式 | 架构师-1, 架构师-2 | 2026-06-18 |
 | D2 | 函数重命名 | `buildMcpRemoteEntry` 名字已不准确，应改为 `buildMcpHttpEntry` | 无 | 重命名 | 避免后续维护者困惑 | 架构师-1, 架构师-2 | 2026-06-18 |
-| D3 | v1 目录是否纳入影响范围 | v1 仍在维护（最近提交 2026-06-17），mcp-config 逻辑独立 | v1 可能已废弃 | 纳入影响范围 | v1 最近提交证明仍在维护 | 架构师-1, 架构师-2 | 2026-06-18 |
-| D4 | 是否补测试 | `src/infra/acs/` 下无 mcp-config 测试，方案中"测试文件更新断言"无对应文件 | 改动小，可不补 | 补测试 | 提高回归检查覆盖率 | 架构师-1, 架构师-2 | 2026-06-18 |
+| D3 | v1 目录是否纳入影响范围 | v1 仍在维护（最近提交 2026-06-17），mcp-config 逻辑独立 | v1 可能已废弃 | 不纳入（用户决策） | 用户明确指示不修改 v1 目录 | 用户 | 2026-06-18 |
+| D4 | 是否补测试 | `src/infra/acs/` 下无 mcp-config 测试，方案中"测试文件更新断言"无对应文件 | 改动小，可不补 | 不补（用户决策） | 用户明确指示移除测试 | 用户 | 2026-06-18 |
 | D5 | `enabledMcpjsonServers` 残留处理 | 移除 `syncEnabledMcpjsonServers` 调用后，已存在的白名单字段会残留 | 残留字段不影响原生 HTTP 模式 | 代码中加清理逻辑 | 彻底清理遗留配置，避免混淆 | 架构师-1, 架构师-2 | 2026-06-18 |
 
 ## 范围变更记录
 
-无。
+| # | 变更内容 | 原因 | 日期 |
+|---|----------|------|------|
+| 1 | 移除 v1 目录修改（v1/src/agent/mcp-config.ts、v1/tests/agent/mcp-config-test.ts） | 用户明确指示不修改 v1 目录 | 2026-06-18 |
+| 2 | 移除测试文件（src/infra/acs/_internal/utils/mcp-config.test.ts） | 用户明确指示移除测试 | 2026-06-18 |
