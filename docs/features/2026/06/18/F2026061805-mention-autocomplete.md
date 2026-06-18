@@ -39,18 +39,18 @@ F2026061803 的 P2 目标是输入框支持 @mention 自动补全当前 stage �
 
 | # | 场景 | 预期行为 | 测试覆盖 |
 |---|------|----------|----------|
-| B1 | 当用户在输入框中输入 @ 时 | 应显示 role_instance 补全列表，支持键盘导航（ArrowUp/Down）和选择（Enter/Tab） | `useMention.test.ts` · B1 |
-| B2 | 当用户在补全列表中按 ArrowDown 时 | 选中项应向下移动，循环回顶部 | `useMention.test.ts` · B2 |
-| B3 | 当用户在补全列表中按 ArrowUp 时 | 选中项应向上移动，循环回底部 | `useMention.test.ts` · B3 |
-| B4 | 当用户在补全列表中按 Enter 或 Tab 时 | 应确认选择，插入 @role_instance_name 到文本中，光标定位在 @name 之后 | `useMention.test.ts` · B4 |
-| B5 | 当用户在输入框中按 Escape 且补全列表激活时 | 补全列表应关闭，不影响已输入的文本 | `useMention.test.ts` · B5 |
-| B6 | 当用户选择 @mention 后 | 光标应定位在 `@name ` 之后，用户可继续输入 | `useMention.test.ts` · B6 |
-| B7 | 当用户在输入框中按 Shift+Enter 且补全列表激活时 | 消息应发送，同时关闭补全列表 | `useMention.test.ts` · handleKeyDown 键盘事件消费 |
-| B8 | 当用户输入 @ 后输入过滤文本时 | 补全列表应按名称子串过滤，区分大小写不敏感 | `useMention.test.ts` · B8 |
-| B9 | 当过滤后无匹配角色时 | 补全列表应关闭 | `useMention.test.ts` · B9 |
-| B10 | 当用户发送包含 @mention 的消息时 | 前端应将选中的角色实例传入 `to_speakers` 字段，后端直接使用该字段路由消息 | `useMention.test.ts` · extractToSpeakers |
-| B11 | 当 `stage.role_instances` 为空且用户输入 @ 时 | 不显示补全列表，@ 作为普通文本处理 | `useMention.test.ts` · B11 |
-| B12 | 当用户点击补全列表中的某一项时 | 应确认选择，插入 @role_instance_name 到文本中 | `useMention.test.ts` · computeSelection 文本变换逻辑 |
+| B1 | 当用户在输入框中输入 @ 时 | 应显示 role_instance 补全列表，支持键盘导航（ArrowUp/Down）和选择（Enter/Tab） | |
+| B2 | 当用户在补全列表中按 ArrowDown 时 | 选中项应向下移动，循环回顶部 | |
+| B3 | 当用户在补全列表中按 ArrowUp 时 | 选中项应向上移动，循环回底部 | |
+| B4 | 当用户在补全列表中按 Enter 或 Tab 时 | 应确认选择，插入 @role_instance_name 到文本中，光标定位在 @name 之后 | |
+| B5 | 当用户在输入框中按 Escape 且补全列表激活时 | 补全列表应关闭，不影响已输入的文本 | |
+| B6 | 当用户选择 @mention 后 | 光标应定位在 `@name ` 之后，用户可继续输入 | |
+| B7 | 当用户在输入框中按 Shift+Enter 且补全列表激活时 | 消息应发送，同时关闭补全列表 | |
+| B8 | 当用户输入 @ 后输入过滤文本时 | 补全列表应按名称子串过滤，区分大小写不敏感 | |
+| B9 | 当过滤后无匹配角色时 | 补全列表应关闭 | |
+| B10 | 当用户发送包含 @mention 的消息时 | 前端应将选中的角色实例传入 `to_speakers` 字段，后端直接使用该字段路由消息 | |
+| B11 | 当 `stage.role_instances` 为空且用户输入 @ 时 | 不显示补全列表，@ 作为普通文本处理 | |
+| B12 | 当用户点击补全列表中的某一项时 | 应确认选择，插入 @role_instance_name 到文本中 | |
 
 ## 设计
 
