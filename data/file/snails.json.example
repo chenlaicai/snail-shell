@@ -1,23 +1,22 @@
 {
   "snails": [
     {
-      // 【必填】Snail 唯一标识
+      "_id_help": "【必填】Snail 唯一标识",
       "id": "claude-code-sonnet",
 
-      // 【必填】显示名称
+      "_name_help": "【必填】显示名称",
       "name": "Claude Code + Sonnet",
 
-      // 【必填】对应的 agent name（对应 acs registry 中的注册名）
-      // 可选值：claude-code, claude-code-stateful, codex, opencode
+      "_agent_name_help": "【必填】对应的 agent name（对应 acs registry 中的注册名）。可选值：claude-code, claude-code-stateful, codex, opencode",
       "agent_name": "claude-code",
 
-      // 【必填】模型标识
+      "_model_help": "【必填】模型标识",
       "model": "sonnet",
 
-      // 【可选】上下文窗口大小（token 数）
+      "_context_window_help": "【可选】上下文窗口大小（token 数）",
       "context_window": 200000,
 
-      // 【可选】调用超时（毫秒），默认 30 分钟
+      "_invocation_timeout_ms_help": "【可选】调用超时（毫秒），默认 30 分钟",
       "invocation_timeout_ms": 1800000
     }
   ]
