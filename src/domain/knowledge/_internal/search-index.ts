@@ -19,14 +19,14 @@ import type { SearchResult } from "@domain/knowledge/port";
  * FTS5 表存储在平台级数据库 snail-shell.db 中，与其他 domain 共享连接。
  */
 export class KnowledgeSearchIndex {
-  private db: Database.Database;
+  private db: SQLiteDatabase;
   private insertEntryStmt: Database.Statement;
   private insertSearchStmt: Database.Statement;
   private deleteSearchStmt: Database.Statement;
   private deleteEntryStmt: Database.Statement;
 
   constructor(db: SQLiteDatabase) {
-    this.db = db.raw();
+    this.db = db;
     this.initSchema();
 
     this.insertEntryStmt = this.db.prepare(`
@@ -124,26 +124,24 @@ export class KnowledgeSearchIndex {
     const contentHash = this.computeHash(entry.title, entry.content);
     const tagsJson = JSON.stringify(entry.tags ?? []);
 
-    const tx = this.db.transaction(() => {
+    this.db.transaction(() => {
       this.insertEntryStmt.run(entry.id, entry.scope, workspacePath, entry.title, entry.content, tagsJson, contentHash);
       this.deleteSearchStmt.run(entry.id);
       this.insertSearchStmt.run(entry.id, entry.scope, workspacePath, entry.title, entry.content);
     });
-    tx();
   }
 
   /** 从索引删除条目 */
   remove(id: string): void {
-    const tx = this.db.transaction(() => {
+    this.db.transaction(() => {
       this.deleteSearchStmt.run(id);
       this.deleteEntryStmt.run(id);
     });
-    tx();
   }
 
   /** 从文件重建整个索引 */
   rebuild(entries: KnowledgeEntry[]): void {
-    const tx = this.db.transaction(() => {
+    this.db.transaction(() => {
       this.db.exec(`DELETE FROM knowledge_search`);
       this.db.exec(`DELETE FROM knowledge_entries`);
       for (const entry of entries) {
@@ -154,7 +152,6 @@ export class KnowledgeSearchIndex {
         this.insertSearchStmt.run(entry.id, entry.scope, workspacePath, entry.title, entry.content);
       }
     });
-    tx();
   }
 
   /**
