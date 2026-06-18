@@ -1,4 +1,4 @@
-import { createBrowserRouter, type LoaderFunctionArgs } from "react-router-dom";
+import { createBrowserRouter, redirect, type LoaderFunctionArgs } from "react-router-dom";
 import { queryClient } from "./queries/client";
 import { workspaceQueries, issueQueries } from "./queries/workspace.queries";
 import { sopQueries } from "./queries/sop.queries";
@@ -9,9 +9,10 @@ import { AppShell } from "./layouts/AppShell";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { HomePage } from "./pages/HomePage";
 import { WorkspaceDirectory } from "./pages/WorkspaceDirectory";
-import { WorkspaceBoard } from "./pages/WorkspaceBoard";
 import { WorkspaceConfig } from "./pages/WorkspaceConfig";
-import { ConversationLayout } from "./pages/ConversationLayout";
+import { IssueBoard } from "./pages/IssueBoard";
+import { IssueList } from "./pages/IssueList";
+import { IssueConversation } from "./pages/IssueConversation";
 import { EvolutionCenter } from "./pages/EvolutionCenter";
 import { KnowledgeLibrary } from "./pages/KnowledgeLibrary";
 import { SopCenter } from "./pages/SopCenter";
@@ -22,7 +23,6 @@ import { McpCenter } from "./pages/McpCenter";
 import { Lobby } from "./pages/Lobby";
 import { NotFound } from "./pages/NotFound";
 
-/** 类型安全的 loader 参数提取 */
 function requireParams(loaderArgs: LoaderFunctionArgs, ...keys: string[]): Record<string, string> {
   const result: Record<string, string> = {};
   for (const key of keys) {
@@ -37,7 +37,7 @@ export const router = createBrowserRouter([
   {
     path: "/",
     element: <AppShell />,
-    errorElement: <ErrorBoundary />,
+    errorElement: <ErrorBoundary><div /></ErrorBoundary>,
     children: [
       { index: true, element: <HomePage /> },
       {
@@ -54,7 +54,23 @@ export const router = createBrowserRouter([
       },
       {
         path: "workspaces/:workspaceId",
-        element: <WorkspaceBoard />,
+        loader: (args) => redirect(`/workspaces/${args.params.workspaceId}/board`),
+      },
+      {
+        path: "workspaces/:workspaceId/board",
+        element: <IssueBoard />,
+        loader: async (args) => {
+          const { workspaceId } = requireParams(args, "workspaceId");
+          await Promise.all([
+            queryClient.ensureQueryData(workspaceQueries.detail(workspaceId)),
+            queryClient.ensureQueryData(workspaceQueries.issues(workspaceId)),
+          ]);
+          return null;
+        },
+      },
+      {
+        path: "workspaces/:workspaceId/list",
+        element: <IssueList />,
         loader: async (args) => {
           const { workspaceId } = requireParams(args, "workspaceId");
           await Promise.all([
@@ -66,7 +82,7 @@ export const router = createBrowserRouter([
       },
       {
         path: "workspaces/:workspaceId/issue/:issueId",
-        element: <ConversationLayout />,
+        element: <IssueConversation />,
         loader: async (args) => {
           const { issueId } = requireParams(args, "issueId");
           await queryClient.ensureQueryData(issueQueries.detail(issueId));

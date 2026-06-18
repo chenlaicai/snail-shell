@@ -1,66 +1,59 @@
-import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { workspaceQueries } from "../queries/workspace.queries";
+import { useQuery } from "@tanstack/react-query";
+import { workspaceQueries } from "@/queries/workspace.queries";
+import { TopBar } from "@/components/TopBar";
+import type { WorkspaceSummaryDto } from "@/types";
 
 export function WorkspaceDirectory() {
   const navigate = useNavigate();
-  const { data: workspaces = [], isLoading, error } = useQuery(workspaceQueries.list());
+  const { data: workspaces = [], isLoading } = useQuery(workspaceQueries.list());
 
   return (
-    <div className="flex flex-col h-full min-h-0 bg-[var(--color-bg-base)]" data-view-pane="workspaces">
-      <header className="flex items-center justify-between border-b border-[var(--color-border-muted)] px-[var(--space-xl)] py-[var(--space-lg)]">
-        <div>
-          <h1 className="text-[var(--font-size-2xl)] font-semibold text-[var(--color-text-primary)]">Workspaces</h1>
-          <p className="mt-[var(--space-xs)] text-[var(--font-size-sm)] text-[var(--color-text-secondary)]">
-            管理本地项目入口，并进入对应的 issue 协作看板。
-          </p>
+    <>
+      <TopBar breadcrumbs={[{ label: "Workspaces" }]} />
+      <div className="flex-1 overflow-y-auto px-6 py-6">
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-semibold text-text-primary">Workspaces</h1>
+            <p className="mt-1 text-[13px] text-text-secondary">Choose a workspace to inspect its issues and stages.</p>
+          </div>
+          <button
+            onClick={() => navigate("/workspaces/new")}
+            className="rounded-md bg-shell-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-shell-500"
+          >
+            New Workspace
+          </button>
         </div>
-        <button
-          type="button"
-          className="rounded-[var(--radius-md)] border border-[var(--color-accent)] bg-[var(--color-bg-elevated)] px-[var(--space-md)] py-[var(--space-xs)] text-[var(--font-size-sm)] font-medium text-[var(--color-accent)] transition-colors hover:bg-[rgba(108,141,250,0.08)]"
-          onClick={() => navigate("/workspaces/new")}
-        >
-          新建工作区
-        </button>
-      </header>
 
-      <main className="flex-1 overflow-auto px-[var(--space-xl)] py-[var(--space-lg)]">
-        {isLoading && <div className="text-[var(--color-text-muted)]">正在加载工作区...</div>}
-
-        {error && <div className="text-[var(--color-danger-text)]">加载工作区失败</div>}
-
-        {!isLoading && !error && workspaces.length === 0 && (
-          <section className="flex min-h-[320px] flex-col items-center justify-center rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-[var(--space-xl)] text-center">
-            <h2 className="text-[var(--font-size-lg)] font-semibold text-[var(--color-text-primary)]">暂无工作区</h2>
-            <p className="mt-[var(--space-sm)] max-w-[420px] text-[var(--font-size-sm)] leading-[1.6] text-[var(--color-text-secondary)]">
-              创建第一个工作区后，Snail Shell 会基于该项目组织 issue、stage 和 AI 协作上下文。
-            </p>
-            <button
-              type="button"
-              className="mt-[var(--space-lg)] rounded-[var(--radius-md)] bg-[var(--color-accent)] px-[var(--space-lg)] py-[var(--space-sm)] text-[var(--font-size-sm)] font-semibold text-[var(--color-background)] transition-opacity hover:opacity-90"
-              onClick={() => navigate("/workspaces/new")}
-            >
-              创建工作区
-            </button>
-          </section>
-        )}
-
-        {!isLoading && !error && workspaces.length > 0 && (
-          <section className="grid gap-[var(--space-md)]">
-            {workspaces.map((workspace) => (
+        {isLoading ? (
+          <div className="flex h-40 items-center justify-center text-sm text-text-muted">Loading workspaces...</div>
+        ) : workspaces.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-white/10 bg-surface-1 px-8 py-12 text-center">
+            <div className="text-sm font-medium text-text-primary">No workspaces yet</div>
+            <div className="mt-2 text-[13px] text-text-muted">Create one to start issue collaboration.</div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {(workspaces as WorkspaceSummaryDto[]).map((workspace) => (
               <button
                 key={workspace.id}
-                type="button"
-                className="rounded-[var(--radius-lg)] border border-[var(--color-border-muted)] bg-[var(--color-bg-surface)] p-[var(--space-lg)] text-left transition-colors hover:border-[var(--color-border-default)] hover:bg-[var(--color-bg-elevated)]"
-                onClick={() => navigate(`/workspaces/${workspace.id}`)}
+                onClick={() => navigate(`/workspaces/${workspace.id}/board`)}
+                className="group rounded-xl border border-white/6 bg-surface-1 p-4 text-left transition-colors hover:border-white/10 hover:bg-surface-2"
               >
-                <div className="font-semibold text-[var(--color-text-primary)]">{workspace.summary || workspace.path}</div>
-                <div className="mt-[var(--space-xs)] truncate text-[var(--font-size-sm)] text-[var(--color-text-secondary)]">{workspace.path}</div>
+                <div className="flex items-start gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-shell-600/15 text-shell-400">
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[13px] font-medium text-text-primary group-hover:text-shell-400">{workspace.path}</div>
+                    <div className="mt-1 line-clamp-2 text-[12px] leading-5 text-text-muted">{workspace.summary || "No summary"}</div>
+                  </div>
+                </div>
               </button>
             ))}
-          </section>
+          </div>
         )}
-      </main>
-    </div>
+      </div>
+    </>
   );
 }

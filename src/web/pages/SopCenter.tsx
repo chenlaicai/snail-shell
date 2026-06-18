@@ -1,14 +1,11 @@
-/**
- * SOP Center - 标准作业流程查看
- */
-
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "../services/api-client";
-import { sopQueries } from "../queries/sop.queries";
-import { showToast } from "../components/Toast";
+import { api } from "@/services/api-client";
+import { sopQueries } from "@/queries/sop.queries";
+import { showToast } from "@/components/Toast";
 import { Badge } from "@/components/ui/badge";
-import type { SopDetailDto } from "../types";
+import { TopBar } from "@/components/TopBar";
+import type { SopDetailDto } from "@/types";
 
 export function SopCenter() {
   const { data: sops = [], isLoading } = useQuery(sopQueries.list());
@@ -18,96 +15,50 @@ export function SopCenter() {
   async function selectSop(sopKey: string) {
     setSelectedKey(sopKey);
     try {
-      const data = await api("GET /api/sops/:sopKey", { params: { sopKey } });
-      setDetail(data);
+      setDetail(await api("GET /api/sops/:sopKey", { params: { sopKey } }));
     } catch (err: unknown) {
       showToast(`加载 SOP 详情失败：${err instanceof Error ? err.message : String(err)}`, true);
       setDetail(null);
     }
   }
 
-  if (isLoading) return <div className="flex items-center justify-center h-full text-[var(--color-text-muted)] text-[13px]">加载中...</div>;
+  if (isLoading) return <div className="flex h-full items-center justify-center text-[13px] text-text-muted">加载中...</div>;
 
   return (
-    <div className="flex flex-col h-full min-h-0" data-view-pane="sops">
-      <div className="flex flex-col flex-1 overflow-hidden min-w-0">
-        <div className="flex items-center gap-4 p-3 px-6 border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0">
-          <div className="flex items-baseline gap-2 flex-1 min-w-0">
-            <span className="text-sm font-semibold text-[var(--color-text-primary)]">SOP Center</span>
-            <span className="text-[11px] text-[var(--color-text-grey)]">{sops.length} 个流程</span>
-          </div>
-        </div>
+    <>
+      <TopBar breadcrumbs={[{ label: "SOP Center" }]} />
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        <aside className="w-[300px] shrink-0 overflow-y-auto border-r border-white/6 p-4">
+          <div className="mb-3 flex items-center justify-between"><span className="text-xs font-medium uppercase tracking-wider text-text-muted">SOPs</span><span className="text-[11px] text-text-muted">{sops.length}</span></div>
+          {sops.length === 0 ? <div className="py-3 text-[13px] text-text-muted">暂无 SOP</div> : sops.map((sop) => (
+            <button key={sop.key} onClick={() => selectSop(sop.key)} className={`mb-1 w-full rounded-lg p-3 text-left transition-colors ${selectedKey === sop.key ? "bg-white/8 text-text-primary" : "text-text-secondary hover:bg-white/5 hover:text-text-primary"}`}>
+              <div className="text-[13px] font-medium">{sop.name}</div>
+              <div className="mt-1 font-mono text-[10px] text-text-muted">{sop.scope} · {sop.key}</div>
+            </button>
+          ))}
+        </aside>
 
-        <div className="flex flex-1 overflow-hidden min-h-0">
-          <div className="w-[280px] shrink-0 border-r border-[var(--color-border-muted)] overflow-auto p-[var(--space-md)]">
-            {sops.length === 0 ? (
-              <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">暂无 SOP</div>
-            ) : (
-              sops.map((sop) => (
-                <div
-                  key={sop.key}
-                  className={`cursor-pointer p-[var(--space-sm)] rounded-[var(--radius-sm)] mb-1 transition-colors ${
-                    selectedKey === sop.key
-                      ? "bg-[var(--color-bg-active)] text-[var(--color-accent)]"
-                      : "text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)]"
-                  }`}
-                  onClick={() => selectSop(sop.key)}
-                >
-                  <div className="font-semibold text-[var(--font-size-sm)]">{sop.name}</div>
-                  <div className="text-[var(--font-size-xs)] text-[var(--color-text-grey)]">
-                    {sop.scope} · {sop.key}
-                  </div>
+        <main className="flex-1 overflow-y-auto p-6">
+          {detail ? (
+            <div className="max-w-4xl">
+              <div className="mb-6"><h1 className="text-xl font-semibold text-text-primary">{detail.name}</h1><div className="mt-1 font-mono text-[11px] text-text-muted">{detail.scope} · {detail.key}</div></div>
+              {detail.description && <p className="mb-6 text-[13px] leading-6 text-text-secondary">{detail.description}</p>}
+              <h2 className="mb-3 text-sm font-medium text-text-primary">阶段定义</h2>
+              {detail.stage_definitions.length > 0 ? (
+                <div className="grid gap-3">
+                  {detail.stage_definitions.map((stage) => (
+                    <div key={stage.key} className="rounded-lg border border-white/6 bg-surface-1 p-4">
+                      <div className="mb-2 flex items-center gap-2"><span className="text-[13px] font-medium text-text-primary">{stage.title}</span><Badge variant="outline">{stage.key}</Badge></div>
+                      {stage.description && <div className="text-[12px] leading-5 text-text-muted">{stage.description}</div>}
+                      {stage.roles.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{stage.roles.map((role) => <Badge key={role.key ?? role.name} variant={role.is_primary ? "default" : "secondary"}>{role.name}{role.is_primary ? " 主" : ""}</Badge>)}</div>}
+                    </div>
+                  ))}
                 </div>
-              ))
-            )}
-          </div>
-
-          <div className="flex-1 overflow-auto p-[var(--space-xl)]">
-            {detail ? (
-              <div>
-                <div className="mb-[var(--space-lg)]">
-                  <h2 className="m-0 text-[var(--font-size-lg)]">{detail.name}</h2>
-                  <div className="text-[var(--font-size-xs)] text-[var(--color-text-grey)] mt-1">
-                    {detail.scope} · {detail.key}
-                  </div>
-                </div>
-                {detail.description && (
-                  <p className="text-[var(--color-text-secondary)] mb-[var(--space-lg)]">{detail.description}</p>
-                )}
-                <h3 className="text-[var(--font-size-md)] mb-[var(--space-md)]">阶段定义</h3>
-                {detail.stage_definitions.length > 0 ? (
-                  <div className="grid gap-[var(--space-md)]">
-                    {detail.stage_definitions.map((stage) => (
-                      <div key={stage.key} className="flex gap-2.5 py-3 px-3.5 bg-[var(--color-bg-surface)] border border-[var(--color-border-muted)] rounded-[var(--radius-sm)] mb-1.5">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1.5">
-                            <span className="text-[13px] font-semibold text-[var(--color-text-primary)] flex-1 whitespace-nowrap overflow-hidden text-ellipsis">{stage.title}</span>
-                            <Badge variant="outline">{stage.key}</Badge>
-                          </div>
-                          {stage.description && <div className="text-[var(--font-size-xs)] text-[var(--color-text-grey)] mt-1">{stage.description}</div>}
-                          {stage.roles.length > 0 && (
-                            <div className="mt-[var(--space-sm)]">
-                              {stage.roles.map((role) => (
-                                <span key={role.key ?? role.name} className="text-[var(--font-size-xs)] mr-[var(--space-sm)]">
-                                  {role.name}{role.is_primary ? " (主)" : ""}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">暂无阶段定义</div>
-                )}
-              </div>
-            ) : (
-              <div className="text-[var(--color-text-muted)] text-[var(--font-size-base)] py-[var(--space-sm)]">选择一个 SOP 查看详情</div>
-            )}
-          </div>
-        </div>
+              ) : <div className="py-3 text-[13px] text-text-muted">暂无阶段定义</div>}
+            </div>
+          ) : <div className="py-3 text-[13px] text-text-muted">选择一个 SOP 查看详情</div>}
+        </main>
       </div>
-    </div>
+    </>
   );
 }

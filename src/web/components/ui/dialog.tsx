@@ -33,13 +33,13 @@ export function Dialog({ open, onClose, title, children }: DialogProps) {
       onClose={onClose}
       onClick={(e) => { if (e.target === ref.current) onClose(); }}
       aria-labelledby={titleId}
-      className="m-auto max-w-[640px] w-[min(640px,calc(100vw-32px))] rounded-[var(--radius-lg)] border border-[var(--color-border-muted)] bg-[var(--color-bg-card)] p-0 text-[var(--color-text-primary)] shadow-[0_24px_80px_rgba(0,0,0,0.55)] backdrop:bg-black/60"
+      className="m-auto w-[min(640px,calc(100vw-32px))] max-w-[640px] rounded-lg border border-white/6 bg-surface-1 p-0 text-text-primary shadow-[0_24px_80px_rgba(0,0,0,0.55)] backdrop:bg-black/60"
     >
       <div className="flex max-h-[calc(100vh-48px)] flex-col overflow-hidden">
-        <div className="border-b border-[var(--color-border-muted)] px-[var(--space-lg)] py-[var(--space-md)]">
-          <h3 id={titleId} className="m-0 text-[var(--font-size-md)] font-semibold">{title}</h3>
+        <div className="border-b border-white/6 px-4 py-3">
+          <h3 id={titleId} className="m-0 text-sm font-semibold">{title}</h3>
         </div>
-        <div className="overflow-y-auto px-[var(--space-lg)] py-[var(--space-lg)]">
+        <div className="overflow-y-auto px-4 py-4">
           {children}
         </div>
       </div>

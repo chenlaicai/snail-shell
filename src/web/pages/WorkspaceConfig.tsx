@@ -1,72 +1,80 @@
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { api } from "../services/api-client";
-import { showToast } from "../components/Toast";
-import { queryKeys } from "../queries/keys";
-import { Button } from "@/components/ui/button";
-import type { WorkspaceSummaryDto } from "../types";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { useCreateWorkspace } from "@/mutations/workspace.mutations";
+import { TopBar } from "@/components/TopBar";
+import { showToast } from "@/components/Toast";
 
 export function WorkspaceConfig() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const createWorkspace = useCreateWorkspace();
+  const [path, setPath] = useState("");
   const [summary, setSummary] = useState("");
-  const [workspaceRoot, setWorkspaceRoot] = useState("");
 
-  async function handleSubmit() {
-    if (!workspaceRoot.trim()) { showToast("工作区根目录不能为空", true); return; }
-    try {
-      const result = await api("POST /api/workspaces", {
-        body: {
-          path: workspaceRoot.trim(),
-          summary: summary.trim() || undefined,
-        },
-      });
-      queryClient.setQueryData<WorkspaceSummaryDto[]>(queryKeys.workspaces.list(), (current = []) => {
-        const others = current.filter((workspace) => workspace.id !== result.id);
-        return [result, ...others];
-      });
-      queryClient.setQueryData(queryKeys.workspaces.detail(result.id), result);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.all });
-      showToast("工作区已创建");
-      navigate(`/workspaces/${result.id}`);
-    } catch (err: unknown) {
-      showToast(`创建工作区失败：${err instanceof Error ? err.message : String(err)}`, true);
-    }
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = path.trim();
+    if (!trimmed) { showToast("Workspace path 不能为空", true); return; }
+    createWorkspace.mutate(
+      { path: trimmed, summary: summary.trim() || undefined },
+      {
+        onSuccess: (workspace) => navigate(`/workspaces/${workspace.id}/board`),
+        onError: (err) => showToast(`创建 Workspace 失败：${err instanceof Error ? err.message : String(err)}`, true),
+      },
+    );
   }
 
   return (
-    <div className="flex flex-col h-full min-h-0" data-view-pane="workspace-config">
-      <div className="flex flex-col flex-1 overflow-hidden min-w-0">
-        <div className="flex items-center gap-4 p-3 px-6 border-b border-[var(--color-border-muted)] bg-[var(--color-bg-base)] shrink-0">
-          <div className="flex items-baseline gap-2 flex-1 min-w-0">
-            <span className="text-sm font-semibold text-[var(--color-text-primary)]">新建工作区</span>
+    <>
+      <TopBar breadcrumbs={[{ label: "Workspaces", to: "/workspaces" }, { label: "New" }]} />
+      <div className="flex-1 overflow-y-auto px-6 py-6">
+        <div className="mx-auto max-w-xl">
+          <div className="mb-6">
+            <h1 className="text-xl font-semibold text-text-primary">New Workspace</h1>
+            <p className="mt-1 text-[13px] text-text-secondary">Create a workspace root for issue collaboration.</p>
           </div>
-          <div className="flex gap-1.5">
-            <Button variant="outline" onClick={() => navigate("/workspaces")}>取消</Button>
-            <Button onClick={handleSubmit}>创建工作区</Button>
-          </div>
-        </div>
 
-        <div className="p-6 overflow-auto flex-1 max-w-[720px]">
-          <section className="mb-[var(--space-xl)]">
-            <h3 className="mb-[var(--space-md)]">基本信息</h3>
-            <p className="mb-[var(--space-lg)] text-[var(--font-size-sm)] leading-[1.6] text-[var(--color-text-secondary)]">
-              工作区只负责绑定一个本地项目根目录。SOP 模板会在创建具体 issue 时选择，因为不同 issue 可以采用不同协作流程。
-            </p>
-            <div className="mb-[var(--space-md)]">
-              <label className="block mb-1 text-[var(--font-size-sm)]">工作区根目录 *</label>
-              <Input value={workspaceRoot} onChange={(e) => setWorkspaceRoot(e.target.value)} placeholder="绝对路径，如 /Users/you/project" />
+          <form onSubmit={handleSubmit} className="rounded-xl border border-white/6 bg-surface-1 p-5">
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-text-muted">Path *</label>
+                <input
+                  value={path}
+                  onChange={(e) => setPath(e.target.value)}
+                  placeholder="/path/to/workspace"
+                  className="w-full rounded-md border border-white/6 bg-surface-0 px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-shell-600/40 focus:outline-none"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-text-muted">Summary</label>
+                <textarea
+                  value={summary}
+                  onChange={(e) => setSummary(e.target.value)}
+                  placeholder="Optional workspace description"
+                  rows={3}
+                  className="w-full resize-none rounded-md border border-white/6 bg-surface-0 px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-shell-600/40 focus:outline-none"
+                />
+              </div>
             </div>
-            <div className="mb-[var(--space-md)]">
-              <label className="block mb-1 text-[var(--font-size-sm)]">摘要</label>
-              <Textarea value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="可选；不填则使用目录路径展示" rows={2} />
+            <div className="mt-5 flex justify-end gap-2 border-t border-white/6 pt-4">
+              <button
+                type="button"
+                onClick={() => navigate("/workspaces")}
+                className="rounded-md px-3 py-1.5 text-sm text-text-secondary transition-colors hover:text-text-primary"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={!path.trim() || createWorkspace.isPending}
+                className="rounded-md bg-shell-600 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-shell-500 disabled:opacity-50"
+              >
+                {createWorkspace.isPending ? "Creating..." : "Create Workspace"}
+              </button>
             </div>
-          </section>
+          </form>
         </div>
       </div>
-    </div>
+    </>
   );
 }

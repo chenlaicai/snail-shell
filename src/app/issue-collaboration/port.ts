@@ -1,9 +1,9 @@
 import type { Message, MessageContext, MessageEvent } from "@domain/message/model";
-import type { Stage } from "@domain/issue/model";
+import type { CreateIssueInput, Issue, Stage } from "@domain/issue/model";
 
-export interface LaunchIssueInput {
-  issue_id: string;
-  stage_key?: string;
+export interface CreateIssueResult {
+  issue: Issue;
+  stage: Stage;
 }
 
 export interface StageTransitionSuggestion {
@@ -18,7 +18,7 @@ export interface StageTransitionSuggestion {
 }
 
 export interface CollaborationInput {
-  launchIssue(input: LaunchIssueInput): Promise<Stage>;
+  createIssue(input: CreateIssueInput): Promise<CreateIssueResult>;
   sendMessage(stageId: string, text: string, fromSpeaker?: string): Promise<void>;
   registerIssueConsumer(issueId: string, consumer: CollaborationConsumer): void;
   unregisterIssueConsumer(issueId: string, consumer: CollaborationConsumer): void;

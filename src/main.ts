@@ -63,9 +63,9 @@ async function initModules(repoRoot: string, serverSettings: ServerSettings) {
   const guardProfile = initGuardProfile(dataStore);
   const liteAI = initLiteAI(dataStore);
   const snail = initSnail(dataStore, db, { registry, tenetPrompt: tenetPrompt.adapter, skill: skill.adapter, mcp: mcp.adapter, guardProfile: guardProfile.adapter });
-  const evolution = initEvolution(db, issue.issueAdapter, snail.adapter);
+  const collaboration = initIssueCollaboration({ issuePort: issue.issueAdapter, createIssue: (input) => issue.issueAdapter.createIssue(input), stagePort: issue.stageAdapter, messagePort: message.adapter, snailPort: snail.adapter, liteAIPort: liteAI.adapter });
+  const evolution = initEvolution(db, issue.issueAdapter, snail.adapter, collaboration.adapter);
   evolutionRef.current = evolution;
-  const collaboration = initIssueCollaboration({ issuePort: issue.issueAdapter, stagePort: issue.stageAdapter, messagePort: message.adapter, snailPort: snail.adapter, liteAIPort: liteAI.adapter });
   const im = initIM({ workspacePort: workspace.adapter, issuePort: issue.issueAdapter, stagePort: issue.stageAdapter, configStore, db });
   const imHub = initIMHub({ imAdapter: im.adapter, lobbyAdapter: im.lobbyAdapter, collaboration: collaboration.adapter, stagePort: issue.stageAdapter });
   await im.adapter.startChannels();
