@@ -1,5 +1,5 @@
 ---
-id: F2026061803
+id: F2026061804
 title: restore-v2-runtime-logging
 from_ids: []
 tags:
@@ -14,7 +14,7 @@ modules:
 doc_kind: spec
 ---
 
-# F2026061803 [infra] 恢复 v2 运行时日志能力
+# F2026061804 [infra] 恢复 v2 运行时日志能力
 
 ## 背景
 
