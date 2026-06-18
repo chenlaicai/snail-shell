@@ -110,6 +110,7 @@ function buildMcpHttpEntry(url: string): { type: string; url: string } {
 | 文件 | 变更类型 | 说明 |
 |------|----------|------|
 | `src/infra/acs/_internal/utils/mcp-config.ts` | 修改 | `buildMcpRemoteEntry` → `buildMcpHttpEntry`，返回 `{ type: "http", url }`；移除 `syncEnabledMcpjsonServers` 调用；新增清理逻辑删除 settings.json 中残留的 `enabledMcpjsonServers` |
+| `src/domain/snail-mcp-server/_internal/servers/snail-final-response.ts` | 修改 | 丰富 `set_final_body` 工具描述，强调"每次发言必须调用"的行为契约；补充 `message_id` 参数描述 |
 | `.claude/settings.json` | 自动清理 | 代码清理后自动移除 `enabledMcpjsonServers` |
 
 ## 验证
