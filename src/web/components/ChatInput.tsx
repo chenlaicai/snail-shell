@@ -1,38 +1,121 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { useMention } from "@/hooks/useMention";
+import { MentionDropdown } from "@/components/MentionDropdown";
 
-interface ChatInputProps {
-  onSend: (content: string) => void;
-  disabled?: boolean;
-  placeholder?: string;
+/** 从文本中提取匹配 role_instances 的 @mention 目标 */
+function extractToSpeakers(text: string, roleInstances: string[]): string[] {
+  const matcher = /@([\p{L}\p{N}_-]+)/gu;
+  const result: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = matcher.exec(text)) !== null) {
+    const name = match[1];
+    if (roleInstances.includes(name) && !result.includes(name)) {
+      result.push(name);
+    }
+  }
+  return result;
 }
 
-export function ChatInput({ onSend, disabled, placeholder = "Reply to this issue..." }: ChatInputProps) {
+interface ChatInputProps {
+  onSend: (content: string, toSpeakers: string[]) => void;
+  disabled?: boolean;
+  placeholder?: string;
+  roleInstances?: string[];
+}
+
+export function ChatInput({ onSend, disabled, placeholder = "Reply to this issue...", roleInstances = [] }: ChatInputProps) {
   const [value, setValue] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const {
+    mentionState, updateMention, hideSuggestions, computeSelection, handleKeyDown: handleMentionKeyDown, isMentionActive,
+  } = useMention({ roleInstances });
+
+  /** 输入变化时同步检测 mention 状态 */
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newValue = e.target.value;
+    setValue(newValue);
+    e.target.style.height = "auto";
+    e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
+    updateMention(newValue, e.target.selectionStart ?? newValue.length);
+  }, [updateMention]);
+
+  /** 点击/光标移动时重新检测 mention（用户可能用鼠标重新定位光标） */
+  const handleSelect = useCallback(() => {
+    const el = textareaRef.current;
+    if (el) updateMention(el.value, el.selectionStart ?? el.value.length);
+  }, [updateMention]);
+
+  /** 选择补全列表项（鼠标点击或 Enter/Tab 确认） */
+  const applyMentionSelection = useCallback((index?: number) => {
+    const transform = computeSelection(value, index);
+    if (!transform) return;
+    setValue(transform.newValue);
+    hideSuggestions();
+    /** 设置光标位置需要在 React 状态更新后执行 */
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (el) el.setSelectionRange(transform.cursorPos, transform.cursorPos);
+    });
+  }, [value, computeSelection, hideSuggestions]);
 
   const handleSend = useCallback(() => {
     const trimmed = value.trim();
     if (!trimmed || disabled) return;
-    onSend(trimmed);
+    const toSpeakers = extractToSpeakers(trimmed, roleInstances);
+    onSend(trimmed, toSpeakers);
     setValue("");
+    hideSuggestions();
     if (textareaRef.current) textareaRef.current.style.height = "auto";
-  }, [value, disabled, onSend]);
+  }, [value, disabled, onSend, roleInstances, hideSuggestions]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    /** 恢复 F2026060401 设计：Enter 换行、Shift+Enter 发送，与 Slack/Discord 默认一致 */
-    if (e.key === "Enter" && e.shiftKey) {
-      e.preventDefault();
-      handleSend();
+    /** 补全列表激活时，优先处理 mention 键盘事件 */
+    if (isMentionActive) {
+      const consumed = handleMentionKeyDown(e);
+      if (consumed) {
+        /** Enter/Tab 确认选择（B4） */
+        if (e.key === "Enter" || e.key === "Tab") {
+          applyMentionSelection();
+        }
+        return;
+      }
+      /** Shift+Enter 在补全列表激活时也发送（B7） */
+      if (e.key === "Enter" && e.shiftKey) {
+        e.preventDefault();
+        handleSend();
+        return;
+      }
+    } else {
+      /** 补全列表未激活：恢复 F2026060401 设计：Enter 换行、Shift+Enter 发送 */
+      if (e.key === "Enter" && e.shiftKey) {
+        e.preventDefault();
+        handleSend();
+      }
     }
   };
 
+  /** 补全列表激活时点击外部关闭 */
+  useEffect(() => {
+    if (!isMentionActive) return;
+    const handleClickOutside = () => hideSuggestions();
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isMentionActive, hideSuggestions]);
+
   return (
-    <div className="bg-surface-2 rounded-2xl border border-white/6 overflow-hidden focus-within:border-shell-600/40 focus-within:ring-1 focus-within:ring-shell-600/15 transition-all">
+    <div className="bg-surface-2 rounded-2xl border border-white/6 overflow-hidden focus-within:border-shell-600/40 focus-within:ring-1 focus-within:ring-shell-600/15 transition-all relative">
+      <MentionDropdown
+        suggestions={mentionState.suggestions}
+        selectedIndex={mentionState.selectedIndex}
+        onSelect={applyMentionSelection}
+      />
       <div className="px-4 py-3">
         <textarea
           ref={textareaRef}
           value={value}
-          onChange={(e) => { setValue(e.target.value); e.target.style.height = "auto"; e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`; }}
+          onChange={handleChange}
+          onSelect={handleSelect}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={disabled}

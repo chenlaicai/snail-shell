@@ -72,9 +72,9 @@ export function IssueConversation() {
 
   const sendMutation = useSendMessage(stageId ?? "");
 
-  const handleSend = useCallback((content: string) => {
+  const handleSend = useCallback((content: string, toSpeakers: string[]) => {
     if (!stageId) return;
-    sendMutation.mutate({ text: content });
+    sendMutation.mutate({ text: content, to_speakers: toSpeakers.length > 0 ? toSpeakers : undefined });
   }, [stageId, sendMutation]);
 
   const handleStageChanged = useCallback((nextStage: StageDetailDto) => {
@@ -191,7 +191,7 @@ export function IssueConversation() {
                   当前 Stage 已结束，历史对话保留为只读。请切换到当前 Stage 继续对话。
                 </div>
               ) : (
-                <ChatInput onSend={handleSend} disabled={!stageId || stage?.status !== "in_progress"} />
+                <ChatInput onSend={handleSend} disabled={!stageId || stage?.status !== "in_progress"} roleInstances={stage?.role_instances ?? []} />
               )}
             </div>
           </div>
