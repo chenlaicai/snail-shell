@@ -30,8 +30,8 @@ function testClaudeCreatesNewConfig(): void {
   assert.ok(content.mcpServers, "should have mcpServers key");
   assert.ok(content.mcpServers["test-server"], "should have test-server entry");
   const entry = content.mcpServers["test-server"];
-  assert.equal(entry.type, "http", "type should be http (native transport)");
-  assert.equal(entry.url, "http://localhost:3000/snail-final-response", "url should match");
+  assert.equal(entry.command, "npx", "command should be npx (mcp-remote bridge)");
+  assert.deepEqual(entry.args, ["mcp-remote@1", "http://localhost:3000/snail-final-response"], "args should use mcp-remote@1 bridge");
   console.log("✓ testClaudeCreatesNewConfig passed");
 }
 
@@ -60,7 +60,7 @@ function testClaudePreservesExistingServers(): void {
   console.log("✓ testClaudePreservesExistingServers passed");
 }
 
-function testClaudeNativeHttpFormat(): void {
+function testClaudeMcpRemoteVersionLocked(): void {
   const wsRoot = path.join(tmpDir, "ws-claude-3");
   fs.mkdirSync(wsRoot, { recursive: true });
   const configPath = path.join(wsRoot, ".claude", "mcp.json");
@@ -74,10 +74,8 @@ function testClaudeNativeHttpFormat(): void {
 
   const content = JSON.parse(fs.readFileSync(configPath, "utf-8"));
   const entry = content.mcpServers["test"];
-  assert.equal(entry.type, "http", "should use native HTTP transport");
-  assert.equal(entry.url, "http://localhost:9999/test", "url should match");
-  assert.equal(entry.command, undefined, "should not have command (no mcp-remote bridge)");
-  console.log("✓ testClaudeNativeHttpFormat passed");
+  assert.deepEqual(entry.args, ["mcp-remote@1", "http://localhost:9999/test"], "mcp-remote should be version-locked to @1");
+  console.log("✓ testClaudeMcpRemoteVersionLocked passed");
 }
 
 // ── Codex: .codex/config.toml ──
@@ -227,18 +225,13 @@ function testOpenCodeNoGlobalWrite(): void {
   console.log("✓ testOpenCodeNoGlobalWrite passed");
 }
 
-// ── Claude Code: settings.json cleanup ──
+// ── Claude Code: settings.json sync ──
 
-function testClaudeCleansUpLegacyEnabledMcpjsonServers(): void {
-  const wsRoot = path.join(tmpDir, "ws-settings-cleanup-1");
-  fs.mkdirSync(path.join(wsRoot, ".claude"), { recursive: true });
+function testClaudeSyncsSettingsJson(): void {
+  const wsRoot = path.join(tmpDir, "ws-settings-sync-1");
+  fs.mkdirSync(wsRoot, { recursive: true });
   const settingsPath = path.join(wsRoot, ".claude", "settings.json");
-
-  const existingSettings = {
-    enableAllProjectMcpServers: true,
-    enabledMcpjsonServers: ["old-server"],
-  };
-  fs.writeFileSync(settingsPath, JSON.stringify(existingSettings, null, 2) + "\n");
+  cleanup(settingsPath);
 
   ensureMcpServers(
     [{ name: "snail-final-response", url: "http://localhost:3000/snail-final-response" }],
@@ -246,14 +239,36 @@ function testClaudeCleansUpLegacyEnabledMcpjsonServers(): void {
     "claude",
   );
 
+  assert.ok(fs.existsSync(settingsPath), ".claude/settings.json should be created");
   const settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
-  assert.equal(settings.enableAllProjectMcpServers, true, "existing field should be preserved");
-  assert.equal(settings.enabledMcpjsonServers, undefined, "legacy enabledMcpjsonServers should be removed");
-  console.log("✓ testClaudeCleansUpLegacyEnabledMcpjsonServers passed");
+  assert.deepEqual(settings.enabledMcpjsonServers, ["snail-final-response"],
+    "enabledMcpjsonServers should match mcp.json server keys");
+  console.log("✓ testClaudeSyncsSettingsJson passed");
 }
 
-function testClaudeCleanupNoopWhenNoLegacyField(): void {
-  const wsRoot = path.join(tmpDir, "ws-settings-cleanup-2");
+function testClaudeSyncsMultipleServers(): void {
+  const wsRoot = path.join(tmpDir, "ws-settings-sync-2");
+  fs.mkdirSync(wsRoot, { recursive: true });
+  const settingsPath = path.join(wsRoot, ".claude", "settings.json");
+  cleanup(settingsPath);
+
+  ensureMcpServers(
+    [
+      { name: "server-a", url: "http://localhost:3000/a" },
+      { name: "server-b", command: "node", args: ["b.js"] },
+    ],
+    wsRoot,
+    "claude",
+  );
+
+  const settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+  assert.deepEqual(settings.enabledMcpjsonServers.sort(), ["server-a", "server-b"],
+    "enabledMcpjsonServers should contain all server names");
+  console.log("✓ testClaudeSyncsMultipleServers passed");
+}
+
+function testClaudePreservesExistingSettings(): void {
+  const wsRoot = path.join(tmpDir, "ws-settings-sync-3");
   fs.mkdirSync(path.join(wsRoot, ".claude"), { recursive: true });
   const settingsPath = path.join(wsRoot, ".claude", "settings.json");
 
@@ -272,25 +287,9 @@ function testClaudeCleanupNoopWhenNoLegacyField(): void {
   const settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
   assert.equal(settings.enableAllProjectMcpServers, true, "existing field should be preserved");
   assert.equal(settings.customField, "preserved", "custom field should be preserved");
-  assert.equal(settings.enabledMcpjsonServers, undefined, "no enabledMcpjsonServers should be added");
-  console.log("✓ testClaudeCleanupNoopWhenNoLegacyField passed");
-}
-
-function testClaudeCleanupNoopWhenNoSettingsFile(): void {
-  const wsRoot = path.join(tmpDir, "ws-settings-cleanup-3");
-  fs.mkdirSync(wsRoot, { recursive: true });
-  const settingsPath = path.join(wsRoot, ".claude", "settings.json");
-  cleanup(settingsPath);
-
-  ensureMcpServers(
-    [{ name: "snail-final-response", url: "http://localhost:3000/snail-final-response" }],
-    wsRoot,
-    "claude",
-  );
-
-  // settings.json should not be created just for cleanup
-  assert.ok(!fs.existsSync(settingsPath), "settings.json should not be created when no legacy field exists");
-  console.log("✓ testClaudeCleanupNoopWhenNoSettingsFile passed");
+  assert.deepEqual(settings.enabledMcpjsonServers, ["snail-final-response"],
+    "enabledMcpjsonServers should be added");
+  console.log("✓ testClaudePreservesExistingSettings passed");
 }
 
 // ── Edge cases ──
@@ -330,7 +329,7 @@ function testStdioServerConfig(): void {
 try {
   testClaudeCreatesNewConfig();
   testClaudePreservesExistingServers();
-  testClaudeNativeHttpFormat();
+  testClaudeMcpRemoteVersionLocked();
   testCodexCreatesNewConfig();
   testCodexPreservesGuardConfig();
   testCodexNoGlobalWrite();
@@ -338,9 +337,9 @@ try {
   testOpenCodeStdioFormat();
   testOpenCodePreservesExistingConfig();
   testOpenCodeNoGlobalWrite();
-  testClaudeCleansUpLegacyEnabledMcpjsonServers();
-  testClaudeCleanupNoopWhenNoLegacyField();
-  testClaudeCleanupNoopWhenNoSettingsFile();
+  testClaudeSyncsSettingsJson();
+  testClaudeSyncsMultipleServers();
+  testClaudePreservesExistingSettings();
   testSkipsOnEmptyServers();
   testStdioServerConfig();
   console.log("\nmcp-config tests passed");
