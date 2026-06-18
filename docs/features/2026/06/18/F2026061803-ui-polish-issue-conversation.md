@@ -144,7 +144,6 @@ Issue 对话界面存在多个 UI 体验问题：
 | 文件 | 改动 |
 |---|---|
 | `src/web/pages/IssueConversation.tsx` | 面包屑构建、properties grid 精简 |
-| `src/web/components/TopBar.tsx` | 面包屑组件（可能无需改动） |
 | `src/web/components/ChatInput.tsx` | 输入框换行行为 |
 | `src/web/components/PropertiesPanel.tsx` | 参与者展示、术语修正 |
 
@@ -174,7 +173,7 @@ grep -r "Agents" src/web/
 
 # 确认状态去重
 grep -r "StatusBadge" src/web/pages/IssueConversation.tsx
-# 预期输出：1 匹配（仅 header）
+# 预期输出：2 匹配（1 导入 + 1 header 使用）
 
 grep -r "StatusBadge" src/web/components/PropertiesPanel.tsx
 # 预期输出：0 匹配
