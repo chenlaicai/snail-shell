@@ -1,7 +1,7 @@
 # 日志配置
 # 复制为 logging.yaml 后按需修改
 
-# 日志级别: debug | info | warn | error
+# 日志级别: debug | info | warn | error | silent
 level: info
 
 # 日志输出目录（相对于项目根目录）
@@ -9,3 +9,6 @@ directory: logs
 
 # 单个日志文件最大体积（MB），超过后自动轮转
 max_file_size_mb: 10
+
+# 日志保留天数，超过自动清理
+max_days: 30

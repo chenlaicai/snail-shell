@@ -1,136 +1,77 @@
-import fs from "fs";
 import path from "path";
+import pino from "pino";
 import { ConfigStore } from "@infra/config-store";
 
-export type LogLevel = "debug" | "info" | "warn" | "error";
-
 interface LoggingConfig {
-  level?: LogLevel;
+  level?: pino.LevelWithSilent;
   directory?: string;
   max_file_size_mb?: number;
+  max_days?: number;
 }
-
-const LEVEL_WEIGHT: Record<LogLevel, number> = {
-  debug: 10,
-  info: 20,
-  warn: 30,
-  error: 40,
-};
 
 const DEFAULT_CONFIG: Required<LoggingConfig> = {
   level: "info",
   directory: "logs",
   max_file_size_mb: 10,
+  max_days: 30,
 };
 
-function pad(n: number): string {
-  return String(n).padStart(2, "0");
+function loadConfig(repoRoot: string): Required<LoggingConfig> {
+  const userConfig = new ConfigStore(repoRoot).readYaml<LoggingConfig>("logging.yaml") ?? {};
+  return { ...DEFAULT_CONFIG, ...userConfig };
 }
 
-function dayKey(date = new Date()): string {
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+function buildFileTarget(config: Required<LoggingConfig>): pino.TransportTargetOptions {
+  const logDir = path.resolve(config.directory);
+  const logFile = path.join(logDir, "snail-shell.log");
+
+  return {
+    target: "pino-roll",
+    options: {
+      file: logFile,
+      size: `${config.max_file_size_mb}m`,
+      interval: "1d",
+      mkdir: true,
+      maxFiles: config.max_days,
+      dateFormat: "yyyy-MM-dd",
+    },
+    level: config.level,
+  };
 }
 
-export class Logger {
-  private config: Required<LoggingConfig>;
-  private currentDay = "";
-  private currentIndex = 1;
-  private currentFilePath = "";
+let rootLogger: pino.Logger | null = null;
 
-  constructor(repoRoot?: string) {
-    const userConfig = repoRoot
-      ? new ConfigStore(repoRoot).readYaml<LoggingConfig>("logging.yaml") ?? {}
-      : {};
-    this.config = { ...DEFAULT_CONFIG, ...userConfig };
-    this.ensureDirectory();
+export function getLogger(context?: Record<string, unknown>): pino.Logger {
+  if (!rootLogger) {
+    rootLogger = initRootLogger();
   }
 
-  debug(message: string, meta?: Record<string, unknown>): void {
-    this.write("debug", message, meta);
-  }
-
-  info(message: string, meta?: Record<string, unknown>): void {
-    this.write("info", message, meta);
-  }
-
-  warn(message: string, meta?: Record<string, unknown>): void {
-    this.write("warn", message, meta);
-  }
-
-  error(message: string, meta?: Record<string, unknown>): void {
-    this.write("error", message, meta);
-  }
-
-  private shouldLog(level: LogLevel): boolean {
-    return LEVEL_WEIGHT[level] >= LEVEL_WEIGHT[this.config.level];
-  }
-
-  private ensureDirectory(): void {
-    const dir = path.resolve(this.config.directory);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-  }
-
-  private resolveFilePath(): void {
-    const today = dayKey();
-    const dir = path.resolve(this.config.directory);
-    const maxBytes = this.config.max_file_size_mb * 1024 * 1024;
-
-    if (this.currentDay !== today) {
-      this.currentDay = today;
-      this.currentIndex = 1;
-    }
-
-    while (true) {
-      const filePath = path.join(dir, `snail-shell-${today}.${this.currentIndex}.log`);
-      if (!fs.existsSync(filePath)) {
-        this.currentFilePath = filePath;
-        return;
-      }
-      const stats = fs.statSync(filePath);
-      if (stats.size < maxBytes) {
-        this.currentFilePath = filePath;
-        return;
-      }
-      this.currentIndex++;
-    }
-  }
-
-  private serializeMeta(meta: Record<string, unknown>): string {
-    try {
-      return JSON.stringify(meta, (_key: string, value: unknown) => {
-        if (value instanceof Error) {
-          return { name: value.name, message: value.message, stack: value.stack };
-        }
-        return value;
-      });
-    } catch {
-      return "[unserializable]";
-    }
-  }
-
-  private write(level: LogLevel, message: string, meta?: Record<string, unknown>): void {
-    if (!this.shouldLog(level)) return;
-
-    this.resolveFilePath();
-    const timestamp = new Date().toISOString();
-    const metaStr = meta && Object.keys(meta).length > 0 ? ` ${this.serializeMeta(meta)}` : "";
-    const line = `[${timestamp}] [${level.toUpperCase()}] ${message}${metaStr}\n`;
-
-    try {
-      fs.appendFileSync(this.currentFilePath, line, "utf8");
-    } catch {
-      // 日志写入失败不应影响业务
-    }
-  }
+  return context ? rootLogger.child(context) : rootLogger;
 }
 
-let instance: Logger | null = null;
+function initRootLogger(): pino.Logger {
+  const repoRoot = process.cwd();
+  const config = loadConfig(repoRoot);
 
-export function getLogger(): Logger {
-  if (!instance) {
-    instance = new Logger(process.cwd());
-  }
-  return instance;
+  const transport = pino.transport({
+    targets: [
+      buildFileTarget(config),
+      {
+        target: "pino/file",
+        options: { destination: 1 },
+        level: config.level,
+      },
+    ],
+  });
+
+  return pino(
+    {
+      level: config.level,
+      serializers: {
+        err: pino.stdSerializers.err,
+        error: pino.stdSerializers.err,
+      },
+    },
+    transport,
+  );
 }

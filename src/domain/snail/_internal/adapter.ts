@@ -11,7 +11,7 @@ import type { SnailPort } from "@domain/snail/port";
 import type { SnailRepository } from "@domain/snail/_internal/repository";
 import { getLogger } from "@infra/logger";
 
-const log = getLogger();
+const log = getLogger({ module: "snail" });
 
 /**
  * Snail 适配器实现。
@@ -44,13 +44,10 @@ export class SnailAdapter implements SnailPort {
     const snail = this.findSnailOrThrow(snailKey);
     const agent = this.createAgent(snail);
 
-    log.info("[snail] invokeFirstCall", {
-      snailKey,
-      agentName: snail.agent_name,
-      model: snail.model,
-      messageCount: request.messages.length,
-      workspacePath: request.workspace_path,
-    });
+    log.info({
+      snailKey, agentName: snail.agent_name, model: snail.model,
+      messageCount: request.messages.length, workspacePath: request.workspace_path,
+    }, "invokeFirstCall");
 
     // 创建 snail 实例
     const instanceId = this.generateInstanceId(snailKey);
@@ -86,11 +83,7 @@ export class SnailAdapter implements SnailPort {
       this.repo.updateInstanceSessionIds(instance.id, instance.session_ids);
     }
 
-    log.info("[snail] invokeFirstCall completed", {
-      snailKey,
-      instanceId,
-      sessionId: result.sessionId,
-    });
+    log.info({ snailKey, instanceId, sessionId: result.sessionId }, "invokeFirstCall completed");
 
     return { snail_instance_id: instanceId };
   }
@@ -109,13 +102,10 @@ export class SnailAdapter implements SnailPort {
     const sessionId = instance.session_ids.at(-1);
     if (!sessionId) throw new Error(`No session to resume for instance: ${snailInstanceId}`);
 
-    log.info("[snail] invokeResume", {
-      snailInstanceId,
-      snailKey: instance.snail_key,
-      agentName: snail.agent_name,
-      sessionId,
-      messageCount: request.messages.length,
-    });
+    log.info({
+      snailInstanceId, snailKey: instance.snail_key, agentName: snail.agent_name,
+      sessionId, messageCount: request.messages.length,
+    }, "invokeResume");
 
     const invokeOptions = this.buildOptions(snail, options);
 
@@ -131,10 +121,7 @@ export class SnailAdapter implements SnailPort {
       this.repo.updateInstanceSessionIds(instance.id, instance.session_ids);
     }
 
-    log.info("[snail] invokeResume completed", {
-      snailInstanceId,
-      sessionId: result.sessionId,
-    });
+    log.info({ snailInstanceId, sessionId: result.sessionId }, "invokeResume completed");
 
     return { snail_instance_id: snailInstanceId };
   }

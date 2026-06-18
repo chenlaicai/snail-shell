@@ -10,7 +10,7 @@ import { ensureMcpServers } from "@infra/acs/_internal/utils/mcp-config";
 import { ensureSkillSymlinks } from "@infra/acs/_internal/utils/skill-symlinks";
 import { getLogger } from "@infra/logger";
 
-const log = getLogger();
+const log = getLogger({ module: "opencode" });
 
 const OPENCODE_ENV_KEYS = [
   "OPENCODE", "OPENCODE_CLIENT", "OPENCODE_EXPERIMENTAL_FILEWATCHER",
@@ -53,11 +53,11 @@ export class OpenCodeAgent implements AgentRuntimePort {
     onEvent: (event: AgentEvent) => void,
     options: InvokeOptions = {},
   ): Promise<InvokeResult> {
-    log.info("[opencode] invokeFirstCall", {
+    log.info({
       workspacePath: request.workspacePath,
       messageCount: request.messages.length,
       model: options.model ?? OpenCodeAgent.DEFAULT_MODEL,
-    });
+    }, "invokeFirstCall");
 
     // 注入 capabilities（文件系统级别）
     writeOpenCodeGuardConfig(request.guard_profile.deny, request.workspacePath);
@@ -177,10 +177,10 @@ export class OpenCodeAgent implements AgentRuntimePort {
 
     this.throwIfFailed(exitCode, stderr, state);
 
-    log.info("[opencode] invocation completed", {
+    log.info({
       sessionId: state.sessionId,
       outputEventCount: state.outputEventCount,
-    });
+    }, "invocation completed");
 
     return { sessionId: state.sessionId, waitForStop: () => processController.waitForStop() };
   }
@@ -188,20 +188,20 @@ export class OpenCodeAgent implements AgentRuntimePort {
   private throwIfFailed(exitCode: number | null, stderr: string, state: OpenCodeParseState): void {
     if (exitCode !== 0) {
       const errorMsg = stderr || "Unknown error";
-      log.error("[opencode] process exited with non-zero code", {
+      log.error({
         exitCode, stderr: stderr.slice(0, 500), outputEventCount: state.outputEventCount,
         runtimeErrors: state.errors, rawOutput: state.rawOutput.join("").slice(0, 1000),
-      });
+      }, "process exited with non-zero code");
       throw new Error(`opencode failed (exit ${exitCode}): ${errorMsg}`);
     }
 
     if (state.errors.length > 0) {
-      log.error("[opencode] runtime errors", { errors: state.errors, rawOutput: state.rawOutput.join("").slice(0, 1000) });
+      log.error({ errors: state.errors, rawOutput: state.rawOutput.join("").slice(0, 1000) }, "runtime errors");
       throw new Error(`opencode failed: ${state.errors.join("; ")}`);
     }
 
     if (state.outputEventCount === 0) {
-      log.error("[opencode] no output events", { stderr: stderr.slice(0, 500), rawOutputLength: state.rawOutput.length });
+      log.error({ stderr: stderr.slice(0, 500), rawOutputLength: state.rawOutput.length }, "no output events");
       throw new Error(`opencode returned no output events${formatOpenCodeDiagnostics(stderr, state)}`);
     }
   }

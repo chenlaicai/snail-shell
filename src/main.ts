@@ -76,19 +76,19 @@ async function initModules(repoRoot: string, serverSettings: ServerSettings) {
 }
 
 function logStartupSummary(modules: Awaited<ReturnType<typeof initModules>>["modules"]): void {
-  log.info("Loaded workspaces", { count: modules.workspace.adapter.list().length });
-  log.info("Loaded prompts", { count: modules.tenetPrompt.adapter.list().length });
-  log.info("Loaded skills", { count: modules.skill.adapter.list().length });
-  log.info("Loaded SOPs", { count: modules.sop.adapter.list().length });
-  log.info("MCP Servers", { names: modules.snailMCPServer.adapter.listServers().map(s => s.name) });
-  log.info("MCP Configs", { names: modules.mcp.adapter.list().map(c => c.name) });
-  log.info("Feature Chain", { docsIndexed: modules.featureChain.adapter.search("").length });
-  log.info("Snails", { keys: modules.snail.adapter.list().map(s => s.key) });
-  log.info("IM", { channels: modules.im.adapter.listChannelConfigs().map(c => c.type) || "none" });
-  log.info("IM Hub", { ready: Boolean(modules.imHub.adapter) });
-  log.info("Lite AI", { status: modules.liteAI.adapter.getConfig() ? "configured" : "not configured" });
-  log.info("Evolution", { status: "ready" });
-  log.info("Registered agents", { names: modules.registry.listAgentRuntimes() });
+  log.info({ count: modules.workspace.adapter.list().length }, "Loaded workspaces");
+  log.info({ count: modules.tenetPrompt.adapter.list().length }, "Loaded prompts");
+  log.info({ count: modules.skill.adapter.list().length }, "Loaded skills");
+  log.info({ count: modules.sop.adapter.list().length }, "Loaded SOPs");
+  log.info({ names: modules.snailMCPServer.adapter.listServers().map(s => s.name) }, "MCP Servers");
+  log.info({ names: modules.mcp.adapter.list().map(c => c.name) }, "MCP Configs");
+  log.info({ docsIndexed: modules.featureChain.adapter.search("").length }, "Feature Chain");
+  log.info({ keys: modules.snail.adapter.list().map(s => s.key) }, "Snails");
+  log.info({ channels: modules.im.adapter.listChannelConfigs().map(c => c.type) || "none" }, "IM");
+  log.info({ ready: Boolean(modules.imHub.adapter) }, "IM Hub");
+  log.info({ status: modules.liteAI.adapter.getConfig() ? "configured" : "not configured" }, "Lite AI");
+  log.info({ status: "ready" }, "Evolution");
+  log.info({ names: modules.registry.listAgentRuntimes() }, "Registered agents");
 }
 
 function registerShutdownHooks(modules: Awaited<ReturnType<typeof initModules>>["modules"], db: SQLiteDatabase): void {
@@ -96,7 +96,7 @@ function registerShutdownHooks(modules: Awaited<ReturnType<typeof initModules>>[
   const shutdown = () => {
     if (closed) return;
     closed = true;
-    log.info("[shutdown] Closing database...");
+    log.info("Closing database...");
     db.close();
   };
   process.on("exit", shutdown);
@@ -126,12 +126,12 @@ function startHttpServer(modules: Awaited<ReturnType<typeof initModules>>["modul
   const websocketBridge = createIssueWebSocketBridge(modules.collaboration.adapter);
   app.get("/issue-events", websocketBridge.route);
   serve({ fetch: app.fetch, port, websocket: { server: websocketBridge.server } }, (info) => {
-    log.info("HTTP server listening", { port: info.port });
+    log.info({ port: info.port }, "HTTP server listening");
   });
 }
 
 
 main().catch((err) => {
-  log.error("Failed to start", { error: err });
+  log.error({ err }, "Failed to start");
   process.exit(1);
 });

@@ -10,7 +10,7 @@ import type { CollaborationConsumer, CollaborationInput, CreateIssueResult, Stag
 import { StageQueue } from "@app/issue-collaboration/stage-queue";
 import { getLogger } from "@infra/logger";
 
-const log = getLogger();
+const log = getLogger({ module: "collaboration" });
 
 interface CollaborationDeps {
   issuePort: IssuePort;
@@ -48,11 +48,7 @@ export class IssueCollaboration implements CollaborationInput {
   async sendMessage(stageId: string, text: string, fromSpeaker = "user"): Promise<void> {
     const stage = this.mustGetStage(stageId);
     const targets = await this.resolveToSpeakers(stage, text, fromSpeaker);
-    log.info("[collaboration] sendMessage", {
-      stageId,
-      fromSpeaker,
-      targets: targets.map(t => `${t.speaker}(${t.source})`),
-    });
+    log.info({ stageId, fromSpeaker, targets: targets.map(t => `${t.speaker}(${t.source})`) }, "sendMessage");
 
     const message = this.deps.messagePort.createMessage({
       stage_id: stageId,
@@ -116,7 +112,7 @@ export class IssueCollaboration implements CollaborationInput {
       if (signals.length === 0) return;
 
       const targetSpeakers = [...new Set(signals.map(signal => signal.target_speaker))];
-      log.debug("[collaboration] drainStage", { stageId, targetSpeakers, remainingRounds });
+      log.debug({ stageId, targetSpeakers, remainingRounds }, "drainStage");
 
       const executions = targetSpeakers.map(async speaker => {
         this.deps.messagePort.deleteCallSignal(stageId, speaker);
@@ -129,11 +125,11 @@ export class IssueCollaboration implements CollaborationInput {
 
         const unread = this.deps.messagePort.getUnreadMessages(stageId, speaker);
         if (unread.length === 0) {
-          log.debug("[collaboration] skip speaker (no unread)", { stageId, speaker });
+          log.debug({ stageId, speaker }, "skip speaker (no unread)");
           return false;
         }
 
-        log.debug("[collaboration] invoking agent", { stageId, speaker, unreadCount: unread.length });
+        log.debug({ stageId, speaker, unreadCount: unread.length }, "invoking agent");
         this.deps.messagePort.advanceCursor(stageId, speaker, unread[unread.length - 1].id);
         await this.invokeAgent(stageId, speaker, unread);
         return true;
@@ -143,10 +139,7 @@ export class IssueCollaboration implements CollaborationInput {
       const agentCalls = results.filter(result => result.status === "fulfilled" && result.value).length;
       const errors = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
       if (errors.length > 0) {
-        log.error("[collaboration] drainStage agent errors", {
-          stageId,
-          errors: errors.map(e => e.reason?.message ?? String(e.reason)),
-        });
+        log.error({ stageId, errors: errors.map(e => e.reason?.message ?? String(e.reason)) }, "drainStage agent errors");
       }
       if (agentCalls === 0) return;
       remainingRounds -= agentCalls;
@@ -159,10 +152,10 @@ export class IssueCollaboration implements CollaborationInput {
     const assignment = this.deps.stagePort.getRoleSnailAssignment(stageId, roleInstance);
     if (!assignment) throw new Error(`Role assignment not found: ${stageId}:${roleInstance}`);
 
-    log.info("[collaboration] invokeAgent start", {
+    log.info({
       stageId, roleInstance, snailKey: assignment.snail_key,
       snailInstanceId: assignment.snail_instance_id, unreadCount: unreadMessages.length, issueId: issue.id,
-    });
+    }, "invokeAgent start");
 
     const agentMessage = this.deps.messagePort.createMessage({
       stage_id: stageId, from_speaker: roleInstance, to_speakers: [], status: "streaming",
@@ -180,17 +173,16 @@ export class IssueCollaboration implements CollaborationInput {
       this.deps.messagePort.completeMessage(agentMessage.id, "completed");
       const completedMessage = this.mustGetMessage(agentMessage.id);
 
-      log.info("[collaboration] invokeAgent completed", { stageId, roleInstance, messageId: agentMessage.id, contextKind: context.kind });
+      log.info({ stageId, roleInstance, messageId: agentMessage.id, contextKind: context.kind }, "invokeAgent completed");
       this.routeAgentReplies(stage, roleInstance, completedMessage.id);
       await this.detectStageTransition(stage, roleInstance, completedMessage.id);
       await this.notifyConsumers(stageId, "onMessageCompleted", completedMessage, this.deps.messagePort.getContext(completedMessage.id));
     } catch (error) {
-      log.error("[collaboration] invokeAgent failed", {
+      log.error({
         stageId, roleInstance, issueId: issue.id, snailKey: assignment.snail_key,
         snailInstanceId: assignment.snail_instance_id,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      });
+        err: error,
+      }, "invokeAgent failed");
       const context = this.extractTerminalContext(agentMessage.id);
       this.deps.messagePort.setContext(agentMessage.id, "event_summary", context.context);
       this.deps.messagePort.completeMessage(agentMessage.id, "failed", { error: error instanceof Error ? error.message : String(error) });
