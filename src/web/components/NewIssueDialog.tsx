@@ -70,6 +70,13 @@ export function NewIssueDialog({ workspaceId, open, onClose }: NewIssueDialogPro
     });
   }, [open, sopKey, stableStagePreviews, stableSnails]);
 
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open, onClose]);
+
   const missingAssignment = useMemo(() => {
     if (stableStagePreviews.length === 0) return null;
     return stableStagePreviews
@@ -125,9 +132,9 @@ export function NewIssueDialog({ workspaceId, open, onClose }: NewIssueDialogPro
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface-0/80 px-4" onClick={handleClose}>
-      <div className="bg-surface-2 border border-white/6 rounded-xl w-full max-w-2xl h-[86vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <div role="dialog" aria-modal="true" aria-labelledby="new-issue-title" className="bg-surface-2 border border-white/6 rounded-xl w-full max-w-2xl h-[86vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-white/6 shrink-0">
-          <h2 className="text-lg font-semibold">New Issue</h2>
+          <h2 id="new-issue-title" className="text-lg font-semibold">New Issue</h2>
           <p className="text-[12px] text-text-muted mt-1">Create an issue with a complete SOP role assignment plan.</p>
         </div>
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
