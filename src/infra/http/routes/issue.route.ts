@@ -17,7 +17,7 @@ interface IssueRoutesDeps {
   collaboration: CollaborationInput;
 }
 
-const snailAssignmentPlanSchema = z.record(z.record(z.string()));
+const snailAssignmentPlanSchema = z.record(z.string(), z.record(z.string(), z.string()));
 
 const createIssueBody = z.object({
   title: z.string().min(1),
