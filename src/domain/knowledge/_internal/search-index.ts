@@ -1,5 +1,6 @@
 import crypto from "crypto";
-import Database from "better-sqlite3";
+import type Database from "better-sqlite3";
+import type { SQLiteDatabase } from "@infra/database";
 import type { KnowledgeEntry } from "@domain/knowledge/model";
 import type { SearchResult } from "@domain/knowledge/port";
 
@@ -15,19 +16,17 @@ import type { SearchResult } from "@domain/knowledge/port";
  * - unicode61 分词器不支持中文分词，中文短语会被拆分为单字匹配
  * - 如需精确中文短语搜索，需使用 jieba 等分词插件
  *
- * 索引文件位置：data/knowledge-search.db
- * 与平台级数据同目录，不属于 workspace。
+ * FTS5 表存储在平台级数据库 snail-shell.db 中，与其他 domain 共享连接。
  */
 export class KnowledgeSearchIndex {
-  private db: Database.Database;
+  private db: SQLiteDatabase;
   private insertEntryStmt: Database.Statement;
   private insertSearchStmt: Database.Statement;
   private deleteSearchStmt: Database.Statement;
   private deleteEntryStmt: Database.Statement;
 
-  constructor(private indexPath: string) {
-    this.db = new Database(indexPath);
-    this.db.pragma("journal_mode = WAL");
+  constructor(db: SQLiteDatabase) {
+    this.db = db;
     this.initSchema();
 
     this.insertEntryStmt = this.db.prepare(`
@@ -125,26 +124,24 @@ export class KnowledgeSearchIndex {
     const contentHash = this.computeHash(entry.title, entry.content);
     const tagsJson = JSON.stringify(entry.tags ?? []);
 
-    const tx = this.db.transaction(() => {
+    this.db.transaction(() => {
       this.insertEntryStmt.run(entry.id, entry.scope, workspacePath, entry.title, entry.content, tagsJson, contentHash);
       this.deleteSearchStmt.run(entry.id);
       this.insertSearchStmt.run(entry.id, entry.scope, workspacePath, entry.title, entry.content);
     });
-    tx();
   }
 
   /** 从索引删除条目 */
   remove(id: string): void {
-    const tx = this.db.transaction(() => {
+    this.db.transaction(() => {
       this.deleteSearchStmt.run(id);
       this.deleteEntryStmt.run(id);
     });
-    tx();
   }
 
   /** 从文件重建整个索引 */
   rebuild(entries: KnowledgeEntry[]): void {
-    const tx = this.db.transaction(() => {
+    this.db.transaction(() => {
       this.db.exec(`DELETE FROM knowledge_search`);
       this.db.exec(`DELETE FROM knowledge_entries`);
       for (const entry of entries) {
@@ -155,7 +152,6 @@ export class KnowledgeSearchIndex {
         this.insertSearchStmt.run(entry.id, entry.scope, workspacePath, entry.title, entry.content);
       }
     });
-    tx();
   }
 
   /**
@@ -186,9 +182,9 @@ export class KnowledgeSearchIndex {
     return false;
   }
 
-  /** 关闭数据库连接 */
+  /** 关闭数据库连接（由 SQLiteDatabase 统一管理，此处为空实现） */
   close(): void {
-    this.db.close();
+    // 连接由 SQLiteDatabase 统一管理，不需要单独关闭
   }
 
   private computeHash(title: string, content: string): string {
