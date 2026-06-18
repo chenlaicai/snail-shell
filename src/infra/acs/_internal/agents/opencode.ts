@@ -8,6 +8,9 @@ import { renderStatefulPrompt, type StatefulPromptInput } from "@infra/acs/_inte
 import { buildRuntimeUsageSignal, usageDetailFromOpenCodeTokens } from "@infra/acs/_internal/utils/runtime-usage";
 import { ensureMcpServers } from "@infra/acs/_internal/utils/mcp-config";
 import { ensureSkillSymlinks } from "@infra/acs/_internal/utils/skill-symlinks";
+import { getLogger } from "@infra/logger";
+
+const log = getLogger();
 
 const OPENCODE_ENV_KEYS = [
   "OPENCODE", "OPENCODE_CLIENT", "OPENCODE_EXPERIMENTAL_FILEWATCHER",
@@ -20,7 +23,7 @@ interface OpenCodeEvent {
   sessionID?: string;
   part?: { type: string; sessionID?: string; text?: string; tool_use?: { name: string; id: string; input: unknown }; tool_result?: { call_id: string; output: string; is_error: boolean } };
   tokens?: unknown;
-  error?: { message?: string; code?: string } | string;
+  error?: { message?: string; code?: string; data?: { message?: string } } | string;
   [key: string]: unknown;
 }
 
@@ -50,6 +53,12 @@ export class OpenCodeAgent implements AgentRuntimePort {
     onEvent: (event: AgentEvent) => void,
     options: InvokeOptions = {},
   ): Promise<InvokeResult> {
+    log.info("[opencode] invokeFirstCall", {
+      workspacePath: request.workspacePath,
+      messageCount: request.messages.length,
+      model: options.model ?? OpenCodeAgent.DEFAULT_MODEL,
+    });
+
     // 注入 capabilities（文件系统级别）
     writeOpenCodeGuardConfig(request.guard_profile.deny, request.workspacePath);
     ensureMcpServers(request.capabilities.mcpServers, request.workspacePath, "opencode");
@@ -166,20 +175,35 @@ export class OpenCodeAgent implements AgentRuntimePort {
     flushOpenCodeOutput(state, onEvent);
     await processController.throwIfStopped();
 
+    this.throwIfFailed(exitCode, stderr, state);
+
+    log.info("[opencode] invocation completed", {
+      sessionId: state.sessionId,
+      outputEventCount: state.outputEventCount,
+    });
+
+    return { sessionId: state.sessionId, waitForStop: () => processController.waitForStop() };
+  }
+
+  private throwIfFailed(exitCode: number | null, stderr: string, state: OpenCodeParseState): void {
     if (exitCode !== 0) {
       const errorMsg = stderr || "Unknown error";
+      log.error("[opencode] process exited with non-zero code", {
+        exitCode, stderr: stderr.slice(0, 500), outputEventCount: state.outputEventCount,
+        runtimeErrors: state.errors, rawOutput: state.rawOutput.join("").slice(0, 1000),
+      });
       throw new Error(`opencode failed (exit ${exitCode}): ${errorMsg}`);
     }
 
     if (state.errors.length > 0) {
+      log.error("[opencode] runtime errors", { errors: state.errors, rawOutput: state.rawOutput.join("").slice(0, 1000) });
       throw new Error(`opencode failed: ${state.errors.join("; ")}`);
     }
 
     if (state.outputEventCount === 0) {
+      log.error("[opencode] no output events", { stderr: stderr.slice(0, 500), rawOutputLength: state.rawOutput.length });
       throw new Error(`opencode returned no output events${formatOpenCodeDiagnostics(stderr, state)}`);
     }
-
-    return { sessionId: state.sessionId, waitForStop: () => processController.waitForStop() };
   }
 }
 
@@ -348,13 +372,24 @@ function emitOpenCodeStepFinish(state: OpenCodeParseState, event: OpenCodeEvent,
 }
 
 function emitOpenCodeError(state: OpenCodeParseState, event: OpenCodeEvent, onEvent: (event: AgentEvent) => void): void {
-  const errorMsg = typeof event.error === "string" ? event.error : event.error?.message ?? "Unknown error";
+  const errorMsg = extractOpenCodeErrorMessage(event);
   state.errors.push(errorMsg);
   emitOpenCodeEvent(state, onEvent, {
     kind: "error",
     payload: { message: errorMsg },
     source: { runtime_event_type: "error", runtime_message_id: null },
   });
+}
+
+function extractOpenCodeErrorMessage(event: OpenCodeEvent): string {
+  if (typeof event.error === "string") return event.error;
+  if (!event.error) return "Unknown error";
+
+  const error = event.error;
+  if (typeof error.data?.message === "string") return error.data.message;
+  if (typeof error.message === "string") return error.message;
+
+  return "Unknown error";
 }
 
 function formatOpenCodeDiagnostics(stderr: string, state: OpenCodeParseState): string {
