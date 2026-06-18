@@ -1,8 +1,11 @@
 import crypto from "crypto";
 import type Database from "better-sqlite3";
 import type { SQLiteDatabase } from "@infra/database";
+import { getLogger } from "@infra/logger";
 import type { KnowledgeEntry } from "@domain/knowledge/model";
 import type { SearchResult } from "@domain/knowledge/port";
+
+const log = getLogger({ module: "knowledge" });
 
 /**
  * 知识库搜索索引（FTS5）。
@@ -113,7 +116,7 @@ export class KnowledgeSearchIndex {
         snippet: row.snippet,
       }));
     } catch (err) {
-      console.error("[knowledge-search] Search failed:", err);
+      log.error({ err }, "Search failed");
       return [];
     }
   }

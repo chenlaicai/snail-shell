@@ -5,8 +5,11 @@
  */
 
 import type { BrowserContext, Page } from "playwright-core";
+import { getLogger } from "@infra/logger";
 import { newPage } from "@domain/snail-mcp-server/_internal/servers/rednote-research/browser";
 import type { SearchResultItem, DetailResult } from "@domain/snail-mcp-server/_internal/servers/rednote-research/types";
+
+const log = getLogger({ module: "rednote-research" });
 
 /**
  * 截断文本到指定长度。
@@ -82,7 +85,7 @@ export async function fetchDetail(
     const raw = await extractDetailFromPage(page, item.id);
     return { content: truncate(raw.desc, 800), comments: formatComments(raw.comments, maxComments) };
   } catch (err) {
-    console.warn("[rednote-research] 获取笔记详情失败:", err);
+    log.warn({ err, noteId: item.id }, "获取笔记详情失败");
     return { content: "", comments: [] };
   } finally {
     await page.close();

@@ -5,8 +5,11 @@
  */
 
 import type { BrowserContext } from "playwright-core";
+import { getLogger } from "@infra/logger";
 import { newPage } from "@domain/snail-mcp-server/_internal/servers/rednote-research/browser";
 import type { Feed, SearchResultItem } from "@domain/snail-mcp-server/_internal/servers/rednote-research/types";
+
+const log = getLogger({ module: "rednote-research" });
 
 /**
  * 解析小红书返回的数字字符串（支持 "万"/"亿"）。
@@ -82,13 +85,13 @@ async function fetchSearchPage(context: BrowserContext, keyword: string, pageNum
 function logSearchError(keyword: string, err: unknown, pageNum?: number): void {
   const tag = pageNum ? `page=${pageNum}` : "";
   if (err instanceof Error && err.name === "TimeoutError") {
-    console.warn(`[rednote-research] 搜索超时 (keyword=${keyword}, ${tag}):`, err.message);
+    log.warn({ keyword, tag, message: err.message }, "搜索超时");
   } else if (err instanceof Error && err.message.includes("net::ERR_")) {
-    console.warn(`[rednote-research] 网络错误 (keyword=${keyword}):`, err.message);
+    log.warn({ keyword, message: err.message }, "网络错误");
   } else if (err instanceof Error && (err.message.includes("429") || err.message.includes("captcha"))) {
-    console.warn(`[rednote-research] 触发风控 (keyword=${keyword}):`, err.message);
+    log.warn({ keyword, message: err.message }, "触发风控");
   } else {
-    console.error(`[rednote-research] 搜索异常 (keyword=${keyword}):`, err);
+    log.error({ err, keyword }, "搜索异常");
   }
 }
 
@@ -129,13 +132,13 @@ export async function searchMultiple(
       } else if (r.reason instanceof Error && r.reason.message === "auth_required") {
         throw r.reason;
       } else {
-        console.warn("[rednote-research] 搜索关键词失败:", r.reason);
+        log.warn({ err: r.reason }, "搜索关键词失败");
       }
     }
     // 批次失败率过高时警告（可能触发风控）
     const failCount = batchResults.filter((r) => r.status === "rejected").length;
     if (failCount > batch.length / 2) {
-      console.warn(`[rednote-research] 批次失败率过高 (${failCount}/${batch.length})，可能触发风控`);
+      log.warn({ failCount, batchLength: batch.length }, "批次失败率过高，可能触发风控");
     }
   }
   return results;

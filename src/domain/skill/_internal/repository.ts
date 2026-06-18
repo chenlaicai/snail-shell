@@ -3,6 +3,9 @@ import type { Workspace } from "@domain/workspace/model";
 import { Scope } from "@domain/workspace/model";
 import type { Skill } from "@domain/skill/model";
 import type { FileDataStore } from "@infra/file-data-store";
+import { getLogger } from "@infra/logger";
+
+const log = getLogger({ module: "skill" });
 
 /** Skill 持久层接口 */
 export interface SkillRepository {
@@ -55,7 +58,7 @@ export class FileSkillRepository implements SkillRepository {
         const skill = this.parseSkill(raw, skillDirPath);
         skills.push(skill);
       } catch (err) {
-        console.warn(`Failed to parse skill: ${skillFilePath}`, err);
+        log.warn({ err, skillFilePath }, "Failed to parse skill");
       }
     }
 

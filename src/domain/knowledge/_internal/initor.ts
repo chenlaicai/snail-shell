@@ -1,9 +1,12 @@
 import type { Workspace } from "@domain/workspace/model";
 import type { FileDataStore } from "@infra/file-data-store";
 import type { SQLiteDatabase } from "@infra/database";
+import { getLogger } from "@infra/logger";
 import { FileKnowledgeRepository } from "@domain/knowledge/_internal/repository";
 import { KnowledgeSearchIndex } from "@domain/knowledge/_internal/search-index";
 import { KnowledgeAdapter } from "@domain/knowledge/_internal/adapter";
+
+const log = getLogger({ module: "knowledge" });
 
 /**
  * 初始化 Knowledge 模块。
@@ -20,7 +23,7 @@ export function init(dataStore: FileDataStore, workspaces: Workspace[], db: SQLi
   // 启动时校验索引完整性（检测缺失、过时、残留）
   const fileEntries = repo.list();
   if (index.validate(fileEntries)) {
-    console.log(`[knowledge] Rebuilding search index (${fileEntries.length} entries)`);
+    log.info({ count: fileEntries.length }, "Rebuilding search index");
     index.rebuild(fileEntries);
   }
 

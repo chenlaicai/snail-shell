@@ -8,6 +8,9 @@ import type { LiteAIPort } from "@domain/lite-ai/port";
 import type { AgentEvent, Message as AgentMessage, InvokeOptions } from "@infra/acs/model";
 import type { CollaborationConsumer, CollaborationInput, CreateIssueResult, StageTransitionSuggestion } from "@app/issue-collaboration/port";
 import { StageQueue } from "@app/issue-collaboration/stage-queue";
+import { getLogger } from "@infra/logger";
+
+const log = getLogger({ module: "collaboration" });
 
 interface CollaborationDeps {
   issuePort: IssuePort;
@@ -45,6 +48,8 @@ export class IssueCollaboration implements CollaborationInput {
   async sendMessage(stageId: string, text: string, fromSpeaker = "user"): Promise<void> {
     const stage = this.mustGetStage(stageId);
     const targets = await this.resolveToSpeakers(stage, text, fromSpeaker);
+    log.info({ stageId, fromSpeaker, targets: targets.map(t => `${t.speaker}(${t.source})`) }, "sendMessage");
+
     const message = this.deps.messagePort.createMessage({
       stage_id: stageId,
       from_speaker: fromSpeaker,
@@ -107,6 +112,8 @@ export class IssueCollaboration implements CollaborationInput {
       if (signals.length === 0) return;
 
       const targetSpeakers = [...new Set(signals.map(signal => signal.target_speaker))];
+      log.debug({ stageId, targetSpeakers, remainingRounds }, "drainStage");
+
       const executions = targetSpeakers.map(async speaker => {
         this.deps.messagePort.deleteCallSignal(stageId, speaker);
 
@@ -117,8 +124,12 @@ export class IssueCollaboration implements CollaborationInput {
         }
 
         const unread = this.deps.messagePort.getUnreadMessages(stageId, speaker);
-        if (unread.length === 0) return false;
+        if (unread.length === 0) {
+          log.debug({ stageId, speaker }, "skip speaker (no unread)");
+          return false;
+        }
 
+        log.debug({ stageId, speaker, unreadCount: unread.length }, "invoking agent");
         this.deps.messagePort.advanceCursor(stageId, speaker, unread[unread.length - 1].id);
         await this.invokeAgent(stageId, speaker, unread);
         return true;
@@ -126,6 +137,10 @@ export class IssueCollaboration implements CollaborationInput {
 
       const results = await Promise.allSettled(executions);
       const agentCalls = results.filter(result => result.status === "fulfilled" && result.value).length;
+      const errors = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+      if (errors.length > 0) {
+        log.error({ stageId, errors: errors.map(e => e.reason?.message ?? String(e.reason)) }, "drainStage agent errors");
+      }
       if (agentCalls === 0) return;
       remainingRounds -= agentCalls;
     }
@@ -137,58 +152,18 @@ export class IssueCollaboration implements CollaborationInput {
     const assignment = this.deps.stagePort.getRoleSnailAssignment(stageId, roleInstance);
     if (!assignment) throw new Error(`Role assignment not found: ${stageId}:${roleInstance}`);
 
+    log.info({
+      stageId, roleInstance, snailKey: assignment.snail_key,
+      snailInstanceId: assignment.snail_instance_id, unreadCount: unreadMessages.length, issueId: issue.id,
+    }, "invokeAgent start");
+
     const agentMessage = this.deps.messagePort.createMessage({
-      stage_id: stageId,
-      from_speaker: roleInstance,
-      to_speakers: [],
-      status: "streaming",
+      stage_id: stageId, from_speaker: roleInstance, to_speakers: [], status: "streaming",
     });
     await this.notifyConsumers(stageId, "onMessageStarted", agentMessage);
 
-    const handbook = this.deps.stagePort.getRoleHandbook(stageId, assignment.role_key);
-    const systemReminder = this.buildSystemReminder({ issue, stage, roleInstance, roleKey: assignment.role_key, handbook });
-    const invokeOptions: InvokeOptions = {
-      contextEnv: { issue_id: issue.id, stage_id: stage.id, message_id: String(agentMessage.id), role_instance: roleInstance },
-    };
-
     try {
-      const firstCallRequest = {
-        workspace_path: issue.workspace_path,
-        messages: unreadMessages.map(message => this.toAgentMessage(message)),
-        handbook: systemReminder || undefined,
-        context: {
-          issue_id: issue.id,
-          stage_id: stage.id,
-          message_id: String(agentMessage.id),
-          stage_key: stage.key,
-          role_instance: roleInstance,
-        },
-      };
-
-      const resumeRequest = {
-        workspace_path: issue.workspace_path,
-        messages: unreadMessages.map(message => this.toAgentMessage(message)),
-        system_reminder: systemReminder,
-      };
-
-      const result = assignment.snail_instance_id
-        ? await this.invokeResumeOrRecover({
-            stageId,
-            roleInstance,
-            snailInstanceId: assignment.snail_instance_id,
-            snailKey: assignment.snail_key,
-            resumeRequest,
-            firstCallRequest,
-            onEvent: event => this.handleAgentEvent(stageId, agentMessage.id, event),
-            invokeOptions,
-          })
-        : await this.deps.snailPort.invokeFirstCall(
-            assignment.snail_key,
-            firstCallRequest,
-            event => this.handleAgentEvent(stageId, agentMessage.id, event),
-            invokeOptions,
-          );
-
+      const result = await this.executeAgentInvocation({ stageId, roleInstance, issue, stage, assignment, unreadMessages, agentMessage });
       if (result.snail_instance_id && result.snail_instance_id !== assignment.snail_instance_id) {
         this.deps.stagePort.setSnailInstanceId(stageId, roleInstance, result.snail_instance_id);
       }
@@ -198,16 +173,46 @@ export class IssueCollaboration implements CollaborationInput {
       this.deps.messagePort.completeMessage(agentMessage.id, "completed");
       const completedMessage = this.mustGetMessage(agentMessage.id);
 
+      log.info({ stageId, roleInstance, messageId: agentMessage.id, contextKind: context.kind }, "invokeAgent completed");
       this.routeAgentReplies(stage, roleInstance, completedMessage.id);
       await this.detectStageTransition(stage, roleInstance, completedMessage.id);
       await this.notifyConsumers(stageId, "onMessageCompleted", completedMessage, this.deps.messagePort.getContext(completedMessage.id));
     } catch (error) {
+      log.error({
+        stageId, roleInstance, issueId: issue.id, snailKey: assignment.snail_key,
+        snailInstanceId: assignment.snail_instance_id,
+        err: error,
+      }, "invokeAgent failed");
       const context = this.extractTerminalContext(agentMessage.id);
       this.deps.messagePort.setContext(agentMessage.id, "event_summary", context.context);
       this.deps.messagePort.completeMessage(agentMessage.id, "failed", { error: error instanceof Error ? error.message : String(error) });
       await this.notifyConsumers(stageId, "onMessageCompleted", this.mustGetMessage(agentMessage.id), this.deps.messagePort.getContext(agentMessage.id));
       throw error;
     }
+  }
+
+  private async executeAgentInvocation(input: {
+    stageId: string; roleInstance: string; issue: Issue; stage: Stage;
+    assignment: { snail_key: string; snail_instance_id: string | null; role_key: string };
+    unreadMessages: Message[]; agentMessage: Message;
+  }) {
+    const { stageId, roleInstance, issue, stage, assignment, unreadMessages, agentMessage } = input;
+    const handbook = this.deps.stagePort.getRoleHandbook(stageId, assignment.role_key);
+    const systemReminder = this.buildSystemReminder({ issue, stage, roleInstance, roleKey: assignment.role_key, handbook });
+    const invokeOptions: InvokeOptions = {
+      contextEnv: { issue_id: issue.id, stage_id: stage.id, message_id: String(agentMessage.id), role_instance: roleInstance },
+    };
+    const agentMessages = unreadMessages.map(message => this.toAgentMessage(message));
+    const firstCallRequest = {
+      workspace_path: issue.workspace_path, messages: agentMessages, handbook: systemReminder || undefined,
+      context: { issue_id: issue.id, stage_id: stage.id, message_id: String(agentMessage.id), stage_key: stage.key, role_instance: roleInstance },
+    };
+    const resumeRequest = { workspace_path: issue.workspace_path, messages: agentMessages, system_reminder: systemReminder };
+    const onEvent = (event: AgentEvent) => this.handleAgentEvent(stageId, agentMessage.id, event);
+
+    return assignment.snail_instance_id
+      ? await this.invokeResumeOrRecover({ stageId, roleInstance, snailInstanceId: assignment.snail_instance_id, snailKey: assignment.snail_key, resumeRequest, firstCallRequest, onEvent, invokeOptions })
+      : await this.deps.snailPort.invokeFirstCall(assignment.snail_key, firstCallRequest, onEvent, invokeOptions);
   }
 
   private async invokeResumeOrRecover(input: {

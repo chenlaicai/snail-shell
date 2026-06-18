@@ -4,6 +4,7 @@ import { ConfigStore } from "@infra/config-store";
 import { loadServerSettings, type ServerSettings } from "@infra/server-config";
 import { SQLiteDatabase } from "@infra/database";
 import { createApp } from "@infra/http/app";
+import { getLogger } from "@infra/logger";
 import { init as initAcs } from "@infra/acs/_internal/initor";
 import { init as initWorkspace } from "@domain/workspace/_internal/initor";
 import { init as initTenetPrompt } from "@domain/tenet-prompt/_internal/initor";
@@ -24,6 +25,8 @@ import { init as initIssueCollaboration } from "@app/issue-collaboration/initor"
 import { init as initIMHub } from "@app/im-hub/initor";
 import { createMcpHandler } from "@infra/mcp-server/handler";
 import { createIssueWebSocketBridge } from "@infra/http/stage-websocket";
+
+const log = getLogger();
 
 async function main() {
   const repoRoot = process.cwd();
@@ -73,19 +76,19 @@ async function initModules(repoRoot: string, serverSettings: ServerSettings) {
 }
 
 function logStartupSummary(modules: Awaited<ReturnType<typeof initModules>>["modules"]): void {
-  console.log(`Loaded ${modules.workspace.adapter.list().length} workspaces`);
-  console.log(`Loaded ${modules.tenetPrompt.adapter.list().length} prompts`);
-  console.log(`Loaded ${modules.skill.adapter.list().length} skills`);
-  console.log(`Loaded ${modules.sop.adapter.list().length} SOPs`);
-  console.log(`MCP Servers: ${modules.snailMCPServer.adapter.listServers().map(s => s.name).join(", ")}`);
-  console.log(`MCP Configs: ${modules.mcp.adapter.list().map(c => c.name).join(", ")}`);
-  console.log(`Feature Chain: ${modules.featureChain.adapter.search("").length} docs indexed`);
-  console.log(`Snails: ${modules.snail.adapter.list().map(s => s.key).join(", ")}`);
-  console.log(`IM: ready (${modules.im.adapter.listChannelConfigs().map(c => c.type).join(", ") || "no channels"})`);
-  console.log(`IM Hub: ready (${Boolean(modules.imHub.adapter)})`);
-  console.log(`Lite AI: ${modules.liteAI.adapter.getConfig() ? "configured" : "not configured"}`);
-  console.log(`Evolution: ready`);
-  console.log(`Registered agents: ${modules.registry.listAgentRuntimes().join(", ")}`);
+  log.info({ count: modules.workspace.adapter.list().length }, "Loaded workspaces");
+  log.info({ count: modules.tenetPrompt.adapter.list().length }, "Loaded prompts");
+  log.info({ count: modules.skill.adapter.list().length }, "Loaded skills");
+  log.info({ count: modules.sop.adapter.list().length }, "Loaded SOPs");
+  log.info({ names: modules.snailMCPServer.adapter.listServers().map(s => s.name) }, "MCP Servers");
+  log.info({ names: modules.mcp.adapter.list().map(c => c.name) }, "MCP Configs");
+  log.info({ docsIndexed: modules.featureChain.adapter.search("").length }, "Feature Chain");
+  log.info({ keys: modules.snail.adapter.list().map(s => s.key) }, "Snails");
+  log.info({ channels: modules.im.adapter.listChannelConfigs().map(c => c.type) || "none" }, "IM");
+  log.info({ ready: Boolean(modules.imHub.adapter) }, "IM Hub");
+  log.info({ status: modules.liteAI.adapter.getConfig() ? "configured" : "not configured" }, "Lite AI");
+  log.info({ status: "ready" }, "Evolution");
+  log.info({ names: modules.registry.listAgentRuntimes() }, "Registered agents");
 }
 
 function registerShutdownHooks(modules: Awaited<ReturnType<typeof initModules>>["modules"], db: SQLiteDatabase): void {
@@ -93,7 +96,7 @@ function registerShutdownHooks(modules: Awaited<ReturnType<typeof initModules>>[
   const shutdown = () => {
     if (closed) return;
     closed = true;
-    console.log("[shutdown] Closing database...");
+    log.info("Closing database...");
     db.close();
   };
   process.on("exit", shutdown);
@@ -123,12 +126,12 @@ function startHttpServer(modules: Awaited<ReturnType<typeof initModules>>["modul
   const websocketBridge = createIssueWebSocketBridge(modules.collaboration.adapter);
   app.get("/issue-events", websocketBridge.route);
   serve({ fetch: app.fetch, port, websocket: { server: websocketBridge.server } }, (info) => {
-    console.log(`HTTP server listening on http://localhost:${info.port}`);
+    log.info({ port: info.port }, "HTTP server listening");
   });
 }
 
 
 main().catch((err) => {
-  console.error("Failed to start", err);
+  log.error({ err }, "Failed to start");
   process.exit(1);
 });

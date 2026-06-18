@@ -1,6 +1,9 @@
 import fs from "fs";
 import path from "path";
 import Database from "better-sqlite3";
+import { getLogger } from "@infra/logger";
+
+const log = getLogger({ module: "database" });
 
 /**
  * 数据库基础设施。
@@ -62,7 +65,7 @@ export class SQLiteDatabase {
     try {
       this.db.close();
     } catch (err) {
-      console.error("[SQLiteDatabase] Close failed:", err);
+      log.error({ err }, "Close failed");
     }
   }
 

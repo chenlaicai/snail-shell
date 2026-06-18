@@ -1,3 +1,7 @@
+import { getLogger } from "@infra/logger";
+
+const log = getLogger({ module: "collaboration" });
+
 export class StageQueue {
   private chains = new Map<string, Promise<void>>();
 
@@ -6,7 +10,7 @@ export class StageQueue {
     const next = previous
       .catch(() => undefined)
       .then(task)
-      .catch(console.error)
+      .catch((err) => log.error({ err, stageId }))
       .finally(() => {
         if (this.chains.get(stageId) === next) {
           this.chains.delete(stageId);

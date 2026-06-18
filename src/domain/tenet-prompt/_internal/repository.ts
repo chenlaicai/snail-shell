@@ -3,6 +3,9 @@ import type { Workspace } from "@domain/workspace/model";
 import { Scope } from "@domain/workspace/model";
 import type { PromptDocument } from "@domain/tenet-prompt/model";
 import type { FileDataStore } from "@infra/file-data-store";
+import { getLogger } from "@infra/logger";
+
+const log = getLogger({ module: "tenet-prompt" });
 
 /** TenetPrompt 持久层接口 */
 export interface TenetPromptRepository {
@@ -60,7 +63,7 @@ export class FileTenetPromptRepository implements TenetPromptRepository {
         const doc = this.parseDocument(raw);
         prompts.push(doc);
       } catch (err) {
-        console.warn(`Failed to parse prompt: ${filePath}`, err);
+        log.warn({ err, filePath }, "Failed to parse prompt");
       }
     }
 

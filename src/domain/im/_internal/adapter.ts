@@ -2,6 +2,9 @@ import type { ChannelType, IMInboundMessage } from "@domain/im/model";
 import type { IMPort, IMChannelAdapter, IMTransport, LobbyInboundResult } from "@domain/im/port";
 import type { IMRepository } from "@domain/im/_internal/repository";
 import type { LobbyRouter } from "@domain/im/_internal/router";
+import { getLogger } from "@infra/logger";
+
+const log = getLogger({ module: "im" });
 
 /**
  * IM 适配器实现。
@@ -112,7 +115,7 @@ export class LobbyAwareChannel implements IMChannelAdapter {
   }
 
   private scheduleInbound(message: IMInboundMessage): void {
-    void this.handleInbound(message).catch(console.error);
+    void this.handleInbound(message).catch((err) => log.error({ err }));
   }
 
   private async handleInbound(message: IMInboundMessage): Promise<void> {
