@@ -32,7 +32,7 @@ export function Sidebar() {
         </div>
 
         <div className="pt-4">
-          <div className="px-3 py-1 text-[11px] font-medium text-text-muted uppercase tracking-wider">Projects</div>
+          <div className="px-3 py-1 text-[11px] font-medium text-text-muted uppercase tracking-wider">Workspaces</div>
           <div className="space-y-0.5 mt-1">
             {workspaces?.map((ws) => (
               <SidebarLink key={ws.id} to={`/workspaces/${ws.id}/board`} icon={<LayersIcon />} label={ws.path} />
