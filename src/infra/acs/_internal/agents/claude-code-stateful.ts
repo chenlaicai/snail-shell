@@ -44,8 +44,8 @@ export class ClaudeCodeStatefulAgent implements AgentRuntimePort {
     // Spawn 进程
     const proc = this.spawn(args, request.workspacePath, options);
 
-    // 发送消息
-    this.writeMessages(proc, request.messages);
+    // 发送消息（含 system-reminder）
+    this.writeMessages(proc, request.messages, request.prompt.systemReminder);
 
     try {
       return await this.processOutput(proc, onEvent, options, null);
@@ -72,8 +72,8 @@ export class ClaudeCodeStatefulAgent implements AgentRuntimePort {
     // Spawn 进程
     const proc = this.spawn(args, request.workspacePath, options);
 
-    // 发送消息
-    this.writeMessages(proc, request.messages);
+    // 发送消息（含 system-reminder）
+    this.writeMessages(proc, request.messages, request.systemReminder);
 
     // 处理输出
     return this.processOutput(proc, onEvent, options, request.sessionId);
@@ -134,11 +134,20 @@ export class ClaudeCodeStatefulAgent implements AgentRuntimePort {
   }
 
   /** 通过 stdin 发送消息 */
-  private writeMessages(proc: ChildProcess, messages: Message[]): void {
-    const contentBlocks = messages.map(msg => ({
+  private writeMessages(proc: ChildProcess, messages: Message[], systemReminder?: string): void {
+    const contentBlocks: Array<{ type: string; text: string }> = [];
+
+    if (systemReminder) {
+      contentBlocks.push({
+        type: "text",
+        text: `<system-reminder>\n${systemReminder}\n</system-reminder>`,
+      });
+    }
+
+    contentBlocks.push(...messages.map(msg => ({
       type: "text",
       text: `[${msg.speaker}]: ${msg.content}`,
-    }));
+    })));
 
     proc.stdin?.write(JSON.stringify({
       type: "user",
