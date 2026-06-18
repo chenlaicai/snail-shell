@@ -73,14 +73,14 @@ F2026061702 实现了 knowledge 域的 FTS5 全文搜索索引，但存在架构
 
 ### 修改
 
-- `src/infra/database.ts` — 添加 `raw()` 方法暴露底层 better-sqlite3 实例
+- `src/infra/database.ts` — 添加 `exec()` 和 `prepare()` 方法支持 FTS5 操作，修复 `close()` 错误处理
 - `src/domain/knowledge/_internal/search-index.ts` — 重构构造函数接受 `SQLiteDatabase`
 - `src/domain/knowledge/_internal/initor.ts` — 接受 `db` 参数而非 `repoRoot`
 - `src/main.ts` — 传递 `db`，统一关闭钩子
 
 ### 新增
 
-- 无
+- `docs/features/2026/06/18/F2026061801-unify-knowledge-fts5-to-platform-db.md` — 本特性文档
 
 ### 删除
 
@@ -94,9 +94,23 @@ F2026061702 实现了 knowledge 域的 FTS5 全文搜索索引，但存在架构
 export class SQLiteDatabase {
   // ... 现有方法 ...
 
-  /** 获取底层 better-sqlite3 实例（用于 FTS5 等高级场景） */
-  raw(): Database.Database {
-    return this.db;
+  /** 关闭数据库（添加错误处理） */
+  close(): void {
+    try {
+      this.db.close();
+    } catch (err) {
+      console.error("[SQLiteDatabase] Close failed:", err);
+    }
+  }
+
+  /** 执行 DDL/DML（用于 FTS5 虚拟表等场景） */
+  exec(sql: string): void {
+    this.db.exec(sql);
+  }
+
+  /** 预编译语句（用于 FTS5 等需要 prepared statement 的场景） */
+  prepare(sql: string): Database.Statement {
+    return this.db.prepare(sql);
   }
 }
 ```
@@ -105,10 +119,10 @@ export class SQLiteDatabase {
 
 ```typescript
 export class KnowledgeSearchIndex {
-  private db: Database.Database;
+  private db: SQLiteDatabase;
 
   constructor(db: SQLiteDatabase) {
-    this.db = db.raw();
+    this.db = db;
     this.initSchema();
   }
 
