@@ -45,9 +45,12 @@ export class IssueCollaboration implements CollaborationInput {
     });
   }
 
-  async sendMessage(stageId: string, text: string, fromSpeaker = "user"): Promise<void> {
+  async sendMessage(stageId: string, text: string, fromSpeaker = "user", toSpeakers?: string[]): Promise<void> {
     const stage = this.mustGetStage(stageId);
-    const targets = await this.resolveToSpeakers(stage, text, fromSpeaker);
+    /** 前端传入 to_speakers 时直接使用（UI 驱动的精确路由），否则走服务端 fallback 解析 */
+    const targets: SpeakerTarget[] = toSpeakers && toSpeakers.length > 0
+      ? toSpeakers.map(speaker => ({ speaker, source: "mention" as const }))
+      : await this.resolveToSpeakers(stage, text, fromSpeaker);
     log.info({ stageId, fromSpeaker, targets: targets.map(t => `${t.speaker}(${t.source})`) }, "sendMessage");
 
     const message = this.deps.messagePort.createMessage({

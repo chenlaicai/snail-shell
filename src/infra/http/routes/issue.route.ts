@@ -29,6 +29,7 @@ const createIssueBody = z.object({
 const sendMessageBody = z.object({
   text: z.string().min(1),
   from_speaker: z.string().optional(),
+  to_speakers: z.array(z.string()).optional(),
 });
 
 const advanceStageBody = z.object({
@@ -112,7 +113,7 @@ function listMessages(c: Context, deps: IssueRoutesDeps) {
 async function sendMessage(c: Context, deps: IssueRoutesDeps) {
   const stageId = requiredParam(c, "stageId");
   const body = sendMessageBody.parse(await c.req.json());
-  await deps.collaboration.sendMessage(stageId, body.text, body.from_speaker);
+  await deps.collaboration.sendMessage(stageId, body.text, body.from_speaker, body.to_speakers);
   return c.json({ ok: true });
 }
 

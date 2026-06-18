@@ -7,7 +7,7 @@ import type { MessageDto } from "../types";
 export function useSendMessage(stageId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { text: string; from_speaker?: string }) =>
+    mutationFn: (body: { text: string; from_speaker?: string; to_speakers?: string[] }) =>
       api("POST /api/stages/:stageId/messages", { params: { stageId }, body }),
 
     onMutate: async (body) => {
