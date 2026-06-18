@@ -1,11 +1,7 @@
 import { NavLink } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { workspaceQueries } from "@/queries/workspace.queries";
 import { cn } from "@/lib/utils";
 
 export function Sidebar() {
-  const { data: workspaces } = useQuery(workspaceQueries.list());
-
   return (
     <aside className="w-[240px] shrink-0 bg-surface-1 border-r border-white/6 flex flex-col h-screen">
       <div className="h-14 flex items-center px-4 gap-3 border-b border-white/6">
@@ -23,13 +19,11 @@ export function Sidebar() {
       <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
         <div className="px-3 py-1 text-[11px] font-medium text-text-muted uppercase tracking-wider">Modules</div>
         <div className="space-y-0.5 mt-1">
+          <SidebarLink to="/workspaces" icon={<WorkspacesIcon />} label="Workspaces" />
           <SidebarLink to="/evolution" icon={<EvolutionIcon />} label="Evolution" />
           <SidebarLink to="/knowledge" icon={<KnowledgeIcon />} label="Knowledge" />
           <SidebarLink to="/sops" icon={<SopIcon />} label="SOPs" />
           <SidebarLink to="/lobby" icon={<LobbyIcon />} label="IM Lobby" />
-          {workspaces?.map((ws) => (
-            <SidebarLink key={ws.id} to={`/workspaces/${ws.id}/board`} icon={<LayersIcon />} label={ws.path} />
-          ))}
         </div>
 
         <div className="pt-4">
@@ -63,11 +57,11 @@ function SidebarLink({ to, icon, label }: { to: string; icon: React.ReactNode; l
   );
 }
 
-function LayersIcon() {
+function WorkspacesIcon() {
   return (
-    <div className="w-4 h-4 rounded bg-shell-500/20 flex items-center justify-center">
-      <svg className="w-2.5 h-2.5 text-shell-400" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5z"/></svg>
-    </div>
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M3 3h7v7H3z"/><path d="M14 3h7v7h-7z"/><path d="M3 14h7v7H3z"/><path d="M14 14h7v7h-7z"/>
+    </svg>
   );
 }
 
