@@ -59,6 +59,20 @@ export class SQLiteDatabase {
 
   /** 关闭数据库 */
   close(): void {
-    this.db.close();
+    try {
+      this.db.close();
+    } catch (err) {
+      console.error("[SQLiteDatabase] Close failed:", err);
+    }
+  }
+
+  /** 执行 DDL/DML（用于 FTS5 虚拟表等场景） */
+  exec(sql: string): void {
+    this.db.exec(sql);
+  }
+
+  /** 预编译语句（用于 FTS5 等需要 prepared statement 的场景） */
+  prepare(sql: string): Database.Statement {
+    return this.db.prepare(sql);
   }
 }

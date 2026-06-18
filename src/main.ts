@@ -28,11 +28,11 @@ import { createIssueWebSocketBridge } from "@infra/http/stage-websocket";
 async function main() {
   const repoRoot = process.cwd();
   const serverSettings = loadServerSettings(repoRoot);
-  const modules = await initModules(repoRoot, serverSettings);
+  const { modules, db } = await initModules(repoRoot, serverSettings);
 
   modules.featureChain.adapter.rebuild();
   logStartupSummary(modules);
-  registerShutdownHooks(modules);
+  registerShutdownHooks(modules, db);
   startHttpServer(modules, serverSettings);
 }
 
@@ -46,7 +46,7 @@ async function initModules(repoRoot: string, serverSettings: ServerSettings) {
   const tenetPrompt = initTenetPrompt(dataStore, workspaces);
   const skill = initSkill(dataStore, workspaces);
   const sop = initSop(dataStore, workspaces);
-  const knowledge = initKnowledge(dataStore, workspaces, repoRoot);
+  const knowledge = initKnowledge(dataStore, workspaces, db);
   const issue = initIssue(sop.adapter, db);
   const message = initMessage(db);
   const evolutionRef: { current?: ReturnType<typeof initEvolution> } = {};
@@ -69,10 +69,10 @@ async function initModules(repoRoot: string, serverSettings: ServerSettings) {
   const im = initIM({ workspacePort: workspace.adapter, issuePort: issue.issueAdapter, stagePort: issue.stageAdapter, configStore, db });
   const imHub = initIMHub({ imAdapter: im.adapter, lobbyAdapter: im.lobbyAdapter, collaboration: collaboration.adapter, stagePort: issue.stageAdapter });
   await im.adapter.startChannels();
-  return { registry, workspace, tenetPrompt, skill, sop, snailMCPServer, mcp, featureChain, snail, im, imHub, liteAI, evolution, issue, message, collaboration, knowledge, configStore };
+  return { modules: { registry, workspace, tenetPrompt, skill, sop, snailMCPServer, mcp, featureChain, snail, im, imHub, liteAI, evolution, issue, message, collaboration, knowledge, configStore }, db };
 }
 
-function logStartupSummary(modules: Awaited<ReturnType<typeof initModules>>): void {
+function logStartupSummary(modules: Awaited<ReturnType<typeof initModules>>["modules"]): void {
   console.log(`Loaded ${modules.workspace.adapter.list().length} workspaces`);
   console.log(`Loaded ${modules.tenetPrompt.adapter.list().length} prompts`);
   console.log(`Loaded ${modules.skill.adapter.list().length} skills`);
@@ -88,20 +88,20 @@ function logStartupSummary(modules: Awaited<ReturnType<typeof initModules>>): vo
   console.log(`Registered agents: ${modules.registry.listAgentRuntimes().join(", ")}`);
 }
 
-function registerShutdownHooks(modules: Awaited<ReturnType<typeof initModules>>): void {
+function registerShutdownHooks(modules: Awaited<ReturnType<typeof initModules>>["modules"], db: SQLiteDatabase): void {
   let closed = false;
   const shutdown = () => {
     if (closed) return;
     closed = true;
-    console.log("[shutdown] Closing knowledge search index...");
-    modules.knowledge.index.close();
+    console.log("[shutdown] Closing database...");
+    db.close();
   };
   process.on("exit", shutdown);
   process.on("SIGINT", () => { shutdown(); process.exit(0); });
   process.on("SIGTERM", () => { shutdown(); process.exit(0); });
 }
 
-function startHttpServer(modules: Awaited<ReturnType<typeof initModules>>, serverSettings: ServerSettings): void {
+function startHttpServer(modules: Awaited<ReturnType<typeof initModules>>["modules"], serverSettings: ServerSettings): void {
   const mcpHandler = createMcpHandler(modules.snailMCPServer.adapter);
   const app = createApp({
     workspaceAdapter: modules.workspace.adapter,
