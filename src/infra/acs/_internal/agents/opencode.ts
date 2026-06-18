@@ -242,7 +242,7 @@ function writeOpenCodeGuardConfig(deny: string[], workspacePath: string): void {
     try {
       config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
     } catch {
-      console.warn(`[acs] ${configPath} 解析失败，保留原文件内容不变`);
+      log.warn({ configPath }, "解析失败，保留原文件内容不变");
       return;
     }
   }
@@ -295,7 +295,7 @@ function consumeOpenCodeOutput(state: OpenCodeParseState, chunk: string, onEvent
       const event: OpenCodeEvent = JSON.parse(line);
       processOpenCodeEvent(state, event, onEvent);
     } catch (error) {
-      console.warn("[acs] failed to parse OpenCode output line:", error);
+      log.warn({ error }, "failed to parse OpenCode output line");
     }
   }
 }
@@ -416,7 +416,7 @@ function flushOpenCodeOutput(state: OpenCodeParseState, onEvent: (event: AgentEv
       const event: OpenCodeEvent = JSON.parse(state.buffer);
       processOpenCodeEvent(state, event, onEvent);
     } catch (error) {
-      console.warn("[acs] failed to parse buffered OpenCode output:", error);
+      log.warn({ error }, "failed to parse buffered OpenCode output");
     }
   }
 }
