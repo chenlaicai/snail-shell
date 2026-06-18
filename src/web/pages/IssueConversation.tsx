@@ -25,6 +25,12 @@ export function IssueConversation() {
     enabled: !!issueId,
   });
 
+  const { data: workspace } = useQuery({
+    queryKey: queryKeys.workspaces.detail(workspaceId ?? ""),
+    queryFn: () => api("GET /api/workspaces/:workspaceId", { params: { workspaceId: workspaceId! } }),
+    enabled: !!workspaceId,
+  });
+
   const selectedStageId = searchParams.get("stage");
   const activeStage: StageDetailDto | null = useMemo(() => {
     if (!issue) return null;
@@ -108,8 +114,9 @@ export function IssueConversation() {
   return (
     <div className="flex flex-col h-full">
       <TopBar breadcrumbs={[
-        { label: issue.title ?? issueId?.slice(0, 8) ?? "", to: `/workspaces/${workspaceId}/board` },
-        { label: issueId?.slice(0, 8) ?? "" },
+        { label: "Workspaces", to: "/workspaces" },
+        { label: workspace?.summary || workspace?.path || workspaceId || "", to: `/workspaces/${workspaceId}/board` },
+        { label: issue.title || issueId?.slice(0, 8) || "" },
       ]} />
 
       <div className="flex flex-1 min-h-0">
@@ -148,7 +155,6 @@ export function IssueConversation() {
               <div className="bg-surface-2 rounded-lg border border-white/6 overflow-hidden">
                 <div className="grid grid-cols-2 divide-x divide-white/6">
                   <div>
-                    <PropRow label="Status">{stage ? <StatusBadge status={stage.status} /> : <span className="text-[13px] text-text-muted">—</span>}</PropRow>
                     <PropRow label="Stage"><span className="text-[13px]">{stage?.stage_definition?.title ?? "—"}</span></PropRow>
                     <PropRow label="SOP" last><span className="text-[13px] text-text-secondary">{issue.sop_snapshot?.name ?? "—"}</span></PropRow>
                   </div>

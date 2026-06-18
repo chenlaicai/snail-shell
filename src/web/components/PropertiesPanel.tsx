@@ -1,4 +1,3 @@
-import { StatusBadge } from "@/components/StatusBadge";
 import { formatDate, formatRelativeTime } from "@/lib/utils";
 import type { IssueDetailDto, StageDetailDto } from "@/types";
 
@@ -15,9 +14,6 @@ export function PropertiesPanel({ issue, stage }: PropertiesPanelProps) {
       <div className="px-4 py-4 space-y-4">
 
         <Section title="Details">
-          <PropRow label="Status">
-            {currentStage ? <StatusBadge status={currentStage.status} /> : <span className="text-[13px] text-text-muted">—</span>}
-          </PropRow>
           <PropRow label="Stage">
             <span className="text-[13px]">{currentStage?.stage_definition?.title ?? "—"}</span>
           </PropRow>
@@ -38,7 +34,7 @@ export function PropertiesPanel({ issue, stage }: PropertiesPanelProps) {
 
         {currentStage?.stage_definition?.roles && currentStage.stage_definition.roles.length > 0 && (
           <>
-            <Section title="Agents">
+            <Section title="Roles">
               <div className="space-y-2">
                 {currentStage.stage_definition.roles.map((role: { name: string; description?: string; is_primary?: boolean }) => (
                   <div key={role.name} className="flex items-center gap-2">
@@ -83,11 +79,11 @@ export function PropertiesPanel({ issue, stage }: PropertiesPanelProps) {
                 {currentStage.assignments.map((a) => (
                   <div key={a.role_instance} className="flex items-center gap-2">
                     <div className="w-5 h-5 rounded-full bg-shell-600 flex items-center justify-center text-[9px] font-medium text-white shrink-0">
-                      {a.snail_key.charAt(0).toUpperCase()}
+                      {a.role_instance.charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-[12px] text-text-primary truncate">{a.snail_key}</div>
-                      <div className="text-[10px] text-text-muted truncate">{a.role_instance}</div>
+                      <div className="text-[12px] text-text-primary truncate">{a.role_instance}</div>
+                      <div className="text-[10px] text-text-muted truncate">{a.snail_key}</div>
                     </div>
                   </div>
                 ))}
