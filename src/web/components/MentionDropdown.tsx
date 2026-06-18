@@ -3,6 +3,12 @@
  *
  * 绝对定位在 textarea 上方，显示可选的角色实例列表。
  * 支持键盘导航（ArrowUp/Down）和鼠标点击选择。
+ *
+ * 已知限制：当输入框位于页面顶部时，补全列表可能被截断。
+ * 当前实现使用 bottom-full 定位，依赖上方空间充足。
+ * 如果未来需要支持输入框在顶部的场景，可考虑：
+ * 1. 使用 portal 渲染到 body
+ * 2. 动态检测可用空间并切换定位方向
  */
 
 interface MentionDropdownProps {
@@ -22,7 +28,7 @@ export function MentionDropdown({ suggestions, selectedIndex, onSelect }: Mentio
     >
       {suggestions.map((name, index) => (
         <div
-          key={name}
+          key={`${name}-${index}`}
           role="option"
           aria-selected={index === selectedIndex}
           onMouseDown={(e) => {

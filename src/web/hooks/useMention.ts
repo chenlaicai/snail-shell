@@ -30,6 +30,8 @@ function extractMentionQuery(value: string, caret: number): { start: number; que
   const prefix = value.slice(0, mentionStart);
   if (prefix && !/[\s\n]$/.test(prefix)) return null;
   const tail = value.slice(mentionStart + 1);
+  /** @ 后紧跟空白字符时，视为 mention 已结束（用户已完成输入） */
+  if (/^\s/.test(tail)) return null;
   const queryMatch = tail.match(/^(\S*)/);
   return { start: mentionStart, query: queryMatch ? queryMatch[1] : "" };
 }

@@ -2,7 +2,13 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useMention } from "@/hooks/useMention";
 import { MentionDropdown } from "@/components/MentionDropdown";
 
-/** 从文本中提取匹配 role_instances 的 @mention 目标 */
+/**
+ * 从文本中提取匹配 role_instances 的 @mention 目标
+ *
+ * 策略说明：使用全局正则匹配所有 @mention，与 extractMentionQuery（lastIndexOf）策略不同。
+ * - extractMentionQuery: 用于 UI 交互，只处理光标前最近的 @（D4 决策：与 GitHub/Slack 一致）
+ * - extractToSpeakers: 用于发送时提取所有 @mention，确保消息路由到所有被提及的角色
+ */
 function extractToSpeakers(text: string, roleInstances: string[]): string[] {
   const matcher = /@([\p{L}\p{N}_-]+)/gu;
   const result: string[] = [];

@@ -159,6 +159,8 @@ v2 适配方案：hook 不直接操作 DOM，而是返回 `{ newValue, cursorPos
 
 ## 验证
 
+> **注意**：自动化测试代码已移除（commit `7b73423c`，用户授权）。以下验证项需通过手动测试确认。
+
 - [ ] 输入 @ 时显示 role_instance 补全列表
 - [ ] 键盘 ArrowUp/Down 可导航补全列表
 - [ ] Enter/Tab 确认选择，插入 @role_instance_name
