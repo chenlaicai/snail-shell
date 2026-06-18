@@ -13,16 +13,13 @@ import { logger } from "../logger";
 import type { MCPServerCapability } from "./capability";
 
 /**
- * 构建 mcp-remote 桥接配置条目。
+ * 构建原生 HTTP transport 配置条目。
  *
- * Claude Code .mcp.json schema 仅支持 stdio transport（command + args），
- * 不支持 HTTP/SSE transport 的 url 字段。
- * mcp-remote 是官方推荐的桥接方案：启动一个本地 stdio 进程，
- * 将 stdin/stdout 转发到远程 HTTP MCP endpoint。
- * 使用 npx mcp-remote@1 锁定大版本，避免 breaking change。
+ * Claude Code 已原生支持 HTTP transport（{ type: "http", url } 格式），
+ * 无需 mcp-remote 桥接。原生格式消除了对 npx、npm registry 和网络的外部依赖。
  */
-function buildMcpRemoteEntry(url: string): { command: string; args: string[] } {
-  return { command: "npx", args: ["mcp-remote@1", url] };
+function buildMcpHttpEntry(url: string): { type: string; url: string } {
+  return { type: "http", url };
 }
 
 /**
@@ -84,47 +81,42 @@ function writeClaudeMcpConfig(servers: MCPServerCapability[], workspaceRoot: str
     : {});
 
   for (const s of servers) {
-    existingServers[s.name] = s.url ? buildMcpRemoteEntry(s.url) : { command: s.command, args: s.args, env: s.env };
+    existingServers[s.name] = s.url ? buildMcpHttpEntry(s.url) : { command: s.command, args: s.args, env: s.env };
   }
 
   mcpConfig.mcpServers = existingServers;
   fs.writeFileSync(mcpJsonPath, JSON.stringify(mcpConfig, null, 2) + "\n");
 
   /**
-   * 同步 settings.json 的 enabledMcpjsonServers：确保白名单与 mcp.json 中的 server key 一致。
+   * 清理 settings.json 中残留的 enabledMcpjsonServers 字段。
    *
-   * 为什么需要这一步：
-   * Claude Code 加载 MCP server 需要两道关卡——mcp.json 声明 server + settings.json 白名单放行。
-   * 两份配置由不同路径维护时，命名变更容易导致不一致（如 I2026060201：mcp.json 用
-   * "snail-final-response" 但白名单仍引用旧名 "snail-final-body"）。
-   * 在写入 mcp.json 后立即同步白名单，从根源消除不一致风险。
-   *
-   * 写入 .claude/settings.json（项目级配置），不影响 .claude/settings.local.json（用户级）。
+   * 原生 HTTP transport 模式下，Claude Code 不需要白名单放行机制。
+   * 此字段是旧 mcp-remote 桥接方案的遗留，清理避免混淆。
    */
-  syncEnabledMcpjsonServers(claudeDir, Object.keys(existingServers));
+  cleanupLegacyEnabledMcpjsonServers(claudeDir);
 }
 
 /**
- * 同步 .claude/settings.json 的 enabledMcpjsonServers 白名单。
+ * 清理 .claude/settings.json 中残留的 enabledMcpjsonServers 字段。
  *
- * 读取现有 settings.json → 更新 enabledMcpjsonServers → 写回。
- * 文件不存在时创建；解析失败时保留原文件不变（与 mcp.json 写入策略一致）。
+ * 原生 HTTP transport 不需要白名单放行机制。
+ * 文件不存在或解析失败时静默跳过（不影响主流程）。
  */
-function syncEnabledMcpjsonServers(claudeDir: string, serverNames: string[]): void {
+function cleanupLegacyEnabledMcpjsonServers(claudeDir: string): void {
   const settingsPath = path.join(claudeDir, "settings.json");
-  let settings: Record<string, unknown> = {};
+  if (!fs.existsSync(settingsPath)) return;
 
-  if (fs.existsSync(settingsPath)) {
-    try {
-      settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
-    } catch {
-      logger.warn(`${settingsPath} 解析失败，保留原文件内容不变`);
-      return;
-    }
+  let settings: Record<string, unknown>;
+  try {
+    settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+  } catch {
+    return;
   }
 
-  settings.enabledMcpjsonServers = serverNames;
-  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n");
+  if ("enabledMcpjsonServers" in settings) {
+    delete settings.enabledMcpjsonServers;
+    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n");
+  }
 }
 
 /**
