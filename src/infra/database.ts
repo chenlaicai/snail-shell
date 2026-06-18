@@ -61,4 +61,9 @@ export class SQLiteDatabase {
   close(): void {
     this.db.close();
   }
+
+  /** 获取底层 better-sqlite3 实例（用于 FTS5 等高级场景） */
+  raw(): Database.Database {
+    return this.db;
+  }
 }

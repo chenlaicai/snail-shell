@@ -1,5 +1,6 @@
 import crypto from "crypto";
-import Database from "better-sqlite3";
+import type Database from "better-sqlite3";
+import type { SQLiteDatabase } from "@infra/database";
 import type { KnowledgeEntry } from "@domain/knowledge/model";
 import type { SearchResult } from "@domain/knowledge/port";
 
@@ -15,8 +16,7 @@ import type { SearchResult } from "@domain/knowledge/port";
  * - unicode61 分词器不支持中文分词，中文短语会被拆分为单字匹配
  * - 如需精确中文短语搜索，需使用 jieba 等分词插件
  *
- * 索引文件位置：data/knowledge-search.db
- * 与平台级数据同目录，不属于 workspace。
+ * FTS5 表存储在平台级数据库 snail-shell.db 中，与其他 domain 共享连接。
  */
 export class KnowledgeSearchIndex {
   private db: Database.Database;
@@ -25,9 +25,8 @@ export class KnowledgeSearchIndex {
   private deleteSearchStmt: Database.Statement;
   private deleteEntryStmt: Database.Statement;
 
-  constructor(private indexPath: string) {
-    this.db = new Database(indexPath);
-    this.db.pragma("journal_mode = WAL");
+  constructor(db: SQLiteDatabase) {
+    this.db = db.raw();
     this.initSchema();
 
     this.insertEntryStmt = this.db.prepare(`
@@ -186,9 +185,9 @@ export class KnowledgeSearchIndex {
     return false;
   }
 
-  /** 关闭数据库连接 */
+  /** 关闭数据库连接（由 SQLiteDatabase 统一管理，此处为空实现） */
   close(): void {
-    this.db.close();
+    // 连接由 SQLiteDatabase 统一管理，不需要单独关闭
   }
 
   private computeHash(title: string, content: string): string {
