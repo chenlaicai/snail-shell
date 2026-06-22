@@ -1,5 +1,5 @@
 ---
-id: F2026062204
+id: F2026062205
 title: fix-shift-enter-sends
 from_ids: [F2026061805]
 tags: [bugfix, web]
@@ -8,7 +8,7 @@ doc_kind: spec
 change_type: bugfix
 ---
 
-# F2026062204 [web] 修复 Shift+Enter 在补全列表激活时未发送消息
+# F2026062205 [web] 修复 Shift+Enter 在补全列表激活时未发送消息
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 <!-- 进入实现阶段后不得单方面修改，如需变更须通过问题卡片向用户提出并确认 -->
