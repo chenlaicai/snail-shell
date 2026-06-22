@@ -33,7 +33,7 @@
 
 **GATE-3: Feature 文档已检查/创建**
 - 扫描 `docs/features/YYYY/MM/DD/`
-- 无对应文档 → 按 `docs/README.md` 模板创建（确认编号 `FYYYYMMDDNN` 在该日期目录下不冲突）
+- 无对应文档 → 按 `docs/README.md` 模板创建，**严格按照「特性编号规则」获取最新未使用编号**
 - 有文档 → 确认属于当前 issue，加载上下文
 - 修改系统功能语义的 PR：feature 文档必须包含"核心业务行为"章节且列表非空
 - 已合入的 feature 文档是历史交付记录，不得二次修改；新变化必须创建新的 feature 文档
