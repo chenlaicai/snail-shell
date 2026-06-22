@@ -83,6 +83,7 @@ function createSetTaskAnchorTool(issuePort: IssuePort) {
       if (!issueId) throw new Error("issue_id is required");
       const taskAnchor = typeof params.task_anchor === "string" ? params.task_anchor : "";
       if (!taskAnchor) throw new Error("task_anchor is required");
+      if (taskAnchor.length > 2000) throw new Error("task_anchor exceeds 2000 character limit");
 
       issuePort.setTaskAnchor(issueId, taskAnchor);
       return { issue_id: issueId, task_anchor: taskAnchor };
