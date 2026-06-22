@@ -84,6 +84,7 @@ export class FileSopRepository implements SopRepository {
       name: data.name as string,
       description: (data.description as string) ?? null,
       shared_handbook: this.resolveFileRef(data.shared_handbook as string | undefined, sopDir),
+      shared_skill: (data.shared_skill as string) ?? null,
       stage_definitions: stageDefinitions,
       transitions,
       scope: Scope.Platform,
@@ -117,6 +118,9 @@ export class FileSopRepository implements SopRepository {
       is_primary: (data.is_primary as boolean) ?? false,
       count: (data.count as number) ?? 1,
       handbook: this.resolveFileRef(data.handbook as string | undefined, sopDir),
+      skill: (data.skill as string) ?? null,
+      prohibition: (data.prohibition as string) ?? null,
+      self_check: (data.self_check as string) ?? null,
     };
   }
 

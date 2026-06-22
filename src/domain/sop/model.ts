@@ -10,6 +10,8 @@ export interface Sop {
   description: string | null;
   /** SOP 级共享手册内容（@file 引用已解析） */
   shared_handbook: string | null;
+  /** SOP 级共享 skill 名称 */
+  shared_skill: string | null;
   /** 阶段定义 */
   stage_definitions: StageDefinition[];
   /** 转移边 */
@@ -46,6 +48,12 @@ export interface RoleDefinition {
   count: number;
   /** 角色手册内容（@file 引用已解析） */
   handbook: string | null;
+  /** 关联的 skill 名称 */
+  skill: string | null;
+  /** 禁止项（显式声明，替代从 handbook regex 提取） */
+  prohibition: string | null;
+  /** 自检项（显式声明，替代从 handbook regex 提取） */
+  self_check: string | null;
 }
 
 /** 转移边 */
