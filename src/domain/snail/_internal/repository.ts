@@ -10,6 +10,15 @@ export interface SnailRepository {
   /** 按 key 查找 */
   findByKey(key: string): Snail | undefined;
 
+  /** 创建 snail 配置 */
+  create(snail: Snail): void;
+
+  /** 更新 snail 配置 */
+  update(key: string, snail: Omit<Snail, 'key'>): void;
+
+  /** 删除 snail 配置 */
+  delete(key: string): void;
+
   /** 按实例 ID 查找 snail 运行实例 */
   findInstanceById(id: string): SnailInstance | undefined;
 
@@ -58,6 +67,30 @@ export class FileSnailRepository implements SnailRepository {
     return this.snails.get(key);
   }
 
+  create(snail: Snail): void {
+    if (this.snails.has(snail.key)) {
+      throw new Error(`Snail with key "${snail.key}" already exists`);
+    }
+    this.snails.set(snail.key, snail);
+    this.saveSnails();
+  }
+
+  update(key: string, snail: Omit<Snail, 'key'>): void {
+    if (!this.snails.has(key)) {
+      throw new Error(`Snail with key "${key}" not found`);
+    }
+    this.snails.set(key, { key, ...snail });
+    this.saveSnails();
+  }
+
+  delete(key: string): void {
+    if (!this.snails.has(key)) {
+      throw new Error(`Snail with key "${key}" not found`);
+    }
+    this.snails.delete(key);
+    this.saveSnails();
+  }
+
   findInstanceById(id: string): SnailInstance | undefined {
     const row = this.db.get<SnailInstanceRow>(`SELECT * FROM snail_instance WHERE id = ?`, [id]);
     return row ? mapInstance(row) : undefined;
@@ -88,6 +121,12 @@ export class FileSnailRepository implements SnailRepository {
       if (this.snails.has(snail.key)) throw new Error(`Invalid snails.json: duplicate snail key ${snail.key}`);
       this.snails.set(snail.key, snail);
     }
+  }
+
+  /** 将缓存中的配置持久化到 snails.json */
+  private saveSnails(): void {
+    const snails = [...this.snails.values()];
+    this.dataStore.writeJson(FileSnailRepository.FILE, { snails });
   }
 }
 

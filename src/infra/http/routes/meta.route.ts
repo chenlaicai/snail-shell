@@ -28,5 +28,24 @@ export function createMetaRoutes(deps: MetaRoutesDeps) {
   app.get("/api/snails", (c) => c.json(deps.snail.list()));
   app.get("/api/snail-den", (c) => c.json(deps.snail.list()));
 
+  app.post("/api/snail-den", async (c) => {
+    const body = await c.req.json();
+    deps.snail.create(body);
+    return c.json(body);
+  });
+
+  app.put("/api/snail-den/:key", async (c) => {
+    const key = c.req.param("key");
+    const body = await c.req.json();
+    deps.snail.update(key, body);
+    return c.json({ key, ...body });
+  });
+
+  app.delete("/api/snail-den/:key", (c) => {
+    const key = c.req.param("key");
+    deps.snail.delete(key);
+    return c.json({ ok: true });
+  });
+
   return app;
 }

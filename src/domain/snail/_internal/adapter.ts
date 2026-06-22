@@ -35,6 +35,22 @@ export class SnailAdapter implements SnailPort {
     return this.repo.list();
   }
 
+  findByKey(key: string): Snail | undefined {
+    return this.repo.findByKey(key);
+  }
+
+  create(snail: Snail): void {
+    this.repo.create(snail);
+  }
+
+  update(key: string, snail: Omit<Snail, 'key'>): void {
+    this.repo.update(key, snail);
+  }
+
+  delete(key: string): void {
+    this.repo.delete(key);
+  }
+
   async invokeFirstCall(
     snailKey: string,
     request: SnailFirstCallRequest,
