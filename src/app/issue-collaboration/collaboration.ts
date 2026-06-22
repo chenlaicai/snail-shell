@@ -32,6 +32,7 @@ export class IssueCollaboration implements CollaborationInput {
   private readonly queue = new StageQueue();
   private readonly suggestions = new Map<string, StageTransitionSuggestion[]>();
   private readonly maxCollaborationRounds: number;
+  private readonly activeInvocations = new Map<number, AbortController>();
 
   constructor(private readonly deps: CollaborationDeps) {
     this.maxCollaborationRounds = deps.maxCollaborationRounds ?? 30;
@@ -43,6 +44,15 @@ export class IssueCollaboration implements CollaborationInput {
       const stage = this.createInitialStage(issue);
       return { issue, stage };
     });
+  }
+
+  interruptMessage(messageId: number): boolean {
+    const controller = this.activeInvocations.get(messageId);
+    if (!controller) return false;
+    controller.abort();
+    this.activeInvocations.delete(messageId);
+    log.info({ messageId }, "interruptMessage");
+    return true;
   }
 
   async sendMessage(stageId: string, text: string, fromSpeaker = "user", toSpeakers?: string[]): Promise<void> {
@@ -165,8 +175,11 @@ export class IssueCollaboration implements CollaborationInput {
     });
     await this.notifyConsumers(stageId, "onMessageStarted", agentMessage);
 
+    const abortController = new AbortController();
+    this.activeInvocations.set(agentMessage.id, abortController);
+
     try {
-      const result = await this.executeAgentInvocation({ stageId, roleInstance, issue, stage, assignment, unreadMessages, agentMessage });
+      const result = await this.executeAgentInvocation({ stageId, roleInstance, issue, stage, assignment, unreadMessages, agentMessage, signal: abortController.signal });
       if (result.snail_instance_id && result.snail_instance_id !== assignment.snail_instance_id) {
         this.deps.stagePort.setSnailInstanceId(stageId, roleInstance, result.snail_instance_id);
       }
@@ -188,21 +201,25 @@ export class IssueCollaboration implements CollaborationInput {
       }, "invokeAgent failed");
       const context = this.extractTerminalContext(agentMessage.id);
       this.deps.messagePort.setContext(agentMessage.id, "event_summary", context.context);
-      this.deps.messagePort.completeMessage(agentMessage.id, "failed", { error: error instanceof Error ? error.message : String(error) });
+      const status = abortController.signal.aborted ? "interrupted" : "failed";
+      this.deps.messagePort.completeMessage(agentMessage.id, status, { error: error instanceof Error ? error.message : String(error) });
       await this.notifyConsumers(stageId, "onMessageCompleted", this.mustGetMessage(agentMessage.id), this.deps.messagePort.getContext(agentMessage.id));
       throw error;
+    } finally {
+      this.activeInvocations.delete(agentMessage.id);
     }
   }
 
   private async executeAgentInvocation(input: {
     stageId: string; roleInstance: string; issue: Issue; stage: Stage;
     assignment: { snail_key: string; snail_instance_id: string | null; role_key: string };
-    unreadMessages: Message[]; agentMessage: Message;
+    unreadMessages: Message[]; agentMessage: Message; signal?: AbortSignal;
   }) {
-    const { stageId, roleInstance, issue, stage, assignment, unreadMessages, agentMessage } = input;
+    const { stageId, roleInstance, issue, stage, assignment, unreadMessages, agentMessage, signal } = input;
     const handbook = this.deps.stagePort.getRoleHandbook(stageId, assignment.role_key);
     const systemReminder = this.buildSystemReminder({ issue, stage, roleInstance, roleKey: assignment.role_key, handbook });
     const invokeOptions: InvokeOptions = {
+      signal,
       contextEnv: { issue_id: issue.id, stage_id: stage.id, message_id: String(agentMessage.id), role_instance: roleInstance },
     };
     const agentMessages = unreadMessages.map(message => this.toAgentMessage(message));

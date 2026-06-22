@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { api } from "@/services/api-client";
 import { queryKeys } from "@/queries/keys";
+import { showToast } from "@/components/Toast";
 import { TopBar } from "@/components/TopBar";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ChatMessage } from "@/components/ChatMessage";
@@ -76,6 +77,15 @@ export function IssueConversation() {
     if (!stageId) return;
     sendMutation.mutate({ text: content, to_speakers: toSpeakers.length > 0 ? toSpeakers : undefined });
   }, [stageId, sendMutation]);
+
+  const handleInterrupt = useCallback(async (messageId: number) => {
+    if (!stageId) return;
+    try {
+      await api("POST /api/stages/:stageId/messages/:messageId/interrupt", { params: { stageId, messageId: String(messageId) } });
+    } catch (err: unknown) {
+      showToast(`中断失败：${err instanceof Error ? err.message : String(err)}`, true);
+    }
+  }, [stageId]);
 
   const handleStageChanged = useCallback((nextStage: StageDetailDto) => {
     if (!issueId) return;
@@ -176,7 +186,7 @@ export function IssueConversation() {
 
               {sorted.map((msg) => (
                 <div key={msg.id} className="px-0 py-1">
-                  {stageId && <ChatMessage message={msg} />}
+                  {stageId && <ChatMessage message={msg} onInterrupt={handleInterrupt} />}
                   {/* ToolApprovalCard: shown when message has tool_call events with pending approval */}
                 </div>
               ))}
