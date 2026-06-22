@@ -125,7 +125,7 @@ export function IssueConversation() {
     <div className="flex flex-col h-full">
       <TopBar breadcrumbs={[
         { label: "Workspaces", to: "/workspaces" },
-        { label: workspace?.summary ?? workspace?.path ?? workspaceId ?? "", to: `/workspaces/${workspaceId}/board` },
+        { label: workspace?.summary || workspace?.path || workspaceId || "", to: `/workspaces/${workspaceId}/board` },
         { label: issue.title || issueId?.slice(0, 8) || "" },
       ]} />
 

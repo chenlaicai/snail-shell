@@ -40,7 +40,8 @@ export function IssueList() {
   return (
     <>
       <TopBar breadcrumbs={[
-        { label: wsLoading ? "Loading..." : (workspace?.path ?? workspaceId ?? ""), to: `/workspaces/${workspaceId}/board` },
+        { label: "Workspaces", to: "/workspaces" },
+        { label: wsLoading ? "Loading..." : (workspace?.summary || workspace?.path || workspaceId || ""), to: `/workspaces/${workspaceId}/board` },
         { label: "List" },
       ]} />
 
