@@ -28,7 +28,7 @@ function extractContextUsage(events: MessageEvent[]): { label: string; percent: 
   return null;
 }
 
-export function ChatMessage({ message }: { message: MessageDto }) {
+export function ChatMessage({ message, onInterrupt }: { message: MessageDto; onInterrupt?: (messageId: number) => void }) {
   const isUser = message.role === "user";
   const isSystem = message.role === "system";
 
@@ -121,6 +121,15 @@ export function ChatMessage({ message }: { message: MessageDto }) {
                 <div className="w-1.5 h-1.5 rounded-full bg-shell-400 animate-bounce [animation-delay:300ms]" />
               </div>
               <span className="text-[11px] text-shell-400">AI is responding...</span>
+              {onInterrupt && (
+                <button
+                  onClick={() => onInterrupt(message.id)}
+                  className="ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-status-red/15 text-status-red border border-status-red/30 hover:bg-status-red/25 transition-colors"
+                >
+                  <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
+                  Stop
+                </button>
+              )}
             </div>
           )}
         </div>

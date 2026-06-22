@@ -89,6 +89,8 @@ export function createIssueRoutes(deps: IssueRoutesDeps) {
 
   app.post("/api/stages/:stageId/messages", zValidator("json", sendMessageBody), async (c) => sendMessage(c, deps));
 
+  app.post("/api/stages/:stageId/messages/:messageId/interrupt", (c) => interruptMessage(c, deps));
+
   app.get("/api/stages/:stageId/transition-suggestions", (c) => {
     return c.json(deps.collaboration.listStageTransitionSuggestions(c.req.param("stageId")));
   });
@@ -115,6 +117,13 @@ async function sendMessage(c: Context, deps: IssueRoutesDeps) {
   const body = sendMessageBody.parse(await c.req.json());
   await deps.collaboration.sendMessage(stageId, body.text, body.from_speaker, body.to_speakers);
   return c.json({ ok: true });
+}
+
+function interruptMessage(c: Context, deps: IssueRoutesDeps) {
+  const messageId = Number(c.req.param("messageId"));
+  if (!Number.isFinite(messageId)) return c.json({ error: "Invalid messageId" }, 400);
+  const interrupted = deps.collaboration.interruptMessage(messageId);
+  return c.json({ interrupted });
 }
 
 function toIssueDetail(deps: Pick<IssueRoutesDeps, "stagePort">, issue: Issue) {
