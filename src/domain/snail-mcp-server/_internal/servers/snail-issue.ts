@@ -28,12 +28,11 @@ function createRecordOutputArtifactsTool(stagePort: StagePort) {
     description:
       "向当前 Stage 的 output_artifacts 写入键值对（浅合并，不覆盖已有 key）。" +
       "用于记录分支名、worktree 路径、PR URL 等仓库上下文。" +
-      "stage_id 从环境变量 SNAIL_CTX_STAGE_ID 获取。" +
       "[HARD] 创建 worktree 或分支后必须调用此工具记录，未记录的资源等同于泄漏。",
     inputSchema: {
       type: "object",
       properties: {
-        stage_id: { type: "string", description: "Stage UUID（从环境变量 SNAIL_CTX_STAGE_ID 获取）" },
+        stage_id: { type: "string", description: "Stage UUID，从你的环境变量 SNAIL_CTX_STAGE_ID 读取后传入" },
         artifacts: {
           type: "object",
           description: "键值对，如 { worktree_path, branch_name, pr_url }。值可以是普通字符串或 {value, keep} 对象。",
@@ -73,7 +72,7 @@ function createSetTaskAnchorTool(issuePort: IssuePort) {
     inputSchema: {
       type: "object",
       properties: {
-        issue_id: { type: "string", description: "Issue UUID" },
+        issue_id: { type: "string", description: "Issue UUID，从你的环境变量 SNAIL_CTX_ISSUE_ID 读取后传入" },
         task_anchor: { type: "string", description: "任务锚点内容（Markdown）" },
       },
       required: ["issue_id", "task_anchor"],
