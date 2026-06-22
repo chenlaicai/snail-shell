@@ -63,8 +63,8 @@ export function McpConfig() {
               <div className="mb-4 flex items-center gap-2">
                 <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-text-secondary">{selectedConfig.scope}</span>
                 <SourceTag source={selectedConfig.source} />
-                {selectedConfig.source === "workspace" && selectedConfig.url && (
-                  <span className="text-[11px] text-text-muted">{selectedConfig.url}</span>
+                {selectedConfig.source === "workspace" && selectedConfig.workspace_path && (
+                  <span className="text-[11px] text-text-muted">{selectedConfig.workspace_path}</span>
                 )}
               </div>
               <div className="rounded-lg border border-white/6 bg-surface-1 p-4">

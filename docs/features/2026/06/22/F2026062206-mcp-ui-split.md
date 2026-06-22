@@ -95,16 +95,16 @@ doc_kind: spec
 
 **MCP Config 页面**复用现有 `GET /api/meta/mcps`，DTO 层增加 `source` 字段。
 
-#### 2. `source` 字段：DTO 层装饰
+#### 2. `source` 字段：领域模型层标记
 
-在 `McpServerDto` 中新增可选字段 `source?: 'builtin' | 'platform' | 'workspace'`。
+在 `MCPConfig` 领域模型中新增可选字段 `source?: 'builtin' | 'platform' | 'workspace'`，在 `McpServerDto` 中同步新增。
 
-实现方式：在 `meta.route.ts` 的 handler 中对 `MCPConfig[]` 做映射时添加，不修改 `MCPConfig` 领域模型。`source` 是展示层需求，不应污染领域层。
+实现方式：在 `FileMCPRepository` 加载配置时直接标记来源，`meta.route.ts` 直接透传，无需启发式判断。
 
 映射规则：
-- `FileMCPRepository.loadSnailMCPServerConfigs()` 注入的条目 → `'builtin'`
-- 来自 `config/mcp.json` 的条目 → `'platform'`
-- 来自 `.snail/mcp.json` 的条目 → `'workspace'`
+- `FileMCPRepository.loadSnailMCPServerConfigs()` 注入的条目 → `source: 'builtin'`
+- 来自 `config/mcp.json` 的条目 → `source: 'platform'`
+- 来自 `.snail/mcp.json` 的条目 → `source: 'workspace'`
 
 #### 3. 前端页面布局
 
@@ -140,7 +140,7 @@ doc_kind: spec
 ## 设计约束摘要
 
 - **边界**：MCP Servers 页面只读展示，不暴露运行时状态或健康检查；MCP Config 页面 P1 只读，不做 CRUD
-- **关键决策**：复用 `GET /mcp/` + `GET /mcp/:serverName` 端点，不新增 API；MCP Config 页面不排除内建 server；`source` 字段在 DTO 层装饰，不修改领域模型
+- **关键决策**：复用 `GET /mcp/` + `GET /mcp/:serverName` 端点，不新增 API；MCP Config 页面不排除内建 server；`source` 字段在领域模型层标记，由 repository 加载时设置
 - **非目标约束**：不做 CRUD、不做健康检查、不做 tool 在线测试、不做 inputSchema 完整展示、不做同名冲突处理
 - **语义不变量**：`GET /api/meta/mcps` 返回内容不变（新增 `source` 可选字段不破坏现有消费者）；`GET /mcp/` 和 `GET /mcp/:serverName` 不变
 - **已知限制**：内建 server 与用户配置同名时会产生重复条目（后端 `FileMCPRepository` 未做去重）
@@ -156,13 +156,18 @@ doc_kind: spec
 | 修改 | `src/web/router.tsx` | 删除 `/mcps`，新增 `/mcp-servers`、`/mcp-config`、`/mcps` 重定向 |
 | 修改 | `src/web/components/Sidebar.tsx` | `MCPs` 替换为 `MCP Servers` + `MCP Config` |
 | 新增 | `src/web/queries/meta.queries.ts` | 新增 mcpServers query（调用 `GET /mcp/`） |
-| 修改 | `src/api-contracts/dto.ts` | `McpServerDto` 增加 `source` 字段 |
-| 修改 | `src/infra/http/routes/meta.route.ts` | `/api/meta/mcps` handler 增加 source 映射 |
+| 修改 | `src/api-contracts/dto.ts` | `McpServerDto` 增加 `source`、`workspace_path` 字段 |
+| 修改 | `src/domain/mcp/model.ts` | `MCPConfig` 增加 `source` 字段 |
+| 修改 | `src/domain/mcp/_internal/repository.ts` | `FileMCPRepository` 加载时标记 source |
+| 修改 | `src/infra/http/routes/meta.route.ts` | `/api/meta/mcps` handler 透传 source 和 workspace_path |
 
 ## 验证
 
 ### P1
 
+- [x] TypeScript 编译通过
+- [x] ESLint 通过
+- [x] Vite build 通过
 - [ ] 访问 `/mcp-servers` 左侧显示 4 个内建 server（名称 + tool 数量 badge）
 - [ ] 点击 server 列表项，右侧详情面板展示名称、版本、endpoint、tool 列表（name + description）
 - [ ] 访问 `/mcp-config` 左侧显示所有配置项（名称 + source 标签）
@@ -184,6 +189,6 @@ doc_kind: spec
 | D3 | 路由路径命名 | /mcp-servers 和 /mcp-config 语义清晰 | 与现有 /mcps 路径不兼容，需要处理旧路径 | 使用 /mcp-servers 和 /mcp-config，/mcps 重定向到 /mcp-config | 命名准确反映后端双模块职责，重定向保持向后兼容 | 架构师-1, 架构师-2 | 2026-06-22 |
 | D4 | API 策略：新增 vs 复用 | 新增 API 可以统一数据格式 | 后端已有 `GET /mcp/` + `GET /mcp/:serverName`，数据完全一致，新增造成重复维护 | 复用现有 `/mcp/` 端点，不新增 API | 避免 API 重复建设，现有端点已满足需求 | 架构师-1, 架构师-2 | 2026-06-22 |
 | D5 | 页面布局 | 卡片网格布局简洁 | Config 区域的 PromptCenter、SkillCenter 都用左侧列表+右侧详情面板，卡片布局不一致 | 采用左侧列表+右侧详情面板布局 | 与 Config 区域其他页面保持一致的交互模式 | 架构师-1, 架构师-2 | 2026-06-22 |
-| D6 | `source` 字段实现层级 | 在 MCPConfig 领域模型上添加 source 字段，数据自描述 | source 是展示层需求，领域模型不应为 UI 而变更 | DTO 层装饰，不修改领域模型 | 展示层需求与领域模型分离 | 架构师-1, 架构师-2 | 2026-06-22 |
+| D6 | `source` 字段实现层级 | 在 MCPConfig 领域模型上添加 source 字段，数据自描述 | source 是展示层需求，领域模型不应为 UI 而变更 | 领域模型层标记，由 repository 加载时设置 | 数据来源是领域的固有属性（builtin/platform/workspace），不是 UI 专属需求；在加载时标记比 route handler 启发式判断更精确 | 架构师-1, 架构师-2, 开发者 | 2026-06-22 |
 | D7 | MCP Servers 侧边栏区域归属 | 放在 Config 区域，MCP 相关入口集中 | MCP Servers 是只读能力展示，不是"配置"，语义不精确 | 放在 Config 区域 | 用户找 MCP 相关功能时会先看 Config 区域，降低发现成本 | 架构师-1, 架构师-2 | 2026-06-22 |
 | D8 | transport 类型判断逻辑 | command 和 url 可能同时存在，需要明确优先级 | 实际场景中不会两者兼有 | command 优先于 url；command → stdio，url → HTTP，都不存在 → "无连接信息" | stdio 需要 command 启动进程，是更具体的配置方式 | 架构师-1, 架构师-2 | 2026-06-22 |

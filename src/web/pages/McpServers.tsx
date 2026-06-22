@@ -7,7 +7,7 @@ export function McpServers() {
   const { data: servers = [], isLoading } = useQuery(metaQueries.mcpServers());
   const [selected, setSelected] = useState<string | null>(null);
 
-  const { data: detail, isLoading: isDetailLoading } = useQuery(metaQueries.mcpServerDetail(selected ?? ""));
+  const { data: detail, isLoading: isDetailLoading, error: detailError } = useQuery(metaQueries.mcpServerDetail(selected ?? ""));
 
   if (isLoading) return <div className="flex h-full items-center justify-center text-[13px] text-text-muted">加载中...</div>;
 
@@ -64,7 +64,7 @@ export function McpServers() {
                 </div>
               )}
             </div>
-          ) : selected && !isDetailLoading ? (
+          ) : selected && !isDetailLoading && detailError ? (
             <div className="py-3 text-[13px] text-text-muted">Server 详情加载失败</div>
           ) : (
             <div className="py-3 text-[13px] text-text-muted">选择一个 MCP Server 查看详情</div>

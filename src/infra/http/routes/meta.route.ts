@@ -4,7 +4,6 @@ import type { SkillPort } from "@domain/skill/port";
 import type { SopPort } from "@domain/sop/port";
 import type { SnailPort } from "@domain/snail/port";
 import type { MCPPort } from "@domain/mcp/port";
-import { Scope } from "@domain/workspace/model";
 
 interface MetaRoutesDeps {
   tenetPrompt: TenetPromptPort;
@@ -21,13 +20,11 @@ export function createMetaRoutes(deps: MetaRoutesDeps) {
   app.get("/api/meta/skills", (c) => c.json(deps.skill.list()));
   app.get("/api/meta/mcps", (c) => {
     const configs = deps.mcp.list();
-    const withSource = configs.map((config) => ({
+    const dtos = configs.map((config) => ({
       ...config,
-      source: config.url?.includes("/mcp/") ? "builtin" as const
-        : config.scope === Scope.Workspace ? "workspace" as const
-        : "platform" as const,
+      workspace_path: config.workspace?.path,
     }));
-    return c.json(withSource);
+    return c.json(dtos);
   });
   app.get("/api/sops", (c) => c.json(deps.sop.list()));
   app.get("/api/sops/:sopKey", (c) => {

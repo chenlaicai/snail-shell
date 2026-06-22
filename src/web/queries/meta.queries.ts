@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import { api } from "../services/api-client";
+import { api, ApiError } from "../services/api-client";
 import { queryKeys } from "./keys";
 
 export const metaQueries = {
@@ -21,25 +21,32 @@ export const metaQueries = {
       queryFn: () => api("GET /api/meta/mcps", { query: workspaceRoot ? { workspace_root: workspaceRoot } : undefined }),
     }),
 
-  /** MCP Servers — 从 snail-mcp-server 的 /mcp/ 端点获取内建 server 列表 */
+  /**
+   * MCP Servers — 从 snail-mcp-server 的 /mcp/ 端点获取内建 server 列表。
+   * 注意：/mcp 端点是 MCP Server 自身的 JSON-RPC 端点，不经过 /api 网关，
+   * 因此不使用 api() 客户端，直接 fetch。
+   */
   mcpServers: () =>
     queryOptions({
       queryKey: queryKeys.meta.mcpServers,
       queryFn: async () => {
         const res = await fetch("/mcp");
-        if (!res.ok) throw new Error("Failed to fetch MCP servers");
+        if (!res.ok) throw new ApiError("Failed to fetch MCP servers", res.status);
         const data = await res.json() as { servers: Array<{ name: string; version: string; endpoint: string; tools: string[] }> };
         return data.servers;
       },
     }),
 
-  /** MCP Server 详情 — 从 /mcp/:serverName 获取单个 server 的 tool 详情 */
+  /**
+   * MCP Server 详情 — 从 /mcp/:serverName 获取单个 server 的 tool 详情。
+   * 同上，/mcp 端点不经过 /api 网关。
+   */
   mcpServerDetail: (serverName: string) =>
     queryOptions({
       queryKey: [...queryKeys.meta.mcpServers, serverName] as const,
       queryFn: async () => {
         const res = await fetch(`/mcp/${encodeURIComponent(serverName)}`);
-        if (!res.ok) throw new Error(`Failed to fetch MCP server: ${serverName}`);
+        if (!res.ok) throw new ApiError(`Failed to fetch MCP server: ${serverName}`, res.status);
         return res.json() as Promise<{ name: string; version: string; endpoint: string; tools: Array<{ name: string; description: string; inputSchema: Record<string, unknown> }> }>;
       },
       enabled: !!serverName,
