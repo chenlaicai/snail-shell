@@ -17,6 +17,8 @@ export interface MCPConfig {
   // Snail Shell 特有字段
   /** 作用域：platform 平台级，workspace 工作区级 */
   scope: Scope;
+  /** 配置来源：builtin 内建注入、platform 平台配置、workspace 工作区配置 */
+  source?: 'builtin' | 'platform' | 'workspace';
   /** 关联的工作空间（workspace 来源时有值） */
   workspace?: Workspace;
 }

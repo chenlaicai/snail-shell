@@ -18,7 +18,14 @@ export function createMetaRoutes(deps: MetaRoutesDeps) {
 
   app.get("/api/meta/prompts", (c) => c.json(deps.tenetPrompt.list()));
   app.get("/api/meta/skills", (c) => c.json(deps.skill.list()));
-  app.get("/api/meta/mcps", (c) => c.json(deps.mcp.list()));
+  app.get("/api/meta/mcps", (c) => {
+    const configs = deps.mcp.list();
+    const dtos = configs.map((config) => ({
+      ...config,
+      workspace_path: config.workspace?.path,
+    }));
+    return c.json(dtos);
+  });
   app.get("/api/sops", (c) => c.json(deps.sop.list()));
   app.get("/api/sops/:sopKey", (c) => {
     const sop = deps.sop.findByKey(c.req.param("sopKey"));
