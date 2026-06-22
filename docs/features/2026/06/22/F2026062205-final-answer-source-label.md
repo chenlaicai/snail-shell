@@ -43,13 +43,13 @@ PR409（F2026062204-streaming-events-realtime-display）已完成：
 
 | # | 场景 | 预期行为 | 测试覆盖 |
 |---|------|----------|----------|
-| B1 | 当消息有 `context` 且 `kind` 为 `final_text` 时 | 最终答复区域显示 `final_text` 标签 | |
-| B2 | 当消息有 `context` 且 `kind` 为 `message_out` 时 | 最终答复区域显示 `message_out` 标签 | |
-| B3 | 当消息有 `context` 且 `kind` 为 `event_summary` 时 | 最终答复区域显示 `event_summary` 标签 | |
-| B4 | 当消息有 `context` 且 `kind` 为 `llm_summary` 时 | 最终答复区域显示 `llm_summary` 标签 | |
-| B5 | 当消息有 `context` 且 `kind` 为 `mcp_final_body` 时 | 最终答复区域显示 `mcp_final_body` 标签 | |
-| B6 | 当消息没有 `context` 时 | 不显示来源标签 | |
-| B7 | 当消息有 `context` 且 `kind` 不在已知列表中时 | 显示原始 kind 值 | |
+| B1 | 当消息有 `context` 且 `kind` 为 `final_text` 时 | 最终答复区域显示 `final_text` 标签 | 人工验证（前端无测试基础设施） |
+| B2 | 当消息有 `context` 且 `kind` 为 `message_out` 时 | 最终答复区域显示 `message_out` 标签 | 人工验证 |
+| B3 | 当消息有 `context` 且 `kind` 为 `event_summary` 时 | 最终答复区域显示 `event_summary` 标签 | 人工验证 |
+| B4 | 当消息有 `context` 且 `kind` 为 `llm_summary` 时 | 最终答复区域显示 `llm_summary` 标签 | 人工验证 |
+| B5 | 当消息有 `context` 且 `kind` 为 `mcp_final_body` 时 | 最终答复区域显示 `mcp_final_body` 标签 | 人工验证 |
+| B6 | 当消息没有 `context` 时 | 不显示来源标签 | 人工验证 |
+| B7 | 当消息有 `context` 且 `kind` 不在已知列表中时 | 显示原始 kind 值 | 人工验证 |
 
 ## 设计
 
