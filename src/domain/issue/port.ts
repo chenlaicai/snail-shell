@@ -31,6 +31,12 @@ export interface StagePort {
   /** 设置 snail 实例 ID（首次调用 snail 后填入） */
   setSnailInstanceId(stageId: string, roleInstance: string, snailInstanceId: string): void;
 
+  /** 完成终端阶段：设置 left_at，不创建新阶段 */
+  completeStage(stageId: string): Stage;
+
+  /** 完成 Issue：设置 closed_at */
+  completeIssue(issueId: string): Issue;
+
   /** 获取 stage 所有角色实例的当前（最新）snail 分配 */
   getRoleSnailAssignments(stageId: string): RoleSnailAssignment[];
 

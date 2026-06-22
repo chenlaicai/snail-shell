@@ -25,6 +25,8 @@ export interface CollaborationInput {
   unregisterIssueConsumer(issueId: string, consumer: CollaborationConsumer): void;
   listStageTransitionSuggestions(stageId: string): StageTransitionSuggestion[];
   advanceStage(stageId: string, targetKey: string): Promise<Stage>;
+  completeStage(stageId: string): Promise<Stage>;
+  completeIssue(issueId: string): Promise<Issue>;
 }
 
 export interface CollaborationConsumer {

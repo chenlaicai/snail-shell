@@ -7,6 +7,7 @@ export interface IssueRepository {
   findById(id: string): Issue | undefined;
   listByWorkspace(workspacePath: string, limit?: number, offset?: number): Issue[];
   create(issue: Issue): void;
+  update(issueId: string, updates: Partial<Pick<Issue, "closed_at">>): void;
 }
 
 // ── Stage Repository ──────────────────────────────────────────────────
@@ -143,6 +144,18 @@ export class SQLiteIssueRepository implements IssueRepository {
         issue.closed_at,
       ],
     );
+  }
+
+  update(issueId: string, updates: Partial<Pick<Issue, "closed_at">>): void {
+    const sets: string[] = [];
+    const params: unknown[] = [];
+    if (updates.closed_at !== undefined) {
+      sets.push("closed_at = ?");
+      params.push(updates.closed_at);
+    }
+    if (sets.length === 0) return;
+    params.push(issueId);
+    this.db.run(`UPDATE issue SET ${sets.join(", ")} WHERE id = ?`, params);
   }
 }
 

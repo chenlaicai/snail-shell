@@ -101,6 +101,10 @@ export function createIssueRoutes(deps: IssueRoutesDeps) {
     return c.json(toStageDto(deps, stage), 201);
   });
 
+  app.post("/api/stages/:stageId/complete", (c) => completeStage(c, deps));
+
+  app.post("/api/issues/:issueId/complete", (c) => completeIssue(c, deps));
+
   return app;
 }
 
@@ -127,6 +131,18 @@ function interruptMessage(c: Context, deps: IssueRoutesDeps) {
   if (message.status !== "streaming") return c.json({ interrupted: false, error: "Message is not streaming" }, 409);
   const interrupted = deps.collaboration.interruptMessage(messageId);
   return c.json({ interrupted });
+}
+
+async function completeStage(c: Context, deps: IssueRoutesDeps) {
+  const stageId = requiredParam(c, "stageId");
+  const stage = await deps.collaboration.completeStage(stageId);
+  return c.json(toStageDto(deps, stage));
+}
+
+async function completeIssue(c: Context, deps: IssueRoutesDeps) {
+  const issueId = requiredParam(c, "issueId");
+  const issue = await deps.collaboration.completeIssue(issueId);
+  return c.json(toIssueDetail(deps, issue));
 }
 
 function toIssueDetail(deps: Pick<IssueRoutesDeps, "stagePort">, issue: Issue) {

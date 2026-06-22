@@ -207,6 +207,54 @@ export class StageAdapter implements StagePort {
     this.sessionRepo.setSnailInstanceId(stageId, roleInstance, snailInstanceId);
   }
 
+  completeStage(stageId: string): Stage {
+    return this.stageRepo.transaction(() => {
+      const stage = this.stageRepo.findById(stageId);
+      if (!stage) throw new Error(`Stage not found: ${stageId}`);
+
+      const issue = this.mustFindIssue(stage.issue_id);
+      if (issue.closed_at) throw new Error("Issue is already completed");
+      if (stage.left_at) throw new Error("Stage is already completed");
+
+      /** 终端阶段判定：available_transitions 中不存在正向转换 */
+      if (!this.isTerminalStage(issue.sop_snapshot, stage)) {
+        throw new Error("Stage is not a terminal stage");
+      }
+
+      const leftAt = new Date().toISOString();
+      this.stageRepo.update(stageId, { left_at: leftAt });
+      return { ...stage, left_at: leftAt };
+    });
+  }
+
+  completeIssue(issueId: string): Issue {
+    const issue = this.mustFindIssue(issueId);
+    if (issue.closed_at) throw new Error("Issue is already completed");
+
+    /** 获取当前阶段（未完成的阶段） */
+    const stages = this.stageRepo.listByIssue(issueId);
+    const currentStage = stages.find(s => !s.left_at);
+    if (currentStage) throw new Error("Stage is still in progress");
+
+    const closedAt = new Date().toISOString();
+    this.issueRepo.update(issueId, { closed_at: closedAt });
+    return { ...issue, closed_at: closedAt };
+  }
+
+  /**
+   * 终端阶段判定：从该阶段出发的所有 available_transitions 中，不存在正向转换。
+   * 正向/反向使用 sop_snapshot.stage_definitions 数组索引判断。
+   */
+  private isTerminalStage(sopSnapshot: { stage_definitions: Array<{ key: string }> }, stage: Stage): boolean {
+    const stageDefs = sopSnapshot.stage_definitions;
+    const currentIndex = stageDefs.findIndex(d => d.key === stage.key);
+
+    return stage.available_transitions.every(transition => {
+      const targetIndex = stageDefs.findIndex(d => d.key === transition.to);
+      return targetIndex <= currentIndex;
+    });
+  }
+
   getRoleSnailAssignments(stageId: string): RoleSnailAssignment[] {
     return this.sessionRepo.listLatestByStage(stageId);
   }
