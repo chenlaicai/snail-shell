@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { api } from "@/services/api-client";
 import { queryKeys } from "@/queries/keys";
+import { showToast } from "@/components/Toast";
 import { TopBar } from "@/components/TopBar";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ChatMessage } from "@/components/ChatMessage";
@@ -81,8 +82,8 @@ export function IssueConversation() {
     if (!stageId) return;
     try {
       await api("POST /api/stages/:stageId/messages/:messageId/interrupt", { params: { stageId, messageId: String(messageId) } });
-    } catch {
-      // interrupt best-effort
+    } catch (err: unknown) {
+      showToast(`中断失败：${err instanceof Error ? err.message : String(err)}`, true);
     }
   }, [stageId]);
 

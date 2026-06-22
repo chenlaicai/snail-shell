@@ -122,6 +122,9 @@ async function sendMessage(c: Context, deps: IssueRoutesDeps) {
 function interruptMessage(c: Context, deps: IssueRoutesDeps) {
   const messageId = Number(c.req.param("messageId"));
   if (!Number.isFinite(messageId)) return c.json({ error: "Invalid messageId" }, 400);
+  const message = deps.messagePort.getMessage(messageId);
+  if (!message) return c.json({ error: "Message not found" }, 404);
+  if (message.status !== "streaming") return c.json({ interrupted: false, error: "Message is not streaming" }, 409);
   const interrupted = deps.collaboration.interruptMessage(messageId);
   return c.json({ interrupted });
 }
