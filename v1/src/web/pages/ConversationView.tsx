@@ -50,9 +50,16 @@ function fmt(n: number): string {
 }
 
 function extractTextSummary(msg: MessageDto): string {
+  /** 优先使用后端 context 作为摘要来源 */
+  if (msg.context?.context) {
+    return msg.context.context.slice(0, 80);
+  }
   const content = extractMessageContent(msg);
   for (const block of content.finalBlocks) { if (block.text) return block.text.slice(0, 80); }
-  for (const block of content.processBlocks) { if (block.summary) return block.summary.slice(0, 80); }
+  for (const block of content.processBlocks) {
+    if (block.kind === "text_event" && block.text) return block.text.slice(0, 80);
+    if (block.summary) return block.summary.slice(0, 80);
+  }
   return "";
 }
 

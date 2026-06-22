@@ -71,9 +71,9 @@ type ContentBlock =
 
 /** 消息内容：分为流式过程和最终答复两部分 */
 export interface MessageContent {
-  /** 流式过程块（工具调用、活动事件等） */
+  /** 流式过程块（工具调用、活动事件、文本事件等） */
   processBlocks: ContentBlock[];
-  /** 最终答复块（文本、markdown、问题等） */
+  /** 最终答复块（来自后端 context 的持久化结论） */
   finalBlocks: ContentBlock[];
   /** 是否正在流式输出 */
   isStreaming: boolean;
@@ -82,30 +82,43 @@ export interface MessageContent {
 }
 
 /** 从消息事件中提取内容，分为流式过程和最终答复 */
-export function extractMessageContent(msg: { events?: Array<Record<string, unknown>>; content?: string; status?: string }): MessageContent {
+export function extractMessageContent(msg: {
+  events?: Array<Record<string, unknown>>;
+  content?: string;
+  context?: { kind: string; context: string } | null;
+  status?: string;
+}): MessageContent {
+  /** 用户消息：直接使用 content 字段 */
   if (msg.content) {
     return { processBlocks: [], finalBlocks: [{ kind: "text_event", text: msg.content }], isStreaming: false, containsQuestion: false };
   }
+
   if (!msg.events || msg.events.length === 0) {
+    /** 无事件但有 context：显示后端持久化的最终答复 */
+    if (msg.context?.context) {
+      return { processBlocks: [], finalBlocks: [{ kind: "text_event", text: msg.context.context }], isStreaming: false, containsQuestion: false };
+    }
     return { processBlocks: [], finalBlocks: [], isStreaming: msg.status === "streaming", containsQuestion: false };
   }
 
   const processBlocks: ContentBlock[] = [];
-  const finalBlocks: ContentBlock[] = [];
   let containsQuestion = false;
 
   for (const event of msg.events) {
     const { category, kind, payload } = event;
 
     if (category === "content" && kind === "text") {
-      finalBlocks.push({ kind: "text_event", text: payloadString(payload, "text") });
+      /** text_event 归入流式过程，不再作为最终答复 */
+      processBlocks.push({ kind: "text_event", text: payloadString(payload, "text") });
     } else if (category === "content" && kind === "markdown") {
-      finalBlocks.push({ kind: "markdown", text: payloadString(payload, "text") });
+      /** markdown 也归入流式过程，最终答复来自后端 context */
+      processBlocks.push({ kind: "markdown", text: payloadString(payload, "text") });
     } else if (category === "content_block") {
       const block = mapContentBlock(payload);
-      if (block.kind === "text_event" || block.kind === "markdown" || block.kind === "question") {
-        if (block.kind === "question") containsQuestion = true;
-        finalBlocks.push(block);
+      if (block.kind === "question") {
+        /** question 保持在 finalBlocks，因为需要用户交互 */
+        containsQuestion = true;
+        processBlocks.push(block);
       } else {
         processBlocks.push(block);
       }
@@ -114,7 +127,7 @@ export function extractMessageContent(msg: { events?: Array<Record<string, unkno
       if (signalType === "runtime_usage") {
         // skip — 已在消息头 badge 展示
       } else if (signalType === "permission_required") {
-        finalBlocks.push({ kind: "permission_request", tool: payloadString(payload, "tool"), input: payloadRecord(payload, "input") });
+        processBlocks.push({ kind: "permission_request", tool: payloadString(payload, "tool"), input: payloadRecord(payload, "input") });
       } else if (!["message_completed", "message_pending_approval", "step_start", "step_finish"].includes(signalType)) {
         processBlocks.push({ kind: "event_activity", eventKind: signalType, summary: payloadString(payload, "detail") || payloadString(payload, "reason") || signalType, detail: JSON.stringify(payload) });
       }
@@ -126,9 +139,25 @@ export function extractMessageContent(msg: { events?: Array<Record<string, unkno
   }
 
   const isStreaming = msg.status === "streaming" || msg.status === "pending" || msg.status === "thinking";
+
+  /** 最终答复：优先使用后端 context，fallback 到旧逻辑（兼容无 context 的历史数据） */
+  const finalBlocks: ContentBlock[] = [];
+  if (msg.context?.context) {
+    finalBlocks.push({ kind: "text_event", text: msg.context.context });
+  } else if (!isStreaming) {
+    /** 兼容旧数据：从流式事件中提取最后一个 text 作为最终答复 */
+    for (let i = processBlocks.length - 1; i >= 0; i--) {
+      const block = processBlocks[i];
+      if (block.kind === "text_event" && block.text.trim()) {
+        finalBlocks.push(block);
+        break;
+      }
+    }
+  }
+
   return {
     processBlocks: processBlocks.filter((b) => b.text || b.summary || b.toolName || b.question),
-    finalBlocks: finalBlocks.filter((b) => b.text || b.summary || b.question),
+    finalBlocks,
     isStreaming,
     containsQuestion,
   };
