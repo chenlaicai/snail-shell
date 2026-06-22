@@ -62,6 +62,7 @@ export const queryKeys = {
     prompts: ["meta", "prompts"] as const,
     skills: ["meta", "skills"] as const,
     mcps: (root?: string) => ["meta", "mcps", root] as const,
+    mcpServers: ["meta", "mcp-servers"] as const,
     snailDen: ["meta", "snail-den"] as const,
   },
   roles: ["roles"] as const,

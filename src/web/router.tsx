@@ -19,7 +19,8 @@ import { SopCenter } from "./pages/SopCenter";
 import { SnailDen } from "./pages/SnailDen";
 import { PromptCenter } from "./pages/PromptCenter";
 import { SkillCenter } from "./pages/SkillCenter";
-import { McpCenter } from "./pages/McpCenter";
+import { McpServers } from "./pages/McpServers";
+import { McpConfig } from "./pages/McpConfig";
 import { Lobby } from "./pages/Lobby";
 import { NotFound } from "./pages/NotFound";
 
@@ -139,7 +140,19 @@ export const router = createBrowserRouter([
       },
       {
         path: "mcps",
-        element: <McpCenter />,
+        loader: () => redirect("/mcp-config", { replace: true }),
+      },
+      {
+        path: "mcp-servers",
+        element: <McpServers />,
+        loader: async () => {
+          await queryClient.ensureQueryData(metaQueries.mcpServers());
+          return null;
+        },
+      },
+      {
+        path: "mcp-config",
+        element: <McpConfig />,
         loader: async () => {
           await queryClient.ensureQueryData(metaQueries.mcps());
           return null;
