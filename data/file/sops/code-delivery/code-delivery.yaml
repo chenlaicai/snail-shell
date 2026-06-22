@@ -124,7 +124,7 @@ stage_definitions:
     acceptance_focus:
       - PR 是否基于最新 origin/main
       - CI 是否全部通过
-      - Feature 文档编号是否合规（包括与 PR 标题编号一致性、是否为最新未使用编号）
+      - Feature 文档编号是否合规（严格按照「特性编号规则」验证）
       - PR 标题和 commit 模板是否合规
     acceptance_checklist:
       - id: merge-01
@@ -134,7 +134,7 @@ stage_definitions:
         description: CI 全部通过
         required: true
       - id: merge-03
-        description: Feature 文档编号合规（包括与 PR 标题编号一致性、是否为最新未使用编号）
+        description: Feature 文档编号合规（严格按照「特性编号规则」验证）
         required: true
       - id: merge-04
         description: PR 标题和 commit 模板合规
