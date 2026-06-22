@@ -14,14 +14,8 @@ import type { MCPServerCapability } from "@infra/acs/model";
 
 const log = getLogger({ module: "acs" });
 
-/**
- * 构建原生 HTTP transport 配置条目。
- *
- * Claude Code 已原生支持 HTTP transport（{ type: "http", url } 格式），
- * 无需 mcp-remote 桥接。原生格式消除了对 npx、npm registry 和网络的外部依赖。
- */
-function buildMcpHttpEntry(url: string): { type: string; url: string } {
-  return { type: "http", url };
+function buildMcpRemoteEntry(url: string): { command: string; args: string[] } {
+  return { command: "npx", args: ["mcp-remote@1", url] };
 }
 
 export function ensureMcpServers(servers: MCPServerCapability[], workspacePath?: string, agentType?: "claude" | "opencode" | "codex"): void {
@@ -67,42 +61,30 @@ function writeClaudeMcpConfig(servers: MCPServerCapability[], workspacePath: str
     : {});
 
   for (const s of servers) {
-    existingServers[s.name] = s.url ? buildMcpHttpEntry(s.url) : { command: s.command, args: s.args, env: s.env };
+    existingServers[s.name] = s.url ? buildMcpRemoteEntry(s.url) : { command: s.command, args: s.args, env: s.env };
   }
 
   mcpConfig.mcpServers = existingServers;
   fs.writeFileSync(mcpJsonPath, JSON.stringify(mcpConfig, null, 2) + "\n");
 
-  /**
-   * 清理 settings.json 中残留的 enabledMcpjsonServers 字段。
-   *
-   * 原生 HTTP transport 模式下，Claude Code 不需要白名单放行机制。
-   * 此字段是旧 mcp-remote 桥接方案的遗留，清理避免混淆。
-   */
-  cleanupLegacyEnabledMcpjsonServers(claudeDir);
+  syncEnabledMcpjsonServers(claudeDir, Object.keys(existingServers));
 }
 
-/**
- * 清理 .claude/settings.json 中残留的 enabledMcpjsonServers 字段。
- *
- * 原生 HTTP transport 不需要白名单放行机制。
- * 文件不存在或解析失败时静默跳过（不影响主流程）。
- */
-function cleanupLegacyEnabledMcpjsonServers(claudeDir: string): void {
+function syncEnabledMcpjsonServers(claudeDir: string, serverNames: string[]): void {
   const settingsPath = path.join(claudeDir, "settings.json");
-  if (!fs.existsSync(settingsPath)) return;
+  let settings: Record<string, unknown> = {};
 
-  let settings: Record<string, unknown>;
-  try {
-    settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
-  } catch {
-    return;
+  if (fs.existsSync(settingsPath)) {
+    try {
+      settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+    } catch {
+      log.warn({ settingsPath }, "settings.json 解析失败，保留原文件内容不变");
+      return;
+    }
   }
 
-  if ("enabledMcpjsonServers" in settings) {
-    delete settings.enabledMcpjsonServers;
-    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n");
-  }
+  settings.enabledMcpjsonServers = serverNames;
+  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n");
 }
 
 function writeOpenCodeMcpConfig(servers: MCPServerCapability[], workspacePath: string): void {
