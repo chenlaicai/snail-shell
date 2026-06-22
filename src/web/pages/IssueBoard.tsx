@@ -31,7 +31,9 @@ export function IssueBoard() {
   return (
     <>
       <TopBar breadcrumbs={[
-        { label: wsLoading ? "Loading..." : (workspace?.path ?? workspaceId ?? ""), to: `/workspaces/${workspaceId}/board` },
+        { label: "Workspaces", to: "/workspaces" },
+        // || not ??: empty string should fall back to path (see F2026062203 D3)
+        { label: wsLoading ? "Loading..." : (workspace?.summary || workspace?.path || workspaceId || ""), to: `/workspaces/${workspaceId}/board` },
         { label: "Board" },
       ]} />
 
