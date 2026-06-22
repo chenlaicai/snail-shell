@@ -115,7 +115,8 @@ export function useMention({ roleInstances }: UseMentionOptions) {
     if (e.key === "ArrowDown") { e.preventDefault(); moveSelection(1); return true; }
     if (e.key === "ArrowUp") { e.preventDefault(); moveSelection(-1); return true; }
     /** Enter/Tab 确认选择（B4）：调用方需调用 computeSelection 并 setValue */
-    if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); return true; }
+    /** Shift+Enter 不消费，由 ChatInput 处理发送逻辑（B7） */
+    if ((e.key === "Enter" && !e.shiftKey) || e.key === "Tab") { e.preventDefault(); return true; }
     /** Escape 关闭补全列表（B5） */
     if (e.key === "Escape") { e.preventDefault(); hideSuggestions(); return true; }
     return false;
