@@ -43,12 +43,19 @@ export class SnailAdapter implements SnailPort {
     this.repo.create(snail);
   }
 
-  update(key: string, snail: Omit<Snail, 'key'>): void {
-    this.repo.update(key, snail);
+  update(key: string, patch: Partial<Omit<Snail, 'key'>>): Snail {
+    return this.repo.update(key, patch);
   }
 
-  delete(key: string): void {
-    this.repo.delete(key);
+  remove(key: string): void {
+    const instanceCount = this.repo.countInstancesByKey(key);
+    const stageRefCount = this.repo.countActiveStageReferencesByKey(key);
+    if (instanceCount > 0 || stageRefCount > 0) {
+      throw new Error(
+        `Cannot delete snail '${key}': ${instanceCount} instance(s) and ${stageRefCount} in-progress stage(s) reference it`,
+      );
+    }
+    this.repo.remove(key);
   }
 
   async invokeFirstCall(

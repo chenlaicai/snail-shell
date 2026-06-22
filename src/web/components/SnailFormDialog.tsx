@@ -1,15 +1,18 @@
 import { useEffect, useState } from "react";
 import type { SnailDenTemplateDto } from "@api-contracts/dto";
 
+const KEY_PATTERN = /^[a-zA-Z0-9_-]+$/;
+
 interface SnailFormDialogProps {
   open: boolean;
   mode: "create" | "edit";
   initialData?: SnailDenTemplateDto;
+  isPending?: boolean;
   onSubmit: (data: SnailDenTemplateDto) => void;
   onClose: () => void;
 }
 
-export function SnailFormDialog({ open, mode, initialData, onSubmit, onClose }: SnailFormDialogProps) {
+export function SnailFormDialog({ open, mode, initialData, isPending, onSubmit, onClose }: SnailFormDialogProps) {
   const [key, setKey] = useState(initialData?.key ?? "");
   const [name, setName] = useState(initialData?.name ?? "");
   const [agentName, setAgentName] = useState(initialData?.agent_name ?? "");
@@ -44,9 +47,12 @@ export function SnailFormDialog({ open, mode, initialData, onSubmit, onClose }: 
 
   if (!open) return null;
 
+  const keyInvalid = isCreate && key.trim().length > 0 && !KEY_PATTERN.test(key.trim());
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!key.trim() || !name.trim() || !agentName.trim() || !model.trim()) return;
+    if (keyInvalid) return;
 
     onSubmit({
       key: key.trim(),
@@ -73,10 +79,11 @@ export function SnailFormDialog({ open, mode, initialData, onSubmit, onClose }: 
               value={key}
               onChange={(e) => setKey(e.target.value)}
               disabled={!isCreate}
-              className="w-full bg-surface-0 border border-white/6 rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-shell-600/40 disabled:opacity-50"
+              className={`w-full bg-surface-0 border rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none disabled:opacity-50 ${keyInvalid ? "border-status-red focus:border-status-red" : "border-white/6 focus:border-shell-600/40"}`}
               placeholder="e.g. claude-code-sonnet"
               autoFocus={isCreate}
             />
+            {keyInvalid && <p className="mt-1 text-[11px] text-status-red">Key must match pattern [a-zA-Z0-9_-]+</p>}
           </div>
           <div>
             <label className="block text-xs text-text-muted mb-1">Name *</label>
@@ -132,10 +139,10 @@ export function SnailFormDialog({ open, mode, initialData, onSubmit, onClose }: 
             </button>
             <button
               type="submit"
-              disabled={!key.trim() || !name.trim() || !agentName.trim() || !model.trim()}
+              disabled={!key.trim() || !name.trim() || !agentName.trim() || !model.trim() || keyInvalid || isPending}
               className="px-4 py-1.5 rounded-md bg-shell-600 hover:bg-shell-500 text-white text-sm font-medium transition-colors disabled:opacity-50"
             >
-              {isCreate ? "Create" : "Save"}
+              {isPending ? "Saving..." : isCreate ? "Create" : "Save"}
             </button>
           </div>
         </form>

@@ -16,6 +16,7 @@ export function SnailDen() {
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<"create" | "edit">("create");
   const [editingSnail, setEditingSnail] = useState<SnailDenTemplateDto | undefined>();
+  const [deletingSnail, setDeletingSnail] = useState<{ key: string; name: string } | null>(null);
 
   function handleCreate() {
     setFormMode("create");
@@ -30,12 +31,15 @@ export function SnailDen() {
   }
 
   function handleDelete(key: string, name: string) {
-    if (window.confirm(`确定要删除 Snail "${name}" 吗？`)) {
-      deleteMutation.mutate(key, {
-        onSuccess: () => showToast("删除成功"),
-        onError: (err) => showToast(`删除失败：${err.message}`, true),
-      });
-    }
+    setDeletingSnail({ key, name });
+  }
+
+  function confirmDelete() {
+    if (!deletingSnail) return;
+    deleteMutation.mutate(deletingSnail.key, {
+      onSuccess: () => { showToast("删除成功"); setDeletingSnail(null); },
+      onError: (err) => showToast(`删除失败：${err.message}`, true),
+    });
   }
 
   function handleSubmit(data: SnailDenTemplateDto) {
@@ -51,6 +55,8 @@ export function SnailDen() {
       });
     }
   }
+
+  const isMutating = createMutation.isPending || updateMutation.isPending;
 
   if (isLoading) return <div className="flex h-full items-center justify-center text-[13px] text-text-muted">加载中...</div>;
 
@@ -71,7 +77,7 @@ export function SnailDen() {
           </button>
         </div>
         {templates.length === 0 ? (
-          <div className="py-4 text-[13px] text-text-muted">暂无模板</div>
+          <div className="py-4 text-[13px] text-text-muted">还没有 Snail，点击新增创建第一个</div>
         ) : (
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {templates.map((t) => (
@@ -106,9 +112,35 @@ export function SnailDen() {
         open={formOpen}
         mode={formMode}
         initialData={editingSnail}
+        isPending={isMutating}
         onSubmit={handleSubmit}
         onClose={() => setFormOpen(false)}
       />
+      {deletingSnail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface-0/80 px-4" onClick={() => setDeletingSnail(null)}>
+          <div role="dialog" aria-modal="true" className="bg-surface-2 border border-white/6 rounded-xl w-full max-w-sm overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-white/6">
+              <h2 className="text-lg font-semibold">确认删除</h2>
+            </div>
+            <div className="px-6 py-5">
+              <p className="text-sm text-text-secondary">确定要删除 Snail <span className="font-medium text-text-primary">"{deletingSnail.name}"</span> 吗？删除后不可恢复。</p>
+            </div>
+            <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-white/6">
+              <button type="button" onClick={() => setDeletingSnail(null)} className="px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors">
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                disabled={deleteMutation.isPending}
+                className="px-4 py-1.5 rounded-md bg-status-red hover:bg-status-red/80 text-white text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                {deleteMutation.isPending ? "删除中..." : "确认删除"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

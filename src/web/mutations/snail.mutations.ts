@@ -14,8 +14,8 @@ export function useCreateSnail() {
 export function useUpdateSnail() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ key, ...body }: { key: string } & Omit<SnailDenTemplateDto, 'key'>) =>
-      api("PUT /api/snail-den/:key", { params: { key }, body }),
+    mutationFn: ({ key, ...body }: { key: string } & Partial<Omit<SnailDenTemplateDto, 'key'>>) =>
+      api("PATCH /api/snail-den/:key", { params: { key }, body }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.meta.snailDen }); },
   });
 }

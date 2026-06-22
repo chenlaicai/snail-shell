@@ -29,7 +29,7 @@ export type ApiEndpoints = {
   "GET /api/meta/mcps": EndpointDef<never, { workspace_root?: string }, never, Dto.McpServerDto[]>;
   "GET /api/snail-den": EndpointDef<never, never, never, Dto.SnailDenTemplateDto[]>;
   "POST /api/snail-den": EndpointDef<never, never, Dto.SnailDenTemplateDto, Dto.SnailDenTemplateDto>;
-  "PUT /api/snail-den/:key": EndpointDef<{ key: string }, never, Omit<Dto.SnailDenTemplateDto, 'key'>, Dto.SnailDenTemplateDto>;
+  "PATCH /api/snail-den/:key": EndpointDef<{ key: string }, never, Partial<Omit<Dto.SnailDenTemplateDto, 'key'>>, Dto.SnailDenTemplateDto>;
   "DELETE /api/snail-den/:key": EndpointDef<{ key: string }, never, never, { ok: true }>;
   "GET /api/knowledge/items": EndpointDef<never, { scope?: string; workspace_id?: string; limit?: number; offset?: number }, never, Dto.KnowledgeSearchResultDto[]>;
   "GET /api/knowledge/items/search": EndpointDef<never, { q: string }, never, Dto.KnowledgeSearchResultDto[]>;

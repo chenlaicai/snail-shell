@@ -17,11 +17,11 @@ export interface SnailPort {
   /** 创建 snail 配置 */
   create(snail: Snail): void;
 
-  /** 更新 snail 配置 */
-  update(key: string, snail: Omit<Snail, 'key'>): void;
+  /** 更新 snail 配置（部分更新） */
+  update(key: string, patch: Partial<Omit<Snail, 'key'>>): Snail;
 
   /** 删除 snail 配置 */
-  delete(key: string): void;
+  remove(key: string): void;
 
   /**
    * 首次调用：注入完整配置，返回 snail_instance_id。
