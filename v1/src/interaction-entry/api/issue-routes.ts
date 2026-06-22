@@ -107,6 +107,14 @@ function registerIssueCloseRoutes(router: express.Router, workspaceManager: Work
     }
   });
 
+  router.post("/issues/:issueId/complete-stage", (req, res) => {
+    try {
+      res.json(workspaceManager.completeStage(req.params.issueId));
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
   router.post("/issues/:issueId/archive", (req, res) => {
     try {
       res.json(workspaceManager.archiveIssue(req.params.issueId));

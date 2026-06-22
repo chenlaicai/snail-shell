@@ -110,18 +110,60 @@ export function transitionIssueStage(
 }
 
 /**
+ * 完成终端阶段。
+ *
+ * 适用范围：仅终端阶段（无正向转换）
+ * 行为：设置 left_at 为当前时间，不创建新阶段，不设置 closed_at
+ *
+ * Why: 终端阶段需要单独的完成操作，与 advanceStage 分工明确。
+ * advanceStage 用于阶段转移，completeStage 用于标记终端阶段完成。
+ *
+ * 为何跳过 assertStageCanAdvance（output_artifacts 检查）：
+ * 终端阶段（如 chat/general-assistant）可能无结构化产出，
+ * 强制要求 output_artifacts 会阻止合法的完成操作。
+ *
+ * 为何跳过 checkGateEvidence：
+ * gate_evidence 是辅助决策信息，completeStage 是用户显式操作，
+ * 不应在用户确认完成时阻塞。advanceStage 中的 gate check 也仅 warn 不 block。
+ */
+export function completeStage(
+  deps: WorkflowDependencies,
+  ctx: { issue: Issue; activeStage: Stage },
+): { completed_stage: Stage; issue: Issue } {
+  const { issue, activeStage } = ctx;
+  const reader = new SopSnapshotReader(issue.sop_snapshot);
+
+  // 校验：当前阶段必须是终端阶段
+  if (!reader.isTerminalStage(activeStage.type)) {
+    throw new Error(`Stage "${activeStage.type}" is not a terminal stage. Use advanceStage instead.`);
+  }
+
+  // 校验：当前阶段必须进行中
+  if (activeStage.left_at) {
+    throw new Error(`Stage "${activeStage.type}" is already completed.`);
+  }
+
+  const completedStage = deps.store.updateStage(activeStage.id, {
+    status: "completed",
+    left_at: new Date().toISOString(),
+  });
+
+  return { completed_stage: completedStage, issue };
+}
+
+/**
  * 解析转移目标 stage key。
  *
  * 返回 null 表示当前 stage 为终态（无出边），调用方应完成当前 stage 并返回 next_stage: null。
  * 无出边时抛错是旧行为（硬编码路由），新行为由 SOP 转移图驱动：无出边 = 流程结束。
  */
 function resolveTransitionTarget(reader: SopSnapshotReader, activeStage: Stage, targetStageKey?: string): string | null {
-  const forwardEdges = reader.getForwardTransitions(activeStage.type);
-  if (forwardEdges.length === 0) return null;
+  const outgoingEdges = reader.getOutgoingTransitions(activeStage.type);
+  if (outgoingEdges.length === 0) return null;
   if (targetStageKey) return targetStageKey;
-  if (forwardEdges.length === 1) return forwardEdges[0].to_stage_key;
-  const targets = forwardEdges.map((e) => e.to_stage_key).join(", ");
-  throw new Error(`Stage "${activeStage.type}" has multiple forward transitions (${targets}). Specify target_stage_key.`);
+  if (outgoingEdges.length === 1) return outgoingEdges[0].to_stage_key;
+  const targets = outgoingEdges.map((e) => e.to_stage_key).join(", ");
+  throw new Error(`Stage "${activeStage.type}" has multiple outgoing transitions (${targets}). Specify target_stage_key.`);
 }
 
 function createIssueStage(

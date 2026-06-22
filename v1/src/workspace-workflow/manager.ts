@@ -27,7 +27,7 @@ import type { ConversationDispatchState } from "./manager-types";
 import { sendStructuredMessage as sendStructuredMessageWithCollaboration } from "../message-bus/collaboration";
 import { ConversationQueue } from "./conversation-queue";
 import { MessageInterruptRegistry } from "../message-bus/message-interrupt";
-import { transitionIssueStage, createIssueWorkflow, createInitialWorkflow } from "./workflow";
+import { transitionIssueStage, createIssueWorkflow, createInitialWorkflow, completeStage } from "./workflow";
 import { resolveWorkspaceRoot } from "./default-workspace-dir";
 import { buildPlainTextEvent, type MessageInputEvent } from "../message-bus/message-events";
 import { cleanupIssueRepoContext, type RepoCleanupResult } from "./repo-cleanup";
@@ -279,11 +279,45 @@ export class WorkspaceManager extends EventEmitter {
     const issue = this.store.getIssue(issueId);
     if (!issue) throw new Error(`Issue not found: ${issueId}`);
     assertIssueWritable(this.store, issue);
+
+    // 校验：当前阶段必须已完成（left_at 已设置）
+    const activeStage = this.store.getActiveStage(issueId);
+    if (activeStage && !activeStage.left_at) {
+      throw new Error(`Cannot complete issue: stage "${activeStage.type}" is still in progress. Complete the stage first.`);
+    }
+
     const stages = this.store.listStagesByIssue(issueId);
     const cleanup = cleanupIssueRepoContext(stages, { repoRoot: this.repoRoot });
     const completedIssue = this.store.updateIssue(issueId, { closed_at: new Date().toISOString() });
     logger.info("WorkspaceManager completed issue", { issueId, cleanup });
     return { issue: completedIssue, cleanup };
+  }
+
+  /**
+   * 完成终端阶段。
+   *
+   * 适用范围：仅终端阶段（无正向转换）
+   * 行为：设置 left_at 为当前时间，不创建新阶段，不设置 closed_at
+   */
+  completeStage(issueId: string): { completed_stage: Stage; issue: Issue } {
+    const issue = this.store.getIssue(issueId);
+    if (!issue) throw new Error(`Issue not found: ${issueId}`);
+    assertIssueWritable(this.store, issue);
+
+    const activeStage = this.store.getActiveStage(issueId);
+    if (!activeStage) {
+      // 找到最近完成的阶段（sequence 最大），提供准确的错误信息
+      const stages = this.store.listStagesByIssue(issueId);
+      const lastCompletedStage = stages.findLast((s) => s.left_at);
+      if (lastCompletedStage) {
+        throw new Error(`Stage "${lastCompletedStage.type}" is already completed.`);
+      }
+      throw new Error(`No active stage found for issue: ${issueId}`);
+    }
+
+    const result = completeStage({ store: this.store }, { issue, activeStage });
+    logger.info("WorkspaceManager completed stage", { issueId, stageId: activeStage.id, stageType: activeStage.type });
+    return result;
   }
 
   archiveIssue(issueId: string): { issue: Issue; cleanup: RepoCleanupResult } {
@@ -385,7 +419,7 @@ export class WorkspaceManager extends EventEmitter {
   collectSopRoleKeys(sopId: string) { return this.store.collectSopRoleKeys(sopId); }
   listSopStageDefinitions(sopId: string) { return this.store.listSopStageDefinitions(sopId); }
   getSopTransitions(sopId: string) { return this.store.getSopTransitions(sopId); }
-  getForwardTransitions(sopId: string, fromStageKey: string) { return this.store.getForwardTransitions(sopId, fromStageKey); }
+  getOutgoingTransitions(sopId: string, fromStageKey: string) { return this.store.getForwardTransitions(sopId, fromStageKey); }
 
   createEvolutionItem(input: Omit<CreateEvolutionItemInput, "id">, roleSnailMapping: Record<string, Record<string, string>>): EvolutionItemWithConversation { return evolutionCenter.createEvolutionItem(this.store, input, roleSnailMapping); }
   getEvolutionItem(id: string): EvolutionItemWithConversation | null { return evolutionCenter.getEvolutionItem(this.store, id); }

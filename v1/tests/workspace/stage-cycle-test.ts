@@ -193,6 +193,45 @@ async function run(): Promise<void> {
     assert.equal(terminalResult.next_stage, null, "merge with no outgoing edges should return next_stage: null (terminal state)");
     assert.equal(terminalResult.conversation, null, "terminal state should return conversation: null");
 
+    /* B7 单阶段 SOP 终态场景：只有一个阶段且无任何转换（类似 evolution/general-assistant） */
+    store.seedSopToCache({ id: "sop-single-stage", source: "platform", sourceRef: null, key: "sop-single-stage", name: "Single Stage SOP", description: null, firstStage: "chat" }, [
+      { key: "chat", title: "对话", sequence: 1, input_description: null, output_description: "完成对话", acceptance_focus: [], roles: [{ key: "assistant", name: "助手", description: "assistant", is_primary: true, handbook: "" }] },
+    ], []);
+    const singleStageWs = manager.createWorkspace("Single Stage Test", { summary: "test", workspaceRoot: TEST_WORKSPACE_ROOT, sopId: "sop-single-stage", roleSnailMapping: { chat: { assistant: "opencode-default" } } });
+    assert.equal(singleStageWs.stage.type, "chat", "single-stage SOP should start with its only stage");
+
+    // 单阶段无转换 → 该阶段是终端阶段 → completeStage 应成功
+    const singleStageCompleted = manager.completeStage(singleStageWs.issue.id);
+    assert(singleStageCompleted.completed_stage.left_at, "completeStage should set left_at for single terminal stage");
+    assert.equal(singleStageCompleted.completed_stage.status, "completed", "completeStage should mark single terminal stage as completed");
+
+    // 终端阶段完成后 → completeIssue 应成功
+    const singleStageIssueCompleted = manager.completeIssue(singleStageWs.issue.id);
+    assert(singleStageIssueCompleted.issue.closed_at, "completeIssue should set closed_at for single-stage SOP");
+
+    /* B8 终端阶段判断：有反向转换但无正向转换时，isTerminalStage 应返回 true
+     * sop-test 的 merge 阶段有 merge→review 反向边，但无正向出边 → 是终端阶段 */
+    store.seedSopToCache({ id: "sop-b8", source: "platform", sourceRef: null, key: "sop-b8", name: "B8 SOP", description: null, firstStage: "design" }, [
+      { key: "design", title: "设计", sequence: 1, input_description: null, output_description: null, acceptance_focus: [], roles: [{ key: "designer", name: "架构师", description: "designer", is_primary: true, handbook: "" }] },
+      { key: "review", title: "检视", sequence: 2, input_description: null, output_description: null, acceptance_focus: [], roles: [{ key: "reviewer", name: "审查者", description: "rev", is_primary: true, handbook: "" }] },
+      { key: "merge", title: "合入", sequence: 3, input_description: null, output_description: null, acceptance_focus: [], roles: [{ key: "merger", name: "维护者", description: "merger", is_primary: true, handbook: "" }] },
+    ], [
+      { from: "design", to: "review" },
+      { from: "review", to: "merge" },
+      { from: "merge", to: "review" }, /* 反向边 */
+    ]);
+    const b8Ws = manager.createWorkspace("B8 Test", { summary: "test", workspaceRoot: TEST_WORKSPACE_ROOT, sopId: "sop-b8", roleSnailMapping: { design: { designer: "opencode-default" }, review: { reviewer: "opencode-default" }, merge: { merger: "opencode-default" } } });
+    store.updateStage(b8Ws.stage.id, { output_artifacts: { done: "yes" } });
+    const b8Review = manager.advanceIssue(b8Ws.issue.id);
+    store.updateStage(b8Review.next_stage!.id, { output_artifacts: { reviewed: "yes" } });
+    const b8Merge = manager.advanceIssue(b8Ws.issue.id, "merge");
+    assert.equal(b8Merge.next_stage?.type, "merge", "should advance to merge");
+
+    // merge 有反向边（merge→review）但无正向出边 → isTerminalStage 应返回 true → completeStage 应成功
+    const b8Completed = manager.completeStage(b8Ws.issue.id);
+    assert(b8Completed.completed_stage.left_at, "completeStage should succeed for merge with only reverse edges");
+    assert.equal(b8Completed.completed_stage.status, "completed", "merge should be marked as completed");
+
     /* 未知 guard type 应抛错，不能静默放行 */
     store.seedSopToCache({ id: "sop-guard", source: "platform", sourceRef: null, key: "sop-guard", name: "Guard SOP", description: null, firstStage: "design" }, [
       { key: "design", title: "设计", sequence: 1, input_description: null, output_description: null, acceptance_focus: [], roles: [{ key: "designer", name: "架构师", description: "designer", is_primary: true, handbook: "" }] },
@@ -247,6 +286,11 @@ async function run(): Promise<void> {
       /read-only/,
       "closed issue must not advance workflow"
     );
+    assert.throws(
+      () => manager.completeStage(parallelIssue.issue.id),
+      /read-only/,
+      "closed issue must not complete stage"
+    );
     await assert.rejects(
       () => manager.sendMessage(parallelIssue.conversation.id, "after archive"),
       /read-only/,
@@ -271,6 +315,8 @@ async function run(): Promise<void> {
 	    const updatedStage = store.getStage(repoIssue.stage.id)!;
 	    assert.equal(updatedStage.output_artifacts["branch_name"], "feature/repo-context-test", "stage should record branch name for completion cleanup");
 	    assert.equal(updatedStage.output_artifacts["pr_url"], "https://github.com/chenlaicai/snail-shell/pull/1", "stage should record PR URL for traceability");
+    // 先完成阶段，再完成 issue
+    store.updateStage(repoIssue.stage.id, { status: "completed", left_at: new Date().toISOString() });
     const completedRepoIssue = manager.completeIssue(repoIssue.issue.id);
     assert(completedRepoIssue.issue.closed_at, "completion endpoint should set closed timestamp");
     assert.equal(completedRepoIssue.cleanup.steps.find((step) => step.target === "worktree"), undefined, "no worktree step when worktree_path not recorded");
@@ -288,6 +334,54 @@ async function run(): Promise<void> {
 	      /read-only/,
 	      "archived issue should reject task anchor writes"
 	    );
+
+    /* ── completeStage 测试 ────────────────────────────────── */
+
+    // 创建一个新 issue 用于测试 completeStage
+    const completeStageIssue = manager.createIssue(created.workspace.id, "Complete Stage Test", "test complete stage", "sop-test", testRoleSnailMapping);
+
+    // 非终端阶段（design）不应允许 completeStage
+    assert.throws(
+      () => manager.completeStage(completeStageIssue.issue.id),
+      /not a terminal stage/,
+      "completeStage should reject non-terminal stages"
+    );
+
+    // 推进到 merge 阶段（终端阶段）
+    store.updateStage(completeStageIssue.stage.id, { output_artifacts: { issue_doc: "locked" } });
+    const devForComplete = manager.advanceIssue(completeStageIssue.issue.id);
+    store.updateStage(devForComplete.next_stage!.id, { output_artifacts: { pr_url: "PR #1" } });
+    const reviewForComplete = manager.advanceIssue(completeStageIssue.issue.id, "review");
+    store.updateStage(reviewForComplete.next_stage!.id, { output_artifacts: { review_result: "passed" } });
+    const mergeForComplete = manager.advanceIssue(completeStageIssue.issue.id, "merge");
+
+    // 终端阶段进行中时，completeStage 应成功
+    const completedStageResult = manager.completeStage(completeStageIssue.issue.id);
+    assert(completedStageResult.completed_stage.left_at, "completeStage should set left_at");
+    assert.equal(completedStageResult.completed_stage.status, "completed", "completeStage should set status to completed");
+
+    // 终端阶段已完成时，completeStage 应抛错
+    assert.throws(
+      () => manager.completeStage(completeStageIssue.issue.id),
+      /already completed/,
+      "completeStage should reject already completed stages"
+    );
+
+    // completeIssue 应在终端阶段完成后成功
+    const completedIssueResult = manager.completeIssue(completeStageIssue.issue.id);
+    assert(completedIssueResult.issue.closed_at, "completeIssue should set closed_at");
+
+    /* ── completeIssue 阶段检查测试 ────────────────────────────────── */
+
+    // 创建一个新 issue 用于测试 completeIssue 阶段检查
+    const issueCheckIssue = manager.createIssue(created.workspace.id, "Issue Check Test", "test issue check", "sop-test", testRoleSnailMapping);
+
+    // 阶段进行中时，completeIssue 应抛错
+    assert.throws(
+      () => manager.completeIssue(issueCheckIssue.issue.id),
+      /still in progress/,
+      "completeIssue should reject when stage is still in progress"
+    );
 
     /* ── Stage Suggestion 测试 ────────────────────────────────── */
 

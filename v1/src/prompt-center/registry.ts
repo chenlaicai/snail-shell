@@ -33,7 +33,7 @@ export interface PromptMatchContext {
   ownerType?: ConversationOwnerType;
 }
 
-const promptsRoot = path.join(process.cwd(), ".meta", "prompts");
+const promptsRoot = path.join(__dirname, "..", "..", ".meta", "prompts");
 const prompts = buildRegistry();
 
 export function getPrompt(id: string): PromptDocument {

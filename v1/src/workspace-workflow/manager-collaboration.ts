@@ -97,7 +97,7 @@ function appendTransitionHint(
   stage: { id: string; type: string },
   result: { systemPrompt: string; capability: AgentCapability },
 ): void {
-  const edges = reader.getForwardTransitions(stage.type);
+  const edges = reader.getOutgoingTransitions(stage.type);
   if (edges.length === 0) {
     result.capability.systemReminder += `\n\n## Stage 转移\n当前 stage "${stage.type}" 无可用转移目标（终端阶段）。`;
     return;

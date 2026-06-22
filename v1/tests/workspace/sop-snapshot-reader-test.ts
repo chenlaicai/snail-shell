@@ -207,24 +207,24 @@ test("returns all transitions with generated IDs", () => {
   assert.strictEqual(transitions[2].guard?.type, "requires_artifacts");
 });
 
-// ── getForwardTransitions ────────────────────────────────────────────
+// ── getOutgoingTransitions ────────────────────────────────────────────
 
-console.log("\n  getForwardTransitions()");
+console.log("\n  getOutgoingTransitions()");
 
 test("returns forward edges from a stage", () => {
   const reader = new SopSnapshotReader(FULL_SNAPSHOT);
-  const fromDesign = reader.getForwardTransitions("design");
+  const fromDesign = reader.getOutgoingTransitions("design");
   assert.strictEqual(fromDesign.length, 1);
   assert.strictEqual(fromDesign[0].to_stage_key, "development");
 
-  const fromReview = reader.getForwardTransitions("review");
+  const fromReview = reader.getOutgoingTransitions("review");
   assert.strictEqual(fromReview.length, 1);
   assert.strictEqual(fromReview[0].to_stage_key, "development");
 });
 
 test("returns empty for terminal stage", () => {
   const reader = new SopSnapshotReader(FULL_SNAPSHOT);
-  const fromMerge = reader.getForwardTransitions("merge");
+  const fromMerge = reader.getOutgoingTransitions("merge");
   assert.strictEqual(fromMerge.length, 0);
 });
 

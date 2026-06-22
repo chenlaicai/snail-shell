@@ -1,6 +1,6 @@
 import path from "path";
 
-// Captured at module load time (process startup). process.cwd() at startup = platform repo root.
-// Child processes spawned for agents don't change the parent's cwd.
-export const PLATFORM_ROOT = process.cwd();
+// Resolved relative to this source file (v1/src/shared/) → v1/ root.
+// Using __dirname instead of process.cwd() so the path is correct regardless of CWD.
+export const PLATFORM_ROOT = path.join(__dirname, "..", "..");
 export const PLATFORM_META = path.join(PLATFORM_ROOT, ".meta");

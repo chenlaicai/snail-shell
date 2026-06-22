@@ -66,8 +66,35 @@ export class SopSnapshotReader {
     }));
   }
 
-  getForwardTransitions(fromStageKey: string): SopTransition[] {
+  /** 返回从 fromStageKey 出发的所有转换边（含正向和反向）。 */
+  getOutgoingTransitions(fromStageKey: string): SopTransition[] {
     return this.getSopTransitions().filter((t) => t.from_stage_key === fromStageKey);
+  }
+
+  /**
+   * 判断从 fromStageKey 到 toStageKey 的转换是否为正向转换。
+   *
+   * 正向转换：目标 stage 在 stage_definitions 数组中的索引大于当前 stage 的索引。
+   * Why: 使用数组索引判断正向/反向，不需要引入 sequence 字段或修改 domain model。
+   */
+  isForwardTransition(fromStageKey: string, toStageKey: string): boolean {
+    const stageDefs = this.snapshot.stage_definitions;
+    const fromIndex = stageDefs.findIndex((d) => d.key === fromStageKey);
+    const toIndex = stageDefs.findIndex((d) => d.key === toStageKey);
+    if (fromIndex === -1 || toIndex === -1) return false;
+    return toIndex > fromIndex;
+  }
+
+  /**
+   * 判断指定 stage 是否为终端阶段。
+   *
+   * 终端阶段：从该阶段出发的所有 available_transitions 中，不存在正向转换。
+   * Why: 终端阶段是 Issue 完成流程的关键判断点，需要支持 completeStage 操作。
+   */
+  isTerminalStage(stageKey: string): boolean {
+    const transitions = this.getOutgoingTransitions(stageKey);
+    if (transitions.length === 0) return true;
+    return !transitions.some((t) => this.isForwardTransition(stageKey, t.to_stage_key));
   }
 
   validateTransition(fromStageKey: string, toStageKey: string): SopTransition {
@@ -75,7 +102,7 @@ export class SopSnapshotReader {
       (t) => t.from_stage_key === fromStageKey && t.to_stage_key === toStageKey,
     );
     if (!found) {
-      const available = this.getForwardTransitions(fromStageKey);
+      const available = this.getOutgoingTransitions(fromStageKey);
       const targets = available.map((t) => t.to_stage_key).join(", ") || "(none)";
       throw new Error(
         `Invalid transition: ${fromStageKey} → ${toStageKey} not in SOP ${this.snapshot.sop_id} transitions. Available targets from ${fromStageKey}: ${targets}`,
