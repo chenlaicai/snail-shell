@@ -26,7 +26,7 @@ export function IssueConversation() {
     enabled: !!issueId,
   });
 
-  const { data: workspace } = useQuery({
+  const { data: workspace, isLoading: wsLoading } = useQuery({
     queryKey: queryKeys.workspaces.detail(workspaceId ?? ""),
     queryFn: () => api("GET /api/workspaces/:workspaceId", { params: { workspaceId: workspaceId! } }),
     enabled: !!workspaceId,
@@ -125,7 +125,8 @@ export function IssueConversation() {
     <div className="flex flex-col h-full">
       <TopBar breadcrumbs={[
         { label: "Workspaces", to: "/workspaces" },
-        { label: workspace?.summary || workspace?.path || workspaceId || "", to: `/workspaces/${workspaceId}/board` },
+        // || not ??: empty string should fall back to path (see F2026062202 D3)
+        { label: wsLoading ? "Loading..." : (workspace?.summary || workspace?.path || workspaceId || ""), to: `/workspaces/${workspaceId}/board` },
         { label: issue.title || issueId?.slice(0, 8) || "" },
       ]} />
 
