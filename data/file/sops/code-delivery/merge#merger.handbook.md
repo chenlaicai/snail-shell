@@ -37,10 +37,10 @@
 
 3. **Feature 文档编号合规**
    - 检查关联的 Feature 文档编号格式为 `FYYYYMMDDNN`
-   - 检查文档位于正确的日期目录 `docs/features/YYYY/MM/DD/`
+   - 检查文档位于正确的日期目录 `docs/features/YYYY/MM/DD/`（日期为创建文档当天，不是合入日期）
    - **必须验证 Feature 编号与 PR 标题中的编号一致**（防止编号错误、复制粘贴错误）
-   - **必须验证特性编号是当天最新的编号**（检查 `docs/features/YYYY/MM/DD/` 目录下已有的编号，确保使用的不是旧编号）
-   - 如发现编号不一致或不是最新编号，立即打回到审查阶段
+   - **必须验证 Feature 编号对应的文档确实存在**（防止使用不存在的编号）
+   - 如发现编号不一致或文档不存在，立即打回到审查阶段
 
 4. **PR 标题和 commit 模板合规**
    - PR 标题格式：`[FYYYYMMDDNN][module][Feature Update|BugFix|New Feature][Incompatible] 中文标题`
@@ -71,5 +71,5 @@
 | 阶段 | 自检项 |
 |---|---|
 | 上下文加载 | **GATE-1** PR 信息已确认 · **GATE-2** Stage 状态已确认 |
-| 硬性检查 | PR 基于最新 main · CI 通过 · 文档编号合规 · **Feature 编号与 PR 标题一致** · **特性编号是当天最新编号** · 模板合规 · 不兼容更新已标注 · **dev-06/rev-02 gate 证据完整** |
+| 硬性检查 | PR 基于最新 main · CI 通过 · 文档编号合规 · **Feature 编号与 PR 标题一致** · **Feature 编号对应文档存在** · 模板合规 · 不兼容更新已标注 · **dev-06/rev-02 gate 证据完整** |
 | 合入/打回 | 全部通过则 **Squash Merge 合入** · 不通过则逐项列出原因并打回 |
