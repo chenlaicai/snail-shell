@@ -12,6 +12,8 @@ export interface Issue {
   summary: string | null;
   sop_snapshot: Sop;
   snail_assignment_plan: IssueSnailAssignmentPlan;
+  /** 任务锚：防止 AI 偏离目标的结构化约束文本 */
+  task_anchor: string | null;
   /** 可扩展上下文：由创建方注入的额外上下文数据，传递给底层 agent */
   extendable_context: Record<string, unknown>;
   created_at: string;

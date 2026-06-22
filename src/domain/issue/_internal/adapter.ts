@@ -42,6 +42,13 @@ export class IssueAdapter implements IssuePort {
     validateSnailAssignmentPlan(sop, plan);
   }
 
+  setTaskAnchor(issueId: string, taskAnchor: string): void {
+    const issue = this.issueRepo.findById(issueId);
+    if (!issue) throw new Error(`Issue not found: ${issueId}`);
+    if (issue.closed_at) throw new Error("Archived issue is read-only");
+    this.issueRepo.updateTaskAnchor(issueId, taskAnchor);
+  }
+
   createIssue(input: CreateIssueInput): Issue {
     const sop = this.sopPort.findByKey(input.adopted_sop_key);
     if (!sop) throw new Error(`SOP not found: ${input.adopted_sop_key}`);
@@ -55,6 +62,7 @@ export class IssueAdapter implements IssuePort {
       summary: input.summary ?? null,
       sop_snapshot: structuredClone(sop),
       snail_assignment_plan: structuredClone(input.snail_assignment_plan),
+      task_anchor: null,
       extendable_context: input.extendable_context ?? {},
       created_at: now,
       closed_at: null,

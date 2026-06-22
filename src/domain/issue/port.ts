@@ -7,6 +7,8 @@ export interface IssuePort {
   listIssues(workspacePath: string, limit?: number, offset?: number): Issue[];
   previewSopStages(adoptedSopKey: string, title: string): StagePreview[];
   validateSnailAssignmentPlan(sop: Sop, plan: IssueSnailAssignmentPlan): void;
+  /** 设置任务锚（防止 AI 偏离目标的结构化约束文本） */
+  setTaskAnchor(issueId: string, taskAnchor: string): void;
 }
 
 /** Stage 端口 */

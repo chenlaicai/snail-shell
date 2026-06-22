@@ -7,6 +7,7 @@ export interface IssueRepository {
   findById(id: string): Issue | undefined;
   listByWorkspace(workspacePath: string, limit?: number, offset?: number): Issue[];
   create(issue: Issue): void;
+  updateTaskAnchor(id: string, taskAnchor: string): void;
 }
 
 // ── Stage Repository ──────────────────────────────────────────────────
@@ -40,6 +41,7 @@ CREATE TABLE IF NOT EXISTS issue (
   summary TEXT,
   sop_snapshot TEXT NOT NULL,
   snail_assignment_plan TEXT NOT NULL,
+  task_anchor TEXT,
   extendable_context TEXT NOT NULL,
   created_at TEXT NOT NULL,
   closed_at TEXT
@@ -87,6 +89,7 @@ type IssueRow = {
   summary: string | null;
   sop_snapshot: string;
   snail_assignment_plan: string;
+  task_anchor: string | null;
   extendable_context: string;
   created_at: string;
   closed_at: string | null;
@@ -129,8 +132,8 @@ export class SQLiteIssueRepository implements IssueRepository {
 
   create(issue: Issue): void {
     this.db.run(
-      `INSERT INTO issue (id, workspace_path, title, summary, sop_snapshot, snail_assignment_plan, extendable_context, created_at, closed_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO issue (id, workspace_path, title, summary, sop_snapshot, snail_assignment_plan, task_anchor, extendable_context, created_at, closed_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         issue.id,
         issue.workspace_path,
@@ -138,11 +141,16 @@ export class SQLiteIssueRepository implements IssueRepository {
         issue.summary,
         JSON.stringify(issue.sop_snapshot),
         JSON.stringify(issue.snail_assignment_plan),
+        issue.task_anchor,
         JSON.stringify(issue.extendable_context),
         issue.created_at,
         issue.closed_at,
       ],
     );
+  }
+
+  updateTaskAnchor(id: string, taskAnchor: string): void {
+    this.db.run(`UPDATE issue SET task_anchor = ? WHERE id = ?`, [taskAnchor, id]);
   }
 }
 
@@ -273,6 +281,7 @@ function mapIssue(row: IssueRow): Issue {
     summary: row.summary,
     sop_snapshot: JSON.parse(row.sop_snapshot),
     snail_assignment_plan: JSON.parse(row.snail_assignment_plan),
+    task_anchor: row.task_anchor,
     extendable_context: JSON.parse(row.extendable_context),
     created_at: row.created_at,
     closed_at: row.closed_at,

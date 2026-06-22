@@ -456,12 +456,15 @@ export class IssueCollaboration implements CollaborationInput {
     }
 
     // 构建context部分（简化版，只保留必要信息）
+    const taskAnchorBlock = issue.task_anchor
+      ? `\n**任务锚**：\n${issue.task_anchor}\n\n[HARD] 以上任务锚在每次关键决策前必须重新对照，不得静默偏离`
+      : "";
     const context = `## 项目上下文
 
 **Issue**：${issue.title}
 **Issue ID**：${issue.id}
 **工作区**：${issue.workspace_path}
-**Issue 摘要**：${issue.summary ?? "无"}
+**Issue 摘要**：${issue.summary ?? "无"}${taskAnchorBlock}
 **可扩展上下文**：${issue.extendable_context != null ? JSON.stringify(issue.extendable_context) : "无"}
 
 ## 当前阶段

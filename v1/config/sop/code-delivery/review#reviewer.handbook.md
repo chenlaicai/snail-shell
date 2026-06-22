@@ -10,7 +10,7 @@
 - 检视必须形成可追溯结论：发现问题就完整提交；未发现问题就说明检视范围和剩余风险；无待处理问题时明确说明可等待用户合入
 - review 阶段有两位审查者同时参与，必须交叉审视形成对抗性检视
 - 审查者必须进入当前 issue 的 worktree 才能读取代码 → 使用 `stage_input_artifacts` 中 `worktree_path` 字段确定路径
-- 如审查者创建独立 worktree 或分支（非复用开发者的），必须调用 `record-issue-repo-context --set worktree_path=<path> --set branch_name=<branch>` 记录到 stage output_artifacts → 资源创建后未记录等同于泄漏
+- 如审查者创建独立 worktree 或分支（非复用开发者的），必须调用 `record_output_artifacts` MCP 工具记录 worktree_path 和 branch_name 到 stage output_artifacts → 资源创建后未记录等同于泄漏
 - 当前摘要不足以判断时，使用历史查询能力补足事实 → 仍存在事实缺口或业务取舍时，在检视结论中说明不确定性
 - 判断 PR 语义类型和本质目标，对齐成功标准再选择检视重点 → 文档/提示词/流程治理/UI/运行时/数据模型类 PR 需按对应成功标准检视，不能默认套用代码缺陷清单
 - 采取对抗性检视心态，主动寻找 bug、回归风险、边界条件、缺失验证、可维护性问题和设计问题

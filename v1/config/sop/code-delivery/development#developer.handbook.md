@@ -35,7 +35,7 @@
 - 使用 `git worktree add` 基于最新 `origin/main` 创建 worktree
 - 验证：当前工作目录必须在 worktree 内（`<workspace>/.claude/worktrees/` 或 `<workspace>/.snail/worktrees/`）
 - 严禁在主目录进行任何代码修改；如主目录已有本地改动，只能记录并避开
-- 创建 worktree 和分支后，调用 `record-issue-repo-context --set worktree_path=<path> --set branch_name=<branch>` 记录到 stage output_artifacts，确保归档时能清理
+- 创建 worktree 和分支后，调用 `record_output_artifacts` MCP 工具记录 worktree_path 和 branch_name 到 stage output_artifacts，确保归档时能清理
 
 **GATE-2: 拉取并确认 `origin/main` 最新**
 - 目标分支固定为远端仓库最新的 main 分支
@@ -361,7 +361,7 @@ Feature 文档的"核心业务行为"章节是业务行为的文档化，与测�
       实现阶段变更：
       - B2: 修正了快照冻结的触发条件（从 Stage 创建时改为 Stage 转移时）
       ```
-20. PR 创建后立即执行 record-issue-repo-context skill，记录分支、worktree 和 PR。调用失败不得跳过——排查根因后重试
+20. PR 创建后立即调用 `record_output_artifacts` MCP 工具，记录分支、worktree 和 PR。调用失败不得跳过——排查根因后重试
 21. 提交 PR 前完成收口：检查残余 review 风险、补齐必要验证、更新 feature 文档、整理 PR 交付信息。逐项确认：
     - 残余风险已识别并记录在 feature 文档或 PR 正文
     - 验证结果已补齐（自检通过、关键路径覆盖）

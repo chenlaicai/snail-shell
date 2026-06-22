@@ -32,7 +32,7 @@
 - 使用 `git worktree add` 基于最新 `origin/main` 创建 worktree
 - 验证：当前工作目录必须在 worktree 内（`<workspace>/.claude/worktrees/` 或 `<workspace>/.snail/worktrees/`）
 - 严禁在主目录进行任何文件修改（包括 feature 文档）
-- 创建 worktree 和分支后，调用 `record-issue-repo-context --set worktree_path=<path> --set branch_name=<branch>` 记录到 stage output_artifacts，确保归档时能清理
+- 创建 worktree 和分支后，调用 `record_output_artifacts` MCP 工具记录 worktree_path 和 branch_name 到 stage output_artifacts，确保归档时能清理
 
 **GATE-2: 拉取并确认 `origin/main` 最新**
 - 在 worktree 内执行 `git fetch origin main` 并 rebase
