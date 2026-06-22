@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { formatDateTime } from "@/lib/utils";
 import { RichTextRenderer } from "@/components/RichTextRenderer";
 import type { MessageDto, MessageEvent } from "@/types";
@@ -12,10 +12,11 @@ function extractAllText(events: MessageEvent[]): string {
 
 function extractContextUsage(events: MessageEvent[]): { label: string; percent: number } | null {
   for (const event of events) {
-    if (event.payload?.type === "runtime_usage" && event.payload) {
-      const p = event.payload as unknown as { detail?: Record<string, unknown> };
-      if (p.detail) {
-        const d = p.detail;
+    // signal 类型事件的 payload 结构为 { type: "signal", signal: "<signal_type>", ... }
+    const payload = event.payload as unknown as { signal?: string; detail?: Record<string, unknown> };
+    if (event.payload?.type === "signal" && payload.signal === "runtime_usage") {
+      if (payload.detail) {
+        const d = payload.detail;
         const contextWindow = Number(d.context_window ?? d.contextWindow ?? 0);
         const contextUsage = Number(d.context_usage ?? 0);
         if (contextWindow && contextUsage) {
@@ -31,6 +32,7 @@ function extractContextUsage(events: MessageEvent[]): { label: string; percent: 
 export function ChatMessage({ message, onInterrupt }: { message: MessageDto; onInterrupt?: (messageId: number) => void }) {
   const isUser = message.role === "user";
   const isSystem = message.role === "system";
+  const [expandedByUser, setExpandedByUser] = useState<boolean | null>(null);
 
   if (isSystem) {
     const text = extractAllText(message.events);
@@ -46,7 +48,7 @@ export function ChatMessage({ message, onInterrupt }: { message: MessageDto; onI
     );
   }
 
-  const contextUsage = extractContextUsage(message.events);
+  const contextUsage = useMemo(() => extractContextUsage(message.events), [message.events]);
   const isStreaming = message.status === "streaming";
   const hasContext = !!message.context?.context;
   const hasEvents = message.events.length > 0;
@@ -90,9 +92,13 @@ export function ChatMessage({ message, onInterrupt }: { message: MessageDto; onI
             )}
           </div>
 
-          {/* 流式过程：完成后折叠展示所有 events */}
-          {!isStreaming && hasEvents && hasContext && (
-            <EventStream events={message.events} />
+          {/* hasContext 已移除：失败/中断时也需要展示 EventStream 用于诊断（D4） */}
+          {hasEvents && (
+            <EventStream
+              events={message.events}
+              expanded={expandedByUser !== null ? expandedByUser : isStreaming}
+              onToggle={() => setExpandedByUser((prev) => !prev)}
+            />
           )}
 
           {/* 最终答复：优先 context，其次 content，否则从 events 提取 text */}
@@ -151,32 +157,40 @@ function EventTextContent({ events }: { events: MessageEvent[] }) {
   return <RichTextRenderer content={text} />;
 }
 
-/** 流式过程折叠区：展示所有 events（tool_call、text、command 等） */
-function EventStream({ events }: { events: MessageEvent[] }) {
-  const [expanded, setExpanded] = useState(false);
-
-  const toolCalls = events.filter((e) => e.payload?.type === "tool_call").length;
-  const commands = events.filter((e) => e.payload?.type === "command").length;
+/** 流式过程折叠区：展示非 text events（tool_call、tool_result、signal、error 等） */
+function EventStream({ events, expanded, onToggle }: { events: MessageEvent[]; expanded: boolean; onToggle: () => void }) {
+  const { filteredEvents, toolCalls, commands } = useMemo(() => {
+    const filtered = events.filter((e) => e.payload?.type !== "text");
+    return {
+      filteredEvents: filtered,
+      toolCalls: filtered.filter((e) => e.payload?.type === "tool_call").length,
+      commands: filtered.filter((e) => e.payload?.type === "command").length,
+    };
+  }, [events]);
 
   return (
     <div className="mb-2">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 px-3 py-1.5 text-[11px] text-text-muted hover:text-text-secondary transition-colors w-full"
-      >
-        <svg className={`w-3 h-3 transition-transform ${expanded ? "rotate-90" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="m9 18 6-6-6-6"/>
-        </svg>
-        <span>
-          {events.length} event{events.length > 1 ? "s" : ""}
-          {toolCalls > 0 && ` · ${toolCalls} tool call${toolCalls > 1 ? "s" : ""}`}
-          {commands > 0 && ` · ${commands} command${commands > 1 ? "s" : ""}`}
-        </span>
-      </button>
+      {/* streaming 期间无非 text events 时不显示摘要行，展开区域留空 */}
+      {filteredEvents.length > 0 && (
+        <button
+          onClick={onToggle}
+          aria-label={expanded ? "Collapse event stream" : "Expand event stream"}
+          className="flex items-center gap-2 px-3 py-1.5 text-[11px] text-text-muted hover:text-text-secondary transition-colors w-full"
+        >
+          <svg className={`w-3 h-3 transition-transform ${expanded ? "rotate-90" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="m9 18 6-6-6-6"/>
+          </svg>
+          <span>
+            {filteredEvents.length} event{filteredEvents.length > 1 ? "s" : ""}
+            {toolCalls > 0 && ` · ${toolCalls} tool call${toolCalls > 1 ? "s" : ""}`}
+            {commands > 0 && ` · ${commands} command${commands > 1 ? "s" : ""}`}
+          </span>
+        </button>
+      )}
 
-      {expanded && (
+      {expanded && filteredEvents.length > 0 && (
         <div className="space-y-1 pl-3 border-l-2 border-white/6 ml-3 mt-1">
-          {events.map((event) => (
+          {filteredEvents.map((event) => (
             <EventItem key={event.id} event={event} />
           ))}
         </div>
@@ -187,15 +201,6 @@ function EventStream({ events }: { events: MessageEvent[] }) {
 
 function EventItem({ event }: { event: MessageEvent }) {
   const type = event.payload?.type;
-
-  if (type === "text") {
-    const p = event.payload as unknown as { text: string };
-    return (
-      <div className="px-2 py-1 text-[11px] text-text-muted truncate max-h-[40px] overflow-hidden">
-        {p.text?.slice(0, 120)}{(p.text?.length ?? 0) > 120 ? "..." : ""}
-      </div>
-    );
-  }
 
   if (type === "tool_call") {
     const p = event.payload as unknown as { tool_name: string; title?: string | null };
@@ -252,6 +257,30 @@ function EventItem({ event }: { event: MessageEvent }) {
         <span className={`text-[11px] ${p.is_error ? "text-status-red" : "text-text-muted"}`}>
           {p.is_error ? `exit ${p.exit_code ?? "?"}` : "ok"}
         </span>
+      </div>
+    );
+  }
+
+  if (type === "signal") {
+    const p = event.payload as unknown as { signal: string };
+    return (
+      <div className="flex items-center gap-2 px-2 py-1 text-[12px]">
+        <svg className="w-3.5 h-3.5 text-status-amber shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <span className="text-text-secondary font-mono text-[11px]">{p.signal}</span>
+      </div>
+    );
+  }
+
+  if (type === "error") {
+    const p = event.payload as unknown as { message?: string; error?: string };
+    return (
+      <div className="flex items-center gap-2 px-2 py-1 text-[12px]">
+        <svg className="w-3.5 h-3.5 text-status-red shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+        </svg>
+        <span className="text-status-red text-[11px] truncate">{p.message ?? p.error ?? "Unknown error"}</span>
       </div>
     );
   }
