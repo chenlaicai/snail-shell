@@ -13,13 +13,16 @@ export function createFinalResponseServer(messagePort: MessagePort): MCPServerCo
     tools: [
       {
         name: "set_final_body",
-        description: "设置消息的最终展示正文（Markdown）",
+        description:
+          "提交本次发言的最终答复正文。每次发言结束前必须调用此工具，" +
+          "传入你希望展示给用户的完整 Markdown 内容。" +
+          "调用后，此正文将作为消息的主要展示内容，流式过程中的中间分析会被折叠。",
         inputSchema: {
           type: "object",
           properties: {
-            text: { type: "string", description: "最终 Markdown 正文" },
+            text: { type: "string", description: "最终答复的 Markdown 正文" },
             conversation_id: { type: "string" },
-            message_id: { type: "string" },
+            message_id: { type: "string", description: "当前消息的 ID，通过环境变量 message_id 注入" },
           },
           required: ["text", "message_id"],
         },
