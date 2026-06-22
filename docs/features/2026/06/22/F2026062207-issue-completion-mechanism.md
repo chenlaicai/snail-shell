@@ -153,7 +153,7 @@ Issue 状态推导逻辑：
   - 不处理非线性 SOP
 
 - **语义不变量**：
-  - `advanceStage` 语义不变：从当前阶段转移到目标阶段
+  - `advanceStage` 语义：从当前阶段转移到目标阶段；新增 completed issue 防护（B8）
   - `completeStage` 语义：标记终端阶段完成，不创建新阶段
   - `completeIssue` 语义：设置 `closed_at`，关闭 Issue 生命周期
 
@@ -169,7 +169,7 @@ Issue 状态推导逻辑：
 - 不处理非线性 SOP
 
 #### 语义不变量
-- `advanceStage` 语义不变：从当前阶段转移到目标阶段
+- `advanceStage` 语义：从当前阶段转移到目标阶段；新增 completed issue 防护（B8）
 - `completeStage` 语义：标记终端阶段完成，不创建新阶段
 - `completeIssue` 语义：设置 `closed_at`，关闭 Issue 生命周期
 - 终端阶段判定：从该阶段出发的所有 `available_transitions` 中，不存在正向转换
@@ -190,7 +190,7 @@ Issue 状态推导逻辑：
 #### 验证命令预定义
 ```bash
 # 1. 运行测试
-cd tests && npx tsx workspace/stage-cycle-test.ts
+npx tsx tests/domain/issue/completeStage-completeIssue-test.ts
 
 # 2. 验证代码位置（确保没有写到 v1/ 目录）
 grep -r "completeStage\|completeIssue" v1/ && echo "ERROR: Code found in v1/" || echo "OK: No code in v1/"

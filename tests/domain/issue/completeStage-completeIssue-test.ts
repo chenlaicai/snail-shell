@@ -270,8 +270,8 @@ console.log("Running completeStage and completeIssue tests...\n");
   const sop = createSopWithTransitions("sop-test", ["design", "merge"], [{ from: "design", to: "merge" }]);
   const adapter = new StageAdapter(stageRepo, {} as RoleSnailAssignmentRepository, issueRepo);
 
-  const { issue, stage } = createIssueWithStage(issueRepo, stageRepo, sop, "merge");
-  stageRepo.update(stage.id, { left_at: new Date().toISOString() });
+  // 使用 design 阶段（非终端，有正向转换），以便测试 advanceStage
+  const { issue, stage } = createIssueWithStage(issueRepo, stageRepo, sop, "design");
   issueRepo.update(issue.id, { closed_at: new Date().toISOString() });
 
   assert.throws(
@@ -284,6 +284,12 @@ console.log("Running completeStage and completeIssue tests...\n");
     () => adapter.completeIssue(issue.id),
     /Issue is already completed/,
     "B8: completeIssue should reject completed issue"
+  );
+
+  assert.throws(
+    () => adapter.advanceStage(stage.id, "merge"),
+    /Issue is already completed/,
+    "B8: advanceStage should reject completed issue"
   );
   console.log("✓ B8: Issue 已完成时所有操作应拒绝");
 }

@@ -166,6 +166,9 @@ export class StageAdapter implements StagePort {
       const current = this.stageRepo.findById(currentStageId);
       if (!current) throw new Error(`Stage not found: ${currentStageId}`);
 
+      const issue = this.mustFindIssue(current.issue_id);
+      if (issue.closed_at) throw new Error("Issue is already completed");
+
       const transition = current.available_transitions.find(t => t.to === targetKey);
       if (!transition) throw new Error(`Transition to "${targetKey}" not available from stage "${current.key}"`);
 
@@ -228,17 +231,19 @@ export class StageAdapter implements StagePort {
   }
 
   completeIssue(issueId: string): Issue {
-    const issue = this.mustFindIssue(issueId);
-    if (issue.closed_at) throw new Error("Issue is already completed");
+    return this.stageRepo.transaction(() => {
+      const issue = this.mustFindIssue(issueId);
+      if (issue.closed_at) throw new Error("Issue is already completed");
 
-    /** 获取当前阶段（未完成的阶段） */
-    const stages = this.stageRepo.listByIssue(issueId);
-    const currentStage = stages.find(s => !s.left_at);
-    if (currentStage) throw new Error("Stage is still in progress");
+      /** 获取当前阶段（未完成的阶段） */
+      const stages = this.stageRepo.listByIssue(issueId);
+      const currentStage = stages.find(s => !s.left_at);
+      if (currentStage) throw new Error("Stage is still in progress");
 
-    const closedAt = new Date().toISOString();
-    this.issueRepo.update(issueId, { closed_at: closedAt });
-    return { ...issue, closed_at: closedAt };
+      const closedAt = new Date().toISOString();
+      this.issueRepo.update(issueId, { closed_at: closedAt });
+      return { ...issue, closed_at: closedAt };
+    });
   }
 
   /**
