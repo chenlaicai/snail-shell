@@ -2,6 +2,18 @@ import { queryOptions } from "@tanstack/react-query";
 import { api, ApiError } from "../services/api-client";
 import { queryKeys } from "./keys";
 
+/** MCP Server 列表项（来自 /mcp 端点） */
+type McpServerListItem = { name: string; version: string; endpoint: string; tools: string[] };
+/** MCP Server 列表响应 */
+type McpServerListResponse = { servers: McpServerListItem[] };
+/** MCP Server 详情（来自 /mcp/:serverName 端点） */
+type McpServerDetail = {
+  name: string;
+  version: string;
+  endpoint: string;
+  tools: Array<{ name: string; description: string; inputSchema: Record<string, unknown> }>;
+};
+
 export const metaQueries = {
   prompts: () =>
     queryOptions({
@@ -32,7 +44,7 @@ export const metaQueries = {
       queryFn: async () => {
         const res = await fetch("/mcp");
         if (!res.ok) throw new ApiError("Failed to fetch MCP servers", res.status);
-        const data = await res.json() as { servers: Array<{ name: string; version: string; endpoint: string; tools: string[] }> };
+        const data = await res.json() as McpServerListResponse;
         return data.servers;
       },
     }),
@@ -47,7 +59,7 @@ export const metaQueries = {
       queryFn: async () => {
         const res = await fetch(`/mcp/${encodeURIComponent(serverName)}`);
         if (!res.ok) throw new ApiError(`Failed to fetch MCP server: ${serverName}`, res.status);
-        return res.json() as Promise<{ name: string; version: string; endpoint: string; tools: Array<{ name: string; description: string; inputSchema: Record<string, unknown> }> }>;
+        return res.json() as Promise<McpServerDetail>;
       },
       enabled: !!serverName,
     }),
