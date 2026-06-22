@@ -116,7 +116,7 @@ export function extractMessageContent(msg: {
     } else if (category === "content_block") {
       const block = mapContentBlock(payload);
       if (block.kind === "question") {
-        /** question 保持在 finalBlocks，因为需要用户交互 */
+        /** question 归入流式过程，因为需要用户交互 */
         containsQuestion = true;
         processBlocks.push(block);
       } else {
