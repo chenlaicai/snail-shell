@@ -62,6 +62,7 @@ export class FileMCPRepository implements MCPRepository {
         name: server.name,
         url: `${this.baseUrl}/mcp/${server.name}`,
         scope: ScopeEnum.Platform,
+        source: 'builtin',
       });
     }
   }
@@ -79,6 +80,7 @@ export class FileMCPRepository implements MCPRepository {
         env: config.env as Record<string, string> | undefined,
         url: config.url as string | undefined,
         scope,
+        source: scope === ScopeEnum.Workspace ? 'workspace' : 'platform',
       });
     }
 
