@@ -1,5 +1,5 @@
 ---
-id: F2026062201
+id: F2026062202
 title: fix-merger-sop-unified-numbering
 from_ids: []
 tags:
@@ -11,7 +11,7 @@ modules:
 doc_kind: spec
 ---
 
-# F2026062201 [process] 修复合入者SOP：统一特性编号规则并强制使用squash merge
+# F2026062202 [process] 修复合入者SOP：统一特性编号规则并强制使用squash merge
 
 ## 背景
 
@@ -107,7 +107,7 @@ doc_kind: spec
 - `data/file/sops/code-delivery/review#reviewer.handbook.md`
 - `data/file/sops/code-delivery/merge#merger.handbook.md`
 - `data/file/sops/code-delivery/code-delivery.yaml`
-- `docs/features/2026/06/22/F2026062201-fix-merger-sop-unified-numbering.md`
+- `docs/features/2026/06/22/F2026062202-fix-merger-sop-unified-numbering.md`
 
 ## 验证
 
