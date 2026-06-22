@@ -119,12 +119,12 @@ stage_definitions:
     sequence: 4
     input_description: 已通过检视的 PR。
     output_description: >
-      维护者执行硬性条件检查，全部通过则合入 PR，任一不通过则打回到审查阶段。
+      维护者执行硬性条件检查，全部通过则使用 Squash Merge 合入 PR，任一不通过则打回到审查阶段。
       产物要求：合入确认或打回原因记录。
     acceptance_focus:
       - PR 是否基于最新 origin/main
       - CI 是否全部通过
-      - Feature 文档编号是否合规
+      - Feature 文档编号是否合规（包括与 PR 标题编号一致性）
       - PR 标题和 commit 模板是否合规
     acceptance_checklist:
       - id: merge-01
@@ -134,10 +134,13 @@ stage_definitions:
         description: CI 全部通过
         required: true
       - id: merge-03
-        description: Feature 文档编号合规
+        description: Feature 文档编号合规（包括与 PR 标题编号一致性）
         required: true
       - id: merge-04
         description: PR 标题和 commit 模板合规
+        required: true
+      - id: merge-05
+        description: 使用 Squash Merge 合入（禁止普通 merge）
         required: true
     roles:
       - key: merger
