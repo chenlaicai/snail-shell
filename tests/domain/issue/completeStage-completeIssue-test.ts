@@ -312,4 +312,32 @@ console.log("Running completeStage and completeIssue tests...\n");
   console.log("✓ B9: 阶段已完成时 completeStage 应拒绝");
 }
 
+// B10: Issue 无阶段时 completeIssue 应拒绝
+{
+  const issueRepo = createMockIssueRepo();
+  const stageRepo = createMockStageRepo();
+  const adapter = new StageAdapter(stageRepo, {} as RoleSnailAssignmentRepository, issueRepo);
+
+  const now = new Date().toISOString();
+  const issueId = randomUUID();
+  issueRepo.create({
+    id: issueId,
+    workspace_path: "/test/workspace",
+    title: "No Stage Issue",
+    summary: null,
+    sop_snapshot: createSopWithTransitions("sop-test", ["design"], []),
+    snail_assignment_plan: {},
+    extendable_context: {},
+    created_at: now,
+    closed_at: null,
+  });
+
+  assert.throws(
+    () => adapter.completeIssue(issueId),
+    /Issue has no stages/,
+    "B10: completeIssue should reject when issue has no stages"
+  );
+  console.log("✓ B10: Issue 无阶段时 completeIssue 应拒绝");
+}
+
 console.log("\n✓ All tests passed!");

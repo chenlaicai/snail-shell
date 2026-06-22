@@ -52,6 +52,7 @@ doc_kind: spec
 | B7 | 当阶段有反向转换但无正向转换时 | 仍为终端阶段，可调用 `completeStage` | `tests/domain/issue/completeStage-completeIssue-test.ts::B7` |
 | B8 | 当 Issue 已完成（`closed_at` 非空）时 | 调用 `completeStage`、`completeIssue`、`advanceStage` 都应拒绝，返回错误 "Issue is already completed" | `tests/domain/issue/completeStage-completeIssue-test.ts::B8` |
 | B9 | 当阶段已完成（`left_at` 非空）时 | 调用 `completeStage` 应拒绝，返回错误 "Stage is already completed" | `tests/domain/issue/completeStage-completeIssue-test.ts::B9` |
+| B10 | 当 Issue 无任何阶段时 | 调用 `completeIssue` 应拒绝，返回错误 "Issue has no stages" | `tests/domain/issue/completeStage-completeIssue-test.ts::B10` |
 
 ## 设计
 

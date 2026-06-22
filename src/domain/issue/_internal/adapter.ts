@@ -237,6 +237,7 @@ export class StageAdapter implements StagePort {
 
       /** 获取当前阶段（未完成的阶段） */
       const stages = this.stageRepo.listByIssue(issueId);
+      if (stages.length === 0) throw new Error("Issue has no stages");
       const currentStage = stages.find(s => !s.left_at);
       if (currentStage) throw new Error("Stage is still in progress");
 
@@ -249,6 +250,10 @@ export class StageAdapter implements StagePort {
   /**
    * 终端阶段判定：从该阶段出发的所有 available_transitions 中，不存在正向转换。
    * 正向/反向使用 sop_snapshot.stage_definitions 数组索引判断。
+   *
+   * D7 决策：信任 stage_definitions 顺序，不额外校验 currentIndex === -1 的情况。
+   * 若 stage.key 不在 stage_definitions 中，currentIndex = -1，所有 targetIndex >= 0
+   * 的转换都不满足 targetIndex <= -1，方法返回 false（非终端），行为安全。
    */
   private isTerminalStage(sopSnapshot: { stage_definitions: Array<{ key: string }> }, stage: Stage): boolean {
     const stageDefs = sopSnapshot.stage_definitions;
