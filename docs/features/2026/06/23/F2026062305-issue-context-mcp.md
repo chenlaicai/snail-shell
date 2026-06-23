@@ -174,24 +174,16 @@ export function createSnailIssueContextServer(issuePort: IssuePort): MCPServerCo
 
 #### 废弃旧机制
 
-**废弃策略**：双写过渡期 + 渐进迁移
+**废弃策略**：直接移除
 
-**问题**：如果旧机制继续写入 `Stage.output_artifacts`，而 system reminder 从 `Issue.context` 读取，会导致上下文丢失。
+1. **record-issue-repo-context skill**：直接删除
+2. **query-current-context skill**：直接删除
+3. **Stage.output_artifacts**：保留字段（归档清理仍需要），但不再有写入方
+4. **IssuePort.addOutputArtifacts**：保留方法，但不再有调用方
 
-**解决方案**：双写过渡期
-1. **record-issue-repo-context skill**：修改为同时写入 `Stage.output_artifacts` 和 `Issue.context`
-2. **query-current-context skill**：标记为 deprecated，保留但不再推荐使用
-3. **Stage.output_artifacts**：标记为 deprecated，不再有写入方（双写期间仍有写入）
-4. **IssuePort.addOutputArtifacts**：标记为 deprecated
-
-**迁移完成标志**：
-- 当所有 Agent 都升级到使用 MCP 后，可以移除双写逻辑
-- 移除双写逻辑后，硬废弃旧机制
-
-**引导机制**：
-- 在 Agent 的 system prompt 中明确推荐使用 MCP 工具
-- 旧机制保留但不推荐，Agent 继续调用时仍然可用（双写到两个数据源）
-- 不强制删除旧代码，避免破坏现有流程
+**迁移说明**：
+- MCP 工具是唯一的读写入口
+- Agent 应使用 `set_context` 和 `get_context` 替代旧 skill
 
 #### 数据迁移
 
@@ -210,8 +202,7 @@ export function createSnailIssueContextServer(issuePort: IssuePort): MCPServerCo
 - **语义不变量**：Issue.context 是唯一的真实来源，所有 Stage 共享同一套上下文
 - **职责边界**：MCP 工具是唯一的读写入口，system reminder 是被动推送的"快捷方式"
 - **并发策略**：后写入覆盖（last-write-wins），不需要乐观锁
-- **兼容性**：旧机制（skill、output_artifacts）双写过渡期，保证数据一致性，渐进迁移
-- **迁移完成标志**：当所有 Agent 都升级到使用 MCP 后，可以移除双写逻辑，硬废弃旧机制
+- **废弃策略**：直接移除旧 skill（record-issue-repo-context、query-current-context）
 
 <!-- [design-time] 章节结束 -->
 
@@ -232,9 +223,8 @@ export function createSnailIssueContextServer(issuePort: IssuePort): MCPServerCo
 | `src/domain/snail-mcp-server/_internal/initor.ts` | 修改（注册新服务器） |
 | `src/app/issue-collaboration/collaboration.ts` | 修改（更新 system reminder） |
 | `src/main.ts` | 修改（添加 issue 依赖） |
-| `data/file/skills/record-issue-repo-context/SKILL.md` | 修改（标记 deprecated） |
-| `data/file/skills/query-current-context/SKILL.md` | 修改（标记 deprecated） |
-| `.meta/scripts/db-bridge.js` | 新增（实现双写逻辑） |
+| `data/file/skills/record-issue-repo-context/` | 删除 |
+| `data/file/skills/query-current-context/` | 删除 |
 
 ## 验证
 
@@ -250,8 +240,6 @@ export function createSnailIssueContextServer(issuePort: IssuePort): MCPServerCo
 - [ ] 创建 Issue，进入 Stage，验证 system reminder 包含 Issue 上下文 section
 - [ ] 通过 MCP 写入新值，验证下次调用时 system reminder 已更新
 - [ ] 推进 Stage，验证新 Stage 的 Agent 能看到完整上下文
-- [ ] 调用旧 skill `record-issue-repo-context`，验证同时写入 `Stage.output_artifacts` 和 `Issue.context`
-- [ ] 验证旧 skill `query-current-context` 仍然可用但提示 deprecated
 
 ## 关联
 
@@ -268,4 +256,4 @@ export function createSnailIssueContextServer(issuePort: IssuePort): MCPServerCo
 | D5 | 是否需要 delete_context 工具 | CRUD 完整性 | 使用场景不多，覆盖为空字符串即可；删除会导致 system reminder 注入不一致 | 移除 delete_context | 简化设计，避免不必要的复杂性 | 架构师-1, 架构师-2 | 2026-06-23 |
 | D6 | 与 snail-issue 服务器的职责边界 | 独立服务器职责清晰 | 如果将来有 snail-issue 服务器，上下文应该放在那里 | 当前独立实现，将来可合并 | 当前没有 snail-issue 服务器，最小化改动 | 架构师-1, 架构师-2 | 2026-06-23 |
 | D7 | 并发写入策略 | 乐观锁保证一致性 | 增加复杂性，Issue 上下文通常只有一个 Agent 活跃 | 后写入覆盖（last-write-wins） | 简化设计，符合实际使用场景 | 架构师-1, 架构师-2 | 2026-06-23 |
-| D8 | 废弃策略：软废弃 vs 硬废弃 vs 双写过渡期 | 软废弃简单，硬废弃干净，双写过渡期平滑迁移 | 软废弃导致双数据源，硬废弃可能破坏现有流程，双写增加复杂性 | 双写过渡期 | 保证数据一致性，渐进迁移，最终收敛到 MCP | 架构师-1, 架构师-2 | 2026-06-23 |
+| D8 | 废弃策略：软废弃 vs 硬废弃 vs 双写过渡期 | 软废弃简单，硬废弃干净，双写过渡期平滑迁移 | 软废弃导致双数据源，硬废弃可能破坏现有流程，双写增加复杂性 | 直接移除 | MCP 工具已完整替代旧 skill，无需过渡期 | 用户 | 2026-06-23 |
