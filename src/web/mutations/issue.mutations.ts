@@ -10,15 +10,3 @@ export function useCreateIssue(workspaceId: string) {
     onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.workspaces.issues(workspaceId) }); },
   });
 }
-
-export function useCloseIssue(workspaceId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (issueId: string) =>
-      api("POST /api/issues/:issueId/close", { params: { issueId } }),
-    onSuccess: (_data, issueId) => {
-      qc.invalidateQueries({ queryKey: queryKeys.workspaces.issues(workspaceId) });
-      qc.invalidateQueries({ queryKey: queryKeys.issues.detail(issueId) });
-    },
-  });
-}

@@ -22,7 +22,6 @@ export class IssueAdapter implements IssuePort {
   constructor(
     private issueRepo: IssueRepository,
     private sopPort: SopPort,
-    private stageRepo: StageRepository,
   ) {}
 
   findIssue(id: string): Issue | undefined {
@@ -63,24 +62,6 @@ export class IssueAdapter implements IssuePort {
     this.issueRepo.create(issue);
     return issue;
   }
-
-  closeIssue(id: string): Issue {
-    const issue = this.issueRepo.findById(id);
-    if (!issue) throw new Error(`Issue not found: ${id}`);
-    if (issue.closed_at) return issue;
-
-    return this.stageRepo.transaction(() => {
-      const now = new Date().toISOString();
-      this.issueRepo.updateClosedAt(id, now);
-
-      const activeStage = this.stageRepo.findActiveByIssue(id);
-      if (activeStage) {
-        this.stageRepo.update(activeStage.id, { left_at: now });
-      }
-
-      return { ...issue, closed_at: now };
-    });
-  }
 }
 
 // ── Stage Adapter ─────────────────────────────────────────────────────
@@ -98,10 +79,6 @@ export class StageAdapter implements StagePort {
 
   listStages(issueId: string): Stage[] {
     return this.stageRepo.listByIssue(issueId);
-  }
-
-  listOpenStageIds(stageIds: string[]): string[] {
-    return this.stageRepo.listOpenStageIds(stageIds);
   }
 
   previewStage(issueId: string, stageKey: string): StagePreview {

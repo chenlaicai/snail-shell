@@ -17,6 +17,6 @@ export interface IssueCollaborationDeps {
 
 export function init(deps: IssueCollaborationDeps) {
   const adapter = new IssueCollaboration(deps);
-  startupRecovery(deps.messagePort, deps.stagePort, adapter);
+  startupRecovery(deps.messagePort, adapter);
   return { adapter };
 }

@@ -9,7 +9,7 @@ export function init(sopPort: SopPort, db: SQLiteDatabase) {
   const stageRepo = new SQLiteStageRepository(db);
   const sessionRepo = new SQLiteRoleSnailAssignmentRepository(db);
 
-  const issueAdapter = new IssueAdapter(issueRepo, sopPort, stageRepo);
+  const issueAdapter = new IssueAdapter(issueRepo, sopPort);
   const stageAdapter = new StageAdapter(stageRepo, sessionRepo, issueRepo);
 
   return { issueRepo, stageRepo, sessionRepo, issueAdapter, stageAdapter };
