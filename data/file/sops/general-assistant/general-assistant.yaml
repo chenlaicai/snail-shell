@@ -32,6 +32,6 @@ stage_definitions:
         description: 负责理解用户意图，检索和梳理信息，给出结构化回答。
         is_primary: true
         count: 1
-        handbook: "@chat#assistant.handbook.md"
+        skill: ga-assistant
 
 # 无 transitions — 单阶段即终态
