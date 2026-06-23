@@ -115,44 +115,6 @@ type RoleSnailAssignmentRow = RoleSnailAssignment;
 export class SQLiteIssueRepository implements IssueRepository {
   constructor(private db: SQLiteDatabase) {
     db.initSchema(ISSUE_SCHEMA);
-    this.migrateExtendableContext();
-  }
-
-  private migrateExtendableContext() {
-    try {
-      // 检查 extendable_context 列是否存在
-      const columns = this.db.all<{ name: string }>(
-        `PRAGMA table_info(issue)`
-      );
-      const hasExtendableContext = columns.some(col => col.name === 'extendable_context');
-
-      if (!hasExtendableContext) return;
-
-      // 获取所有有 extendable_context 数据的行
-      const rows = this.db.all<{ id: string; extendable_context: string; context: string }>(
-        `SELECT id, extendable_context, context FROM issue WHERE extendable_context != '{}'`
-      );
-
-      for (const row of rows) {
-        const extendableCtx = JSON.parse(row.extendable_context);
-        const currentCtx = JSON.parse(row.context);
-
-        // 合并策略：extendable_context 作为基础，context 覆盖
-        const merged = { ...extendableCtx, ...currentCtx };
-
-        this.db.run(
-          `UPDATE issue SET context = ? WHERE id = ?`,
-          [JSON.stringify(merged), row.id]
-        );
-      }
-
-      // 删除 extendable_context 列（SQLite 3.35.0+ 支持 DROP COLUMN）
-      this.db.run(`ALTER TABLE issue DROP COLUMN extendable_context`);
-
-      console.log(`[Migration] 已迁移 ${rows.length} 条 extendable_context 数据并删除列`);
-    } catch (error) {
-      console.error('[Migration] 迁移 extendable_context 失败:', error);
-    }
   }
 
   findById(id: string): Issue | undefined {
