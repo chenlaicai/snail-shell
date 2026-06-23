@@ -181,5 +181,5 @@ export type LobbyMessageDto = { id: string; [key: string]: unknown };
 export type PromptDto = { id: string; title: string; content: string; tags: string[]; scope: string };
 export type SkillDto = { name: string; description: string; content: string; scope: string; dir_path: string };
 export type SnailDenTemplateDto = { key: string; name: string; agent_name: string; model: string; context_window?: number; invocation_timeout_ms?: number };
-export type McpServerDto = { name: string; command?: string; args?: string[]; env?: Record<string, string>; url?: string; scope: string; source?: 'builtin' | 'platform' | 'workspace'; workspace_path?: string };
+export type McpConfigDto = { name: string; command?: string; args?: string[]; env?: Record<string, string>; url?: string; scope: string; source?: 'builtin' | 'platform' | 'workspace'; workspace_path?: string };
 export type RoleDto = { name: string; description?: string };

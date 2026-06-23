@@ -1,6 +1,6 @@
 import type { Workspace, Scope } from "@domain/workspace/model";
 import { Scope as ScopeEnum } from "@domain/workspace/model";
-import type { MCPConfig } from "@domain/mcp/model";
+import type { MCPConfig } from "@domain/mcp-config/model";
 import type { SnailMCPServerPort } from "@domain/snail-mcp-server/port";
 import type { FileDataStore } from "@infra/file-data-store";
 
@@ -60,7 +60,7 @@ export class FileMCPRepository implements MCPRepository {
     for (const server of servers) {
       this.platformConfigs.push({
         name: server.name,
-        url: `${this.baseUrl}/mcp/${server.name}`,
+        url: `${this.baseUrl}/mcp-server/${server.name}`,
         scope: ScopeEnum.Platform,
         source: 'builtin',
       });

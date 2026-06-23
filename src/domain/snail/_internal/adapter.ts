@@ -4,7 +4,7 @@ import type { AgentRegistryPort } from "@infra/acs/port";
 import { buildContextEnv } from "@infra/acs/_internal/utils/context-env";
 import type { TenetPromptPort } from "@domain/tenet-prompt/port";
 import type { SkillPort } from "@domain/skill/port";
-import type { MCPPort } from "@domain/mcp/port";
+import type { MCPPort } from "@domain/mcp-config/port";
 import type { GuardProfilePort } from "@domain/guard-profile/port";
 import type { Snail, SnailFirstCallRequest, SnailResumeRequest, SnailInstance, SnailInvokeResult } from "@domain/snail/model";
 import type { SnailPort } from "@domain/snail/port";
