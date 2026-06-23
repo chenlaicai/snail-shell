@@ -1,5 +1,5 @@
 ---
-id: F2026062303
+id: F2026062304
 title: fix-interrupt-terminal-signal-and-streaming-text
 from_ids: [F2026062204, F2026062201]
 tags: [web, streaming, bugfix]
@@ -7,7 +7,7 @@ modules: [web, issue-collaboration]
 doc_kind: spec
 ---
 
-# F2026062303 [web] 修复中断终态信号缺失与流式过程 text event 被过滤
+# F2026062304 [web] 修复中断终态信号缺失与流式过程 text event 被过滤
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 <!-- 进入实现阶段后不得单方面修改，如需变更须通过问题卡片向用户提出并确认 -->
