@@ -35,3 +35,12 @@
 # 检查指定日期目录下已有的编号
 ls docs/features/YYYY/MM/DD/F*.md 2>/dev/null
 ```
+
+## Commit / PR 标题模板
+
+```
+[FYYYYMMDDxxxx][module][Feature Update|BugFix|New Feature][Incompatible] 中文标题
+```
+
+- `[Incompatible]` 仅在存在不兼容更新时出现
+- `module` 为小写中划线格式（如 prompt、project-management、web、sop 等）
