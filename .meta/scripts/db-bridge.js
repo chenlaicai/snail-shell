@@ -92,7 +92,7 @@ function main() {
       const db = openDb();
       try {
         const stage = db.prepare(
-          "SELECT * FROM stage WHERE issue_id = ? AND status = 'in_progress' ORDER BY sequence DESC LIMIT 1"
+          "SELECT * FROM stage WHERE issue_id = ? AND left_at IS NULL ORDER BY entered_at DESC LIMIT 1"
         ).get(args.issueId);
         result = stage ? { stage } : { stage: null };
       } finally { db.close(); }
