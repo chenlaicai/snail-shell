@@ -78,7 +78,7 @@ export class FileSnailRepository implements SnailRepository {
 
   create(snail: Snail): Snail {
     if (this.snails.has(snail.key)) {
-      throw new Error(`Snail with key "${snail.key}" already exists`);
+      throw new Error(`Snail with key '${snail.key}' already exists`);
     }
     // write-through: 先写文件，成功后再更新内存 Map
     this.saveSnailsWith([...this.snails.values(), snail]);
@@ -89,7 +89,7 @@ export class FileSnailRepository implements SnailRepository {
   update(key: string, patch: Partial<Omit<Snail, 'key'>>): Snail {
     const existing = this.snails.get(key);
     if (!existing) {
-      throw new Error(`Snail with key "${key}" not found`);
+      throw new Error(`Snail with key '${key}' not found`);
     }
     const updated: Snail = { ...existing, ...patch, key };
     // write-through: 先写文件，成功后再更新内存 Map
@@ -101,7 +101,7 @@ export class FileSnailRepository implements SnailRepository {
 
   remove(key: string): void {
     if (!this.snails.has(key)) {
-      throw new Error(`Snail with key "${key}" not found`);
+      throw new Error(`Snail with key '${key}' not found`);
     }
     // write-through: 先写文件，成功后再更新内存 Map
     const list = [...this.snails.values()].filter(s => s.key !== key);
