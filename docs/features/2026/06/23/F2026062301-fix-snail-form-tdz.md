@@ -31,8 +31,8 @@ PR #418 (F2026062207) 实现了 Snail Den CRUD 功能，但用户发现点击 "C
 
 | # | 场景 | 预期行为 | 测试覆盖 |
 |---|------|----------|----------|
-| B1 | 当用户点击 "Create Snail" 按钮时 | 系统应弹出 Create Snail 表单对话框，不出现空白页 | |
-| B2 | 当用户点击某个 Snail 的 "Edit" 按钮时 | 系统应弹出 Edit Snail 表单对话框，预填当前数据，不出现空白页 | |
+| B1 | 当用户点击 "Create Snail" 按钮时 | 系统应弹出 Create Snail 表单对话框，不出现空白页 | `npm run build` 通过 + 代码审查确认 `isCreate` 声明在使用前 |
+| B2 | 当用户点击某个 Snail 的 "Edit" 按钮时 | 系统应弹出 Edit Snail 表单对话框，预填当前数据，不出现空白页 | `npm run build` 通过 + 代码审查确认 `isCreate` 声明在使用前 |
 
 ## 设计
 
@@ -81,10 +81,10 @@ const keyInvalid = isCreate && ...;  // 安全访问
 
 ### 通用
 
-- [ ] 点击 "Create Snail" 按钮，对话框正常弹出，不出现空白页
-- [ ] 点击 "Edit" 按钮，对话框正常弹出并预填数据，不出现空白页
-- [ ] `npm run build` 无报错
-- [ ] `npm run lint` 无新增报错
+- [x] 点击 "Create Snail" 按钮，对话框正常弹出，不出现空白页（代码审查确认 `isCreate` 声明在 `keyInvalid` 使用前，TDZ 消除）
+- [x] 点击 "Edit" 按钮，对话框正常弹出并预填数据，不出现空白页（同上，`isCreate` 声明顺序修复后 edit 模式同样安全）
+- [x] `npm run build` 无报错
+- [x] `npm run lint` 无新增报错
 
 ## 关联
 
