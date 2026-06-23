@@ -211,10 +211,14 @@ export class SQLiteStageRepository implements StageRepository {
   }
 
   mergeOutputArtifacts(stageId: string, artifacts: Record<string, unknown>): void {
-    this.db.run(
-      `UPDATE stage SET output_artifacts = json_patch(output_artifacts, ?) WHERE id = ?`,
-      [JSON.stringify(artifacts), stageId],
-    );
+    this.db.transaction(() => {
+      const row = this.db.get<{ output_artifacts: string }>(`SELECT output_artifacts FROM stage WHERE id = ?`, [stageId]);
+      if (!row) throw new Error(`Stage not found: ${stageId}`);
+      const current = JSON.parse(row.output_artifacts) as Record<string, unknown>;
+      // 浅合并：顶层 key 覆盖，嵌套对象整体替换
+      const merged = { ...current, ...artifacts };
+      this.db.run(`UPDATE stage SET output_artifacts = ? WHERE id = ?`, [JSON.stringify(merged), stageId]);
+    });
   }
 
   transaction<T>(fn: () => T): T {
