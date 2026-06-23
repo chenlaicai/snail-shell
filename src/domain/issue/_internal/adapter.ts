@@ -162,11 +162,10 @@ export class StageAdapter implements StagePort {
     return stage;
   }
 
-  addOutputArtifacts(stageId: string, artifacts: Record<string, string>): void {
+  addOutputArtifacts(stageId: string, artifacts: Record<string, unknown>): void {
     const stage = this.stageRepo.findById(stageId);
     if (!stage) throw new Error(`Stage not found: ${stageId}`);
-    Object.assign(stage.output_artifacts, artifacts);
-    this.stageRepo.update(stageId, { output_artifacts: stage.output_artifacts });
+    this.stageRepo.mergeOutputArtifacts(stageId, artifacts);
   }
 
   advanceStage(currentStageId: string, targetKey: string): Stage {

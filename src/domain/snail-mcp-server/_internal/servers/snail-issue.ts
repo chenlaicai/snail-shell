@@ -62,8 +62,7 @@ function createRecordOutputArtifactsTool(stagePort: StagePort) {
       const stage = stagePort.findStage(stageId);
       if (!stage) throw new Error(`Stage not found: ${stageId}`);
 
-      // 值可以是 string 或 {value, keep} 对象，透传给 StagePort（Object.assign 浅合并）
-      stagePort.addOutputArtifacts(stageId, artifacts as Record<string, string>);
+      stagePort.addOutputArtifacts(stageId, artifacts);
 
       const updated = stagePort.findStage(stageId);
       return {
@@ -114,6 +113,7 @@ function createSetFinalBodyTool(messagePort: MessagePort) {
       type: "object",
       properties: {
         text: { type: "string", description: "最终答复的 Markdown 正文" },
+        conversation_id: { type: "string" },
         message_id: { type: "string", description: "当前消息的 ID，通过环境变量 message_id 注入" },
       },
       required: ["text", "message_id"],

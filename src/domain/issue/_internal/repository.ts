@@ -17,6 +17,8 @@ export interface StageRepository {
   listByIssue(issueId: string): Stage[];
   create(stage: Stage): void;
   update(stageId: string, updates: Partial<Pick<Stage, "left_at" | "output_artifacts">>): void;
+  /** 原子合并 output_artifacts（SQL json_patch，避免 read-modify-write 竞态） */
+  mergeOutputArtifacts(stageId: string, artifacts: Record<string, unknown>): void;
   transaction<T>(fn: () => T): T;
 }
 
@@ -206,6 +208,13 @@ export class SQLiteStageRepository implements StageRepository {
     if (sets.length === 0) return;
     params.push(stageId);
     this.db.run(`UPDATE stage SET ${sets.join(", ")} WHERE id = ?`, params);
+  }
+
+  mergeOutputArtifacts(stageId: string, artifacts: Record<string, unknown>): void {
+    this.db.run(
+      `UPDATE stage SET output_artifacts = json_patch(output_artifacts, ?) WHERE id = ?`,
+      [JSON.stringify(artifacts), stageId],
+    );
   }
 
   transaction<T>(fn: () => T): T {

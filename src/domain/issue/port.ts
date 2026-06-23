@@ -21,8 +21,8 @@ export interface StagePort {
   transaction<T>(fn: () => T): T;
   createStage(input: CreateStageInput): Stage;
 
-  /** 写入产物（合并，不覆盖已有） */
-  addOutputArtifacts(stageId: string, artifacts: Record<string, string>): void;
+  /** 写入产物（原子合并，不覆盖已有） */
+  addOutputArtifacts(stageId: string, artifacts: Record<string, unknown>): void;
 
   /** 流转到下一个 Stage：设置当前 left_at + 创建新 Stage */
   advanceStage(currentStageId: string, targetKey: string): Stage;
