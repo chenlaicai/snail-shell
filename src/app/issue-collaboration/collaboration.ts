@@ -459,6 +459,7 @@ export class IssueCollaboration implements CollaborationInput {
 ${issueContext}
 
 > **注意**：这是只读视图。Agent 应使用 MCP 工具 \`set_context\` 和 \`get_context\` 读写 Issue 上下文。
+> Issue 上下文也会通过环境变量 \`SNAIL_CTX_*\` 注入，可通过 \`process.env\` 读取。
 
 ## 当前阶段
 

@@ -134,23 +134,22 @@ export class SQLiteIssueRepository implements IssueRepository {
       );
 
       for (const row of rows) {
-        try {
-          const extendableCtx = JSON.parse(row.extendable_context);
-          const currentCtx = JSON.parse(row.context);
+        const extendableCtx = JSON.parse(row.extendable_context);
+        const currentCtx = JSON.parse(row.context);
 
-          // 合并策略：extendable_context 作为基础，context 覆盖
-          const merged = { ...extendableCtx, ...currentCtx };
+        // 合并策略：extendable_context 作为基础，context 覆盖
+        const merged = { ...extendableCtx, ...currentCtx };
 
-          this.db.run(
-            `UPDATE issue SET context = ? WHERE id = ?`,
-            [JSON.stringify(merged), row.id]
-          );
-        } catch (parseError) {
-          console.error(`[Migration] 解析 context 失败，issue ${row.id}:`, parseError);
-        }
+        this.db.run(
+          `UPDATE issue SET context = ? WHERE id = ?`,
+          [JSON.stringify(merged), row.id]
+        );
       }
 
-      console.log(`[Migration] 已迁移 ${rows.length} 条 extendable_context 数据`);
+      // 删除 extendable_context 列（SQLite 3.35.0+ 支持 DROP COLUMN）
+      this.db.run(`ALTER TABLE issue DROP COLUMN extendable_context`);
+
+      console.log(`[Migration] 已迁移 ${rows.length} 条 extendable_context 数据并删除列`);
     } catch (error) {
       console.error('[Migration] 迁移 extendable_context 失败:', error);
     }
