@@ -82,7 +82,7 @@ export class LobbyCommandExecutor {
       current_stage_id: null,
     });
     return this.renderer.renderIssueList(
-      issues.map(f => ({ id: f.id, title: f.title, status: f.closed_at ? "archived" : "active" })),
+      issues.map(f => ({ id: f.id, title: f.title, status: f.closed_at ? "closed" : "active" })),
       workspace.path.split("/").pop() ?? workspace.path,
     );
   }

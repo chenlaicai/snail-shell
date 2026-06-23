@@ -7,6 +7,7 @@ export interface IssueRepository {
   findById(id: string): Issue | undefined;
   listByWorkspace(workspacePath: string, limit?: number, offset?: number): Issue[];
   create(issue: Issue): void;
+  updateClosedAt(id: string, closedAt: string): void;
 }
 
 // ── Stage Repository ──────────────────────────────────────────────────
@@ -14,6 +15,9 @@ export interface IssueRepository {
 export interface StageRepository {
   findById(id: string): Stage | undefined;
   listByIssue(issueId: string): Stage[];
+  findActiveByIssue(issueId: string): Stage | undefined;
+  /** 返回 issue 未关闭的 stage ID 子集（单次 JOIN 查询） */
+  listOpenStageIds(stageIds: string[]): string[];
   create(stage: Stage): void;
   update(stageId: string, updates: Partial<Pick<Stage, "left_at" | "output_artifacts">>): void;
   transaction<T>(fn: () => T): T;
@@ -144,6 +148,10 @@ export class SQLiteIssueRepository implements IssueRepository {
       ],
     );
   }
+
+  updateClosedAt(id: string, closedAt: string): void {
+    this.db.run(`UPDATE issue SET closed_at = ? WHERE id = ?`, [closedAt, id]);
+  }
 }
 
 export class SQLiteStageRepository implements StageRepository {
@@ -161,6 +169,23 @@ export class SQLiteStageRepository implements StageRepository {
       `SELECT * FROM stage WHERE issue_id = ? ORDER BY entered_at ASC`,
       [issueId],
     ).map(mapStage);
+  }
+
+  findActiveByIssue(issueId: string): Stage | undefined {
+    const row = this.db.get<StageRow>(
+      `SELECT * FROM stage WHERE issue_id = ? AND left_at IS NULL LIMIT 1`,
+      [issueId],
+    );
+    return row ? mapStage(row) : undefined;
+  }
+
+  listOpenStageIds(stageIds: string[]): string[] {
+    if (stageIds.length === 0) return [];
+    const placeholders = stageIds.map(() => "?").join(",");
+    return this.db.all<{ id: string }>(
+      `SELECT s.id FROM stage s JOIN issue i ON i.id = s.issue_id WHERE s.id IN (${placeholders}) AND i.closed_at IS NULL`,
+      stageIds,
+    ).map(row => row.id);
   }
 
   create(stage: Stage): void {
