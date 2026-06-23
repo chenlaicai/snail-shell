@@ -437,9 +437,9 @@ export class IssueCollaboration implements CollaborationInput {
     return `<identity>
 # 你是${roleName}
 **角色实例**：${roleInstance}
-**职责**：${roleDef?.description ?? "无"}
-**禁止**：${roleDef?.prohibition ?? "无"}
-**自检**：${roleDef?.self_check ?? "无"}
+**职责**：${roleDef?.description ?? "请参考 skill 中的工作流程"}
+**禁止**：${roleDef?.prohibition ?? "请参考 skill 中的禁止项"}
+**自检**：${roleDef?.self_check ?? "请参考 skill 中的自检规则"}
 </identity>`;
   }
 

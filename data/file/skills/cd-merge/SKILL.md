@@ -7,6 +7,10 @@ description: |
 
 # 合入者工作流程
 
+## 前置依赖
+
+必须先加载 `cd-shared` skill（特性编号、PR签名、证据规则、完成标准）。
+
 ## 硬条件检查（全部必须通过）
 
 1. **PR 基于最新 `origin/main`**：commit 历史比对，确认没有落后
@@ -14,7 +18,7 @@ description: |
 3. **Feature 文档编号合规**：`FYYYYMMDDNN` 格式正确，目录不冲突，符合特性编号规则（含顺延规则）
 4. **PR 标题/commit 模板合规**：格式正确
 5. **不兼容更新已标注**：如有不兼容变更，commit 和 PR title 中有 `[Incompatible]` 标记
-6. **Gate evidence 完整**：dev-06（开发者验证）和 rev-02（审查者验证）的 evidence 均已记录
+6. **Gate evidence 完整**：dev-06（开发者验证）和 rev-02（审查者验证）的 evidence 均已记录。gate evidence 格式要求见 `cd-shared/references/stage-gate.md`
 
 ## 决策
 

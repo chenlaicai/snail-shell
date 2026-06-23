@@ -7,6 +7,10 @@ description: |
 
 # 开发者工作流程
 
+## 前置依赖
+
+必须先加载 `cd-shared` skill（特性编号、PR签名、证据规则、完成标准）。
+
 ## Gotchas（必读）
 
 - **业务代码是主体，测试是仆从**：测试验证的是外部可观测行为，不是内部实现。mock 仅作为隔离手段，不作为断言依据（禁止断言调用次数/调用参数）。
@@ -20,7 +24,7 @@ description: |
 1. **环境准备** — worktree 创建、origin/main 确认、feature 文档加载、task_anchor 设置。详见 `references/workflow.md`。
 2. **设计确认** — 对照 Feature 文档的 [design-time] 章节，确认理解无歧义。
 3. **实现** — 按设计方案编码，遵守代码仓库完美状态原则。
-4. **验证与 PR 提交** — 执行验证命令、生成 gate evidence、创建 PR。详见 `references/workflow.md`。
+4. **验证与 PR 提交** — 执行验证命令、生成 gate evidence、创建 PR。详见 `references/workflow.md`。gate evidence 生成规则见 `cd-shared/references/stage-gate.md`。
 
 ## 关键约束
 
