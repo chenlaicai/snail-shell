@@ -51,6 +51,7 @@ export default defineConfig(() => {
       strictPort: true,
       proxy: {
         "/api": backendHttpBaseUrl,
+        "/mcp": backendHttpBaseUrl,
         "/issue-events": {
           target: backendHttpBaseUrl,
           ws: true,
