@@ -2,6 +2,7 @@ import type { Message, MessageContext, MessageEvent, MessageEventPayload } from 
 import type { MessagePort } from "@domain/message/port";
 import type { IssuePort, StagePort } from "@domain/issue/port";
 import type { CreateIssueInput, Issue, Stage } from "@domain/issue/model";
+import type { RoleDefinition } from "@domain/sop/model";
 import type { SnailPort } from "@domain/snail/port";
 import type { SnailFirstCallRequest, SnailResumeRequest } from "@domain/snail/model";
 import type { LiteAIPort } from "@domain/lite-ai/port";
@@ -432,13 +433,13 @@ export class IssueCollaboration implements CollaborationInput {
     if (currentRoleDefinition?.skill) {
       return this.buildThinSystemReminder(input, currentRoleDefinition);
     }
-    return this.buildLegacySystemReminder(input);
+    return this.buildLegacySystemReminder(input, currentRoleDefinition);
   }
 
   /** 新路径：thin system-reminder + skill 引用 */
   private buildThinSystemReminder(
     input: { issue: Issue; stage: Stage; roleInstance: string; roleKey: string },
-    roleDef: { name: string; description: string; skill: string | null; prohibition: string | null; self_check: string | null },
+    roleDef: RoleDefinition,
   ): string {
     const { issue, stage, roleInstance } = input;
     const transitions = stage.available_transitions.map(transition => `- ${transition.to}${transition.guard ? `: ${transition.guard}` : ""}`).join("\n");
@@ -447,7 +448,7 @@ export class IssueCollaboration implements CollaborationInput {
     const sharedSkill = issue.sop_snapshot.shared_skill;
     const skillList = [
       sharedSkill ? `- \`${sharedSkill}\` — 共享规则（特性编号、PR签名、证据规则、完成标准）` : null,
-      `- \`${roleDef.skill}\` — ${roleDef.name}工作流程`,
+      roleDef.skill ? `- \`${roleDef.skill}\` — ${roleDef.name}工作流程` : null,
     ].filter(Boolean).join("\n");
 
     return `<identity>
@@ -465,6 +466,7 @@ export class IssueCollaboration implements CollaborationInput {
 **Issue ID**：${issue.id}
 **工作区**：${issue.workspace_path}
 **Issue 摘要**：${issue.summary ?? "无"}
+**可扩展上下文**：${issue.extendable_context != null ? JSON.stringify(issue.extendable_context) : "无"}
 
 ## 当前阶段
 
@@ -490,13 +492,15 @@ ${transitions || "无"}
   }
 
   /** 旧路径：全量 handbook 注入（向后兼容） */
-  private buildLegacySystemReminder(input: { issue: Issue; stage: Stage; roleInstance: string; roleKey: string; handbook: string | null }): string {
+  private buildLegacySystemReminder(input: { issue: Issue; stage: Stage; roleInstance: string; roleKey: string; handbook: string | null }, currentRoleDefinition?: RoleDefinition): string {
     const { issue, stage, roleInstance, roleKey, handbook } = input;
     const transitions = stage.available_transitions.map(transition => `- ${transition.to}${transition.guard ? `: ${transition.guard}` : ""}`).join("\n");
     const artifacts = Object.entries(stage.output_artifacts).map(([key, value]) => `${key}: ${value}`).join("\n");
 
-    const stageDefinition = issue.sop_snapshot.stage_definitions.find(definition => definition.key === stage.key);
-    const currentRoleDefinition = stageDefinition?.roles.find(role => role.key === roleKey);
+    if (!currentRoleDefinition) {
+      const stageDefinition = issue.sop_snapshot.stage_definitions.find(definition => definition.key === stage.key);
+      currentRoleDefinition = stageDefinition?.roles.find(role => role.key === roleKey);
+    }
     const currentRoleName = currentRoleDefinition?.name ?? roleInstance;
     const currentRoleResponsibility = this.extractRoleResponsibility(currentRoleDefinition, handbook);
     const prohibition = this.extractHandbookItem(handbook, "禁止", "超出职责范围的行为");

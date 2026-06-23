@@ -134,7 +134,7 @@ roles:
 
 | # | 决策点 | 正方论点 | 反方论点 | 最终决策 | 决策依据 | 参与者 | 日期 |
 |---|--------|----------|----------|----------|----------|--------|------|
-| D1 | Skill 拆分粒度 | 按 stage+role 拆分与 SOP 对齐 | skill 数量多（6个） | 按 stage+role 拆分 | SOP 的 stage 机制是核心编排逻辑 | - | 2026-06-22 |
-| D2 | 是否迁移旧 issue | 强制迁移统一架构 | 迁移有风险 | 不迁移，双路径兼容 | issue snapshot 是可信交付物 | - | 2026-06-22 |
-| D3 | prohibition/self_check 存储位置 | YAML 显式声明 vs regex 提取 | YAML 增加维护成本 | YAML 显式声明 | regex 提取脆弱 | - | 2026-06-22 |
-| D4 | shared 规则注入方式 | shared_skill vs shared_handbook 全量注入 | 新增字段增加复杂度 | shared_skill | 共享规则也应 progressive disclosure | - | 2026-06-22 |
+| D1 | Skill 拆分粒度 | 按 stage+role 拆分与 SOP 对齐 | skill 数量多（6个） | 按 stage+role 拆分 | SOP 的 stage 机制是核心编排逻辑 | orca + Claude | 2026-06-22 |
+| D2 | 是否迁移旧 issue | 强制迁移统一架构 | 迁移有风险 | 不迁移，双路径兼容 | issue snapshot 是可信交付物 | orca + Claude | 2026-06-22 |
+| D3 | prohibition/self_check 存储位置 | YAML 显式声明 vs regex 提取 | YAML 增加维护成本 | YAML 显式声明 | regex 提取脆弱 | orca + Claude | 2026-06-22 |
+| D4 | shared 规则注入方式 | shared_skill vs shared_handbook 全量注入 | 新增字段增加复杂度 | shared_skill | 共享规则也应 progressive disclosure | orca + Claude | 2026-06-22 |
