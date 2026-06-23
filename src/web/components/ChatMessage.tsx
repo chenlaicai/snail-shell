@@ -164,14 +164,13 @@ function EventTextContent({ events }: { events: MessageEvent[] }) {
   return <RichTextRenderer content={text} />;
 }
 
-/** 流式过程折叠区：展示非 text events（tool_call、tool_result、signal、error 等） */
+/** 流式过程折叠区：展示所有事件类型（含 text event），流式过程和最终答复是两个独立展示区域 */
 function EventStream({ events, expanded, onToggle }: { events: MessageEvent[]; expanded: boolean; onToggle: () => void }) {
   const { filteredEvents, toolCalls, commands } = useMemo(() => {
-    const filtered = events.filter((e) => e.payload?.type !== "text");
     return {
-      filteredEvents: filtered,
-      toolCalls: filtered.filter((e) => e.payload?.type === "tool_call").length,
-      commands: filtered.filter((e) => e.payload?.type === "command").length,
+      filteredEvents: events,
+      toolCalls: events.filter((e) => e.payload?.type === "tool_call").length,
+      commands: events.filter((e) => e.payload?.type === "command").length,
     };
   }, [events]);
 
@@ -264,6 +263,18 @@ function EventItem({ event }: { event: MessageEvent }) {
         <span className={`text-[11px] ${p.is_error ? "text-status-red" : "text-text-muted"}`}>
           {p.is_error ? `exit ${p.exit_code ?? "?"}` : "ok"}
         </span>
+      </div>
+    );
+  }
+
+  if (type === "text") {
+    const p = event.payload as unknown as { text: string };
+    return (
+      <div className="flex items-start gap-2 px-2 py-1 text-[12px]">
+        <svg className="w-3.5 h-3.5 text-text-muted shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+        </svg>
+        <span className="text-text-muted text-[11px]">{p.text.slice(0, 120)}{p.text.length > 120 ? "..." : ""}</span>
       </div>
     );
   }
