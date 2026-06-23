@@ -96,7 +96,7 @@ export type MessageEventPayload =
 // 用户消息：直接写入（无事件流）。
 // Agent 消息：来源可由agent自行mcp发送、也可cli输出最后一段、也可是系统级lite-ai总结而出。
 
-export type MessageContextKind = "final_text" | "message_out" | "event_summary" | "llm_summary" | "mcp_final_body";
+export type MessageContextKind = "final_text" | "message_out" | "event_summary" | "llm_summary" | "mcp_final_body" | "send_message_body";
 
 export interface MessageContext {
   /** 一对一关联 Message */

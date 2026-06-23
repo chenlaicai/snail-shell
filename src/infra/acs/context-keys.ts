@@ -13,5 +13,9 @@ export const CONTEXT_KEYS = {
   CONVERSATION_ID: "SNAIL_CTX_CONVERSATION_ID",
   /** 当前阶段 ID */
   STAGE_ID: "SNAIL_CTX_STAGE_ID",
+  /** 当前消息 ID（agent 本轮输出对应的消息） */
+  MESSAGE_ID: "SNAIL_CTX_MESSAGE_ID",
+  /** 当前角色实例名 */
+  ROLE_INSTANCE: "SNAIL_CTX_ROLE_INSTANCE",
 } as const;
 

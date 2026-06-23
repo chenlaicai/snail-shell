@@ -266,6 +266,13 @@ export class IssueCollaboration implements CollaborationInput {
   }
 
   private routeAgentReplies(stage: Stage, roleInstance: string, messageId: number): void {
+    // 如果 agent 通过 send_message 工具已设置目标（send_message_body 已存在），
+    // 跳过覆写，避免 send_message 的路由被 text @mention 扫描结果覆盖。
+    // 注意：set_final_body 设置的 mcp_final_body 不会触发此 early return，
+    // 保证 set_final_body 场景下 text 中的 @mention 仍能正常路由。
+    const existingContext = this.deps.messagePort.getContext(messageId);
+    if (existingContext?.kind === "send_message_body") return;
+
     const replies = this.resolveReplies(stage, roleInstance, messageId);
     this.deps.messagePort.updateMessageTargets(messageId, replies);
     for (const speaker of replies) {
@@ -286,8 +293,10 @@ export class IssueCollaboration implements CollaborationInput {
 
   private getEventMentions(event: MessageEvent): string[] {
     if (event.payload.type === "text") return this.extractMentions(event.payload.text);
-    if (event.payload.type !== "signal" || !Array.isArray(event.payload.mentions)) return [];
-    return event.payload.mentions.filter((mention): mention is string => typeof mention === "string");
+    if (event.payload.type === "signal" && Array.isArray(event.payload.mentions)) {
+      return event.payload.mentions.filter((mention): mention is string => typeof mention === "string");
+    }
+    return [];
   }
 
   private isValidReplyMention(stage: Stage, roleInstance: string, mention: string): boolean {
@@ -306,21 +315,39 @@ export class IssueCollaboration implements CollaborationInput {
 
   private extractStageTransitionSuggestion(stage: Stage, roleInstance: string, messageId: number): StageTransitionSuggestion | null {
     for (const event of this.deps.messagePort.getMessageEvents(messageId)) {
-      if (event.payload.type === "signal" && typeof event.payload.stage_transition === "object" && event.payload.stage_transition) {
-        const payload = event.payload.stage_transition as Record<string, unknown>;
-        const targetKey = String(payload.target_key ?? payload.to ?? "");
-        if (!targetKey || !stage.available_transitions.some(transition => transition.to === targetKey)) continue;
-        return this.makeStageTransitionSuggestion({ stage, roleInstance, messageId, targetKey, reason: payload.reason, guard: payload.guard });
-      }
-
-      if (event.payload.type === "text") {
-        const parsed = this.tryParseStageTransition(event.payload.text);
-        if (parsed?.target_key && stage.available_transitions.some(transition => transition.to === parsed.target_key)) {
-          return this.makeStageTransitionSuggestion({ stage, roleInstance, messageId, targetKey: parsed.target_key, reason: parsed.reason, guard: parsed.guard });
-        }
-      }
+      const suggestion = this.tryExtractTransitionFromEvent(stage, roleInstance, messageId, event);
+      if (suggestion) return suggestion;
     }
     return null;
+  }
+
+  private tryExtractTransitionFromEvent(stage: Stage, roleInstance: string, messageId: number, event: MessageEvent): StageTransitionSuggestion | null {
+    return this.tryExtractFromToolCall(stage, roleInstance, messageId, event)
+      ?? this.tryExtractFromSignal(stage, roleInstance, messageId, event)
+      ?? this.tryExtractFromText(stage, roleInstance, messageId, event);
+  }
+
+  private tryExtractFromToolCall(stage: Stage, roleInstance: string, messageId: number, event: MessageEvent): StageTransitionSuggestion | null {
+    if (event.payload.type !== "tool_call" || event.payload.tool_name !== "suggest_stage_transition") return null;
+    const input = event.payload.tool_input as Record<string, unknown> | null;
+    const targetKey = String(input?.target_key ?? "");
+    if (!targetKey || !stage.available_transitions.some(t => t.to === targetKey)) return null;
+    return this.makeStageTransitionSuggestion({ stage, roleInstance, messageId, targetKey, reason: input?.reason, guard: input?.guard });
+  }
+
+  private tryExtractFromSignal(stage: Stage, roleInstance: string, messageId: number, event: MessageEvent): StageTransitionSuggestion | null {
+    if (event.payload.type !== "signal" || typeof event.payload.stage_transition !== "object" || !event.payload.stage_transition) return null;
+    const payload = event.payload.stage_transition as Record<string, unknown>;
+    const targetKey = String(payload.target_key ?? payload.to ?? "");
+    if (!targetKey || !stage.available_transitions.some(t => t.to === targetKey)) return null;
+    return this.makeStageTransitionSuggestion({ stage, roleInstance, messageId, targetKey, reason: payload.reason, guard: payload.guard });
+  }
+
+  private tryExtractFromText(stage: Stage, roleInstance: string, messageId: number, event: MessageEvent): StageTransitionSuggestion | null {
+    if (event.payload.type !== "text") return null;
+    const parsed = this.tryParseStageTransition(event.payload.text);
+    if (!parsed?.target_key || !stage.available_transitions.some(t => t.to === parsed.target_key)) return null;
+    return this.makeStageTransitionSuggestion({ stage, roleInstance, messageId, targetKey: parsed.target_key, reason: parsed.reason, guard: parsed.guard });
   }
 
   private makeStageTransitionSuggestion(input: {
@@ -397,7 +424,7 @@ export class IssueCollaboration implements CollaborationInput {
 
   private extractTerminalContext(messageId: number): MessageContext {
     const existing = this.deps.messagePort.getContext(messageId);
-    if (existing?.kind === "mcp_final_body") return existing;
+    if (existing?.kind === "mcp_final_body" || existing?.kind === "send_message_body") return existing;
 
     const events = this.deps.messagePort.getMessageEvents(messageId);
     for (let index = events.length - 1; index >= 0; index--) {
@@ -475,11 +502,32 @@ export class IssueCollaboration implements CollaborationInput {
 
 ${transitions || "无"}
 
-## 协作规则
+## 协作工具
 
-- 你可以通过 @角色实例 请求其他角色回应
-- 如果阶段看起来完成了，建议 stage_transition 等待用户确认
-- 永远不要自动推进 Stage`;
+你有以下结构化协作工具可用（**优先使用这些工具，而不是在文本中 @mention**）：
+
+### send_message(to, text) — 发送消息并触发回应
+向指定角色发送消息并触发其回应。同时设置消息的最终展示正文。
+- \`to\`: 目标角色实例名数组，可选值见上方"所有角色实例"
+- \`text\`: 消息正文（Markdown）
+- 示例：\`send_message({ to: ["${stage.default_role_instance}"], text: "请修复这个 bug" })\`
+
+### set_final_body(text) — 仅展示结果，不触发他人
+当你完成工作、只需要展示最终结果而不需要触发其他角色时使用。
+- 示例：\`set_final_body({ text: "已完成分析，结论如下：..." })\`
+
+### suggest_stage_transition(target_key, reason) — 建议阶段流转
+建议流转到下一阶段（需用户确认后才会执行，永远不要自动推进）。
+- \`target_key\`: 目标阶段 key，必须是"可用流转"中列出的值
+- \`reason\`: 流转原因
+- 示例：\`suggest_stage_transition({ target_key: "${stage.available_transitions[0]?.to ?? "next_stage"}", reason: "当前阶段已完成" })\`
+
+### query_context(query) — 查询上下文
+仅在需要确认实时状态时使用（system-reminder 中已有静态快照）。
+- \`query\`: "roles" | "transitions" | "artifacts" | "all"
+
+### 旧方式（兼容）
+你仍然可以在文本中使用 @角色实例 来触发协作，但 **send_message 工具更可靠**。`;
 
     // 组装完整的system-reminder
     const parts = [

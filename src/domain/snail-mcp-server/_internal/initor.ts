@@ -3,8 +3,10 @@ import { createFinalResponseServer } from "@domain/snail-mcp-server/_internal/se
 import { createEvolutionServer } from "@domain/snail-mcp-server/_internal/servers/evolution";
 import { createKnowledgeServer } from "@domain/snail-mcp-server/_internal/servers/knowledge";
 import { createRednoteResearchServer } from "@domain/snail-mcp-server/_internal/servers/rednote-research";
+import { createCollaborationServer } from "@domain/snail-mcp-server/_internal/servers/snail-collaboration";
 import type { KnowledgePort } from "@domain/knowledge/port";
 import type { MessagePort } from "@domain/message/port";
+import type { StagePort } from "@domain/issue/port";
 
 /** Snail MCP Server 模块依赖 */
 export interface SnailMCPServerDeps {
@@ -14,6 +16,8 @@ export interface SnailMCPServerDeps {
   knowledge: KnowledgePort;
   /** message adapter */
   message: MessagePort;
+  /** stage adapter */
+  stage: StagePort;
 }
 
 /**
@@ -28,6 +32,7 @@ export function init(deps: SnailMCPServerDeps) {
   adapter.registerServer(createEvolutionServer(deps.updateEvolution));
   adapter.registerServer(createKnowledgeServer(deps.knowledge));
   adapter.registerServer(createRednoteResearchServer());
+  adapter.registerServer(createCollaborationServer(deps.message, deps.stage));
 
   return { adapter };
 }
