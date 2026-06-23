@@ -14,6 +14,8 @@ export interface Issue {
   snail_assignment_plan: IssueSnailAssignmentPlan;
   /** 可扩展上下文：由创建方注入的额外上下文数据，传递给底层 agent */
   extendable_context: Record<string, unknown>;
+  /** 任务锚：结构化记录本质目标、反目标、语义不变量和成功标准 */
+  task_anchor: string | null;
   created_at: string;
   closed_at: string | null;
 }

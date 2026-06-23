@@ -197,7 +197,11 @@ export function IssueConversation() {
           {/* Input */}
           <div className="shrink-0 px-6 pb-8 pt-4">
             <div className="mx-auto max-w-[920px]">
-              {stage?.status === "completed" ? (
+              {issue?.closed_at ? (
+                <div className="rounded-2xl border border-white/6 bg-surface-2 px-4 py-3 text-[12px] text-text-muted">
+                  Issue 已关闭，对话保留为只读。
+                </div>
+              ) : stage?.status === "completed" ? (
                 <div className="rounded-2xl border border-white/6 bg-surface-2 px-4 py-3 text-[12px] text-text-muted">
                   当前 Stage 已结束，历史对话保留为只读。请切换到当前 Stage 继续对话。
                 </div>

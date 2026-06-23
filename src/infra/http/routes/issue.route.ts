@@ -101,6 +101,8 @@ export function createIssueRoutes(deps: IssueRoutesDeps) {
     return c.json(toStageDto(deps, stage), 201);
   });
 
+  app.post("/api/issues/:issueId/close", (c) => closeIssue(c, deps));
+
   return app;
 }
 
@@ -115,7 +117,14 @@ function listMessages(c: Context, deps: IssueRoutesDeps) {
 async function sendMessage(c: Context, deps: IssueRoutesDeps) {
   const stageId = requiredParam(c, "stageId");
   const body = sendMessageBody.parse(await c.req.json());
-  await deps.collaboration.sendMessage(stageId, body.text, body.from_speaker, body.to_speakers);
+  try {
+    await deps.collaboration.sendMessage(stageId, body.text, body.from_speaker, body.to_speakers);
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("Issue is closed:")) {
+      return c.json({ error: "Issue is closed" }, 409);
+    }
+    throw error;
+  }
   return c.json({ ok: true });
 }
 
@@ -178,4 +187,17 @@ function numberQuery(value: string | undefined): number | undefined {
   if (!value) return undefined;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function closeIssue(c: Context, deps: IssueRoutesDeps) {
+  const issueId = requiredParam(c, "issueId");
+  try {
+    const closed = deps.collaboration.closeIssue(issueId);
+    return c.json(toIssueDetail(deps, closed));
+  } catch (error) {
+    if (error instanceof Error && error.message === `Issue not found: ${issueId}`) {
+      return c.json({ error: "Issue not found" }, 404);
+    }
+    throw error;
+  }
 }

@@ -58,6 +58,7 @@ export class IssueCollaboration implements CollaborationInput {
 
   async sendMessage(stageId: string, text: string, fromSpeaker = "user", toSpeakers?: string[]): Promise<void> {
     const stage = this.mustGetStage(stageId);
+    this.assertIssueOpen(stage.issue_id);
     /** 前端传入 to_speakers 时直接使用（UI 驱动的精确路由），否则走服务端 fallback 解析 */
     const targets: SpeakerTarget[] = toSpeakers && toSpeakers.length > 0
       ? toSpeakers.map(speaker => ({ speaker, source: "mention" as const }))
@@ -104,6 +105,10 @@ export class IssueCollaboration implements CollaborationInput {
     return stage;
   }
 
+  closeIssue(issueId: string): Issue {
+    return this.deps.issuePort.closeIssue(issueId);
+  }
+
   enqueueStage(stageId: string): void {
     this.queue.enqueue(stageId, async () => this.drainStage(stageId));
   }
@@ -119,6 +124,8 @@ export class IssueCollaboration implements CollaborationInput {
   }
 
   private async drainStage(stageId: string): Promise<void> {
+    const stage = this.deps.stagePort.findStage(stageId);
+    if (!stage || stage.left_at) return;
     let remainingRounds = this.maxCollaborationRounds;
 
     while (remainingRounds > 0) {
@@ -452,6 +459,7 @@ export class IssueCollaboration implements CollaborationInput {
 **工作区**：${issue.workspace_path}
 **Issue 摘要**：${issue.summary ?? "无"}
 **可扩展上下文**：${issue.extendable_context != null ? JSON.stringify(issue.extendable_context) : "无"}
+${issue.task_anchor ? `\n<task_anchor>\n[HARD] ${issue.task_anchor}\n</task_anchor>\n` : ""}
 
 ## 当前阶段
 
@@ -481,10 +489,11 @@ ${transitions || "无"}
   private toAgentMessage(message: Message): AgentMessage {
     const context = this.deps.messagePort.getContext(message.id);
     const prefix = message.to_speakers.length > 0 ? `${message.to_speakers.map(target => `@${target}`).join(" ")} ` : "";
+    const body = extractAgentBody(context?.context);
     return {
       role: message.from_speaker === "user" ? "human" : message.from_speaker === "system" || message.from_speaker === null ? "system" : "agent",
       speaker: message.from_speaker ?? "system",
-      content: `${prefix}${context?.context ?? ""}`.trim(),
+      content: `${prefix}${body}`.trim(),
     };
   }
 
@@ -534,6 +543,11 @@ ${transitions || "无"}
     return message;
   }
 
+  private assertIssueOpen(issueId: string): void {
+    const issue = this.deps.issuePort.findIssue(issueId);
+    if (issue?.closed_at) throw new Error(`Issue is closed: ${issueId}`);
+  }
+
   private async notifyConsumers(stageId: string, method: keyof CollaborationConsumer, ...args: unknown[]): Promise<void> {
     const stage = this.mustGetStage(stageId);
     const consumers = [...(this.issueConsumers.get(stage.issue_id) ?? [])];
@@ -559,4 +573,17 @@ ${transitions || "无"}
       }
     }));
   }
+}
+
+/** 从 mcp_final_body 中提取 agent 可消费的纯文本。blocks 格式取 fallback_text，否则原样返回。 */
+function extractAgentBody(context: string | undefined): string {
+  if (!context) return "";
+  const trimmed = context.trimStart();
+  if (trimmed.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (parsed?.format === "blocks" && typeof parsed?.fallback_text === "string") return parsed.fallback_text;
+    } catch { /* not JSON, use as-is */ }
+  }
+  return context;
 }

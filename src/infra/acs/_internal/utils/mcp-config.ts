@@ -123,6 +123,25 @@ function writeOpenCodeMcpConfig(servers: MCPServerCapability[], workspacePath: s
     ? { ...config.mcp as Record<string, unknown> }
     : {});
 
+  cleanupStaleBuiltinEntries(existingMcp, servers);
+  upsertServerEntries(existingMcp, servers);
+
+  config.mcp = existingMcp;
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
+}
+
+function cleanupStaleBuiltinEntries(existingMcp: Record<string, unknown>, servers: MCPServerCapability[]): void {
+  const serverNames = new Set(servers.map(s => s.name));
+  for (const key of Object.keys(existingMcp)) {
+    if (serverNames.has(key)) continue;
+    const entry = existingMcp[key] as Record<string, unknown> | undefined;
+    if (entry?.type === "remote" && typeof entry?.url === "string" && entry.url.includes("/mcp-server/")) {
+      delete existingMcp[key];
+    }
+  }
+}
+
+function upsertServerEntries(existingMcp: Record<string, unknown>, servers: MCPServerCapability[]): void {
   for (const s of servers) {
     if (s.url) {
       existingMcp[s.name] = { type: "remote", url: s.url };
@@ -137,9 +156,6 @@ function writeOpenCodeMcpConfig(servers: MCPServerCapability[], workspacePath: s
       existingMcp[s.name] = entry;
     }
   }
-
-  config.mcp = existingMcp;
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
 }
 
 function writeCodexMcpConfig(servers: MCPServerCapability[], workspacePath: string): void {

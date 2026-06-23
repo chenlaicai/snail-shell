@@ -1,5 +1,5 @@
 {
-  "_help": "用户自定义的 MCP Server 配置。内置的 MCP Server（snail-final-response, snail-evolution, snail-knowledge）会在系统启动时自动注入到缓存中，无需在此配置。",
+  "_help": "用户自定义的 MCP Server 配置。内置的 MCP Server（snail-issue, snail-knowledge）会在系统启动时自动注入到缓存中，无需在此配置。",
   "mcpServers": {
     "server-name": {
       "_name_help": "【必填】MCP Server 名称，全局唯一。写法：与 key 一致，使用 kebab-case。",
