@@ -63,8 +63,7 @@ export class IssueAdapter implements IssuePort {
       summary: input.summary ?? null,
       sop_snapshot: structuredClone(sop),
       snail_assignment_plan: structuredClone(input.snail_assignment_plan),
-      extendable_context: input.extendable_context ?? {},
-      context: {},
+      context: input.context ?? {},
       created_at: now,
       closed_at: null,
     };

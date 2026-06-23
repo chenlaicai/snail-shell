@@ -12,9 +12,7 @@ export interface Issue {
   summary: string | null;
   sop_snapshot: Sop;
   snail_assignment_plan: IssueSnailAssignmentPlan;
-  /** 可扩展上下文：由创建方注入的额外上下文数据，传递给底层 agent */
-  extendable_context: Record<string, unknown>;
-  /** Issue 级别上下文：由 Agent 通过 MCP 工具读写，跨 Stage 共享 */
+  /** Issue 级别上下文：创建时由系统注入初始值，运行时由 Agent 通过 MCP 工具读写，跨 Stage 共享 */
   context: Record<string, string>;
   created_at: string;
   closed_at: string | null;
@@ -26,7 +24,8 @@ export interface CreateIssueInput {
   summary?: string;
   adopted_sop_key: string;
   snail_assignment_plan: IssueSnailAssignmentPlan;
-  extendable_context?: Record<string, unknown>;
+  /** 创建时注入的初始上下文（可选），后续由 Agent 通过 MCP 工具追加 */
+  context?: Record<string, string>;
 }
 
 // ── Stage ─────────────────────────────────────────────────────────────

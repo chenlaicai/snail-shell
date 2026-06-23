@@ -43,8 +43,14 @@ PR426 提出了 Issue 级别统一上下文的方案，但使用 REST API + skil
 ## 非目标
 
 - 不改变 Stage 的拓扑结构（`from_stage_id` 保留）
-- 不改变 Issue 的其他字段（`extendable_context` 保留）
 - 不实现跨 Issue 的上下文共享
+
+## 范围变更记录
+
+| 日期 | 变更内容 | 原因 |
+|------|----------|------|
+| 2026-06-23 | 合并 `extendable_context` 到 `context`，移除 `extendable_context` 字段 | 两个字段功能重叠，`extendable_context` 仅有一个调用方（evolution adapter），合并简化模型 |
+| 2026-06-23 | 直接移除旧 skill（record-issue-repo-context、query-current-context），不需要过渡期 | 用户决定直接移除 |
 
 ## 核心业务行为
 
@@ -57,7 +63,7 @@ PR426 提出了 Issue 级别统一上下文的方案，但使用 REST API + skil
 | B5 | 当 Agent 被调用且 Issue 的 context 为空时 | system reminder 不包含 Issue 上下文 section | |
 | B6 | 当 Stage 推进时 | 新 Stage 的 Agent 自动获得 Issue 完整上下文（通过 system reminder） | |
 | B7 | 当多个 Agent 并发写入同一 key 时 | 后写入覆盖先写入（last-write-wins） | |
-| B8 | 当 Agent 调用旧机制 `record-issue-repo-context` 时 | 系统同时写入 `Stage.output_artifacts` 和 `Issue.context`（双写过渡期） | |
+| B8 | 当 Issue 创建时传入初始 context 时 | 系统将初始值写入 Issue.context，后续由 Agent 通过 MCP 工具追加 | |
 
 ## 设计
 
@@ -215,10 +221,14 @@ export function createSnailIssueContextServer(issuePort: IssuePort): MCPServerCo
 
 | 文件 | 变更类型 |
 |------|----------|
-| `src/domain/issue/model.ts` | 修改（添加 context 字段） |
+| `src/domain/issue/model.ts` | 修改（合并 extendable_context 到 context） |
 | `src/domain/issue/port.ts` | 修改（添加 updateContext 方法） |
-| `src/domain/issue/_internal/adapter.ts` | 修改（实现 updateContext 方法） |
-| `src/domain/issue/_internal/repository.ts` | 修改（添加 context 字段和 updateContext 方法） |
+| `src/domain/issue/_internal/adapter.ts` | 修改（实现 updateContext，合并初始化逻辑） |
+| `src/domain/issue/_internal/repository.ts` | 修改（移除 extendable_context 列，添加 context 列和 updateContext 方法） |
+| `src/domain/evolution/model.ts` | 修改（更新注释） |
+| `src/domain/evolution/_internal/adapter.ts` | 修改（改用 context） |
+| `src/api-contracts/dto.ts` | 修改（IssueDto 移除 extendable_context，添加 context） |
+| `src/app/issue-collaboration/collaboration.ts` | 修改（移除 extendable_context 注入） |
 | `src/domain/snail-mcp-server/_internal/servers/snail-issue-context.ts` | 新增 |
 | `src/domain/snail-mcp-server/_internal/initor.ts` | 修改（注册新服务器） |
 | `src/app/issue-collaboration/collaboration.ts` | 修改（更新 system reminder） |

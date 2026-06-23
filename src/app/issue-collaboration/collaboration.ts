@@ -455,7 +455,6 @@ export class IssueCollaboration implements CollaborationInput {
 **Issue ID**：${issue.id}
 **工作区**：${issue.workspace_path}
 **Issue 摘要**：${issue.summary ?? "无"}
-**可扩展上下文**：${issue.extendable_context != null ? JSON.stringify(issue.extendable_context) : "无"}
 
 ## Issue 上下文（只读视图）
 
