@@ -82,7 +82,7 @@ export class FileTenetPromptRepository implements TenetPromptRepository {
       if (!raw) continue;
 
       try {
-        const doc = this.parseDocument(raw);
+        const doc = this.parseDocument(raw, file);
         prompts.push(doc);
       } catch (err) {
         log.warn({ err, filePath }, "Failed to parse prompt");
@@ -92,22 +92,25 @@ export class FileTenetPromptRepository implements TenetPromptRepository {
     return prompts;
   }
 
-  private parseDocument(raw: string): PromptDocument {
+  private parseDocument(raw: string, filename?: string): PromptDocument {
+    // 支持两种格式：有 frontmatter（旧）和无 frontmatter（新）
     const match = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
-    if (!match) throw new Error("Invalid prompt format: missing frontmatter");
+    if (match) {
+      const [, frontmatter, content] = match;
+      const meta = this.parseFrontmatter(frontmatter);
+      if (typeof meta.title !== "string") throw new Error("Prompt frontmatter missing 'title'");
+      return {
+        id: meta.title,
+        title: meta.title,
+        content: content.trim(),
+        tags: Array.isArray(meta.tags) ? meta.tags : [],
+        scope: Scope.Platform,
+      };
+    }
 
-    const [, frontmatter, content] = match;
-    const meta = this.parseFrontmatter(frontmatter);
-
-    if (typeof meta.title !== "string") throw new Error("Prompt frontmatter missing 'title'");
-
-    return {
-      id: meta.title,
-      title: meta.title,
-      content: content.trim(),
-      tags: Array.isArray(meta.tags) ? meta.tags : [],
-      scope: Scope.Platform,
-    };
+    // 无 frontmatter：从文件名提取 id/title，全文为 content
+    const title = filename ? filename.replace(/\.md$/, "") : "untitled";
+    return { id: title, title, content: raw.trim(), tags: [], scope: Scope.Platform };
   }
 
   private parseFrontmatter(raw: string): Record<string, unknown> {
