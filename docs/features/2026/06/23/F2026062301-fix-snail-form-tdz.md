@@ -15,7 +15,7 @@ doc_kind: spec
 
 PR #418 (F2026062207) 实现了 Snail Den CRUD 功能，但用户发现点击 "Create Snail" 或 "Edit" 按钮时页面变成空白。
 
-根因：`SnailFormDialog.tsx` 第 50 行引用了 `isCreate` 变量，但该变量直到第 67 行才通过 `const` 声明。JavaScript 的 `const` 声明存在 Temporal Dead Zone (TDZ)，在声明行之前访问会抛出 `ReferenceError`，被 React ErrorBoundary 捕获后渲染为空白页。
+根因：修复前的 `SnailFormDialog.tsx` 中，`keyInvalid` 计算引用了 `isCreate` 变量，但该变量在更后面的行才通过 `const` 声明。JavaScript 的 `const` 声明存在 Temporal Dead Zone (TDZ)，在声明行之前访问会抛出 `ReferenceError`，被 React ErrorBoundary 捕获后渲染为空白页。
 
 ## 目标
 
@@ -38,16 +38,16 @@ PR #418 (F2026062207) 实现了 Snail Den CRUD 功能，但用户发现点击 "C
 
 ### 修复方案
 
-将 `const isCreate = mode === "create";` 从第 67 行移动到第 49 行（`if (!open) return null;` 之后），确保 `isCreate` 在第 50 行 `keyInvalid` 计算之前已声明并初始化。
+将 `const isCreate = mode === "create";` 从 `keyInvalid` 之后移动到 `if (!open) return null;` 之后，确保 `isCreate` 在 `keyInvalid` 计算之前已声明并初始化。
 
 变更前后对比：
 
 ```typescript
 // 修复前（有 bug）
 if (!open) return null;
-const keyInvalid = isCreate && ...;  // line 50: TDZ error!
+const keyInvalid = isCreate && ...;  // TDZ error: isCreate 尚未声明
 // ... handleSubmit ...
-const isCreate = mode === "create";  // line 67: 太晚了
+const isCreate = mode === "create";  // 声明在使用之后
 
 // 修复后
 if (!open) return null;
