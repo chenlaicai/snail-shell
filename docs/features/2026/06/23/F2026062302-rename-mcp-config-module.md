@@ -48,12 +48,13 @@ MCP 相关的命名存在混淆：
 | `src/web/queries/keys.ts` | 重命名 queryKey mcps → mcpConfigs |
 | `src/web/queries/meta.queries.ts` | 重命名函数 mcps → mcpConfigs + 更新 API 调用 |
 | `src/web/router.tsx` | 更新函数调用 |
-| `src/web/pages/McpConfig.tsx` | 更新函数调用 |
+| `src/web/pages/McpConfig.tsx` | 更新函数调用 + 变量名 mcps → mcpConfigs |
+| `src/api-contracts/dto.ts` | 重命名 McpServerDto → McpConfigDto |
 
 ## 验证
 
-- [ ] TypeScript 编译通过
-- [ ] 所有 import 路径正确
+- [x] TypeScript 编译通过
+- [x] 所有 import 路径正确（grep 验证无遗漏）
 - [ ] API 端点正常工作
 - [ ] 前端页面正常加载
 
