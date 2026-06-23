@@ -14,9 +14,9 @@ doc_kind: spec
 
 ## 背景
 
-PR #413（F2026062206）实现了 MCP UI 拆分，新增了 `/mcp-servers` 页面。该页面通过 `fetch("/mcp")` 直接请求 snail-mcp-server 的端点获取内建 MCP Server 列表。
+PR #413（F2026062206）实现了 MCP UI 拆分，新增了 `/mcp-servers` 页面。该页面通过 `fetch("/mcp-server")` 直接请求 snail-mcp-server 的端点获取内建 MCP Server 列表。
 
-但在开发环境中，Vite 开发服务器的代理配置只代理了 `/api` 和 `/issue-events`，**没有代理 `/mcp` 路径**，导致 `fetch("/mcp")` 请求被 Vite 拦截并返回 `index.html`，前端 JSON 解析失败，页面显示"加载失败：The string did not match the expected pattern."。
+但在开发环境中，Vite 开发服务器的代理配置只代理了 `/api` 和 `/issue-events`，**没有代理 `/mcp-server` 路径**，导致 `fetch("/mcp-server")` 请求被 Vite 拦截并返回 `index.html`，前端 JSON 解析失败，页面显示"加载失败：The string did not match the expected pattern."。
 
 同时，MCP 相关的命名存在混淆：
 - `domain/mcp/` 模块实际管理的是 MCP 配置（读取 mcp.json 文件），但名称没有体现这一点
@@ -45,22 +45,22 @@ PR #413（F2026062206）实现了 MCP UI 拆分，新增了 `/mcp-servers` 页�
 
 ### 问题 1：Vite 代理配置遗漏
 
-`src/web/vite.config.ts` 的 `server.proxy` 配置遗漏了 `/mcp` 路径：
+`src/web/vite.config.ts` 的 `server.proxy` 配置遗漏了 `/mcp-server` 路径：
 
 ```ts
 proxy: {
   "/api": backendHttpBaseUrl,
   "/issue-events": { target: backendHttpBaseUrl, ws: true },
-  // ❌ 缺少 "/mcp": backendHttpBaseUrl
+  // ❌ 缺少 "/mcp-server": backendHttpBaseUrl
 }
 ```
 
-**修复方案**：在 `vite.config.ts` 的 `proxy` 配置中添加 `/mcp` 代理：
+**修复方案**：在 `vite.config.ts` 的 `proxy` 配置中添加 `/mcp-server` 代理：
 
 ```ts
 proxy: {
   "/api": backendHttpBaseUrl,
-  "/mcp": backendHttpBaseUrl,
+  "/mcp-server": backendHttpBaseUrl,
   "/issue-events": { target: backendHttpBaseUrl, ws: true },
 }
 ```
@@ -74,7 +74,7 @@ proxy: {
 ### 设计约束
 
 - 代理配置仅影响开发环境，不影响生产构建
-- `/mcp` 端点同时支持 `GET`（列表/详情）和 `POST`（JSON-RPC），Vite 代理默认支持所有 HTTP 方法
+- `/mcp-server` 端点同时支持 `GET`（列表/详情）和 `POST`（JSON-RPC），Vite 代理默认支持所有 HTTP 方法
 - 不需要特殊配置 WebSocket（MCP 的 JSON-RPC 走 HTTP POST）
 - 命名重构不影响运行时行为，仅影响代码可读性
 
@@ -86,8 +86,8 @@ proxy: {
 ## 设计约束摘要
 
 - **边界**：仅修改开发环境配置和代码命名，不涉及生产环境
-- **关键决策**：直接在现有 `proxy` 配置中添加 `/mcp` 条目，不改变代理策略；统一使用 `mcp-config` 表示配置相关
-- **语义不变量**：`/mcp` 端点的行为不变，只是开发环境的请求路由修正；MCP 配置的业务逻辑不变，只是命名更清晰
+- **关键决策**：直接在现有 `proxy` 配置中添加 `/mcp-server` 条目，不改变代理策略；统一使用 `mcp-config` 表示配置相关，`mcp-server` 表示 Server 相关
+- **语义不变量**：`/mcp-server` 端点的行为不变，只是开发环境的请求路由修正；MCP 配置的业务逻辑不变，只是命名更清晰
 
 <!-- [design-time] 章节结束 -->
 
@@ -95,7 +95,7 @@ proxy: {
 
 | 类型 | 文件/模块 | 说明 |
 |------|-----------|------|
-| 修改 | `src/web/vite.config.ts` | 添加 `/mcp` 代理配置 |
+| 修改 | `src/web/vite.config.ts` | 添加 `/mcp-server` 代理配置 |
 | 重命名 | `src/domain/mcp/` → `src/domain/mcp-config/` | 重命名目录 |
 | 修改 | `src/api-contracts/dto.ts` | McpServerDto → McpConfigDto |
 | 修改 | `src/api-contracts/endpoints.ts` | /api/meta/mcps → /api/meta/mcp-configs |
@@ -129,5 +129,5 @@ proxy: {
 
 | # | 决策点 | 正方论点 | 反方论点 | 最终决策 | 决策依据 | 参与者 | 日期 |
 |---|--------|----------|----------|----------|----------|--------|------|
-| D1 | 代理配置方式 | 直接添加 `/mcp` 条目最简单 | 应该统一所有 `/mcp/*` 路径的代理规则 | 直接添加 `/mcp` 条目 | `/mcp` 端点是根路径，Vite 代理会自动处理子路径 | 架构师-1 | 2026-06-23 |
+| D1 | 代理配置方式 | 直接添加 `/mcp-server` 条目最简单 | 应该统一所有 `/mcp-server/*` 路径的代理规则 | 直接添加 `/mcp-server` 条目 | `/mcp-server` 端点是根路径，Vite 代理会自动处理子路径 | 架构师-1 | 2026-06-23 |
 | D2 | 命名统一规则 | 使用 `mcp-config` 表示配置相关 | 应该保持现有命名不变 | 使用 `mcp-config` | 与前端页面路径 `/mcp-config` 保持一致 | 审查者-1 | 2026-06-23 |
