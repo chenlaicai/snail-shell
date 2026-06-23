@@ -42,27 +42,10 @@ export class FileTenetPromptRepository implements TenetPromptRepository {
       return allPrompts;
     }
 
-    return allPrompts.map(prompt => ({
-      ...prompt,
-      content: this.filterContentByTags(prompt.content, tags),
-    }));
-  }
-
-  /**
-   * 规则级 tag 过滤。
-   * - 无 [tag] 前缀的行始终保留（通用规则）
-   * - XML section 标签行始终保留
-   * - 带 [tag] 的行仅在 tag 匹配时保留
-   * - [tag] 格式规范：行首 [tag1,tag2] 后必须有空格分隔，如 `[tag] 规则内容`
-   *   无空格（如 `[HARD]禁止xxx`）不被识别为 tag 行，会被当作通用规则保留
-   */
-  private filterContentByTags(content: string, tags: string[]): string {
-    return content.split("\n").filter(line => {
-      const tagMatch = line.match(/^\[([^\]]+)\]\s/);
-      if (!tagMatch) return true;
-      const ruleTags = tagMatch[1].split(",").map(t => t.trim());
-      return ruleTags.some(t => tags.includes(t));
-    }).join("\n");
+    return allPrompts.filter(prompt => {
+      if (prompt.tags.length === 0) return true;
+      return prompt.tags.some(tag => tags.includes(tag));
+    });
   }
 
   private loadPromptDir(store: FileDataStore, relativeDir: string): PromptDocument[] {
@@ -77,7 +60,7 @@ export class FileTenetPromptRepository implements TenetPromptRepository {
       if (!raw) continue;
 
       try {
-        const doc = this.parseDocument(raw, file);
+        const doc = this.parseDocument(raw);
         prompts.push(doc);
       } catch (err) {
         log.warn({ err, filePath }, "Failed to parse prompt");
@@ -87,8 +70,74 @@ export class FileTenetPromptRepository implements TenetPromptRepository {
     return prompts;
   }
 
-  private parseDocument(raw: string, filename: string): PromptDocument {
-    const title = filename.replace(/\.md$/, "");
-    return { id: title, title, content: raw.trim(), scope: Scope.Platform };
+  private parseDocument(raw: string): PromptDocument {
+    const match = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+    if (!match) throw new Error("Invalid prompt format: missing frontmatter");
+
+    const [, frontmatter, content] = match;
+    const meta = this.parseFrontmatter(frontmatter);
+
+    if (typeof meta.title !== "string") throw new Error("Prompt frontmatter missing 'title'");
+
+    return {
+      id: meta.title,
+      title: meta.title,
+      content: content.trim(),
+      tags: Array.isArray(meta.tags) ? meta.tags : [],
+      scope: Scope.Platform,
+    };
+  }
+
+  private parseFrontmatter(raw: string): Record<string, unknown> {
+    const state = { result: {} as Record<string, unknown>, inArray: false, arrayKey: "", arrayItems: [] as string[] };
+
+    for (const line of raw.split("\n")) {
+      this.consumeFrontmatterLine(state, line);
+    }
+
+    this.flushFrontmatterArray(state);
+    return state.result;
+  }
+
+  private consumeFrontmatterLine(state: { result: Record<string, unknown>; inArray: boolean; arrayKey: string; arrayItems: string[] }, line: string): void {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) return;
+
+    if (state.inArray && !trimmed.startsWith("-")) {
+      this.flushFrontmatterArray(state);
+    }
+    if (state.inArray && trimmed.startsWith("-")) {
+      state.arrayItems.push(this.unquote(trimmed.slice(1).trim()));
+      return;
+    }
+
+    const kvMatch = trimmed.match(/^(\w+):\s*(.+)$/);
+    if (!kvMatch) return;
+    this.consumeFrontmatterKeyValue(state, kvMatch[1], kvMatch[2]);
+  }
+
+  private consumeFrontmatterKeyValue(state: { result: Record<string, unknown>; inArray: boolean; arrayKey: string; arrayItems: string[] }, key: string, value: string): void {
+    if (value === "") {
+      state.inArray = true;
+      state.arrayKey = key;
+      state.arrayItems = [];
+      return;
+    }
+
+    const inlineArrayMatch = value.match(/^\[(.*)\]$/);
+    state.result[key] = inlineArrayMatch
+      ? inlineArrayMatch[1].split(",").map(s => this.unquote(s.trim()))
+      : this.unquote(value);
+  }
+
+  private flushFrontmatterArray(state: { result: Record<string, unknown>; inArray: boolean; arrayKey: string; arrayItems: string[] }): void {
+    if (!state.inArray) return;
+    state.result[state.arrayKey] = state.arrayItems;
+    state.inArray = false;
+    state.arrayItems = [];
+  }
+
+  private unquote(value: string): string {
+    return value.replace(/^["']|["']$/g, "");
   }
 }
