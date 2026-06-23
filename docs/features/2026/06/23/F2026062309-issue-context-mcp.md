@@ -1,5 +1,5 @@
 ---
-id: F2026062305
+id: F2026062309
 title: issue-context-mcp
 from_ids: []
 tags: []
@@ -7,7 +7,7 @@ modules: []
 doc_kind: spec
 ---
 
-# F2026062305 [workflow] Issue 级别统一上下文：MCP 方案
+# F2026062309 [workflow] Issue 级别统一上下文：MCP 方案
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 <!-- 进入实现阶段后不得单方面修改，如需变更须通过问题卡片向用户提出并确认 -->

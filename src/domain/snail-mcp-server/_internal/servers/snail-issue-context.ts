@@ -34,7 +34,12 @@ function createSetContextTool(issuePort: IssuePort): MCPTool {
       const key = String(params.key);
       const value = String(params.value);
 
-      issuePort.updateContext(issueId, { [key]: value });
+      // 验证 key 格式（建议 SNAIL_CTX_* 格式，但不强制）
+      if (!key.match(/^[a-zA-Z0-9_.]+$/)) {
+        throw new Error(`Invalid key format: ${key}. Key should contain only alphanumeric characters, underscores, and dots.`);
+      }
+
+      await issuePort.updateContext(issueId, { [key]: value });
 
       return { success: true, key };
     },

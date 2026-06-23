@@ -44,7 +44,7 @@ function createRepo(tmpDir: string) {
       summary TEXT,
       sop_snapshot TEXT NOT NULL,
       snail_assignment_plan TEXT NOT NULL,
-      extendable_context TEXT NOT NULL,
+      context TEXT NOT NULL DEFAULT '{}',
       created_at TEXT NOT NULL,
       closed_at TEXT
     );
@@ -253,7 +253,7 @@ function testB7b_deleteWithActiveStageRefs() {
 
     // 创建 issue + in_progress stage + role_snail_assignment
     db.run(
-      `INSERT INTO issue (id, workspace_path, title, sop_snapshot, snail_assignment_plan, extendable_context, created_at)
+      `INSERT INTO issue (id, workspace_path, title, sop_snapshot, snail_assignment_plan, context, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       ["issue-1", "/tmp/test", "Test Issue", "{}", "{}", "{}", new Date().toISOString()],
     );

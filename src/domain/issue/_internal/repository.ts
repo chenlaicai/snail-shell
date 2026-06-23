@@ -115,6 +115,29 @@ type RoleSnailAssignmentRow = RoleSnailAssignment;
 export class SQLiteIssueRepository implements IssueRepository {
   constructor(private db: SQLiteDatabase) {
     db.initSchema(ISSUE_SCHEMA);
+    this.migrateExtendableContext();
+  }
+
+  private migrateExtendableContext() {
+    try {
+      // 检查 extendable_context 列是否存在
+      const columns = this.db.all<{ name: string }>(
+        `PRAGMA table_info(issue)`
+      );
+      const hasExtendableContext = columns.some(col => col.name === 'extendable_context');
+
+      if (hasExtendableContext) {
+        // 将 extendable_context 的数据迁移到 context
+        this.db.run(
+          `UPDATE issue SET context = extendable_context WHERE context = '{}' AND extendable_context != '{}'`
+        );
+        // 删除 extendable_context 列（SQLite 不支持 DROP COLUMN，需要重建表）
+        // 由于 SQLite 限制，我们保留列但不再使用
+        console.log('[Migration] extendable_context 数据已迁移到 context');
+      }
+    } catch (error) {
+      console.error('[Migration] 迁移 extendable_context 失败:', error);
+    }
   }
 
   findById(id: string): Issue | undefined {
