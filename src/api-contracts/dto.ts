@@ -77,6 +77,7 @@ export type IssueDto = {
   sop_snapshot: SopDto;
   snail_assignment_plan: IssueSnailAssignmentPlanDto;
   extendable_context: Record<string, unknown>;
+  task_anchor: string | null;
   created_at: string;
   closed_at: string | null;
 };

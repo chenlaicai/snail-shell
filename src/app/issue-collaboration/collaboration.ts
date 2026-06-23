@@ -104,6 +104,10 @@ export class IssueCollaboration implements CollaborationInput {
     return stage;
   }
 
+  closeIssue(issueId: string): Issue {
+    return this.deps.issuePort.closeIssue(issueId);
+  }
+
   enqueueStage(stageId: string): void {
     this.queue.enqueue(stageId, async () => this.drainStage(stageId));
   }

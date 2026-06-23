@@ -22,6 +22,7 @@ export class IssueAdapter implements IssuePort {
   constructor(
     private issueRepo: IssueRepository,
     private sopPort: SopPort,
+    private stageRepo: StageRepository,
   ) {}
 
   findIssue(id: string): Issue | undefined {
@@ -42,6 +43,13 @@ export class IssueAdapter implements IssuePort {
     validateSnailAssignmentPlan(sop, plan);
   }
 
+  updateTaskAnchor(id: string, taskAnchor: string): void {
+    const issue = this.issueRepo.findById(id);
+    if (!issue) throw new Error(`Issue not found: ${id}`);
+    if (issue.closed_at) throw new Error("Archived issue is read-only");
+    this.issueRepo.updateTaskAnchor(id, taskAnchor);
+  }
+
   createIssue(input: CreateIssueInput): Issue {
     const sop = this.sopPort.findByKey(input.adopted_sop_key);
     if (!sop) throw new Error(`SOP not found: ${input.adopted_sop_key}`);
@@ -56,11 +64,28 @@ export class IssueAdapter implements IssuePort {
       sop_snapshot: structuredClone(sop),
       snail_assignment_plan: structuredClone(input.snail_assignment_plan),
       extendable_context: input.extendable_context ?? {},
+      task_anchor: null,
       created_at: now,
       closed_at: null,
     };
     this.issueRepo.create(issue);
     return issue;
+  }
+
+  closeIssue(id: string): Issue {
+    const issue = this.issueRepo.findById(id);
+    if (!issue) throw new Error(`Issue not found: ${id}`);
+    if (issue.closed_at) return issue;
+
+    const now = new Date().toISOString();
+    this.issueRepo.updateClosedAt(id, now);
+
+    const activeStage = this.stageRepo.findActiveByIssue(id);
+    if (activeStage) {
+      this.stageRepo.update(activeStage.id, { left_at: now });
+    }
+
+    return { ...issue, closed_at: now };
   }
 }
 

@@ -101,6 +101,8 @@ export function createIssueRoutes(deps: IssueRoutesDeps) {
     return c.json(toStageDto(deps, stage), 201);
   });
 
+  app.post("/api/issues/:issueId/close", (c) => closeIssue(c, deps));
+
   return app;
 }
 
@@ -178,4 +180,12 @@ function numberQuery(value: string | undefined): number | undefined {
   if (!value) return undefined;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function closeIssue(c: Context, deps: IssueRoutesDeps) {
+  const issueId = requiredParam(c, "issueId");
+  const issue = deps.issuePort.findIssue(issueId);
+  if (!issue) return c.json({ error: "Issue not found" }, 404);
+  const closed = deps.collaboration.closeIssue(issueId as string);
+  return c.json(toIssueDetail(deps, closed));
 }
