@@ -101,16 +101,16 @@ stage_definitions:
         required: true
       - id: rev-03
         description: PR 评论已按签名模板收尾
-        required: false
+        required: true
     roles:
       - key: developer
         name: 开发者
         description: 在审查阶段回应检视意见、修复代码并推动检视清零。
-        is_primary: true
         handbook: "@review#developer.handbook.md"
       - key: reviewer
         name: 审查者
         description: 负责对 PR 做对抗性代码检视，两位审查者交叉审视，在 PR 上留下可追溯评论。
+        is_primary: true
         count: 2
         handbook: "@review#reviewer.handbook.md"
 
