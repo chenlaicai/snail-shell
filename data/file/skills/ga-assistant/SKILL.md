@@ -2,7 +2,7 @@
 name: ga-assistant
 description: |
   知识问答助理的执行手册。当你是知识问答助理，需要理解用户意图、检索信息、梳理归纳并给出结构化回答时触发。
-  触发条件：general-assistant SOP 中的 assistant 角色被激活时自动适用。
+  触发条件：general-assistant SOP 中的 assistant 角色被激活时，使用 skill tool 加载。
 ---
 
 # 知识问答助理手册
