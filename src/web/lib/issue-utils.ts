@@ -1,17 +1,21 @@
-import type { IssueDetailDto, StageStatus } from "@/types";
+import type { IssueDetailDto, IssueStatus } from "@/types";
 
-/** Group issues by stage status. Every issue is expected to have a current stage. */
+export function getIssueStatus(issue: IssueDetailDto): IssueStatus {
+  return issue.closed_at ? "closed" : "active";
+}
+
+/** Group issues by issue-level status (derived from closed_at). */
 export function groupByStatus(issues: IssueDetailDto[]): Record<string, IssueDetailDto[]> {
   const groups: Record<string, IssueDetailDto[]> = {};
   for (const issue of issues) {
-    const status = issue.current_stage.status;
+    const status = getIssueStatus(issue);
     if (!groups[status]) groups[status] = [];
     groups[status].push(issue);
   }
   return groups;
 }
 
-export const statusColumns: { status: StageStatus; label: string; dot: string }[] = [
-  { status: "in_progress", label: "In Progress", dot: "bg-status-blue" },
-  { status: "completed", label: "Done", dot: "bg-status-green" },
+export const statusColumns: { status: IssueStatus; label: string; dot: string }[] = [
+  { status: "active", label: "In Progress", dot: "bg-status-blue" },
+  { status: "closed", label: "Closed", dot: "bg-status-gray" },
 ];
