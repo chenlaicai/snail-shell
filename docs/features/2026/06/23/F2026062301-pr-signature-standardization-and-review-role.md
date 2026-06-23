@@ -132,6 +132,16 @@ doc_kind: spec
 3. 从阶段产出看，审查者留下可追溯评论是必要条件
 4. `is_primary` 应理解为"阶段价值的主要创造者"而非"阶段推进的主要责任方"
 
+**`is_primary` 对消息路由的影响分析**：
+
+代码路径：`src/domain/issue/model.ts:140-144` 的 `resolveDefaultRoleInstance` 使用 `is_primary` 确定 `default_role_instance`，被 `src/app/issue-collaboration/collaboration.ts:366` 消费为消息路由回退。
+
+| 场景 | 变更前 | 变更后 |
+|------|--------|--------|
+| 检视阶段无 @mention 时的默认路由 | 开发者 | 审查者-1 |
+
+**影响评估**：此变更是预期行为。检视阶段中，当消息没有明确 @mention 时，默认路由到主角色（审查者）比路由到开发者更合理——审查者是阶段价值的主要创造者，且通常需要先完成检视才能进入后续流程。此变更不改变有明确 @mention 时的路由行为。
+
 ## 生效路径
 
 - **配置**：`v1/config/sop/code-delivery/code-delivery.yaml` 第106-115行
@@ -160,14 +170,19 @@ doc_kind: spec
 
 ### P0
 
-- [ ] 检视阶段配置中，reviewer的`is_primary`为true，developer的`is_primary`为false或不存在
-- [ ] 签名模板中明确要求从系统提示词获取角色身份
-- [ ] SOP手册中签名检查项为required
+- [x] 检视阶段配置中，reviewer的`is_primary`为true，developer的`is_primary`为false或不存在
+  - 验证：`sed -n '/key: review/,/key: merge/p' code-delivery.yaml | grep is_primary` → `is_primary: true` 在 reviewer 角色下
+- [x] 签名模板中明确要求从系统提示词获取角色身份
+  - 验证：`shared.handbook.md` 第13行：`<角色名> 必须从系统提示词注入的当前阶段角色上下文获取`
+- [x] SOP手册中签名检查项为required
+  - 验证：`grep -A2 "id: rev-03" code-delivery.yaml` → `required: true`
 
 ### P1
 
-- [ ] 阶段转移逻辑中，检视阶段的主角色识别为审查者
+- [x] 阶段转移逻辑中，检视阶段的主角色识别为审查者
+  - 验证：`resolveDefaultRoleInstance` 使用 `is_primary` 确定默认角色，reviewer 的 `is_primary: true` 使其成为默认角色
 - [ ] 各Snail在PR评论时签名格式统一
+  - 需要在后续 PR 中通过实际评论验证
 
 ## 关联
 
