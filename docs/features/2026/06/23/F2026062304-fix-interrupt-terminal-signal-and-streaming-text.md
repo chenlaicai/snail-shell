@@ -65,7 +65,7 @@ signal event 结构：
 
 当前 `summarizeEvents()` 将所有原始 event dump 成文本作为兜底。修正策略：
 
-- `extractTerminalContext` 在 text event 和 `mcp_final_body` 都不存在时，返回固定文案（如"用户中断了本次回复"）作为 context
+- `extractTerminalContext` 增加 `status` 参数，在 text event 和 `mcp_final_body` 都不存在时，根据状态返回不同兜底文案：interrupted → "用户中断了本次回复"，failed → "任务执行失败"，completed → "（无文本输出）"
 - 不再使用 `summarizeEvents()` dump 原始 event 给用户
 
 `summarizeEvents()` 方法已删除（无调用点，属死代码）。
@@ -120,5 +120,5 @@ F2026062204 的 D2 决策（EventStream 过滤 text events）是本次 bug 的�
 | # | 决策点 | 正方论点 | 反方论点 | 最终决策 | 决策依据 | 参与者 | 日期 |
 |---|--------|----------|----------|----------|----------|--------|------|
 | D1 | EventStream 是否过滤 text event | 不过滤——流式过程应展示所有事件类型，text 是 agent 实时输出的一部分 | 过滤——text 已在最终答复区展示，重复会造成困惑 | 不过滤 | 流式过程和最终答复是两个独立展示区域，不应混淆过滤策略；完成后 EventStream 默认折叠，不会造成重复困扰 | 架构师-1, 架构师-2, 用户 | 2026-06-23 |
-| D2 | 中断后的 context 兜底策略 | 固定文案——原始 event dump 对用户无意义，且 `runtime_usage` 出现在最后一行造成困惑 | 保留 dump 但过滤内部 signal——保留诊断信息 | 固定文案 | `summarizeEvents` 是诊断用途，不应作为面向用户的展示；已有的 text event 通过 `extractTerminalContext` 的 text 回退逻辑正常提取 | 架构师-1, 架构师-2 | 2026-06-23 |
+| D2 | 无 text event 时的 context 兜底策略 | 按状态区分文案——interrupted 显示"用户中断了本次回复"，completed 显示"（无文本输出）"，避免正常完成误显中断文案 | 统一固定文案——简化逻辑 | 按状态区分 | `extractTerminalContext` 增加 status 参数，兜底文案与实际状态一致；原始 event dump 对用户无意义，`summarizeEvents` 已删除 | 架构师-1, 架构师-2, 审查者-2 | 2026-06-23 |
 | D3 | `message_interrupted` signal 是否携带额外信息 | 空 signal——token 信息已在 `runtime_usage` 中存在，不需要重复 | 携带中断时的 token 统计——便于前端展示 | 空 signal | 遵循最小设计原则，不引入不必要的复杂度 | 架构师-1, 架构师-2 | 2026-06-23 |
