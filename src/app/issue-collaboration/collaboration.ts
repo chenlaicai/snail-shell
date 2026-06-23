@@ -217,15 +217,14 @@ export class IssueCollaboration implements CollaborationInput {
     unreadMessages: Message[]; agentMessage: Message; signal?: AbortSignal;
   }) {
     const { stageId, roleInstance, issue, stage, assignment, unreadMessages, agentMessage, signal } = input;
-    const handbook = this.deps.stagePort.getRoleHandbook(stageId, assignment.role_key);
-    const systemReminder = this.buildSystemReminder({ issue, stage, roleInstance, roleKey: assignment.role_key, handbook });
+    const systemReminder = this.buildSystemReminder({ issue, stage, roleInstance, roleKey: assignment.role_key });
     const invokeOptions: InvokeOptions = {
       signal,
       contextEnv: { issue_id: issue.id, stage_id: stage.id, message_id: String(agentMessage.id), role_instance: roleInstance },
     };
     const agentMessages = unreadMessages.map(message => this.toAgentMessage(message));
     const firstCallRequest = {
-      workspace_path: issue.workspace_path, messages: agentMessages, handbook: systemReminder || undefined,
+      workspace_path: issue.workspace_path, messages: agentMessages, systemReminder: systemReminder || undefined,
       context: { issue_id: issue.id, stage_id: stage.id, message_id: String(agentMessage.id), stage_key: stage.key, role_instance: roleInstance },
     };
     const resumeRequest = { workspace_path: issue.workspace_path, messages: agentMessages, system_reminder: systemReminder };
@@ -422,44 +421,38 @@ export class IssueCollaboration implements CollaborationInput {
     }).join("\n");
   }
 
-  private buildSystemReminder(input: { issue: Issue; stage: Stage; roleInstance: string; roleKey: string; handbook: string | null }): string {
-    const { issue, stage, roleKey } = input;
-
-    // 提取当前角色定义
+  private buildSystemReminder(input: { issue: Issue; stage: Stage; roleInstance: string; roleKey: string }): string {
+    const { issue, stage, roleInstance, roleKey } = input;
     const stageDefinition = issue.sop_snapshot.stage_definitions.find(definition => definition.key === stage.key);
-    const currentRoleDefinition = stageDefinition?.roles.find(role => role.key === roleKey);
+    const roleDef = stageDefinition?.roles.find(role => role.key === roleKey);
+    const roleName = roleDef?.name ?? roleInstance;
 
-    // 双路径：skill 模式 vs legacy 模式
-    if (currentRoleDefinition?.skill) {
-      return this.buildThinSystemReminder(input, currentRoleDefinition);
-    }
-    return this.buildLegacySystemReminder(input, currentRoleDefinition);
+    return [
+      this.buildIdentityBlock(roleName, roleInstance, roleDef),
+      this.buildContextBlock(issue, stage, roleDef),
+    ].join("\n\n");
   }
 
-  /** 新路径：thin system-reminder + skill 引用 */
-  private buildThinSystemReminder(
-    input: { issue: Issue; stage: Stage; roleInstance: string; roleKey: string },
-    roleDef: RoleDefinition,
-  ): string {
-    const { issue, stage, roleInstance } = input;
+  private buildIdentityBlock(roleName: string, roleInstance: string, roleDef: RoleDefinition | undefined): string {
+    return `<identity>
+# 你是${roleName}
+**角色实例**：${roleInstance}
+**职责**：${roleDef?.description ?? "无"}
+**禁止**：${roleDef?.prohibition ?? "无"}
+**自检**：${roleDef?.self_check ?? "无"}
+</identity>`;
+  }
+
+  private buildContextBlock(issue: Issue, stage: Stage, roleDef: RoleDefinition | undefined): string {
     const transitions = stage.available_transitions.map(transition => `- ${transition.to}${transition.guard ? `: ${transition.guard}` : ""}`).join("\n");
     const artifacts = Object.entries(stage.output_artifacts).map(([key, value]) => `${key}: ${value}`).join("\n");
-
     const sharedSkill = issue.sop_snapshot.shared_skill;
     const skillList = [
       sharedSkill ? `- \`${sharedSkill}\` — 共享规则（特性编号、PR签名、证据规则、完成标准）` : null,
-      roleDef.skill ? `- \`${roleDef.skill}\` — ${roleDef.name}工作流程` : null,
+      roleDef?.skill ? `- \`${roleDef.skill}\` — ${roleDef.name}工作流程` : null,
     ].filter(Boolean).join("\n");
 
-    return `<identity>
-# 你是${roleDef.name}
-**角色实例**：${roleInstance}
-**职责**：${roleDef.description}
-**禁止**：${roleDef.prohibition ?? "无"}
-**自检**：${roleDef.self_check ?? "无"}
-</identity>
-
-<context>
+    return `<context>
 ## 项目上下文
 
 **Issue**：${issue.title}
@@ -479,6 +472,8 @@ export class IssueCollaboration implements CollaborationInput {
 
 ${skillList}
 
+使用 skill tool 触发对应的 skill，获取详细工作流程和规则。
+
 ## 可用流转
 
 ${transitions || "无"}
@@ -489,96 +484,6 @@ ${transitions || "无"}
 - 如果阶段看起来完成了，建议 stage_transition 等待用户确认
 - 永远不要自动推进 Stage
 </context>`;
-  }
-
-  /** 旧路径：全量 handbook 注入（向后兼容） */
-  private buildLegacySystemReminder(input: { issue: Issue; stage: Stage; roleInstance: string; roleKey: string; handbook: string | null }, currentRoleDefinition?: RoleDefinition): string {
-    const { issue, stage, roleInstance, roleKey, handbook } = input;
-    const transitions = stage.available_transitions.map(transition => `- ${transition.to}${transition.guard ? `: ${transition.guard}` : ""}`).join("\n");
-    const artifacts = Object.entries(stage.output_artifacts).map(([key, value]) => `${key}: ${value}`).join("\n");
-
-    if (!currentRoleDefinition) {
-      const stageDefinition = issue.sop_snapshot.stage_definitions.find(definition => definition.key === stage.key);
-      currentRoleDefinition = stageDefinition?.roles.find(role => role.key === roleKey);
-    }
-    const currentRoleName = currentRoleDefinition?.name ?? roleInstance;
-    const currentRoleResponsibility = this.extractRoleResponsibility(currentRoleDefinition, handbook);
-    const prohibition = this.extractHandbookItem(handbook, "禁止", "超出职责范围的行为");
-    const selfCheck = this.extractHandbookItem(handbook, "自检", "如果发现自己在做职责范围外的事情，立即停止");
-
-    const identity = `# 你是${currentRoleName}
-
-**角色实例**：${roleInstance}
-**职责**：${currentRoleResponsibility}
-**禁止**：${prohibition}
-**自检**：${selfCheck}`;
-
-    let handbookContent = "";
-    if (issue.sop_snapshot.shared_handbook) {
-      handbookContent += `## 通用规则\n\n${issue.sop_snapshot.shared_handbook}\n\n`;
-    }
-    if (handbook) {
-      handbookContent += `## 角色手册\n\n${handbook}`;
-    }
-
-    const context = `## 项目上下文
-
-**Issue**：${issue.title}
-**Issue ID**：${issue.id}
-**工作区**：${issue.workspace_path}
-**Issue 摘要**：${issue.summary ?? "无"}
-**可扩展上下文**：${issue.extendable_context != null ? JSON.stringify(issue.extendable_context) : "无"}
-
-## 当前阶段
-
-**阶段**：${stage.title} (${stage.key})
-**阶段描述**：${stage.description}
-**阶段产物**：\n${artifacts || "无"}
-**所有角色实例**：${stage.role_instances.join(", ")}
-
-## 可用流转
-
-${transitions || "无"}
-
-## 协作规则
-
-- 你可以通过 @角色实例 请求其他角色回应
-- 如果阶段看起来完成了，建议 stage_transition 等待用户确认
-- 永远不要自动推进 Stage`;
-
-    const parts = [
-      `<identity>\n${identity}\n</identity>`,
-      `<handbook>\n${handbookContent}\n</handbook>`,
-      `<context>\n${context}\n</context>`,
-    ];
-
-    return parts.join("\n\n");
-  }
-
-  private extractRoleResponsibility(roleDefinition: { description?: string } | undefined, handbook: string | null): string {
-    // 优先从SOP提取
-    const responsibility = roleDefinition?.description ?? "";
-    if (responsibility) return responsibility;
-
-    // 从handbook中提取第一段非空描述
-    if (handbook) {
-      const lines = handbook.split("\n").filter(line => line.trim());
-      const firstDescription = lines.find(line => line.startsWith("- ") || line.startsWith("* "));
-      if (firstDescription) {
-        return firstDescription.replace(/^[-*]\s*/, "").trim();
-      }
-      if (lines.length > 0) {
-        return lines[0].trim();
-      }
-    }
-
-    return "请参考下方角色手册";
-  }
-
-  private extractHandbookItem(handbook: string | null, itemName: string, defaultValue: string): string {
-    if (!handbook) return defaultValue;
-    const match = handbook.match(new RegExp(`\\*\\*${itemName}\\*\\*[：:](.+)`));
-    return match ? match[1].trim() : defaultValue;
   }
 
   private toAgentMessage(message: Message): AgentMessage {

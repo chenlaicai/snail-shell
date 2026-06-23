@@ -1,5 +1,5 @@
 ---
-id: F2026062206
+id: F2026062208
 title: sop-handbook-to-skill-migration
 from_ids: []
 tags: []
@@ -8,7 +8,7 @@ doc_kind: spec
 change_type: feature
 ---
 
-# F2026062206 [sop] 研发 SOP Handbook → Skill 迁移
+# F2026062208 [sop] 研发 SOP Handbook → Skill 迁移
 
 ## 背景
 
@@ -26,19 +26,17 @@ Anthropic 内部使用 skills 的经验表明：skill 的核心价值是按需�
 
 - 不改变 SOP 的 stage/transition/acceptance 机制
 - 不改变 issue snapshot 机制（snapshot 仍然冻结 SOP 定义）
-- 不改变 general-assistant 等其他 SOP
 - 不改变 MCP server 配置
 - 不做 skill marketplace/plugin 机制
+- 其他 SOP 可选择性添加 `skill` 字段使用新机制（本 feature 只改 code-delivery）
 
 ## 核心业务行为
 
 | # | 场景 | 预期行为 | 测试覆盖 |
 |---|------|----------|----------|
-| B1 | When agent 被调用且 role 有 `skill` 字段 | system-reminder 只包含 identity + context + skill 索引，不包含完整 handbook | |
-| B2 | When agent 被调用且 role 无 `skill` 字段 | system-reminder 回退到旧的全量 handbook 注入 | |
-| B3 | When agent 收到 thin system-reminder | agent 能通过 skill description 发现并触发对应 skill | |
-| B4 | When skill 被触发 | SKILL.md 中的 references/ 链接能被 agent 按需读取 | |
-| B5 | When issue snapshot 是旧格式（无 skill 字段） | 系统正常工作，回退到全量 handbook 注入 | |
+| B1 | When agent 被调用 | system-reminder 只包含 identity + context + skill 索引，不包含 handbook 原文 | |
+| B2 | When agent 收到 system-reminder | agent 能通过 skill description 发现并触发对应 skill | |
+| B3 | When skill 被触发 | SKILL.md 中的 references/ 链接能被 agent 按需读取 | |
 
 ## 设计
 
@@ -58,7 +56,9 @@ data/file/skills/
 
 每个 SKILL.md 的 description 字段写触发条件（不写摘要），SKILL.md 本体精简为流程索引 + gotchas，详细内容放 `references/`。
 
-#### 2. SOP YAML 新增字段
+#### 2. SOP YAML 字段
+
+删除 `shared_handbook` 和所有 `handbook` 字段，新增 `shared_skill`、`skill`、`prohibition`、`self_check`。
 
 ```yaml
 shared_skill: cd-shared
@@ -70,19 +70,16 @@ roles:
     self_check: 如果发现自己在说具体修改某个文件的某行，立即停止
 ```
 
-#### 3. SOP Model 新增字段
+#### 3. SOP Model 变更
 
-- `RoleDefinition.skill: string | null` — 关联的 skill 名称
-- `RoleDefinition.prohibition: string | null` — 禁止项（显式声明）
-- `RoleDefinition.self_check: string | null` — 自检项（显式声明）
-- `Sop.shared_skill: string | null` — SOP 级共享 skill 名称
+- 删除 `Sop.shared_handbook` 和 `RoleDefinition.handbook`
+- 新增 `Sop.shared_skill`、`RoleDefinition.skill`、`RoleDefinition.prohibition`、`RoleDefinition.self_check`
 
-#### 4. buildSystemReminder() 双路径
+#### 4. buildSystemReminder() 单路径
 
-- `roleDef.skill` 存在 → `buildThinSystemReminder()`：~60 行，identity + context + skill 索引
-- `roleDef.skill` 不存在 → `buildLegacySystemReminder()`：旧的全量 handbook 注入
+删除旧的 `buildLegacySystemReminder`、`extractRoleResponsibility`、`extractHandbookItem` 方法。`buildSystemReminder()` 直接从 SOP snapshot 读取结构化字段，输出 ~60 行 identity + context + skill 索引。
 
-旧 issue snapshot 无 skill 字段，自动走旧路径，无需迁移。
+`SnailFirstCallRequest.handbook` 重命名为 `systemReminder`。
 
 ## 生效路径
 
@@ -96,14 +93,14 @@ roles:
 ## 设计约束摘要
 
 ### 边界
-- 只改 code-delivery SOP，不改 general-assistant 等其他 SOP
+- 只改 code-delivery SOP，其他 SOP 可选择性添加 `skill` 字段使用新机制
 - 只改 system-reminder 注入方式，不改 systemPrompt/tenet-prompt 体系
 - 不改 issue snapshot 机制
 
 ### 关键决策
-- **双路径而非强制迁移**：通过 `roleDef.skill` 存在与否决定走新/旧路径
 - **SOP YAML 显式声明 prohibition/self_check**：替代脆弱的 regex 提取
 - **skill 按 SOP 阶段拆分**：每个 stage+role 组合一个 skill
+- **删除 handbook 相关字段和代码**：不留兼容性残余
 
 ### 语义不变量
 - SOP 的 stage/transition/acceptance 机制不变
@@ -116,25 +113,31 @@ roles:
 |------|----------|------|
 | `data/file/skills/cd-*/SKILL.md` | 新增 | 6 个 skill 定义 |
 | `data/file/skills/cd-*/references/*.md` | 新增 | 8 个渐进披露文件 |
-| `data/file/sops/code-delivery/code-delivery.yaml` | 修改 | 新增字段 |
-| `src/domain/sop/model.ts` | 修改 | 新增字段定义 |
-| `src/domain/sop/_internal/repository.ts` | 修改 | 解析新字段 |
-| `src/app/issue-collaboration/collaboration.ts` | 修改 | 双路径重构 |
+| `data/file/sops/code-delivery/*.handbook.md` | 删除 | 6 个旧 handbook 文件 |
+| `data/file/sops/code-delivery/code-delivery.yaml` | 修改 | 删除 handbook 字段，新增 skill 字段 |
+| `src/domain/sop/model.ts` | 修改 | 删除 shared_handbook/handbook，新增 skill 字段 |
+| `src/domain/sop/_internal/repository.ts` | 修改 | 删除 handbook 解析和 resolveFileRef |
+| `src/app/issue-collaboration/collaboration.ts` | 修改 | 删除旧路径，单路径 skill 注入 |
+| `src/domain/issue/port.ts` | 修改 | 删除 getRoleHandbook |
+| `src/domain/issue/_internal/adapter.ts` | 修改 | 删除 getRoleHandbook 实现 |
+| `src/domain/snail/model.ts` | 修改 | handbook → systemReminder |
+| `src/domain/snail/_internal/adapter.ts` | 修改 | handbook → systemReminder |
+| `src/api-contracts/dto.ts` | 修改 | 更新 DTO 字段 |
+| `src/web/types.ts` | 修改 | 更新 web types |
 
 ## 验证
 
 - [x] TypeScript 编译通过
 - [x] 现有测试全部通过（11 passed，8 个 v1 web 测试因缺少依赖失败，与本次改动无关）
 - [x] SOP YAML 解析正确（shared_skill、skill、prohibition、self_check 字段）
-- [ ] 创建新 issue → agent 收到 thin system-reminder
+- [ ] 创建新 issue → agent 收到 skill 索引的 system-reminder
 - [ ] agent 能发现并触发对应 skill
-- [ ] 旧 issue 仍走全量 handbook 注入路径
 
 ## 关键决策记录
 
 | # | 决策点 | 正方论点 | 反方论点 | 最终决策 | 决策依据 | 参与者 | 日期 |
 |---|--------|----------|----------|----------|----------|--------|------|
 | D1 | Skill 拆分粒度 | 按 stage+role 拆分与 SOP 对齐 | skill 数量多（6个） | 按 stage+role 拆分 | SOP 的 stage 机制是核心编排逻辑 | orca + Claude | 2026-06-22 |
-| D2 | 是否迁移旧 issue | 强制迁移统一架构 | 迁移有风险 | 不迁移，双路径兼容 | issue snapshot 是可信交付物 | orca + Claude | 2026-06-22 |
+| D2 | 是否保留旧路径 | 双路径兼容旧 issue | 双重维护风险、代码残余 | 删除旧路径，干净迁移 | 不允许残余旧代码 | orca + Claude | 2026-06-23 |
 | D3 | prohibition/self_check 存储位置 | YAML 显式声明 vs regex 提取 | YAML 增加维护成本 | YAML 显式声明 | regex 提取脆弱 | orca + Claude | 2026-06-22 |
 | D4 | shared 规则注入方式 | shared_skill vs shared_handbook 全量注入 | 新增字段增加复杂度 | shared_skill | 共享规则也应 progressive disclosure | orca + Claude | 2026-06-22 |

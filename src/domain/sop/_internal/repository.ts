@@ -83,7 +83,6 @@ export class FileSopRepository implements SopRepository {
       key,
       name: data.name as string,
       description: (data.description as string) ?? null,
-      shared_handbook: this.resolveFileRef(data.shared_handbook as string | undefined, sopDir),
       shared_skill: (data.shared_skill as string) ?? null,
       stage_definitions: stageDefinitions,
       transitions,
@@ -107,7 +106,7 @@ export class FileSopRepository implements SopRepository {
     };
   }
 
-  private parseRoleDefinition(data: Record<string, unknown>, sopDir: string): RoleDefinition {
+  private parseRoleDefinition(data: Record<string, unknown>, _sopDir: string): RoleDefinition {
     if (!data.key) throw new Error("Role definition missing key");
     if (!data.name) throw new Error(`Role definition missing name: ${data.key}`);
 
@@ -117,7 +116,6 @@ export class FileSopRepository implements SopRepository {
       description: (data.description as string) ?? "",
       is_primary: (data.is_primary as boolean) ?? false,
       count: (data.count as number) ?? 1,
-      handbook: this.resolveFileRef(data.handbook as string | undefined, sopDir),
       skill: (data.skill as string) ?? null,
       prohibition: (data.prohibition as string) ?? null,
       self_check: (data.self_check as string) ?? null,
@@ -133,18 +131,5 @@ export class FileSopRepository implements SopRepository {
       to: data.to as string,
       guard: (data.guard as string) ?? null,
     };
-  }
-
-  private resolveFileRef(ref: string | undefined, sopDir: string): string | null {
-    if (!ref) return null;
-    if (!ref.startsWith("@")) return ref;
-
-    const fileName = ref.slice(1);
-    const filePath = `${sopDir}/${fileName}`;
-    const content = this.dataStore.readFile(filePath);
-    if (content) return content.trim();
-
-    log.warn({ filePath }, "File reference not found");
-    return ref;
   }
 }
