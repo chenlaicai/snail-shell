@@ -1,13 +1,15 @@
 ---
 name: record-issue-repo-context
-description: 将 Issue 的分支名、worktree 路径和 PR URL 记录到当前 Stage 的 output_artifacts。首次记录应传 --stage-id {{stage_id}}（系统提示词注入）；已记录后可在 worktree 内无参数自动发现。
+description: "[Deprecated] 将 Issue 的分支名、worktree 路径和 PR URL 记录到当前 Stage 的 output_artifacts 和 Issue.context。请优先使用 MCP 工具 set_context。"
 ---
 
 # Record Issue Repo Context
 
+> **Deprecated**：此 skill 已被 MCP 工具 `set_context` 替代。新代码应使用 `set_context` 直接写入 Issue 上下文。本 skill 保留用于向后兼容，双写到 Stage.output_artifacts 和 Issue.context。
+
 ## Purpose
 
-将当前 Issue 的仓库相关信息（分支名、worktree 路径、PR URL）写入当前 Stage 的 `output_artifacts`（`Record<string, string>` map），使系统能够追踪和清理 worktree 资源。该 skill 只记录已存在 Issue/Stage 的 repo context，不负责创建 Issue。
+将当前 Issue 的仓库相关信息（分支名、worktree 路径、PR URL）写入当前 Stage 的 `output_artifacts`（`Record<string, string>` map）和 Issue 的 `context`（双写），使系统能够追踪和清理 worktree 资源。该 skill 只记录已存在 Issue/Stage 的 repo context，不负责创建 Issue。
 
 [HARD] 本记录是推进阶段的硬性依赖——下一 Stage 的审查者从 `input_artifacts` 读取 `worktree_path` 确定检视目录，缺少此记录则审查者无法工作。调用失败不得静默跳过；必须先排查并修复根因，确认记录成功后再继续后续步骤。
 
@@ -59,6 +61,14 @@ node .meta/skills/record-issue-repo-context/scripts/record-issue-repo-context.js
 3. 仍未找到且传了 `--issue-id` → 通过 Issue 查找活跃 Stage
 
 定位到 Stage 后，将 `--set` 指定的 key-value 对 **merge** 到 Stage 已有 `output_artifacts` 中，写入 stage 表。
+
+### 双写行为
+
+本 skill 同时写入两个数据源：
+1. **Stage.output_artifacts**：保留向后兼容，用于归档清理
+2. **Issue.context**：新的统一上下文，跨 Stage 共享
+
+双写保证数据一致性：无论 Agent 使用旧 skill 还是新 MCP 工具，Issue.context 始终包含完整上下文。
 
 ### Merge 语义
 

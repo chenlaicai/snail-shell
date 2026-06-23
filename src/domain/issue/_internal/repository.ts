@@ -7,6 +7,8 @@ export interface IssueRepository {
   findById(id: string): Issue | undefined;
   listByWorkspace(workspacePath: string, limit?: number, offset?: number): Issue[];
   create(issue: Issue): void;
+  /** 更新 Issue 上下文（merge 语义） */
+  updateContext(issueId: string, context: Record<string, string>): void;
 }
 
 // ── Stage Repository ──────────────────────────────────────────────────
@@ -41,6 +43,7 @@ CREATE TABLE IF NOT EXISTS issue (
   sop_snapshot TEXT NOT NULL,
   snail_assignment_plan TEXT NOT NULL,
   extendable_context TEXT NOT NULL,
+  context TEXT NOT NULL DEFAULT '{}',
   created_at TEXT NOT NULL,
   closed_at TEXT
 );
@@ -88,6 +91,7 @@ type IssueRow = {
   sop_snapshot: string;
   snail_assignment_plan: string;
   extendable_context: string;
+  context: string;
   created_at: string;
   closed_at: string | null;
 };
@@ -129,8 +133,8 @@ export class SQLiteIssueRepository implements IssueRepository {
 
   create(issue: Issue): void {
     this.db.run(
-      `INSERT INTO issue (id, workspace_path, title, summary, sop_snapshot, snail_assignment_plan, extendable_context, created_at, closed_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO issue (id, workspace_path, title, summary, sop_snapshot, snail_assignment_plan, extendable_context, context, created_at, closed_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         issue.id,
         issue.workspace_path,
@@ -139,9 +143,17 @@ export class SQLiteIssueRepository implements IssueRepository {
         JSON.stringify(issue.sop_snapshot),
         JSON.stringify(issue.snail_assignment_plan),
         JSON.stringify(issue.extendable_context),
+        JSON.stringify(issue.context),
         issue.created_at,
         issue.closed_at,
       ],
+    );
+  }
+
+  updateContext(issueId: string, context: Record<string, string>): void {
+    this.db.run(
+      `UPDATE issue SET context = ? WHERE id = ?`,
+      [JSON.stringify(context), issueId],
     );
   }
 }
@@ -274,6 +286,7 @@ function mapIssue(row: IssueRow): Issue {
     sop_snapshot: JSON.parse(row.sop_snapshot),
     snail_assignment_plan: JSON.parse(row.snail_assignment_plan),
     extendable_context: JSON.parse(row.extendable_context),
+    context: JSON.parse(row.context),
     created_at: row.created_at,
     closed_at: row.closed_at,
   };

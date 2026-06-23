@@ -437,12 +437,16 @@ export class IssueCollaboration implements CollaborationInput {
 
   private buildContextBlock(issue: Issue, stage: Stage, roleDef: RoleDefinition | undefined): string {
     const transitions = stage.available_transitions.map(transition => `- ${transition.to}${transition.guard ? `: ${transition.guard}` : ""}`).join("\n");
-    const artifacts = Object.entries(stage.output_artifacts).map(([key, value]) => `${key}: ${value}`).join("\n");
     const sharedSkill = issue.sop_snapshot.shared_skill;
     const skillList = [
       sharedSkill ? `- \`${sharedSkill}\` — 共享规则（特性编号、PR签名、证据规则、完成标准）` : null,
       roleDef?.skill ? `- \`${roleDef.skill}\` — ${roleDef.name}工作流程` : null,
     ].filter(Boolean).join("\n");
+
+    /** Issue 上下文：只读视图，Agent 应使用 MCP 工具读写 */
+    const issueContext = Object.keys(issue.context).length > 0
+      ? Object.entries(issue.context).map(([key, value]) => `- **${key}**: ${value}`).join("\n")
+      : "无";
 
     return `<context>
 ## 项目上下文
@@ -453,11 +457,16 @@ export class IssueCollaboration implements CollaborationInput {
 **Issue 摘要**：${issue.summary ?? "无"}
 **可扩展上下文**：${issue.extendable_context != null ? JSON.stringify(issue.extendable_context) : "无"}
 
+## Issue 上下文（只读视图）
+
+${issueContext}
+
+> **注意**：这是只读视图。Agent 应使用 MCP 工具 \`set_context\` 和 \`get_context\` 读写 Issue 上下文。
+
 ## 当前阶段
 
 **阶段**：${stage.title} (${stage.key})
 **阶段描述**：${stage.description}
-**阶段产物**：\n${artifacts || "无"}
 **所有角色实例**：${stage.role_instances.join(", ")}
 
 ## 可用 Skills

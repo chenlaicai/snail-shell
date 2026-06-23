@@ -14,6 +14,8 @@ export interface Issue {
   snail_assignment_plan: IssueSnailAssignmentPlan;
   /** 可扩展上下文：由创建方注入的额外上下文数据，传递给底层 agent */
   extendable_context: Record<string, unknown>;
+  /** Issue 级别上下文：由 Agent 通过 MCP 工具读写，跨 Stage 共享 */
+  context: Record<string, string>;
   created_at: string;
   closed_at: string | null;
 }

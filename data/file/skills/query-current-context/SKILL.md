@@ -1,9 +1,11 @@
 ---
 name: query-current-context
-description: 查询当前 conversation 关联的 stage、issue、role、workspace 运行时上下文详情。用于在系统提示词仅提供最小锚点信息时，按需获取完整上下文。
+description: "[Deprecated] 查询当前 conversation 关联的 stage、issue、role、workspace 运行时上下文详情。请优先使用 MCP 工具 get_context 获取 Issue 上下文。"
 ---
 
 # Query Current Context
+
+> **Deprecated**：此 skill 已被 MCP 工具 `get_context` 替代。新代码应使用 `get_context` 直接读取 Issue 上下文。本 skill 保留用于向后兼容，仍可查询完整的运行时上下文。
 
 ## Purpose
 
