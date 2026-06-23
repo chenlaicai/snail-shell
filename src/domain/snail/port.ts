@@ -11,6 +11,18 @@ export interface SnailPort {
   /** 列出所有 snail 配置 */
   list(): Snail[];
 
+  /** 按 key 查找 snail 配置 */
+  findByKey(key: string): Snail | undefined;
+
+  /** 创建 snail 配置 */
+  create(snail: Snail): Snail;
+
+  /** 更新 snail 配置（部分更新） */
+  update(key: string, patch: Partial<Omit<Snail, 'key'>>): Snail;
+
+  /** 删除 snail 配置 */
+  remove(key: string): void;
+
   /**
    * 首次调用：注入完整配置，返回 snail_instance_id。
    *

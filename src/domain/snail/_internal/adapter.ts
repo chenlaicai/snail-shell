@@ -35,6 +35,30 @@ export class SnailAdapter implements SnailPort {
     return this.repo.list();
   }
 
+  findByKey(key: string): Snail | undefined {
+    return this.repo.findByKey(key);
+  }
+
+  create(snail: Snail): Snail {
+    this.repo.create(snail);
+    return snail;
+  }
+
+  update(key: string, patch: Partial<Omit<Snail, 'key'>>): Snail {
+    return this.repo.update(key, patch);
+  }
+
+  remove(key: string): void {
+    const instanceCount = this.repo.countInstancesByKey(key);
+    const stageRefCount = this.repo.countActiveStageReferencesByKey(key);
+    if (instanceCount > 0 || stageRefCount > 0) {
+      throw new Error(
+        `Cannot delete snail '${key}': ${instanceCount} instance(s) and ${stageRefCount} in-progress stage(s) reference it`,
+      );
+    }
+    this.repo.remove(key);
+  }
+
   async invokeFirstCall(
     snailKey: string,
     request: SnailFirstCallRequest,
@@ -64,7 +88,7 @@ export class SnailAdapter implements SnailPort {
     const systemPrompt = this.buildSystemPrompt(request.tags);
     const capabilities = this.buildCapabilities(workspace);
     const guardProfile = this.buildGuardProfile(workspace);
-    const systemReminder = this.buildSystemReminder(request.handbook);
+    const systemReminder = this.buildSystemReminder(request.systemReminder);
     const contextEnv = this.buildContextEnv(request);
     const invokeOptions = this.buildOptions(snail, options, contextEnv);
 
@@ -165,10 +189,9 @@ export class SnailAdapter implements SnailPort {
     return { deny: profile.deny, allow: profile.allow };
   }
 
-  private buildSystemReminder(handbook?: string): string {
+  private buildSystemReminder(systemReminder?: string): string {
     // 直接透传collaboration的完整输出，不做任何处理
-    // handbook已经是collaboration层构建的完整system-reminder内容
-    return handbook ?? "";
+    return systemReminder ?? "";
   }
 
   private buildOptions(snail: Snail, options: InvokeOptions, contextEnv?: Record<string, string>): InvokeOptions {

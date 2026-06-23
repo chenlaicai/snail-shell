@@ -1,5 +1,5 @@
 ---
-id: F2026062207
+id: F2026062210
 title: snail-issue-mcp-server
 from_ids: []
 tags: [mcp, issue, stage, skill-migration]
@@ -7,7 +7,7 @@ modules: [domain/snail-mcp-server, domain/issue, app/issue-collaboration]
 doc_kind: spec
 ---
 
-# F2026062207 [mcp] snail-issue MCP Server — 替代 skill + 合并 set_final_body
+# F2026062210 [mcp] snail-issue MCP Server — 替代 skill + 合并 set_final_body
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 <!-- 进入实现阶段后不得单方面修改，如需变更须通过问题卡片向用户提出并确认 -->

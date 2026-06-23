@@ -29,8 +29,8 @@ export interface SnailFirstCallRequest {
   messages: Message[];
   /** 用于过滤 tenet-prompt 的标签 */
   tags?: string[];
-  /** role handbook 内容 */
-  handbook?: string;
+  /** system-reminder 内容 */
+  systemReminder?: string;
   /** 业务上下文标识（conversation_id, message_id, evolution_item_id 等），注入到 system-reminder 和 env vars */
   context?: Record<string, unknown>;
 }
