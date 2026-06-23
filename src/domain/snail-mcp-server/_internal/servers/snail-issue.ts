@@ -113,7 +113,6 @@ function createSetFinalBodyTool(messagePort: MessagePort) {
       type: "object",
       properties: {
         text: { type: "string", description: "最终答复的 Markdown 正文" },
-        conversation_id: { type: "string" },
         message_id: { type: "string", description: "当前消息的 ID，通过环境变量 message_id 注入" },
       },
       required: ["text", "message_id"],
