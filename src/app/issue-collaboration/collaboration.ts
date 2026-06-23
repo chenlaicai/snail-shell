@@ -192,7 +192,7 @@ export class IssueCollaboration implements CollaborationInput {
 
       log.info({ stageId, roleInstance, messageId: agentMessage.id, contextKind: context.kind }, "invokeAgent completed");
       this.routeAgentReplies(stage, roleInstance, completedMessage.id);
-      await this.detectStageTransition(stage, roleInstance, completedMessage.id);
+      await this.detectStageTransition(issue, stage, roleInstance, completedMessage.id);
       await this.notifyConsumers(stageId, "onMessageCompleted", completedMessage, this.deps.messagePort.getContext(completedMessage.id));
     } catch (error) {
       log.error({
@@ -294,8 +294,8 @@ export class IssueCollaboration implements CollaborationInput {
     return mention === "user" || (mention !== roleInstance && stage.role_instances.includes(mention));
   }
 
-  private async detectStageTransition(stage: Stage, roleInstance: string, messageId: number): Promise<void> {
-    const suggestion = this.extractStageTransitionSuggestion(stage, roleInstance, messageId);
+  private async detectStageTransition(issue: Issue, stage: Stage, roleInstance: string, messageId: number): Promise<void> {
+    const suggestion = this.extractStageTransitionSuggestion(issue, stage, roleInstance, messageId);
     if (!suggestion) return;
 
     const suggestions = this.suggestions.get(stage.id) ?? [];
@@ -304,19 +304,19 @@ export class IssueCollaboration implements CollaborationInput {
     await this.notifyConsumers(stage.id, "onStageTransitionSuggested", suggestion);
   }
 
-  private extractStageTransitionSuggestion(stage: Stage, roleInstance: string, messageId: number): StageTransitionSuggestion | null {
+  private extractStageTransitionSuggestion(issue: Issue, stage: Stage, roleInstance: string, messageId: number): StageTransitionSuggestion | null {
     for (const event of this.deps.messagePort.getMessageEvents(messageId)) {
       if (event.payload.type === "signal" && typeof event.payload.stage_transition === "object" && event.payload.stage_transition) {
         const payload = event.payload.stage_transition as Record<string, unknown>;
         const targetKey = String(payload.target_key ?? payload.to ?? "");
         if (!targetKey || !stage.available_transitions.some(transition => transition.to === targetKey)) continue;
-        return this.makeStageTransitionSuggestion({ stage, roleInstance, messageId, targetKey, reason: payload.reason, guard: payload.guard });
+        return this.makeStageTransitionSuggestion({ issue, stage, roleInstance, messageId, targetKey, reason: payload.reason, guard: payload.guard });
       }
 
       if (event.payload.type === "text") {
         const parsed = this.tryParseStageTransition(event.payload.text);
         if (parsed?.target_key && stage.available_transitions.some(transition => transition.to === parsed.target_key)) {
-          return this.makeStageTransitionSuggestion({ stage, roleInstance, messageId, targetKey: parsed.target_key, reason: parsed.reason, guard: parsed.guard });
+          return this.makeStageTransitionSuggestion({ issue, stage, roleInstance, messageId, targetKey: parsed.target_key, reason: parsed.reason, guard: parsed.guard });
         }
       }
     }
@@ -324,6 +324,7 @@ export class IssueCollaboration implements CollaborationInput {
   }
 
   private makeStageTransitionSuggestion(input: {
+    issue: Issue;
     stage: Stage;
     roleInstance: string;
     messageId: number;
@@ -331,7 +332,7 @@ export class IssueCollaboration implements CollaborationInput {
     reason: unknown;
     guard: unknown;
   }): StageTransitionSuggestion {
-    const { stage, roleInstance, messageId, targetKey, reason, guard } = input;
+    const { issue, stage, roleInstance, messageId, targetKey, reason, guard } = input;
     const transition = stage.available_transitions.find(item => item.to === targetKey);
     return {
       stage_id: stage.id,
@@ -340,7 +341,8 @@ export class IssueCollaboration implements CollaborationInput {
       target_key: targetKey,
       reason: typeof reason === "string" ? reason : "",
       guard: typeof guard === "string" ? guard : transition?.guard ?? null,
-      artifacts: { ...stage.output_artifacts },
+      /** suggestion 的语义从"当前 Stage 的产物"变为"Issue 的完整上下文" */
+      artifacts: { ...issue.context },
       created_at: new Date().toISOString(),
     };
   }
@@ -445,12 +447,16 @@ export class IssueCollaboration implements CollaborationInput {
 
   private buildContextBlock(issue: Issue, stage: Stage, roleDef: RoleDefinition | undefined): string {
     const transitions = stage.available_transitions.map(transition => `- ${transition.to}${transition.guard ? `: ${transition.guard}` : ""}`).join("\n");
-    const artifacts = Object.entries(stage.output_artifacts).map(([key, value]) => `${key}: ${value}`).join("\n");
     const sharedSkill = issue.sop_snapshot.shared_skill;
     const skillList = [
       sharedSkill ? `- \`${sharedSkill}\` — 共享规则（特性编号、PR签名、证据规则、完成标准）` : null,
       roleDef?.skill ? `- \`${roleDef.skill}\` — ${roleDef.name}工作流程` : null,
     ].filter(Boolean).join("\n");
+
+    /** Issue 级别统一上下文：所有 Stage 所有角色共享 */
+    const issueContext = Object.keys(issue.context).length > 0
+      ? Object.entries(issue.context).map(([key, value]) => `- ${key}: ${value}`).join("\n")
+      : null;
 
     return `<context>
 ## 项目上下文
@@ -461,11 +467,14 @@ export class IssueCollaboration implements CollaborationInput {
 **Issue 摘要**：${issue.summary ?? "无"}
 **可扩展上下文**：${issue.extendable_context != null ? JSON.stringify(issue.extendable_context) : "无"}
 
+${issueContext ? `## Issue 上下文
+
+${issueContext}
+` : ""}
 ## 当前阶段
 
 **阶段**：${stage.title} (${stage.key})
 **阶段描述**：${stage.description}
-**阶段产物**：\n${artifacts || "无"}
 **所有角色实例**：${stage.role_instances.join(", ")}
 
 ## 可用 Skills

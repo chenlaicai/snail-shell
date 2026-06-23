@@ -2,48 +2,22 @@
 "use strict";
 
 // record-issue-repo-context skill — Issue repo 上下文记录入口。
-// 不直接访问数据库；通过 db-bridge 完成数据操作。
+// 写入 Issue 级别 context（而非 Stage 的 output_artifacts）。
+// Key 前缀自动注入：根据当前 Stage 的 key 自动添加前缀（如 dev.worktree_path）。
 
 const { execFileSync } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 
-function findBridge() {
-  // 1. Same repo: sibling under .meta/scripts/
-  const sibling = path.join(__dirname, "..", "..", "..", "scripts", "db-bridge.js");
-  if (fs.existsSync(sibling)) return sibling;
-  // 2. From cwd + walk up (covers worktree → main repo)
-  let dir = process.cwd();
-  while (true) {
-    const candidate = path.join(dir, ".meta", "scripts", "db-bridge.js");
-    if (fs.existsSync(candidate)) return candidate;
-    const parent = path.dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  // 3. Walk up from __dirname
-  dir = __dirname;
-  while (true) {
-    const candidate = path.join(dir, ".meta", "scripts", "db-bridge.js");
-    if (fs.existsSync(candidate)) return candidate;
-    const parent = path.dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  return sibling;
-}
-
-const BRIDGE = findBridge();
-
-let bridgeEnv = process.env;
+const DEFAULT_API_BASE = "http://localhost:3000";
 
 function main() {
   const argv = process.argv.slice(2);
   const getValue = (name) => { const i = argv.indexOf(name); return (i >= 0 && i < argv.length - 1) ? argv[i + 1] : ""; };
-  const dbPath = getValue("--db-path");
-  if (dbPath) bridgeEnv = { ...process.env, DB_PATH: dbPath };
+  const apiBase = getValue("--api-base") || DEFAULT_API_BASE;
   const issueId = optionalArg(getValue("--issue-id"));
   const stageId = optionalArg(getValue("--stage-id"));
+  const stageKey = optionalArg(getValue("--stage-key"));
 
   // Parse --set key=value pairs
   const entries = {};
@@ -71,82 +45,67 @@ function main() {
     process.exit(1);
   }
 
-  // Stage resolution
-  let resolvedStageId = stageId;
+  // Issue resolution
+  let resolvedIssueId = issueId;
   let discoveryMethod = "";
 
-  if (!resolvedStageId) {
-    // Auto-discover from working directory
-    resolvedStageId = resolveStageFromWorkdir(process.cwd());
-    if (resolvedStageId) discoveryMethod = "workdir";
-  }
-
-  if (!resolvedStageId && issueId) {
-    // Priority 3: --issue-id lookup (legacy, requires DB UUID)
+  if (!resolvedIssueId && stageId) {
+    // Get issue_id from stage
     try {
-      const raw = execFileSync(process.execPath, [BRIDGE, "--mode", "stage-get-active", "--issue-id", issueId], {
-        encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: bridgeEnv,
-      });
-      const data = JSON.parse(raw);
-      if (data.stage) {
-        resolvedStageId = data.stage.id;
-        discoveryMethod = "issue-id";
-      } else {
-        process.stderr.write(
-          `No active stage found for issue "${issueId}".\n` +
-          "HINT: Issue IDs in the database are UUIDs, not document codes.\n" +
-          "Try running without --issue-id to auto-discover from current directory, or use --stage-id directly.\n"
-        );
-        process.exit(1);
+      const stageData = fetchJson(`${apiBase}/api/stages/${stageId}`);
+      if (stageData && stageData.issue_id) {
+        resolvedIssueId = stageData.issue_id;
+        discoveryMethod = "stage-id";
       }
     } catch (e) {
-      process.stderr.write(e.stderr || e.message + "\n");
-      process.exit(e.status || 1);
+      process.stderr.write(`Failed to get stage ${stageId}: ${e.message}\n`);
+      process.exit(1);
     }
   }
 
-  if (!resolvedStageId) {
+  if (!resolvedIssueId) {
     process.stderr.write(
-      "Could not determine target stage.\n" +
-      "Pass --stage-id {{stage_id}} (system prompt context) for reliable use.\n"
+      "Could not determine target issue.\n" +
+      "Pass --issue-id {{issue_id}} or --stage-id {{stage_id}} (system prompt context) for reliable use.\n"
     );
     process.exit(1);
   }
 
-  if (!discoveryMethod) discoveryMethod = "stage-id";
+  if (!discoveryMethod) discoveryMethod = "issue-id";
 
-  // Delegate to bridge
-  const bridgeArgs = ["--mode", "stage-record-context", "--stage-id", resolvedStageId, "--entries", JSON.stringify(entries)];
+  // Key 前缀自动注入：根据 stageKey 添加前缀
+  const prefixedEntries = {};
+  if (stageKey) {
+    for (const [key, value] of Object.entries(entries)) {
+      prefixedEntries[`${stageKey}.${key}`] = value;
+    }
+  } else {
+    Object.assign(prefixedEntries, entries);
+  }
+
+  // Write to Issue.context via API
   try {
-    const raw = execFileSync(process.execPath, [BRIDGE, ...bridgeArgs], {
-      encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: bridgeEnv,
-    });
-    const result = JSON.parse(raw);
-    result.discovered_by = discoveryMethod;
-    process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+    const result = fetchJson(`${apiBase}/api/issues/${resolvedIssueId}/context`, "PATCH", prefixedEntries);
+    process.stdout.write(JSON.stringify({
+      issue_id: resolvedIssueId,
+      discovered_by: discoveryMethod,
+      context: result.context ?? {},
+    }, null, 2) + "\n");
   } catch (e) {
-    process.stderr.write(e.stderr || e.message + "\n");
-    process.exit(e.status || 1);
+    process.stderr.write(`Failed to update issue context: ${e.message}\n`);
+    process.exit(1);
   }
 }
 
-function resolveStageFromWorkdir(cwd) {
-  let resolvedCwd;
-  try { resolvedCwd = fs.realpathSync(cwd); } catch (_) { return null; }
-
-  try {
-    const raw = execFileSync(process.execPath, [BRIDGE, "--mode", "stage-list-for-workdir"], {
-      encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: bridgeEnv,
-    });
-    const data = JSON.parse(raw);
-    for (const s of data.stages) {
-      if (!s.worktree_path) continue;
-      let resolvedWd;
-      try { resolvedWd = fs.realpathSync(s.worktree_path); } catch (_) { continue; }
-      if (resolvedCwd === resolvedWd || resolvedCwd.startsWith(resolvedWd + path.sep)) return s.id;
-    }
-  } catch (_) {}
-  return null;
+function fetchJson(url, method = "GET", body = null) {
+  const { execFileSync } = require("child_process");
+  const args = ["-s", "-X", method, url];
+  if (body) {
+    args.push("-H", "Content-Type: application/json");
+    args.push("-d", JSON.stringify(body));
+  }
+  const raw = execFileSync("curl", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  return JSON.parse(raw);
 }
 
 function optionalArg(value) { return value === "" ? undefined : value; }

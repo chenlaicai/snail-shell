@@ -14,6 +14,8 @@ export interface Issue {
   snail_assignment_plan: IssueSnailAssignmentPlan;
   /** 可扩展上下文：由创建方注入的额外上下文数据，传递给底层 agent */
   extendable_context: Record<string, unknown>;
+  /** Issue 级别统一上下文：所有 Stage 所有角色共享的产物上下文 */
+  context: Record<string, string>;
   created_at: string;
   closed_at: string | null;
 }
@@ -25,6 +27,7 @@ export interface CreateIssueInput {
   adopted_sop_key: string;
   snail_assignment_plan: IssueSnailAssignmentPlan;
   extendable_context?: Record<string, unknown>;
+  context?: Record<string, string>;
 }
 
 // ── Stage ─────────────────────────────────────────────────────────────

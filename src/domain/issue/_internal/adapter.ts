@@ -56,11 +56,16 @@ export class IssueAdapter implements IssuePort {
       sop_snapshot: structuredClone(sop),
       snail_assignment_plan: structuredClone(input.snail_assignment_plan),
       extendable_context: input.extendable_context ?? {},
+      context: input.context ?? {},
       created_at: now,
       closed_at: null,
     };
     this.issueRepo.create(issue);
     return issue;
+  }
+
+  updateIssueContext(issueId: string, context: Record<string, string>): void {
+    this.issueRepo.updateContext(issueId, context);
   }
 }
 

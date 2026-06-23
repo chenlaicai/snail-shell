@@ -36,6 +36,8 @@ const advanceStageBody = z.object({
   target_key: z.string().min(1),
 });
 
+const updateIssueContextBody = z.record(z.string(), z.string());
+
 export function createIssueRoutes(deps: IssueRoutesDeps) {
   const app = new Hono();
 
@@ -74,6 +76,8 @@ export function createIssueRoutes(deps: IssueRoutesDeps) {
     if (!issue) return c.json(null, 404);
     return c.json(toIssueDetail(deps, issue));
   });
+
+  app.patch("/api/issues/:issueId/context", zValidator("json", updateIssueContextBody), (c) => updateIssueContext(c, deps));
 
   app.get("/api/issues/:issueId/stages", (c) => {
     return c.json(deps.stagePort.listStages(c.req.param("issueId")).map(stage => toStageDto(deps, stage)));
@@ -127,6 +131,15 @@ function interruptMessage(c: Context, deps: IssueRoutesDeps) {
   if (message.status !== "streaming") return c.json({ interrupted: false, error: "Message is not streaming" }, 409);
   const interrupted = deps.collaboration.interruptMessage(messageId);
   return c.json({ interrupted });
+}
+
+function updateIssueContext(c: Context, deps: IssueRoutesDeps) {
+  const issueId = requiredParam(c, "issueId");
+  const body = updateIssueContextBody.parse(c.req.json());
+  deps.issuePort.updateIssueContext(issueId, body);
+  const issue = deps.issuePort.findIssue(issueId);
+  if (!issue) return c.json(null, 404);
+  return c.json(toIssueDetail(deps, issue));
 }
 
 function toIssueDetail(deps: Pick<IssueRoutesDeps, "stagePort">, issue: Issue) {
