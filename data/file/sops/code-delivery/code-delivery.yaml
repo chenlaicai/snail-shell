@@ -110,11 +110,11 @@ stage_definitions:
       - key: developer
         name: 开发者
         description: 在审查阶段回应检视意见、修复代码并推动检视清零。
-        is_primary: true
         skill: cd-review-dev
       - key: reviewer
         name: 审查者
         description: 负责对 PR 做对抗性代码检视，两位审查者交叉审视，在 PR 上留下可追溯评论。
+        is_primary: true
         count: 2
         skill: cd-review
         prohibition: 不得使用低风险标签跳过问题，不得替开发者做决定

@@ -22,7 +22,7 @@ description: |
 
 ### PR 评论签名
 
-评论最后一行：`by <角色名>（<Snail 名称>）`。Snail 名称使用系统提示词注入的值，不得自行猜测。
+评论最后一行：`by <角色名>（<Snail 名称>）`。Snail 名称使用系统提示词注入的值，不得自行猜测。详见 `references/pr-signature.md`。
 
 ### Stage Gate 自检
 
