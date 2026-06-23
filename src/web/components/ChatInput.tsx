@@ -110,7 +110,7 @@ export function ChatInput({ onSend, disabled, placeholder = "Reply to this issue
   }, [isMentionActive, hideSuggestions]);
 
   return (
-    <div className="bg-surface-2 rounded-2xl border border-white/6 overflow-hidden focus-within:border-shell-600/40 focus-within:ring-1 focus-within:ring-shell-600/15 transition-all relative">
+    <div className="bg-surface-2 rounded-2xl border border-white/6 overflow-visible focus-within:border-shell-600/40 focus-within:ring-1 focus-within:ring-shell-600/15 transition-all relative">
       <MentionDropdown
         suggestions={mentionState.suggestions}
         selectedIndex={mentionState.selectedIndex}
