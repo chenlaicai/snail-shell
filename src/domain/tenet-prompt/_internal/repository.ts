@@ -42,14 +42,7 @@ export class FileTenetPromptRepository implements TenetPromptRepository {
       return allPrompts;
     }
 
-    // 文件级 tags 兼容旧逻辑
-    const fileMatched = allPrompts.filter(prompt => {
-      if (prompt.tags.length === 0) return true;
-      return prompt.tags.some(tag => tags.includes(tag));
-    });
-
-    // 规则级 tags 过滤：每条规则行首可带 [tag,tag] 标记
-    return fileMatched.map(prompt => ({
+    return allPrompts.map(prompt => ({
       ...prompt,
       content: this.filterContentByTags(prompt.content, tags),
     }));
@@ -92,77 +85,8 @@ export class FileTenetPromptRepository implements TenetPromptRepository {
     return prompts;
   }
 
-  private parseDocument(raw: string, filename?: string): PromptDocument {
-    // 支持两种格式：有 frontmatter（旧）和无 frontmatter（新）
-    const match = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
-    if (match) {
-      const [, frontmatter, content] = match;
-      const meta = this.parseFrontmatter(frontmatter);
-      if (typeof meta.title !== "string") throw new Error("Prompt frontmatter missing 'title'");
-      return {
-        id: meta.title,
-        title: meta.title,
-        content: content.trim(),
-        tags: Array.isArray(meta.tags) ? meta.tags : [],
-        scope: Scope.Platform,
-      };
-    }
-
-    // 无 frontmatter：从文件名提取 id/title，全文为 content
-    const title = filename ? filename.replace(/\.md$/, "") : "untitled";
+  private parseDocument(raw: string, filename: string): PromptDocument {
+    const title = filename.replace(/\.md$/, "");
     return { id: title, title, content: raw.trim(), tags: [], scope: Scope.Platform };
-  }
-
-  private parseFrontmatter(raw: string): Record<string, unknown> {
-    const state = { result: {} as Record<string, unknown>, inArray: false, arrayKey: "", arrayItems: [] as string[] };
-
-    for (const line of raw.split("\n")) {
-      this.consumeFrontmatterLine(state, line);
-    }
-
-    this.flushFrontmatterArray(state);
-    return state.result;
-  }
-
-  private consumeFrontmatterLine(state: { result: Record<string, unknown>; inArray: boolean; arrayKey: string; arrayItems: string[] }, line: string): void {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) return;
-
-    if (state.inArray && !trimmed.startsWith("-")) {
-      this.flushFrontmatterArray(state);
-    }
-    if (state.inArray && trimmed.startsWith("-")) {
-      state.arrayItems.push(this.unquote(trimmed.slice(1).trim()));
-      return;
-    }
-
-    const kvMatch = trimmed.match(/^(\w+):\s*(.+)$/);
-    if (!kvMatch) return;
-    this.consumeFrontmatterKeyValue(state, kvMatch[1], kvMatch[2]);
-  }
-
-  private consumeFrontmatterKeyValue(state: { result: Record<string, unknown>; inArray: boolean; arrayKey: string; arrayItems: string[] }, key: string, value: string): void {
-    if (value === "") {
-      state.inArray = true;
-      state.arrayKey = key;
-      state.arrayItems = [];
-      return;
-    }
-
-    const inlineArrayMatch = value.match(/^\[(.*)\]$/);
-    state.result[key] = inlineArrayMatch
-      ? inlineArrayMatch[1].split(",").map(s => this.unquote(s.trim()))
-      : this.unquote(value);
-  }
-
-  private flushFrontmatterArray(state: { result: Record<string, unknown>; inArray: boolean; arrayKey: string; arrayItems: string[] }): void {
-    if (!state.inArray) return;
-    state.result[state.arrayKey] = state.arrayItems;
-    state.inArray = false;
-    state.arrayItems = [];
-  }
-
-  private unquote(value: string): string {
-    return value.replace(/^["']|["']$/g, "");
   }
 }
