@@ -1,5 +1,5 @@
 ---
-id: F2026062305
+id: F2026062306
 title: sop-handbook-to-skill-remaining
 from_ids: [F2026062208]
 tags: []
@@ -8,7 +8,7 @@ doc_kind: spec
 change_type: feature
 ---
 
-# F2026062305 [sop] general-assistant 与 evolution SOP Handbook → Skill 迁移
+# F2026062306 [sop] general-assistant 与 evolution SOP Handbook → Skill 迁移
 
 ## 背景
 

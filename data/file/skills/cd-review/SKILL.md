@@ -32,3 +32,4 @@ description: |
 - 检视结论必须逐条列出处置状态：已修复 / 开发者回应（审查者认可）/ 待处理
 - 存在任何"待处理"项时，结论必须是"需要开发者继续处理"
 - 变更完整性验证命令必须独立执行，输出写入 rev-02 的 gate_evidence
+- PR 评论按签名规则收尾（规则见 cd-shared 的 `references/pr-signature.md`）
