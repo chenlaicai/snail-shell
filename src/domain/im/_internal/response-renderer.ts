@@ -40,7 +40,7 @@ export class PlainTextLobbyRenderer implements LobbyResponseRenderer {
       return { text: `工作区 "${workspaceLabel}" 暂无 issue。` };
     }
     const lines = issues.map((f, i) => {
-      const badge = f.status === "archived" ? "📦" : "🟢";
+      const badge = f.status === "closed" ? "📦" : "🟢";
       return `${i + 1}. ${badge} ${f.title} [${f.id}]`;
     });
     return { text: `Issue 列表 (${workspaceLabel})：\n${lines.join("\n")}\n\n使用 /enter <id> 进入 stage` };
