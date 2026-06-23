@@ -200,9 +200,12 @@ export class IssueCollaboration implements CollaborationInput {
         snailInstanceId: assignment.snail_instance_id,
         err: error,
       }, "invokeAgent failed");
-      const context = this.extractTerminalContext(agentMessage.id);
-      this.deps.messagePort.setContext(agentMessage.id, "event_summary", context.context);
       const status = abortController.signal.aborted ? "interrupted" : "failed";
+      /** 终态必须有对应的 terminal signal event，与 v1 finalizeMessageLifecycle 对齐 */
+      this.deps.messagePort.appendEvent(agentMessage.id, { type: "signal", signal: `message_${status}` });
+      const context = this.extractTerminalContext(agentMessage.id);
+      /** interrupted 时无 text event 则 context.kind 为 "event_summary"，context 内容为固定中断文案 */
+      this.deps.messagePort.setContext(agentMessage.id, context.kind, context.context);
       this.deps.messagePort.completeMessage(agentMessage.id, status, { error: error instanceof Error ? error.message : String(error) });
       await this.notifyConsumers(stageId, "onMessageCompleted", this.mustGetMessage(agentMessage.id), this.deps.messagePort.getContext(agentMessage.id));
       throw error;
@@ -407,7 +410,8 @@ export class IssueCollaboration implements CollaborationInput {
       }
     }
 
-    return { message_id: messageId, kind: "event_summary", context: this.summarizeEvents(events), created_at: new Date().toISOString() };
+    /** 无 text event 也无 mcp_final_body 时返回固定文案，不 dump 原始 event 给用户 */
+    return { message_id: messageId, kind: "event_summary", context: "用户中断了本次回复", created_at: new Date().toISOString() };
   }
 
   private summarizeEvents(events: MessageEvent[]): string {
