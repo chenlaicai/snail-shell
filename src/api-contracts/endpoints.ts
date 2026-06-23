@@ -15,6 +15,7 @@ export type ApiEndpoints = {
   "POST /api/workspaces/:workspaceId/issues": EndpointDef<{ workspaceId: string }, never, { title: string; summary?: string; adopted_sop_key: string; snail_assignment_plan: Dto.IssueSnailAssignmentPlanDto }, Dto.CreateIssueResult>;
   "GET /api/sops/:sopKey/stage-previews": EndpointDef<{ sopKey: string }, { title?: string }, never, Dto.StagePreviewDto[]>;
   "GET /api/issues/:issueId": EndpointDef<{ issueId: string }, never, never, Dto.IssueDetailDto | null>;
+  "POST /api/issues/:issueId/close": EndpointDef<{ issueId: string }, never, never, Dto.IssueDetailDto>;
   "GET /api/issues/:issueId/stages": EndpointDef<{ issueId: string }, never, never, Dto.StageDetailDto[]>;
   "GET /api/stages/:stageId": EndpointDef<{ stageId: string }, never, never, Dto.StageDetailDto | null>;
   "GET /api/stages/:stageId/messages": EndpointDef<{ stageId: string }, { limit?: number; offset?: number }, never, Dto.MessageDto[]>;
