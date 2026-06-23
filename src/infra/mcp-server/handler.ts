@@ -16,7 +16,7 @@ export function createMcpHandler(adapter: SnailMCPServerAdapter): Hono {
       servers: servers.map(s => ({
         name: s.name,
         version: s.version,
-        endpoint: `/mcp/${s.name}`,
+        endpoint: `/mcp-server/${s.name}`,
         tools: s.tools.map(t => t.name),
       })),
     });
@@ -32,7 +32,7 @@ export function createMcpHandler(adapter: SnailMCPServerAdapter): Hono {
     return c.json({
       name: server.name,
       version: server.version,
-      endpoint: `/mcp/${server.name}`,
+      endpoint: `/mcp-server/${server.name}`,
       tools: server.tools.map(t => ({
         name: t.name,
         description: t.description,

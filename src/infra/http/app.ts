@@ -45,7 +45,7 @@ export function createApp(deps: AppDeps) {
   app.route("/", createEvolutionRoutes(deps));
 
   if (deps.mcpHandler) {
-    app.route("/mcp", deps.mcpHandler);
+    app.route("/mcp-server", deps.mcpHandler);
   }
 
   app.get("/health", (c) => c.json({ status: "ok" }));

@@ -60,7 +60,7 @@ export class FileMCPRepository implements MCPRepository {
     for (const server of servers) {
       this.platformConfigs.push({
         name: server.name,
-        url: `${this.baseUrl}/mcp/${server.name}`,
+        url: `${this.baseUrl}/mcp-server/${server.name}`,
         scope: ScopeEnum.Platform,
         source: 'builtin',
       });

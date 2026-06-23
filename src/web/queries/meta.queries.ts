@@ -42,7 +42,7 @@ export const metaQueries = {
     queryOptions({
       queryKey: queryKeys.meta.mcpServers,
       queryFn: async () => {
-        const res = await fetch("/mcp");
+        const res = await fetch("/mcp-server");
         if (!res.ok) throw new ApiError("Failed to fetch MCP servers", res.status);
         const data = await res.json() as McpServerListResponse;
         return data.servers;
@@ -57,7 +57,7 @@ export const metaQueries = {
     queryOptions({
       queryKey: [...queryKeys.meta.mcpServers, serverName] as const,
       queryFn: async () => {
-        const res = await fetch(`/mcp/${encodeURIComponent(serverName)}`);
+        const res = await fetch(`/mcp-server/${encodeURIComponent(serverName)}`);
         if (!res.ok) throw new ApiError(`Failed to fetch MCP server: ${serverName}`, res.status);
         return res.json() as Promise<McpServerDetail>;
       },
