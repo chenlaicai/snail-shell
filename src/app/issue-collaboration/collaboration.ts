@@ -201,8 +201,6 @@ export class IssueCollaboration implements CollaborationInput {
         err: error,
       }, "invokeAgent failed");
       const status = abortController.signal.aborted ? "interrupted" : "failed";
-      /** 终态必须有对应的 terminal signal event，与 v1 finalizeMessageLifecycle 对齐 */
-      this.deps.messagePort.appendEvent(agentMessage.id, { type: "signal", signal: `message_${status}` });
       const context = this.extractTerminalContext(agentMessage.id);
       /** interrupted 时无 text event 则 context.kind 为 "event_summary"，context 内容为固定中断文案 */
       this.deps.messagePort.setContext(agentMessage.id, context.kind, context.context);
@@ -412,17 +410,6 @@ export class IssueCollaboration implements CollaborationInput {
 
     /** 无 text event 也无 mcp_final_body 时返回固定文案，不 dump 原始 event 给用户 */
     return { message_id: messageId, kind: "event_summary", context: "用户中断了本次回复", created_at: new Date().toISOString() };
-  }
-
-  private summarizeEvents(events: MessageEvent[]): string {
-    return events.map(event => {
-      if (event.payload.type === "text") return event.payload.text;
-      if (event.payload.type === "tool_call") return `[tool_call:${event.payload.tool_name}]`;
-      if (event.payload.type === "tool_result") return `[tool_result:${event.payload.tool_name}]`;
-      if (event.payload.type === "signal") return `[signal:${event.payload.signal}]`;
-      if (event.payload.type === "error") return `[error:${event.payload.error}]`;
-      return `[${event.payload.type}]`;
-    }).join("\n");
   }
 
   private buildSystemReminder(input: { issue: Issue; stage: Stage; roleInstance: string; roleKey: string }): string {

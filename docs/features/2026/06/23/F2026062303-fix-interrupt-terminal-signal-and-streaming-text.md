@@ -52,7 +52,7 @@ doc_kind: spec
 
 ### 变更点 1：中断路径发射 `message_interrupted` signal event
 
-v2 的 `collaboration.ts` catch 块中，在 `completeMessage` 前向事件流写入 `message_interrupted` signal event。参照 v1 的 `terminalSignalForStatus` 模式。
+v2 的 `collaboration.ts` catch 块中，调用 `completeMessage(agentMessage.id, status)` 即可——`completeMessage` 内部已自动追加 terminal signal event（`adapter.ts:58-71`），无需手动 `appendEvent`。参照 v1 的 `terminalSignalForStatus` 模式。
 
 signal event 结构：
 ```
@@ -68,7 +68,7 @@ signal event 结构：
 - `extractTerminalContext` 在 text event 和 `mcp_final_body` 都不存在时，返回固定文案（如"用户中断了本次回复"）作为 context
 - 不再使用 `summarizeEvents()` dump 原始 event 给用户
 
-`summarizeEvents()` 方法本身保留（可能有诊断用途），但不作为面向用户的兜底。
+`summarizeEvents()` 方法已删除（无调用点，属死代码）。
 
 ### 变更点 3：移除 EventStream 对 text event 的过滤
 
@@ -84,7 +84,7 @@ F2026062204 的 D2 决策（EventStream 过滤 text events）是本次 bug 的�
 ### 设计约束摘要
 
 - **边界**：仅修改 v2 前端（`ChatMessage.tsx`）和 v2 协作层（`collaboration.ts`），不涉及 v1
-- **关键决策**：中断路径必须发射 terminal signal event（与 v1 行为对齐）；`summarizeEvents` 不再作为面向用户的兜底；EventStream 不再过滤 text event
+- **关键决策**：中断路径的 terminal signal event 由 `completeMessage` 内部生成（无需手动 appendEvent）；`summarizeEvents` 已删除（无调用点）；EventStream 不再过滤 text event
 - **语义不变量**：message 终态必须有对应的 terminal signal event（completed/failed/interrupted）；流式过程展示所有事件类型
 
 ## 生效路径
@@ -99,7 +99,7 @@ F2026062204 的 D2 决策（EventStream 过滤 text events）是本次 bug 的�
 
 | 文件 | 变更类型 | 说明 |
 |---|---|---|
-| `src/app/issue-collaboration/collaboration.ts` | 修改 | catch 块发射 `message_interrupted` signal event；`extractTerminalContext` 兜底改为固定文案 |
+| `src/app/issue-collaboration/collaboration.ts` | 修改 | catch 块通过 `completeMessage` 发射 terminal signal event；`extractTerminalContext` 兜底改为固定文案；删除死代码 `summarizeEvents()` |
 | `src/web/components/ChatMessage.tsx` | 修改 | 移除 EventStream 对 text event 的过滤 |
 
 ## 验证
