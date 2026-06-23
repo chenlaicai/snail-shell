@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { metaQueries } from "@/queries/meta.queries";
 import { TopBar } from "@/components/TopBar";
-import type { McpServerDto } from "@api-contracts/dto";
+import type { McpConfigDto } from "@api-contracts/dto";
 
 const sourceLabel: Record<string, { label: string; color: string }> = {
   builtin: { label: "builtin", color: "bg-white/10 text-text-muted" },
@@ -17,16 +17,16 @@ function SourceTag({ source }: { source?: string }) {
   return <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] ${cfg.color}`}>{cfg.label}</span>;
 }
 
-function transportInfo(m: McpServerDto): string {
+function transportInfo(m: McpConfigDto): string {
   if (m.command) return `stdio: ${m.command}${m.args?.length ? ` ${m.args.join(" ")}` : ""}`;
   if (m.url) return `HTTP: ${m.url}`;
   return "无连接信息";
 }
 
 export function McpConfig() {
-  const { data: mcps = [], isLoading } = useQuery(metaQueries.mcps());
+  const { data: mcpConfigs = [], isLoading } = useQuery(metaQueries.mcpConfigs());
   const [selected, setSelected] = useState<string | null>(null);
-  const selectedConfig = mcps.find((m) => m.name === selected) ?? null;
+  const selectedConfig = mcpConfigs.find((m) => m.name === selected) ?? null;
 
   if (isLoading) return <div className="flex h-full items-center justify-center text-[13px] text-text-muted">加载中...</div>;
 
@@ -35,10 +35,10 @@ export function McpConfig() {
       <TopBar breadcrumbs={[{ label: "MCP Config" }]} />
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <aside className="w-[280px] shrink-0 overflow-y-auto border-r border-white/6 p-4">
-          {mcps.length === 0 ? (
+          {mcpConfigs.length === 0 ? (
             <div className="py-3 text-[13px] text-text-muted">暂无 MCP 配置</div>
           ) : (
-            mcps.map((m) => (
+            mcpConfigs.map((m) => (
               <button
                 key={m.name}
                 onClick={() => setSelected(m.name)}

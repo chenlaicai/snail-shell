@@ -26,7 +26,7 @@ export type ApiEndpoints = {
   "GET /api/sops/:sopKey": EndpointDef<{ sopKey: string }, never, never, Dto.SopDetailDto | null>;
   "GET /api/meta/prompts": EndpointDef<never, never, never, Dto.PromptDto[]>;
   "GET /api/meta/skills": EndpointDef<never, never, never, Dto.SkillDto[]>;
-  "GET /api/meta/mcps": EndpointDef<never, { workspace_root?: string }, never, Dto.McpServerDto[]>;
+  "GET /api/meta/mcp-configs": EndpointDef<never, { workspace_root?: string }, never, Dto.McpConfigDto[]>;
   "GET /api/snail-den": EndpointDef<never, never, never, Dto.SnailDenTemplateDto[]>;
   "POST /api/snail-den": EndpointDef<never, never, Dto.SnailDenTemplateDto, Dto.SnailDenTemplateDto>;
   "PATCH /api/snail-den/:key": EndpointDef<{ key: string }, never, Partial<Omit<Dto.SnailDenTemplateDto, 'key'>>, Dto.SnailDenTemplateDto>;

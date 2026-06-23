@@ -1,7 +1,7 @@
 import type { AgentRegistryPort } from "@infra/acs/port";
 import type { TenetPromptPort } from "@domain/tenet-prompt/port";
 import type { SkillPort } from "@domain/skill/port";
-import type { MCPPort } from "@domain/mcp/port";
+import type { MCPPort } from "@domain/mcp-config/port";
 import type { GuardProfilePort } from "@domain/guard-profile/port";
 import type { FileDataStore } from "@infra/file-data-store";
 import type { SQLiteDatabase } from "@infra/database";
