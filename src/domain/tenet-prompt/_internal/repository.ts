@@ -42,10 +42,32 @@ export class FileTenetPromptRepository implements TenetPromptRepository {
       return allPrompts;
     }
 
-    return allPrompts.filter(prompt => {
+    // 文件级 tags 兼容旧逻辑
+    const fileMatched = allPrompts.filter(prompt => {
       if (prompt.tags.length === 0) return true;
       return prompt.tags.some(tag => tags.includes(tag));
     });
+
+    // 规则级 tags 过滤：每条规则行首可带 [tag,tag] 标记
+    return fileMatched.map(prompt => ({
+      ...prompt,
+      content: this.filterContentByTags(prompt.content, tags),
+    }));
+  }
+
+  /**
+   * 规则级 tag 过滤。
+   * - 无 [tag] 前缀的行始终保留（通用规则）
+   * - XML section 标签行始终保留
+   * - 带 [tag] 的行仅在 tag 匹配时保留
+   */
+  private filterContentByTags(content: string, tags: string[]): string {
+    return content.split("\n").filter(line => {
+      const tagMatch = line.match(/^\[([^\]]+)\]\s/);
+      if (!tagMatch) return true;
+      const ruleTags = tagMatch[1].split(",").map(t => t.trim());
+      return ruleTags.some(t => tags.includes(t));
+    }).join("\n");
   }
 
   private loadPromptDir(store: FileDataStore, relativeDir: string): PromptDocument[] {
