@@ -35,20 +35,9 @@ const UpdateSnailBodySchema = z.object({
   message: "At least one non-key field must be provided",
 });
 
-export function createMetaRoutes(deps: MetaRoutesDeps) {
-  const app = new Hono();
-
-  app.get("/api/meta/prompts", (c) => c.json(deps.tenetPrompt.list()));
-  app.get("/api/meta/skills", (c) => c.json(deps.skill.list()));
-  app.get("/api/meta/mcps", (c) => c.json(deps.mcp.list()));
-  app.get("/api/sops", (c) => c.json(deps.sop.list()));
-  app.get("/api/sops/:sopKey", (c) => {
-    const sop = deps.sop.findByKey(c.req.param("sopKey"));
-    if (!sop) return c.json(null, 404);
-    return c.json(sop);
-  });
-  app.get("/api/snails", (c) => c.json(deps.snail.list()));
-  app.get("/api/snail-den", (c) => c.json(deps.snail.list()));
+function registerSnailDenRoutes(app: Hono, snail: SnailPort) {
+  app.get("/api/snails", (c) => c.json(snail.list()));
+  app.get("/api/snail-den", (c) => c.json(snail.list()));
 
   app.post("/api/snail-den", async (c) => {
     const parsed = CreateSnailBodySchema.safeParse(await c.req.json());
@@ -56,7 +45,7 @@ export function createMetaRoutes(deps: MetaRoutesDeps) {
       return c.json({ error: parsed.error.issues[0].message }, 400);
     }
     try {
-      deps.snail.create(parsed.data);
+      snail.create(parsed.data);
       return c.json(parsed.data, 201);
     } catch (e) {
       const msg = (e as Error).message;
@@ -76,7 +65,7 @@ export function createMetaRoutes(deps: MetaRoutesDeps) {
       return c.json({ error: parsed.error.issues[0].message }, 400);
     }
     try {
-      const updated = deps.snail.update(key, parsed.data);
+      const updated = snail.update(key, parsed.data);
       return c.json(updated);
     } catch (e) {
       const msg = (e as Error).message;
@@ -88,7 +77,7 @@ export function createMetaRoutes(deps: MetaRoutesDeps) {
   app.delete("/api/snail-den/:key", (c) => {
     const key = c.req.param("key");
     try {
-      deps.snail.remove(key);
+      snail.remove(key);
       return c.json({ ok: true });
     } catch (e) {
       const msg = (e as Error).message;
@@ -97,6 +86,29 @@ export function createMetaRoutes(deps: MetaRoutesDeps) {
       throw e;
     }
   });
+}
+
+export function createMetaRoutes(deps: MetaRoutesDeps) {
+  const app = new Hono();
+
+  app.get("/api/meta/prompts", (c) => c.json(deps.tenetPrompt.list()));
+  app.get("/api/meta/skills", (c) => c.json(deps.skill.list()));
+  app.get("/api/meta/mcps", (c) => {
+    const configs = deps.mcp.list();
+    const dtos = configs.map((config) => ({
+      ...config,
+      workspace_path: config.workspace?.path,
+    }));
+    return c.json(dtos);
+  });
+  app.get("/api/sops", (c) => c.json(deps.sop.list()));
+  app.get("/api/sops/:sopKey", (c) => {
+    const sop = deps.sop.findByKey(c.req.param("sopKey"));
+    if (!sop) return c.json(null, 404);
+    return c.json(sop);
+  });
+
+  registerSnailDenRoutes(app, deps.snail);
 
   return app;
 }

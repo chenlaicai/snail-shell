@@ -14,7 +14,7 @@ export interface SnailRepository {
   findByKey(key: string): Snail | undefined;
 
   /** 创建 snail 配置 */
-  create(snail: Snail): void;
+  create(snail: Snail): Snail;
 
   /** 更新 snail 配置（部分更新） */
   update(key: string, patch: Partial<Omit<Snail, 'key'>>): Snail;
@@ -76,13 +76,14 @@ export class FileSnailRepository implements SnailRepository {
     return this.snails.get(key);
   }
 
-  create(snail: Snail): void {
+  create(snail: Snail): Snail {
     if (this.snails.has(snail.key)) {
       throw new Error(`Snail with key "${snail.key}" already exists`);
     }
     // write-through: 先写文件，成功后再更新内存 Map
     this.saveSnailsWith([...this.snails.values(), snail]);
     this.snails.set(snail.key, snail);
+    return snail;
   }
 
   update(key: string, patch: Partial<Omit<Snail, 'key'>>): Snail {

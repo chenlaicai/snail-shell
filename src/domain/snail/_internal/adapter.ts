@@ -39,8 +39,9 @@ export class SnailAdapter implements SnailPort {
     return this.repo.findByKey(key);
   }
 
-  create(snail: Snail): void {
+  create(snail: Snail): Snail {
     this.repo.create(snail);
+    return snail;
   }
 
   update(key: string, patch: Partial<Omit<Snail, 'key'>>): Snail {

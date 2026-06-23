@@ -1,5 +1,5 @@
 ---
-id: F2026062206
+id: F2026062207
 title: snail-den-crud
 from_ids: []
 tags: [snail, crud, ui, config-management]
@@ -7,7 +7,7 @@ modules: [snail, web, api]
 doc_kind: spec
 ---
 
-# F2026062206 [snail] Snail Den CRUD 能力
+# F2026062207 [snail] Snail Den CRUD 能力
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 <!-- 进入实现阶段后不得单方面修改，如需变更须通过问题卡片向用户提出并确认 -->

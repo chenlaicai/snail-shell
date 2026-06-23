@@ -103,6 +103,7 @@ export function SnailFormDialog({ open, mode, initialData, isPending, onSubmit, 
               className="w-full bg-surface-0 border border-white/6 rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-shell-600/40"
               placeholder="e.g. claude-code"
             />
+            <p className="mt-1 text-[11px] text-text-muted">此 agent_name 将在运行时验证，未注册的 agent 调用时可能失败</p>
           </div>
           <div>
             <label className="block text-xs text-text-muted mb-1">Model *</label>
@@ -119,6 +120,8 @@ export function SnailFormDialog({ open, mode, initialData, isPending, onSubmit, 
               value={contextWindow}
               onChange={(e) => setContextWindow(e.target.value)}
               type="number"
+              min="0"
+              step="1"
               className="w-full bg-surface-0 border border-white/6 rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-shell-600/40"
               placeholder="e.g. 200000"
             />
@@ -129,6 +132,8 @@ export function SnailFormDialog({ open, mode, initialData, isPending, onSubmit, 
               value={invocationTimeoutMs}
               onChange={(e) => setInvocationTimeoutMs(e.target.value)}
               type="number"
+              min="0"
+              step="1"
               className="w-full bg-surface-0 border border-white/6 rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-shell-600/40"
               placeholder="e.g. 7200000"
             />

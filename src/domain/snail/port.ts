@@ -15,7 +15,7 @@ export interface SnailPort {
   findByKey(key: string): Snail | undefined;
 
   /** 创建 snail 配置 */
-  create(snail: Snail): void;
+  create(snail: Snail): Snail;
 
   /** 更新 snail 配置（部分更新） */
   update(key: string, patch: Partial<Omit<Snail, 'key'>>): Snail;
