@@ -11,6 +11,7 @@ import { init as initTenetPrompt } from "@domain/tenet-prompt/_internal/initor";
 import { init as initSkill } from "@domain/skill/_internal/initor";
 import { init as initSop } from "@domain/sop/_internal/initor";
 import { init as initMCPServer } from "@domain/snail-mcp-server/_internal/initor";
+import { createQueryConversationContext, createQueryConversationHistory, createCreateEvolutionCandidate, createSearchFeatureChain } from "@domain/snail-mcp-server/_internal/issue-query-functions";
 import { initHono as initIM } from "@domain/im/_internal/hono-initor";
 import { init as initKnowledge } from "@domain/knowledge/_internal/initor";
 import { init as initIssue } from "@domain/issue/_internal/initor";
@@ -53,13 +54,33 @@ async function initModules(repoRoot: string, serverSettings: ServerSettings) {
   const issue = initIssue(sop.adapter, db);
   const message = initMessage(db);
   const evolutionRef: { current?: ReturnType<typeof initEvolution> } = {};
+  const collaborationRef: { current?: ReturnType<typeof initIssueCollaboration>["adapter"] } = {};
+  const _featureChainRef: { current?: ReturnType<typeof initFeatureChain> } = {};
+  const queryConversationContextRef: { current?: ReturnType<typeof createQueryConversationContext> } = { current: createQueryConversationContext(db) };
+  const queryConversationHistoryRef: { current?: ReturnType<typeof createQueryConversationHistory> } = { current: createQueryConversationHistory(db) };
+  const _searchFeatureChainRef: { current?: ReturnType<typeof createSearchFeatureChain> } = {};
+  const _createEvolutionCandidateRef: { current?: ReturnType<typeof createCreateEvolutionCandidate> } = {};
+
   const snailMCPServer = initMCPServer({
-    updateEvolution: (id, updates) => {
-      if (!evolutionRef.current) throw new Error("Evolution module is not initialized");
-      return Promise.resolve(evolutionRef.current.adapter.update(id, updates));
-    },
     knowledge: knowledge.adapter,
     message: message.adapter,
+    issue: issue.issueAdapter,
+    stage: issue.stageAdapter,
+    db,
+    evolutionRef: {
+      get current() { return evolutionRef.current?.adapter; },
+    },
+    queryConversationContextRef,
+    queryConversationHistoryRef,
+    searchFeatureChainRef: {
+      get current() { return _searchFeatureChainRef.current ?? (_searchFeatureChainRef.current = createSearchFeatureChain(db)); },
+    },
+    createEvolutionCandidateRef: {
+      get current() {
+        if (!evolutionRef.current || !collaborationRef.current) return undefined;
+        return createCreateEvolutionCandidate(evolutionRef.current.adapter, collaborationRef.current, issue.issueAdapter);
+      },
+    },
   });
   const mcp = initMCP({ dataStore, workspaces, snailMCPServer: snailMCPServer.adapter, serverSettings });
   const featureChain = initFeatureChain(repoRoot);
@@ -67,6 +88,7 @@ async function initModules(repoRoot: string, serverSettings: ServerSettings) {
   const liteAI = initLiteAI(dataStore);
   const snail = initSnail(dataStore, db, { registry, tenetPrompt: tenetPrompt.adapter, skill: skill.adapter, mcp: mcp.adapter, guardProfile: guardProfile.adapter });
   const collaboration = initIssueCollaboration({ issuePort: issue.issueAdapter, createIssue: (input) => issue.issueAdapter.createIssue(input), stagePort: issue.stageAdapter, messagePort: message.adapter, snailPort: snail.adapter, liteAIPort: liteAI.adapter });
+  collaborationRef.current = collaboration.adapter;
   const evolution = initEvolution(db, issue.issueAdapter, snail.adapter, collaboration.adapter);
   evolutionRef.current = evolution;
   const im = initIM({ workspacePort: workspace.adapter, issuePort: issue.issueAdapter, stagePort: issue.stageAdapter, configStore, db });

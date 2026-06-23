@@ -42,6 +42,10 @@ export class IssueAdapter implements IssuePort {
     validateSnailAssignmentPlan(sop, plan);
   }
 
+  updateTaskAnchor(id: string, taskAnchor: string): void {
+    this.issueRepo.updateTaskAnchor(id, taskAnchor);
+  }
+
   createIssue(input: CreateIssueInput): Issue {
     const sop = this.sopPort.findByKey(input.adopted_sop_key);
     if (!sop) throw new Error(`SOP not found: ${input.adopted_sop_key}`);
@@ -56,6 +60,7 @@ export class IssueAdapter implements IssuePort {
       sop_snapshot: structuredClone(sop),
       snail_assignment_plan: structuredClone(input.snail_assignment_plan),
       extendable_context: input.extendable_context ?? {},
+      task_anchor: null,
       created_at: now,
       closed_at: null,
     };

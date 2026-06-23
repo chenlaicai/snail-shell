@@ -7,6 +7,7 @@ export interface IssueRepository {
   findById(id: string): Issue | undefined;
   listByWorkspace(workspacePath: string, limit?: number, offset?: number): Issue[];
   create(issue: Issue): void;
+  updateTaskAnchor(id: string, taskAnchor: string): void;
 }
 
 // ── Stage Repository ──────────────────────────────────────────────────
@@ -41,6 +42,7 @@ CREATE TABLE IF NOT EXISTS issue (
   sop_snapshot TEXT NOT NULL,
   snail_assignment_plan TEXT NOT NULL,
   extendable_context TEXT NOT NULL,
+  task_anchor TEXT,
   created_at TEXT NOT NULL,
   closed_at TEXT
 );
@@ -88,6 +90,7 @@ type IssueRow = {
   sop_snapshot: string;
   snail_assignment_plan: string;
   extendable_context: string;
+  task_anchor: string | null;
   created_at: string;
   closed_at: string | null;
 };
@@ -113,6 +116,8 @@ type RoleSnailAssignmentRow = RoleSnailAssignment;
 export class SQLiteIssueRepository implements IssueRepository {
   constructor(private db: SQLiteDatabase) {
     db.initSchema(ISSUE_SCHEMA);
+    // Migration: add task_anchor column if missing
+    try { db.run(`ALTER TABLE issue ADD COLUMN task_anchor TEXT`); } catch { /* column exists */ }
   }
 
   findById(id: string): Issue | undefined {
@@ -129,8 +134,8 @@ export class SQLiteIssueRepository implements IssueRepository {
 
   create(issue: Issue): void {
     this.db.run(
-      `INSERT INTO issue (id, workspace_path, title, summary, sop_snapshot, snail_assignment_plan, extendable_context, created_at, closed_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO issue (id, workspace_path, title, summary, sop_snapshot, snail_assignment_plan, extendable_context, task_anchor, created_at, closed_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         issue.id,
         issue.workspace_path,
@@ -139,10 +144,18 @@ export class SQLiteIssueRepository implements IssueRepository {
         JSON.stringify(issue.sop_snapshot),
         JSON.stringify(issue.snail_assignment_plan),
         JSON.stringify(issue.extendable_context),
+        issue.task_anchor,
         issue.created_at,
         issue.closed_at,
       ],
     );
+  }
+
+  updateTaskAnchor(id: string, taskAnchor: string): void {
+    const issue = this.findById(id);
+    if (!issue) throw new Error(`Issue not found: ${id}`);
+    if (issue.closed_at) throw new Error("Archived issue is read-only");
+    this.db.run(`UPDATE issue SET task_anchor = ? WHERE id = ?`, [taskAnchor, id]);
   }
 }
 
@@ -274,6 +287,7 @@ function mapIssue(row: IssueRow): Issue {
     sop_snapshot: JSON.parse(row.sop_snapshot),
     snail_assignment_plan: JSON.parse(row.snail_assignment_plan),
     extendable_context: JSON.parse(row.extendable_context),
+    task_anchor: row.task_anchor,
     created_at: row.created_at,
     closed_at: row.closed_at,
   };
