@@ -7,16 +7,12 @@ export interface IssuePort {
   listIssues(workspacePath: string, limit?: number, offset?: number): Issue[];
   previewSopStages(adoptedSopKey: string, title: string): StagePreview[];
   validateSnailAssignmentPlan(sop: Sop, plan: IssueSnailAssignmentPlan): void;
-  /** 关闭 issue（用户主动终止，任意阶段可调用，幂等） */
-  closeIssue(id: string): Issue;
 }
 
 /** Stage 端口 */
 export interface StagePort {
   findStage(id: string): Stage | undefined;
   listStages(issueId: string): Stage[];
-  /** 返回 issue 未关闭的 stage ID 子集 */
-  listOpenStageIds(stageIds: string[]): string[];
   /** 预览 stage 定义（只读，不创建），供页面展示角色实例供用户选择 snail */
   previewStage(issueId: string, stageKey: string): StagePreview;
   getStageSnailAssignmentPlan(issueId: string, stageKey: string): StageSnailAssignmentPlan;

@@ -3,8 +3,6 @@ import type { StageStatus } from "@/types";
 const statusConfig: Record<string, { label: string; dot: string; bg: string; text: string }> = {
   in_progress: { label: "In Progress", dot: "bg-status-blue", bg: "bg-status-blue/15", text: "text-status-blue" },
   completed: { label: "Done", dot: "bg-status-green", bg: "bg-status-green/15", text: "text-status-green" },
-  active: { label: "In Progress", dot: "bg-status-blue", bg: "bg-status-blue/15", text: "text-status-blue" },
-  closed: { label: "Closed", dot: "bg-status-gray", bg: "bg-status-gray/15", text: "text-text-muted" },
 };
 
 export function StatusBadge({ status }: { status: StageStatus }) {
