@@ -32,5 +32,6 @@ stage_definitions:
         description: 负责演进项的治理对话：入口校验、查重、分析、裁决和必要产物处理。
         is_primary: true
         count: 1
+        skill: evo-executor
 
 # 无 transitions — 单阶段即终态
