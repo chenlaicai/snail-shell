@@ -1,6 +1,15 @@
 import type { MCPServerConfig, MCPTool } from "@domain/snail-mcp-server/model";
 import type { IssuePort } from "@domain/issue/port";
 
+/** 系统保留 key，禁止 Agent 通过 set_context 写入 */
+const RESERVED_KEYS = new Set([
+  "issue_id",
+  "stage_id",
+  "message_id",
+  "stage_key",
+  "role_instance",
+]);
+
 /**
  * Issue Context MCP Server。
  * 提供 Issue 级别上下文的读写工具。
@@ -34,9 +43,14 @@ function createSetContextTool(issuePort: IssuePort): MCPTool {
       const key = String(params.key);
       const value = String(params.value);
 
-      // 验证 key 格式（建议 SNAIL_CTX_* 格式，但不强制）
+      // 验证 key 格式
       if (!key.match(/^[a-zA-Z0-9_.]+$/)) {
         throw new Error(`Invalid key format: ${key}. Key should contain only alphanumeric characters, underscores, and dots.`);
+      }
+
+      // 验证 key 不是系统保留 key
+      if (RESERVED_KEYS.has(key)) {
+        throw new Error(`Reserved key: ${key}. Cannot overwrite system-reserved keys.`);
       }
 
       await issuePort.updateContext(issueId, { [key]: value });

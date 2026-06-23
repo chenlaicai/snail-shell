@@ -126,15 +126,31 @@ export class SQLiteIssueRepository implements IssueRepository {
       );
       const hasExtendableContext = columns.some(col => col.name === 'extendable_context');
 
-      if (hasExtendableContext) {
-        // 将 extendable_context 的数据迁移到 context
-        this.db.run(
-          `UPDATE issue SET context = extendable_context WHERE context = '{}' AND extendable_context != '{}'`
-        );
-        // 删除 extendable_context 列（SQLite 不支持 DROP COLUMN，需要重建表）
-        // 由于 SQLite 限制，我们保留列但不再使用
-        console.log('[Migration] extendable_context 数据已迁移到 context');
+      if (!hasExtendableContext) return;
+
+      // 获取所有有 extendable_context 数据的行
+      const rows = this.db.all<{ id: string; extendable_context: string; context: string }>(
+        `SELECT id, extendable_context, context FROM issue WHERE extendable_context != '{}'`
+      );
+
+      for (const row of rows) {
+        try {
+          const extendableCtx = JSON.parse(row.extendable_context);
+          const currentCtx = JSON.parse(row.context);
+
+          // 合并策略：extendable_context 作为基础，context 覆盖
+          const merged = { ...extendableCtx, ...currentCtx };
+
+          this.db.run(
+            `UPDATE issue SET context = ? WHERE id = ?`,
+            [JSON.stringify(merged), row.id]
+          );
+        } catch (parseError) {
+          console.error(`[Migration] 解析 context 失败，issue ${row.id}:`, parseError);
+        }
       }
+
+      console.log(`[Migration] 已迁移 ${rows.length} 条 extendable_context 数据`);
     } catch (error) {
       console.error('[Migration] 迁移 extendable_context 失败:', error);
     }

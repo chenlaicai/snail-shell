@@ -1,5 +1,13 @@
 /**
- * Snail Issue Context MCP Server 测试 — 覆盖 Feature 文档 B1-B8
+ * Snail Issue Context MCP Server 测试 — 覆盖 Feature 文档 B1-B3, B7-B8
+ *
+ * 测试范围说明：
+ * - B1: set_context 写入 Issue.context ✅
+ * - B2: get_context 返回完整上下文 ✅
+ * - B3: get_context 返回单个 key ✅
+ * - B4-B6: system reminder 注入逻辑 — 在 collaboration 层测试（不在本文件）
+ * - B7: 并发写入 merge 语义 ✅
+ * - B8: 初始 context 写入 ✅
  *
  * 运行方式：npx tsx tests/snail/snail-issue-context-mcp-test.ts
  */
@@ -293,6 +301,41 @@ async function testSetContextIssueNotFound() {
   }
 }
 
+async function testReservedKeyValidation() {
+  console.log("测试: set_context 拒绝系统保留 key");
+  const { tmpDir, issueRepo, server } = createTestEnv();
+
+  try {
+    // 创建测试 Issue
+    const issue = makeIssue();
+    issueRepo.create(issue);
+
+    // 获取 set_context 工具
+    const setContextTool = server.tools.find(t => t.name === "set_context");
+    assert(setContextTool, "set_context 工具应该存在");
+
+    // 尝试写入保留 key
+    const reservedKeys = ["issue_id", "stage_id", "message_id", "stage_key", "role_instance"];
+    for (const key of reservedKeys) {
+      await assert.rejects(
+        () => setContextTool.handler({
+          issue_id: "test-issue-1",
+          key: key,
+          value: "test.value",
+        }),
+        (error: Error) => {
+          assert(error.message.includes("Reserved key"), `Expected "Reserved key" error for ${key}, got: ${error.message}`);
+          return true;
+        }
+      );
+    }
+
+    console.log("  ✅ 通过");
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+
 // ── 运行测试 ──────────────────────────────────────────────────
 
 async function runTests() {
@@ -306,6 +349,7 @@ async function runTests() {
     await testGetContextIssueNotFound();
     await testMergeSemantics();
     await testSetContextIssueNotFound();
+    await testReservedKeyValidation();
 
     console.log("\n✅ 所有测试通过");
   } catch (error) {
