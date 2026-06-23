@@ -1,5 +1,5 @@
 ---
-id: F2026062301
+id: F2026062303
 title: fix-mcp-servers-vite-proxy-and-rename
 from_ids: [F2026062206]
 tags: [web, mcp, bugfix, refactor]
@@ -7,7 +7,7 @@ modules: [web]
 doc_kind: spec
 ---
 
-# F2026062301 [web] 修复 MCP Servers 页面 Vite 代理配置遗漏 + 统一 MCP 命名
+# F2026062303 [web] 修复 MCP Servers 页面 Vite 代理配置遗漏 + 统一 MCP 命名
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 <!-- 进入实现阶段后不得单方面修改，如需变更须通过问题卡片向用户提出并确认 -->
