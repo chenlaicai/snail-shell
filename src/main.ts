@@ -20,7 +20,7 @@ import { init as initFeatureChain } from "@domain/feature-chain/_internal/initor
 import { init as initGuardProfile } from "@domain/guard-profile/_internal/initor";
 import { init as initSnail } from "@domain/snail/_internal/initor";
 import { init as initLiteAI } from "@domain/lite-ai/_internal/initor";
-import { init as initMCP } from "@domain/mcp/_internal/initor";
+import { init as initMCP } from "@domain/mcp-config/_internal/initor";
 import { init as initIssueCollaboration } from "@app/issue-collaboration/initor";
 import { init as initIMHub } from "@app/im-hub/initor";
 import { createMcpHandler } from "@infra/mcp-server/handler";

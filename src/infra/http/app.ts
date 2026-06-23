@@ -13,7 +13,7 @@ import type { TenetPromptPort } from "@domain/tenet-prompt/port";
 import type { SkillPort } from "@domain/skill/port";
 import type { SopPort } from "@domain/sop/port";
 import type { SnailPort } from "@domain/snail/port";
-import type { MCPPort } from "@domain/mcp/port";
+import type { MCPPort } from "@domain/mcp-config/port";
 import type { KnowledgePort } from "@domain/knowledge/port";
 import type { EvolutionPort } from "@domain/evolution/port";
 import type { Hono as HonoApp } from "hono";

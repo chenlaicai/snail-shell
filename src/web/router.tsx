@@ -154,7 +154,7 @@ export const router = createBrowserRouter([
         path: "mcp-config",
         element: <McpConfig />,
         loader: async () => {
-          await queryClient.ensureQueryData(metaQueries.mcps());
+          await queryClient.ensureQueryData(metaQueries.mcpConfigs());
           return null;
         },
       },

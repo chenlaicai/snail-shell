@@ -24,7 +24,7 @@ function transportInfo(m: McpServerDto): string {
 }
 
 export function McpConfig() {
-  const { data: mcps = [], isLoading } = useQuery(metaQueries.mcps());
+  const { data: mcps = [], isLoading } = useQuery(metaQueries.mcpConfigs());
   const [selected, setSelected] = useState<string | null>(null);
   const selectedConfig = mcps.find((m) => m.name === selected) ?? null;
 

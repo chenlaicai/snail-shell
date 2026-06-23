@@ -27,10 +27,10 @@ export const metaQueries = {
       queryFn: () => api("GET /api/meta/skills"),
     }),
 
-  mcps: (workspaceRoot?: string) =>
+  mcpConfigs: (workspaceRoot?: string) =>
     queryOptions({
-      queryKey: queryKeys.meta.mcps(workspaceRoot),
-      queryFn: () => api("GET /api/meta/mcps", { query: workspaceRoot ? { workspace_root: workspaceRoot } : undefined }),
+      queryKey: queryKeys.meta.mcpConfigs(workspaceRoot),
+      queryFn: () => api("GET /api/meta/mcp-configs", { query: workspaceRoot ? { workspace_root: workspaceRoot } : undefined }),
     }),
 
   /**
