@@ -16,6 +16,8 @@ export interface Issue {
   extendable_context: Record<string, unknown>;
   created_at: string;
   closed_at: string | null;
+  /** null = 未归档, 非 null = 已归档（强制冻结，issue 完全不可变） */
+  archived_at: string | null;
 }
 
 export interface CreateIssueInput {

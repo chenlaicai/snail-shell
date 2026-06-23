@@ -101,6 +101,12 @@ export function createIssueRoutes(deps: IssueRoutesDeps) {
     return c.json(toStageDto(deps, stage), 201);
   });
 
+  app.post("/api/issues/:issueId/archive", async (c) => {
+    const issueId = c.req.param("issueId");
+    const issue = await deps.collaboration.archiveIssue(issueId);
+    return c.json(toIssueDetail(deps, issue));
+  });
+
   return app;
 }
 

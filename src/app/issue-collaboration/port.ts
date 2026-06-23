@@ -25,6 +25,8 @@ export interface CollaborationInput {
   unregisterIssueConsumer(issueId: string, consumer: CollaborationConsumer): void;
   listStageTransitionSuggestions(stageId: string): StageTransitionSuggestion[];
   advanceStage(stageId: string, targetKey: string): Promise<Stage>;
+  /** 归档 issue：设置 archived_at，幂等操作 */
+  archiveIssue(issueId: string): Promise<Issue>;
 }
 
 export interface CollaborationConsumer {

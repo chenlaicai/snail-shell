@@ -23,7 +23,7 @@ export function StageActionBar({
     return (issue.sop_snapshot?.transitions ?? []).filter((transition) => transition.from === currentStage.key && transition.to !== currentStage.key);
   }, [currentStage, issue.sop_snapshot?.transitions]);
 
-  if (!currentStage || issue.closed_at || currentStage.status !== "in_progress") return null;
+  if (!currentStage || issue.archived_at || issue.closed_at || currentStage.status !== "in_progress") return null;
 
   const needsSelection = transitions.length > 1 && !selectedTarget;
 

@@ -16,6 +16,16 @@ import type { IssueRepository, StageRepository, RoleSnailAssignmentRepository } 
 import type { SopPort } from "@domain/sop/port";
 import type { Sop, StageDefinition } from "@domain/sop/model";
 
+/**
+ * 归档写保护守卫：已归档的 issue 完全不可变。
+ * archived_at !== null 时抛出异常，阻止任何写操作。
+ */
+export function assertIssueMutable(issue: Issue): void {
+  if (issue.archived_at) {
+    throw new Error(`Issue "${issue.id}" is archived and cannot be modified`);
+  }
+}
+
 // ── Issue Adapter ─────────────────────────────────────────────────────
 
 export class IssueAdapter implements IssuePort {
@@ -42,6 +52,15 @@ export class IssueAdapter implements IssuePort {
     validateSnailAssignmentPlan(sop, plan);
   }
 
+  archiveIssue(id: string): Issue {
+    const issue = this.issueRepo.findById(id);
+    if (!issue) throw new Error(`Issue not found: ${id}`);
+    if (issue.archived_at) return issue; // 幂等：已归档直接返回
+    const now = new Date().toISOString();
+    this.issueRepo.updateArchivedAt(id, now);
+    return { ...issue, archived_at: now };
+  }
+
   createIssue(input: CreateIssueInput): Issue {
     const sop = this.sopPort.findByKey(input.adopted_sop_key);
     if (!sop) throw new Error(`SOP not found: ${input.adopted_sop_key}`);
@@ -58,6 +77,7 @@ export class IssueAdapter implements IssuePort {
       extendable_context: input.extendable_context ?? {},
       created_at: now,
       closed_at: null,
+      archived_at: null,
     };
     this.issueRepo.create(issue);
     return issue;
@@ -104,6 +124,7 @@ export class StageAdapter implements StagePort {
 
   private createStageInTransaction(input: CreateStageInput): Stage {
     const issue = this.mustFindIssue(input.issue_id);
+    assertIssueMutable(issue);
     const stageDef = findStageDefinition(issue.sop_snapshot, input.key);
     const roleInstances = expandRoleInstances(stageDef.roles);
     const defaultRoleInstance = resolveDefaultRoleInstance(stageDef.roles);
@@ -157,6 +178,8 @@ export class StageAdapter implements StagePort {
   addOutputArtifacts(stageId: string, artifacts: Record<string, string>): void {
     const stage = this.stageRepo.findById(stageId);
     if (!stage) throw new Error(`Stage not found: ${stageId}`);
+    const issue = this.issueRepo.findById(stage.issue_id);
+    if (issue) assertIssueMutable(issue);
     Object.assign(stage.output_artifacts, artifacts);
     this.stageRepo.update(stageId, { output_artifacts: stage.output_artifacts });
   }
@@ -165,6 +188,8 @@ export class StageAdapter implements StagePort {
     return this.stageRepo.transaction(() => {
       const current = this.stageRepo.findById(currentStageId);
       if (!current) throw new Error(`Stage not found: ${currentStageId}`);
+      const issue = this.issueRepo.findById(current.issue_id);
+      if (issue) assertIssueMutable(issue);
 
       const transition = current.available_transitions.find(t => t.to === targetKey);
       if (!transition) throw new Error(`Transition to "${targetKey}" not available from stage "${current.key}"`);
@@ -184,6 +209,9 @@ export class StageAdapter implements StagePort {
   switchSnail(stageId: string, roleInstance: string, newSnailId: string): void {
     const stage = this.stageRepo.findById(stageId);
     if (!stage) throw new Error(`Stage not found: ${stageId}`);
+    const issue = this.issueRepo.findById(stage.issue_id);
+    if (!issue) throw new Error(`Issue not found: ${stage.issue_id}`);
+    assertIssueMutable(issue);
     if (!stage.role_instances.includes(roleInstance)) {
       throw new Error(`Role instance "${roleInstance}" not found in stage "${stage.key}"`);
     }
@@ -204,6 +232,11 @@ export class StageAdapter implements StagePort {
   }
 
   setSnailInstanceId(stageId: string, roleInstance: string, snailInstanceId: string): void {
+    const stage = this.stageRepo.findById(stageId);
+    if (!stage) throw new Error(`Stage not found: ${stageId}`);
+    const issue = this.issueRepo.findById(stage.issue_id);
+    if (!issue) throw new Error(`Issue not found: ${stage.issue_id}`);
+    assertIssueMutable(issue);
     this.sessionRepo.setSnailInstanceId(stageId, roleInstance, snailInstanceId);
   }
 

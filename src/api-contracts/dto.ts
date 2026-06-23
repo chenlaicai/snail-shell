@@ -79,6 +79,7 @@ export type IssueDto = {
   extendable_context: Record<string, unknown>;
   created_at: string;
   closed_at: string | null;
+  archived_at: string | null;
 };
 export type IssueDetailDto = IssueDto & { stages: StageDetailDto[]; current_stage: StageDetailDto };
 export type CreateIssueResult = { issue: IssueDetailDto; stage: StageDetailDto };

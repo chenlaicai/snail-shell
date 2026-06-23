@@ -28,6 +28,11 @@ export function PropertiesPanel({ issue, stage }: PropertiesPanelProps) {
               <span className="text-[13px] text-text-secondary">{formatDate(issue.closed_at)}</span>
             </PropRow>
           )}
+          {issue.archived_at && (
+            <PropRow label="Archived">
+              <span className="text-[13px] text-text-secondary">{formatDate(issue.archived_at)}</span>
+            </PropRow>
+          )}
         </Section>
 
         <Divider />

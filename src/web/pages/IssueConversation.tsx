@@ -1,6 +1,6 @@
 import { useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/services/api-client";
 import { queryKeys } from "@/queries/keys";
 import { showToast } from "@/components/Toast";
@@ -101,6 +101,22 @@ export function IssueConversation() {
     setSearchParams({ stage: nextStage.id }, { replace: true });
   }, [issueId, queryClient, setSearchParams, workspaceId]);
 
+  const [archiving, setArchiving] = useState(false);
+  const handleArchive = useCallback(async () => {
+    if (!issueId || archiving) return;
+    setArchiving(true);
+    try {
+      await api("POST /api/issues/:issueId/archive", { params: { issueId } });
+      showToast("Issue 已归档");
+      queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(issueId) });
+      if (workspaceId) queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.issues(workspaceId) });
+    } catch (err: unknown) {
+      showToast(`归档失败：${err instanceof Error ? err.message : String(err)}`, true);
+    } finally {
+      setArchiving(false);
+    }
+  }, [issueId, archiving, queryClient, workspaceId]);
+
   const stage = activeStage;
 
   if (issueLoading) {
@@ -139,7 +155,16 @@ export function IssueConversation() {
               <div className="mb-2">
                 <div className="flex items-center gap-3 mb-3">
                   <span className="text-xs text-text-muted font-medium font-mono">{issue.id.slice(0, 8)}</span>
-                  {stage && <StatusBadge status={stage.status} />}
+                  {issue.archived_at ? <StatusBadge status="archived" /> : stage && <StatusBadge status={stage.status} />}
+                  {!issue.archived_at && !issue.closed_at && (
+                    <button
+                      onClick={handleArchive}
+                      disabled={archiving}
+                      className="ml-auto rounded-md border border-white/10 bg-surface-2 px-2.5 py-1 text-xs text-text-secondary hover:bg-white/10 hover:text-text-primary transition-colors disabled:opacity-50"
+                    >
+                      {archiving ? "归档中..." : "归档"}
+                    </button>
+                  )}
                 </div>
                 <h1 className="text-xl font-semibold leading-tight mb-2">{issue.title}</h1>
                 {issue.summary && <p className="text-[14px] text-text-secondary leading-relaxed">{issue.summary}</p>}
@@ -172,6 +197,7 @@ export function IssueConversation() {
                   <div>
                     <PropRow label="Created"><span className="text-[13px] text-text-secondary">{issue.created_at ? new Date(issue.created_at).toLocaleDateString() : "—"}</span></PropRow>
                     <PropRow label="Closed"><span className="text-[13px] text-text-secondary">{issue.closed_at ? new Date(issue.closed_at).toLocaleDateString() : "—"}</span></PropRow>
+                    {issue.archived_at && <PropRow label="Archived"><span className="text-[13px] text-text-secondary">{new Date(issue.archived_at).toLocaleDateString()}</span></PropRow>}
                     <PropRow label="Stages" last><span className="text-[13px] text-text-secondary">{issue.stages?.length ?? 0}</span></PropRow>
                   </div>
                 </div>
@@ -197,7 +223,11 @@ export function IssueConversation() {
           {/* Input */}
           <div className="shrink-0 px-6 pb-8 pt-4">
             <div className="mx-auto max-w-[920px]">
-              {stage?.status === "completed" ? (
+              {issue.archived_at ? (
+                <div className="rounded-2xl border border-white/6 bg-surface-2 px-4 py-3 text-[12px] text-text-muted">
+                  此 Issue 已归档，历史对话保留为只读。
+                </div>
+              ) : stage?.status === "completed" ? (
                 <div className="rounded-2xl border border-white/6 bg-surface-2 px-4 py-3 text-[12px] text-text-muted">
                   当前 Stage 已结束，历史对话保留为只读。请切换到当前 Stage 继续对话。
                 </div>

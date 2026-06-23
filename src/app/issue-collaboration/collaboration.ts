@@ -9,6 +9,7 @@ import type { LiteAIPort } from "@domain/lite-ai/port";
 import type { AgentEvent, Message as AgentMessage, InvokeOptions } from "@infra/acs/model";
 import type { CollaborationConsumer, CollaborationInput, CreateIssueResult, StageTransitionSuggestion } from "@app/issue-collaboration/port";
 import { StageQueue } from "@app/issue-collaboration/stage-queue";
+import { assertIssueMutable } from "@domain/issue/_internal/adapter";
 import { getLogger } from "@infra/logger";
 
 const log = getLogger({ module: "collaboration" });
@@ -50,14 +51,31 @@ export class IssueCollaboration implements CollaborationInput {
   interruptMessage(messageId: number): boolean {
     const controller = this.activeInvocations.get(messageId);
     if (!controller) return false;
+    // 归档检查：归档后不再允许中断消息操作
+    const message = this.deps.messagePort.getMessage(messageId);
+    if (message) {
+      const stage = this.deps.stagePort.findStage(message.stage_id);
+      if (stage) {
+        const issue = this.deps.issuePort.findIssue(stage.issue_id);
+        if (issue) assertIssueMutable(issue);
+      }
+    }
     controller.abort();
     this.activeInvocations.delete(messageId);
     log.info({ messageId }, "interruptMessage");
     return true;
   }
 
+  async archiveIssue(issueId: string): Promise<Issue> {
+    const issue = this.deps.issuePort.archiveIssue(issueId);
+    log.info({ issueId, archived_at: issue.archived_at }, "archiveIssue");
+    return issue;
+  }
+
   async sendMessage(stageId: string, text: string, fromSpeaker = "user", toSpeakers?: string[]): Promise<void> {
     const stage = this.mustGetStage(stageId);
+    const issue = this.mustGetIssue(stage.issue_id);
+    assertIssueMutable(issue);
     /** 前端传入 to_speakers 时直接使用（UI 驱动的精确路由），否则走服务端 fallback 解析 */
     const targets: SpeakerTarget[] = toSpeakers && toSpeakers.length > 0
       ? toSpeakers.map(speaker => ({ speaker, source: "mention" as const }))
@@ -105,6 +123,12 @@ export class IssueCollaboration implements CollaborationInput {
   }
 
   enqueueStage(stageId: string): void {
+    // 归档检查：防止归档后 stage 被排队
+    const stage = this.deps.stagePort.findStage(stageId);
+    if (stage) {
+      const issue = this.deps.issuePort.findIssue(stage.issue_id);
+      if (issue) assertIssueMutable(issue);
+    }
     this.queue.enqueue(stageId, async () => this.drainStage(stageId));
   }
 
@@ -119,6 +143,16 @@ export class IssueCollaboration implements CollaborationInput {
   }
 
   private async drainStage(stageId: string): Promise<void> {
+    // 归档检查：核心拦截点，阻止所有异步 agent 调用链
+    const stage = this.deps.stagePort.findStage(stageId);
+    if (stage) {
+      const issue = this.deps.issuePort.findIssue(stage.issue_id);
+      if (issue?.archived_at) {
+        log.info({ stageId, issueId: issue.id }, "drainStage skipped: issue is archived");
+        return;
+      }
+    }
+
     let remainingRounds = this.maxCollaborationRounds;
 
     while (remainingRounds > 0) {
@@ -163,6 +197,7 @@ export class IssueCollaboration implements CollaborationInput {
   private async invokeAgent(stageId: string, roleInstance: string, unreadMessages: Message[]): Promise<void> {
     const stage = this.mustGetStage(stageId);
     const issue = this.mustGetIssue(stage.issue_id);
+    assertIssueMutable(issue);
     const assignment = this.deps.stagePort.getRoleSnailAssignment(stageId, roleInstance);
     if (!assignment) throw new Error(`Role assignment not found: ${stageId}:${roleInstance}`);
 
@@ -296,6 +331,10 @@ export class IssueCollaboration implements CollaborationInput {
   }
 
   private async detectStageTransition(stage: Stage, roleInstance: string, messageId: number): Promise<void> {
+    // 归档后不产生 stage transition 建议
+    const issue = this.deps.issuePort.findIssue(stage.issue_id);
+    if (issue?.archived_at) return;
+
     const suggestion = this.extractStageTransitionSuggestion(stage, roleInstance, messageId);
     if (!suggestion) return;
 

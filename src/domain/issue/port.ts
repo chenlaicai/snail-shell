@@ -7,6 +7,8 @@ export interface IssuePort {
   listIssues(workspacePath: string, limit?: number, offset?: number): Issue[];
   previewSopStages(adoptedSopKey: string, title: string): StagePreview[];
   validateSnailAssignmentPlan(sop: Sop, plan: IssueSnailAssignmentPlan): void;
+  /** 归档 issue：设置 archived_at，幂等操作（已归档直接返回） */
+  archiveIssue(id: string): Issue;
 }
 
 /** Stage 端口 */

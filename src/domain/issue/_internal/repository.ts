@@ -7,6 +7,7 @@ export interface IssueRepository {
   findById(id: string): Issue | undefined;
   listByWorkspace(workspacePath: string, limit?: number, offset?: number): Issue[];
   create(issue: Issue): void;
+  updateArchivedAt(id: string, archivedAt: string): void;
 }
 
 // ── Stage Repository ──────────────────────────────────────────────────
@@ -42,7 +43,8 @@ CREATE TABLE IF NOT EXISTS issue (
   snail_assignment_plan TEXT NOT NULL,
   extendable_context TEXT NOT NULL,
   created_at TEXT NOT NULL,
-  closed_at TEXT
+  closed_at TEXT,
+  archived_at TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_issue_workspace_created ON issue(workspace_path, created_at DESC);
@@ -90,6 +92,7 @@ type IssueRow = {
   extendable_context: string;
   created_at: string;
   closed_at: string | null;
+  archived_at: string | null;
 };
 
 type StageRow = {
@@ -129,8 +132,8 @@ export class SQLiteIssueRepository implements IssueRepository {
 
   create(issue: Issue): void {
     this.db.run(
-      `INSERT INTO issue (id, workspace_path, title, summary, sop_snapshot, snail_assignment_plan, extendable_context, created_at, closed_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO issue (id, workspace_path, title, summary, sop_snapshot, snail_assignment_plan, extendable_context, created_at, closed_at, archived_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         issue.id,
         issue.workspace_path,
@@ -141,8 +144,13 @@ export class SQLiteIssueRepository implements IssueRepository {
         JSON.stringify(issue.extendable_context),
         issue.created_at,
         issue.closed_at,
+        issue.archived_at,
       ],
     );
+  }
+
+  updateArchivedAt(id: string, archivedAt: string): void {
+    this.db.run(`UPDATE issue SET archived_at = ? WHERE id = ?`, [archivedAt, id]);
   }
 }
 
@@ -276,6 +284,7 @@ function mapIssue(row: IssueRow): Issue {
     extendable_context: JSON.parse(row.extendable_context),
     created_at: row.created_at,
     closed_at: row.closed_at,
+    archived_at: row.archived_at,
   };
 }
 
