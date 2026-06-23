@@ -36,7 +36,19 @@ function createRecordOutputArtifactsTool(stagePort: StagePort) {
         artifacts: {
           type: "object",
           description: "键值对，如 { worktree_path, branch_name, pr_url }。值可以是普通字符串或 {value, keep} 对象。",
-          additionalProperties: { type: "string" },
+          additionalProperties: {
+            oneOf: [
+              { type: "string" },
+              {
+                type: "object",
+                properties: {
+                  value: { type: "string" },
+                  keep: { type: "boolean" },
+                },
+                required: ["value"],
+              },
+            ],
+          },
         },
       },
       required: ["stage_id", "artifacts"],
@@ -44,13 +56,14 @@ function createRecordOutputArtifactsTool(stagePort: StagePort) {
     handler: async (params: Record<string, unknown>) => {
       const stageId = String(params.stage_id ?? "");
       if (!stageId) throw new Error("stage_id is required");
-      const artifacts = params.artifacts as Record<string, string> | undefined;
+      const artifacts = params.artifacts as Record<string, unknown> | undefined;
       if (!artifacts || typeof artifacts !== "object") throw new Error("artifacts is required");
 
       const stage = stagePort.findStage(stageId);
       if (!stage) throw new Error(`Stage not found: ${stageId}`);
 
-      stagePort.addOutputArtifacts(stageId, artifacts);
+      // 值可以是 string 或 {value, keep} 对象，透传给 StagePort（Object.assign 浅合并）
+      stagePort.addOutputArtifacts(stageId, artifacts as Record<string, string>);
 
       const updated = stagePort.findStage(stageId);
       return {
