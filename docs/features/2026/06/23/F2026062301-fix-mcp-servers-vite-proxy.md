@@ -87,9 +87,9 @@ proxy: {
 
 ## 验证
 
-- [ ] 访问 `/mcp-servers` 左侧显示 4 个内建 server（名称 + tool 数量 badge）
-- [ ] 点击 server 列表项，右侧详情面板展示名称、版本、endpoint、tool 列表
-- [ ] 页面无"加载失败"错误提示
+- [x] 访问 `/mcp-servers` 左侧显示 4 个内建 server（名称 + tool 数量 badge）
+- [x] 点击 server 列表项，右侧详情面板展示名称、版本、endpoint、tool 列表
+- [x] 页面无"加载失败"错误提示
 
 ## 关联
 
