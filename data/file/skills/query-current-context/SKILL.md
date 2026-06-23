@@ -23,55 +23,70 @@ description: 查询当前 conversation 关联的 stage、issue、role、workspac
 
 本 skill 是只读查询工具，不会修改任何数据库状态。查询结果反映调用时刻的数据库快照。
 
-## Commands
+## Instructions
 
-统一命令路径：`node .meta/skills/query-current-context/scripts/query-current-context.js`
+调用 MCP Tool `snail-issue.query_context`，传入以下参数：
 
-```bash
-node .meta/skills/query-current-context/scripts/query-current-context.js \
-  --conversation-id <conversation-id>
-```
-
-参数说明：
-- `--conversation-id`：当前 Conversation ID。可从环境变量 `SNAIL_CTX_CONVERSATION_ID` 自动获取，无需显式传参。
+- `conversation_id`（可选）：Conversation ID。如果未传入，将从环境变量 `SNAIL_CTX_CONVERSATION_ID` 自动获取。
 
 ## Output
 
-输出为 Markdown 格式的结构化文本，包含以下块（仅输出存在数据的块）：
+输出为 JSON 格式，包含以下字段（仅输出存在数据的字段）：
 
-```markdown
-## 工作区
-- 名称: <workspace_name>
-- 摘要: <summary>
-
-## Issue
-- 标题: <title>
-- ID: <id>
-- 摘要: <summary>
-- 任务锚: <task_anchor>  (如有)
-
-## 当前 Stage
-- 名称: <stage_title>
-- 类型: <type>
-- 进度: <progress_label>
-- 下一步动作: <next_action>
-- Stage ID: <stage_id>
-- Issue ID: <issue_id>
-- Stage 输入: <input_description>
-- Stage 交付要求: <output_description>
-- 验收关注点: ...
-- 当前输出产物: <output_artifacts>
-- 上一 Stage 输入产物: <inputArtifacts>
-
-## 角色
-- 默认主角色: <role_name> (无显式 mention 时默认响应的角色)
-- 当前参与角色: <role1>、<role2>
-- 角色详情: ... (含工作规则)
-
-## 当前 Conversation
-- 标题: <title>
-- 类型: <kind>
-- 摘要: <summary>
-- 来源: <from_conversation_ids>
-- Conversation ID: <conversation_id>
+```json
+{
+  "conv": {
+    "id": "...",
+    "issue_id": "...",
+    "stage_id": "...",
+    "workspace_id": "...",
+    "title": "...",
+    "kind": "...",
+    "summary": "...",
+    "participating_roles": ["role1", "role2"],
+    "from_conversation_ids": ["conv1", "conv2"],
+    "created_at": "..."
+  },
+  "stage": {
+    "id": "...",
+    "key": "...",
+    "title": "...",
+    "description": "...",
+    "sequence": 1,
+    "output_artifacts": {...},
+    "entered_at": "...",
+    "left_at": null
+  },
+  "stageDef": {
+    "id": "...",
+    "key": "...",
+    "title": "...",
+    "description": "...",
+    "input_description": "...",
+    "output_description": "...",
+    "acceptance_focus": ["focus1", "focus2"]
+  },
+  "stageRoles": [
+    {
+      "id": "...",
+      "name": "...",
+      "description": "...",
+      "working_rules": ["rule1", "rule2"]
+    }
+  ],
+  "issue": {
+    "id": "...",
+    "title": "...",
+    "summary": "...",
+    "task_anchor": "...",
+    "created_at": "...",
+    "closed_at": null
+  },
+  "workspace": {
+    "id": "...",
+    "name": "...",
+    "summary": "..."
+  },
+  "inputArtifacts": {...}
+}
 ```

@@ -13,27 +13,12 @@ description: 将 Issue 的任务锚写入数据库。任务锚结构化记录本
 
 在开发工作流中，复杂或长任务开始行动前（通常在 Issue 需求收敛阶段）设置任务锚。可多次调用以更新任务锚。
 
-## Command
+## Instructions
 
-```
-node .meta/skills/set-task-anchor/scripts/set-task-anchor.js \
-  --issue-id <issue-id> \
-  --task-anchor <task-anchor-content>
-```
+调用 MCP Tool `snail-issue.set_task_anchor`，传入以下参数：
 
-## Parameters
-
-| 参数 | 必填 | 说明 |
-|---|---|---|
-| `--issue-id` | 是 | Issue 编号，如 `I2026052105` |
-| `--task-anchor` | 是 | 任务锚内容。建议结构化格式：本质目标、反目标、语义不变量、成功标准、change_type、verification_commands |
-
-## How It Works
-
-1. 根据 `--issue-id` 查找 Issue 记录
-2. 检查 Issue 存在且未被归档
-3. 将 `--task-anchor` 的值写入 Issue 的 `task_anchor` 列
-4. 系统提示词 builder 会自动读取 `task_anchor` 并渲染为 `<task_anchor> [HARD]` 区块
+- `task_anchor`：任务锚内容
+- `issue_id`（可选）：Issue ID。如果未传入，将从环境变量 `SNAIL_CTX_ISSUE_ID` 自动获取。
 
 ## Task Anchor 结构
 
@@ -52,10 +37,10 @@ task_anchor 建议包含以下字段（纯文本，用换行分隔）：
 
 ## Issue ID Boundary
 
-`--issue-id` 必须是 Snail Shell 数据库中已经存在的 Issue 编号。如果脚本返回 `Issue not found`：
+`issue_id` 必须是 Snail Shell 数据库中已经存在的 Issue 编号。如果返回 `Issue not found`：
 
 1. 确认 Issue 已通过 Snail Shell 工作流创建。
-3. 不要手工往数据库补 Issue 行来绕过工作流。
+2. 不要手工往数据库补 Issue 行来绕过工作流。
 
 ## Output
 
@@ -63,7 +48,8 @@ task_anchor 建议包含以下字段（纯文本，用换行分隔）：
 
 ```json
 {
-  "issue_id": "I2026052105",
+  "ok": true,
+  "issue_id": "...",
   "task_anchor": "本质目标: ...\n反目标: ...\n语义不变量: ...\n成功标准: ...\nchange_type: rename\nverification_commands:\n- grep -r \"旧名字\" --include=\"*.ts\" → 预期 0 匹配"
 }
 ```
@@ -72,5 +58,4 @@ task_anchor 建议包含以下字段（纯文本，用换行分隔）：
 
 1. Issue 必须已存在于 Snail Shell 数据库中（通过系统工作流创建）。
 2. 已归档 Issue 不可更新。
-3. 脚本调用失败时说明失败原因并继续当前主任务，不要阻塞主工作流。
-4. 在隔离 worktree 内调用时，默认数据库仍应指向主工作区数据库。
+3. 调用失败时说明失败原因并继续当前主任务，不要阻塞主工作流。

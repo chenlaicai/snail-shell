@@ -25,6 +25,7 @@ import { init as initIssueCollaboration } from "@app/issue-collaboration/initor"
 import { init as initIMHub } from "@app/im-hub/initor";
 import { createMcpHandler } from "@infra/mcp-server/handler";
 import { createIssueWebSocketBridge } from "@infra/http/stage-websocket";
+import { IssueMCPPortAdapter } from "@domain/snail-mcp-server/_internal/issue-adapter";
 
 const log = getLogger();
 
@@ -53,6 +54,7 @@ async function initModules(repoRoot: string, serverSettings: ServerSettings) {
   const issue = initIssue(sop.adapter, db);
   const message = initMessage(db);
   const evolutionRef: { current?: ReturnType<typeof initEvolution> } = {};
+  const issueMCPPort = new IssueMCPPortAdapter(repoRoot);
   const snailMCPServer = initMCPServer({
     updateEvolution: (id, updates) => {
       if (!evolutionRef.current) throw new Error("Evolution module is not initialized");
@@ -60,6 +62,7 @@ async function initModules(repoRoot: string, serverSettings: ServerSettings) {
     },
     knowledge: knowledge.adapter,
     message: message.adapter,
+    issue: issueMCPPort,
   });
   const mcp = initMCP({ dataStore, workspaces, snailMCPServer: snailMCPServer.adapter, serverSettings });
   const featureChain = initFeatureChain(repoRoot);
