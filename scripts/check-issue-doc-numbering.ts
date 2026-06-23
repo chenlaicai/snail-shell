@@ -3,7 +3,8 @@ import path from "path";
 import { parse as parseYaml } from "yaml";
 
 const FRONTMATTER_RE = /^---\s*\n([\s\S]*?)\n---/;
-const featureDocPattern = /^F(\d{8})(\d{2})-.+\.md$/;
+// 兼容旧格式 FYYYYMMDDNN（2位数字）和新格式 FYYYYMMDDxxxx（4位小写字母+数字）
+const featureDocPattern = /^F(\d{8})(\d{2}|[a-z0-9]{4})-.+\.md$/;
 
 export interface FeatureDocNumberingIssue {
   message: string;
@@ -14,6 +15,7 @@ interface FeatureDocRecord {
   relativePath: string;
   dateDir: string;
   prefix: string;
+  dateStr: string;
 }
 
 function walkFeatureDocs(rootDir: string, currentDir: string, records: FeatureDocRecord[], issues: FeatureDocNumberingIssue[]): void {
@@ -36,10 +38,15 @@ function consumeFeatureDoc(rootDir: string, fullPath: string, fileName: string, 
   if (!match) return;
 
   validateFrontmatter(fullPath, relativePath, issues);
+  const dateStr: string = match[1];
+  const suffix: string = match[2];
+  const isNewFormat = suffix.length === 4;
   records.push({
     relativePath,
     dateDir: path.relative(path.join(rootDir, "docs", "features"), path.dirname(fullPath)).split(path.sep).join(""),
-    prefix: `F${match[1]}${match[2]}`,
+    // 旧格式按完整 ID 分组检测重复；新格式按日期分组检测碰撞
+    prefix: isNewFormat ? `F${dateStr}` : `F${dateStr}${suffix}`,
+    dateStr,
   });
 }
 
@@ -77,8 +84,15 @@ export function checkFeatureDocNumbering(rootDir = path.resolve(__dirname, "..")
 
   for (const [prefix, duplicates] of byPrefix) {
     if (duplicates.length <= 1) continue;
+    // prefix 含 9 字符为新格式日期前缀（FYYYYMMDD），11 字符为旧格式完整 ID（FYYYYMMDDNN）
+    const isNewFormat = prefix.length <= 9;
+    const label = isNewFormat
+      ? `${prefix.slice(1,5)}/${prefix.slice(5,7)}/${prefix.slice(7,9)}`
+      : prefix;
     issues.push({
-      message: `docs/features 中存在重复编号 ${prefix}`,
+      message: isNewFormat
+        ? `docs/features/${label} 下存在编号碰撞`
+        : `docs/features 中存在重复编号 ${label}`,
       files: duplicates.map((record) => record.relativePath),
     });
   }
@@ -87,10 +101,9 @@ export function checkFeatureDocNumbering(rootDir = path.resolve(__dirname, "..")
 }
 
 function validateDateDir(record: FeatureDocRecord, issues: FeatureDocNumberingIssue[]): void {
-  const expectedDateDir = record.prefix.slice(1, 9);
-  if (record.dateDir !== expectedDateDir) {
+  if (record.dateDir !== record.dateStr) {
     issues.push({
-      message: `${record.relativePath} 所在日期目录与编号 ${record.prefix} 不一致`,
+      message: `${record.relativePath} 所在日期目录与编号日期 ${record.dateStr} 不一致`,
       files: [record.relativePath],
     });
   }

@@ -9,7 +9,7 @@ description: |
 
 ## Gotchas（必读）
 
-- **特性编号是可顺延的**：PR 创建时分配的编号可能在合入时已被占用，必须顺延到最新未使用编号。顺延后编号使用合入当天日期。
+- **特性编号终身不变**：编号在创建时一次性分配（`FYYYYMMDDxxxx`，4 位随机码），无论 PR 何时合入均不变更。不存在顺延机制。
 - **evidence 不能是 "I checked"**：passed 项必须附带验证命令 + 实际输出，或影响面清单逐条确认，或配置对一致性对比。
 - **完成标准是"做到最好"**：不是"没有阻塞项"。发现的质量改进必须在当前 PR 修复，不得推到"后续 feature"。
 - **签名必须独占一行**：PR 评论最后一行 `by <角色名>（<Snail 名称>）`，与正文之间保留空行，不得挤在同一行。
@@ -18,7 +18,7 @@ description: |
 
 ### 特性编号
 
-格式 `FYYYYMMDDNN`，目录 `docs/features/YYYY/MM/DD/`。详见 `references/feature-numbering.md`。
+格式 `FYYYYMMDDxxxx`（4 位随机码），目录 `docs/features/YYYY/MM/DD/`。编号创建后终身不变。详见 `references/feature-numbering.md`。
 
 ### PR 评论签名
 

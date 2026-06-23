@@ -16,7 +16,7 @@ description: |
 - **业务代码是主体，测试是仆从**：测试验证的是外部可观测行为，不是内部实现。mock 仅作为隔离手段，不作为断言依据（禁止断言调用次数/调用参数）。
 - **代码仓库不允许存在兼容性桥接代码**：没有 `if oldFormat then migrate`。数据库 schema 只允许 `CREATE TABLE IF NOT EXISTS`，不允许 ALTER TABLE。
 - **测试失败不等于回退业务代码**：先判断是测试未适配新设计，还是实现偏离了设计。详见 `references/testing-rules.md`。
-- **commit message 格式严格**：`[FYYYYMMDDNN][module][Feature Update|BugFix|New Feature][Incompatible] 中文标题`。
+- **commit message 格式严格**：`[FYYYYMMDDxxxx][module][Feature Update|BugFix|New Feature][Incompatible] 中文标题`。
 - **不兼容更新必须标注**：commit 和 PR title 中的 `[Incompatible]` 标记不可省略。
 
 ## 工作流程索引

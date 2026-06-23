@@ -38,5 +38,5 @@
 1. 执行 task_anchor 中的 `verification_commands`（或按 change_type 的默认模板）
 2. 记录验证输出作为 dev-02 evidence
 3. 通过 stage-gate API 写入 gate_evidence
-4. 创建 PR，标题格式：`[FYYYYMMDDNN][module][Feature Update|BugFix|New Feature][Incompatible] 中文标题`
+4. 创建 PR，标题格式：`[FYYYYMMDDxxxx][module][Feature Update|BugFix|New Feature][Incompatible] 中文标题`
 5. PR 描述中包含回归检查的范围和结果

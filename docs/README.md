@@ -55,24 +55,26 @@ feature 文档在对应 PR 合入后即视为历史交付记录，后续 feature
 
 feature 文档编号规则：
 
-1. 格式为 `FYYYYMMDDNN`。
+1. 格式为 `FYYYYMMDDxxxx`。
 2. `YYYYMMDD` 使用创建文档当天日期。
-3. `NN` 是当天从 `01` 开始的两位自然数递增编号。
+3. `xxxx` 为 4 位随机码（小写字母 + 数字，a-z0-9），创建时一次性分配，终身不变。
 4. 日期目录格式为 `docs/features/YYYY/MM/DD/`。
-5. 文件名格式为 `FYYYYMMDDNN-kebab-case-title.md`。
-6. 计算当天 `NN` 时，只扫描对应日期目录 `docs/features/YYYY/MM/DD/` 下已有的 `FYYYYMMDDNN-*.md` 文件。
+5. 文件名格式为 `FYYYYMMDDxxxx-kebab-case-title.md`。
+6. 生成随机码后，扫描对应日期目录确认不与已有编号碰撞；碰撞则重新生成。
 
 示例：
 
 ```text
-docs/features/2026/05/06/F2026050601-docs-structure.md
+docs/features/2026/06/23/F20260623a7k2-docs-structure.md
 ```
 
-feature 文档应使用以下结构（新建 feature 时复制此模板到 `docs/features/YYYY/MM/DD/FYYYYMMDDNN-slug.md`）。各章节按阶段归属分为两类：`[design-time]` 标注的章节在需求收敛与设计阶段（代码前）完成并锁定，进入实现阶段后不得单方面修改；其余章节可在实现和验证阶段填写或更新。`## 核心业务行为` 章节由 AI 在设计阶段根据业务需求起草、人认可后进入实现阶段；实现阶段可修改（新增、修正、删除），须在范围变更记录中说明。
+已有的 `FYYYYMMDDNN`（两位顺序递增编号）格式保持不变，无需迁移。
+
+feature 文档应使用以下结构（新建 feature 时复制此模板到 `docs/features/YYYY/MM/DD/FYYYYMMDDxxxx-slug.md`）。各章节按阶段归属分为两类：`[design-time]` 标注的章节在需求收敛与设计阶段（代码前）完成并锁定，进入实现阶段后不得单方面修改；其余章节可在实现和验证阶段填写或更新。`## 核心业务行为` 章节由 AI 在设计阶段根据业务需求起草、人认可后进入实现阶段；实现阶段可修改（新增、修正、删除），须在范围变更记录中说明。
 
 ```markdown
 ---
-id: FYYYYMMDDNN
+id: FYYYYMMDDxxxx
 title: kebab-case-title
 from_ids: []
 tags: []
@@ -80,7 +82,7 @@ modules: []
 doc_kind: spec
 ---
 
-# FYYYYMMDDNN [module] 标题
+# FYYYYMMDDxxxx [module] 标题
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 <!-- 进入实现阶段后不得单方面修改，如需变更须通过问题卡片向用户提出并确认 -->
@@ -151,7 +153,7 @@ doc_kind: spec
 
 ## 关联
 
-类型化的跨 feature 引用：`- **前置/阻塞/相关**: {FYYYYMMDDNN}（{说明}）`。
+类型化的跨 feature 引用：`- **前置/阻塞/相关**: {FYYYYMMDDxxxx}（{说明}）`。
 
 ## 未实现说明（可选）
 
