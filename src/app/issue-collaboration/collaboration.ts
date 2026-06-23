@@ -185,7 +185,7 @@ export class IssueCollaboration implements CollaborationInput {
         this.deps.stagePort.setSnailInstanceId(stageId, roleInstance, result.snail_instance_id);
       }
 
-      const context = this.extractTerminalContext(agentMessage.id);
+      const context = this.extractTerminalContext(agentMessage.id, "completed");
       this.deps.messagePort.setContext(agentMessage.id, context.kind, context.context);
       this.deps.messagePort.completeMessage(agentMessage.id, "completed");
       const completedMessage = this.mustGetMessage(agentMessage.id);
@@ -201,7 +201,7 @@ export class IssueCollaboration implements CollaborationInput {
         err: error,
       }, "invokeAgent failed");
       const status = abortController.signal.aborted ? "interrupted" : "failed";
-      const context = this.extractTerminalContext(agentMessage.id);
+      const context = this.extractTerminalContext(agentMessage.id, status);
       /** interrupted 时无 text event 则 context.kind 为 "event_summary"，context 内容为固定中断文案 */
       this.deps.messagePort.setContext(agentMessage.id, context.kind, context.context);
       this.deps.messagePort.completeMessage(agentMessage.id, status, { error: error instanceof Error ? error.message : String(error) });
@@ -396,7 +396,7 @@ export class IssueCollaboration implements CollaborationInput {
     return [...result];
   }
 
-  private extractTerminalContext(messageId: number): MessageContext {
+  private extractTerminalContext(messageId: number, status: "completed" | "interrupted" | "failed"): MessageContext {
     const existing = this.deps.messagePort.getContext(messageId);
     if (existing?.kind === "mcp_final_body") return existing;
 
@@ -408,8 +408,9 @@ export class IssueCollaboration implements CollaborationInput {
       }
     }
 
-    /** 无 text event 也无 mcp_final_body 时返回固定文案，不 dump 原始 event 给用户 */
-    return { message_id: messageId, kind: "event_summary", context: "用户中断了本次回复", created_at: new Date().toISOString() };
+    /** 无 text event 也无 mcp_final_body 时返回状态对应的兜底文案，不 dump 原始 event 给用户 */
+    const fallback = status === "interrupted" ? "用户中断了本次回复" : status === "failed" ? "任务执行失败" : "（无文本输出）";
+    return { message_id: messageId, kind: "event_summary", context: fallback, created_at: new Date().toISOString() };
   }
 
   private buildSystemReminder(input: { issue: Issue; stage: Stage; roleInstance: string; roleKey: string }): string {
