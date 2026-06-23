@@ -65,7 +65,7 @@ feature 文档编号规则：
 示例：
 
 ```text
-docs/features/2026/06/23/F20260623a7k2-docs-structure.md
+docs/features/2026/06/23/F202606238vkw-random-feature-id.md
 ```
 
 已有的 `FYYYYMMDDNN`（两位顺序递增编号）格式保持不变，无需迁移。
