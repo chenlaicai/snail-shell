@@ -215,18 +215,6 @@ export class StageAdapter implements StagePort {
     return this.sessionRepo.getLatest(stageId, roleInstance);
   }
 
-  getRoleHandbook(stageId: string, roleKey: string): string | null {
-    const stage = this.stageRepo.findById(stageId);
-    if (!stage) throw new Error(`Stage not found: ${stageId}`);
-
-    const issue = this.mustFindIssue(stage.issue_id);
-    const stageDef = issue.sop_snapshot.stage_definitions.find(sd => sd.key === stage.key);
-    if (!stageDef) return null;
-
-    const roleDef = stageDef.roles.find(r => r.key === roleKey);
-    return roleDef?.handbook ?? null;
-  }
-
   private mustFindIssue(issueId: string): Issue {
     const issue = this.issueRepo.findById(issueId);
     if (!issue) throw new Error(`Issue not found: ${issueId}`);

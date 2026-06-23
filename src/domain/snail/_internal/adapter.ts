@@ -88,7 +88,7 @@ export class SnailAdapter implements SnailPort {
     const systemPrompt = this.buildSystemPrompt(request.tags);
     const capabilities = this.buildCapabilities(workspace);
     const guardProfile = this.buildGuardProfile(workspace);
-    const systemReminder = this.buildSystemReminder(request.handbook);
+    const systemReminder = this.buildSystemReminder(request.systemReminder);
     const contextEnv = this.buildContextEnv(request);
     const invokeOptions = this.buildOptions(snail, options, contextEnv);
 
@@ -189,10 +189,9 @@ export class SnailAdapter implements SnailPort {
     return { deny: profile.deny, allow: profile.allow };
   }
 
-  private buildSystemReminder(handbook?: string): string {
+  private buildSystemReminder(systemReminder?: string): string {
     // 直接透传collaboration的完整输出，不做任何处理
-    // handbook已经是collaboration层构建的完整system-reminder内容
-    return handbook ?? "";
+    return systemReminder ?? "";
   }
 
   private buildOptions(snail: Snail, options: InvokeOptions, contextEnv?: Record<string, string>): InvokeOptions {

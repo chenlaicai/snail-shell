@@ -36,7 +36,4 @@ export interface StagePort {
 
   /** 获取指定角色实例的当前（最新）snail 分配 */
   getRoleSnailAssignment(stageId: string, roleInstance: string): RoleSnailAssignment | null;
-
-  /** 获取指定角色的 handbook 内容（从 SOP 快照中读取） */
-  getRoleHandbook(stageId: string, roleKey: string): string | null;
 }

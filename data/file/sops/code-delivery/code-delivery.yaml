@@ -6,7 +6,7 @@ name: 代码交付流程
 description: 标准软件研发交付流程：需求对齐与设计 → 研发实现 → PR 检视 → 合入。
 first_stage: design
 
-shared_handbook: "@shared.handbook.md"
+shared_skill: cd-shared
 
 stage_definitions:
   - key: design
@@ -37,7 +37,9 @@ stage_definitions:
         description: 负责需求对齐与设计，两位架构师交叉审视，产出锁定的 Feature 文档。
         is_primary: true
         count: 2
-        handbook: "@design#designer.handbook.md"
+        skill: cd-design
+        prohibition: 不得编写或修改代码，不得越界到实现细节
+        self_check: 如果发现自己在说具体修改某个文件的某行，立即停止
 
   - key: development
     title: 研发实现
@@ -76,7 +78,9 @@ stage_definitions:
         name: 开发者
         description: 负责按设计方案实现、自检、提交 PR。
         is_primary: true
-        handbook: "@development#developer.handbook.md"
+        skill: cd-development
+        prohibition: 不得跳过测试，不得引入兼容性桥接代码
+        self_check: 如果发现自己在写 ALTER TABLE 或兼容性 shim，立即停止
 
   - key: review
     title: PR 检视
@@ -107,12 +111,14 @@ stage_definitions:
         name: 开发者
         description: 在审查阶段回应检视意见、修复代码并推动检视清零。
         is_primary: true
-        handbook: "@review#developer.handbook.md"
+        skill: cd-review-dev
       - key: reviewer
         name: 审查者
         description: 负责对 PR 做对抗性代码检视，两位审查者交叉审视，在 PR 上留下可追溯评论。
         count: 2
-        handbook: "@review#reviewer.handbook.md"
+        skill: cd-review
+        prohibition: 不得使用低风险标签跳过问题，不得替开发者做决定
+        self_check: 如果发现自己在说这个问题不重要，立即停止
 
   - key: merge
     title: 合入
@@ -147,7 +153,7 @@ stage_definitions:
         name: 维护者
         description: 负责 PR 合入前的硬性条件检查，通过则合入，不通过则打回到审查阶段。
         is_primary: true
-        handbook: "@merge#merger.handbook.md"
+        skill: cd-merge
 
 transitions:
   # 线性前进路径
