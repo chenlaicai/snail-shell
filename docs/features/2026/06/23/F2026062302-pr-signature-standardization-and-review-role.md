@@ -50,7 +50,7 @@ doc_kind: spec
 ### 问题1根因分析：签名不统一
 
 **现状**：
-- 签名模板存在于 `.meta/templates/pr-comment-signature.md`
+- 签名模板存在于 `v1/.meta/templates/pr-comment-signature.md`
 - 模板格式清晰：`by <角色名>（<Snail 名称>）`
 - 有 `resolveSnailDisplayName()` 函数解析Snail名称
 - 但实际执行中签名五花八门
@@ -145,7 +145,7 @@ doc_kind: spec
 ## 生效路径
 
 - **配置**：`v1/config/sop/code-delivery/code-delivery.yaml` 第106-115行
-- **模板**：`.meta/templates/pr-comment-signature.md`（可能需要增强身份获取指引）
+- **模板**：`v1/.meta/templates/pr-comment-signature.md`（可能需要增强身份获取指引）
 - **SOP手册**：`shared.handbook.md` 中的签名规则章节
 
 ## 设计约束摘要
@@ -163,7 +163,7 @@ doc_kind: spec
 | 文件 | 变更类型 | 说明 |
 |------|---------|------|
 | `v1/config/sop/code-delivery/code-delivery.yaml` | 修改 | 检视阶段主角色从developer改为reviewer |
-| `.meta/templates/pr-comment-signature.md` | 可能修改 | 增强身份获取指引 |
+| `v1/.meta/templates/pr-comment-signature.md` | 可能修改 | 增强身份获取指引 |
 | `v1/config/sop/code-delivery/shared.handbook.md` | 可能修改 | 将签名检查从optional提升为required |
 
 ## 验证
