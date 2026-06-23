@@ -30,8 +30,8 @@ PR419（F2026062208）完成了 code-delivery SOP 的 handbook → skill 迁移�
 
 | # | 场景 | 预期行为 | 测试覆盖 |
 |---|------|----------|----------|
-| B1 | When general-assistant SOP 的 assistant 角色被激活 | agent 通过 skill tool 加载 ga-assistant skill，获得意图理解、追问策略、网络搜索等规则 | |
-| B2 | When evolution SOP 的 executor 角色被激活 | agent 通过 skill tool 加载 evo-executor skill，获得治理工作流、查重规则、裁决策略 | |
+| B1 | When general-assistant SOP 的 assistant 角色被激活 | agent 通过 skill tool 加载 ga-assistant skill，获得意图理解、追问策略、网络搜索等规则 | N/A — 格式迁移，不改变运行时行为 |
+| B2 | When evolution SOP 的 executor 角色被激活 | agent 通过 skill tool 加载 evo-executor skill，获得治理工作流、查重规则、裁决策略 | N/A — 格式迁移，不改变运行时行为 |
 | B3 | When repo 中搜索 handbook 关键词 | 无任何 .handbook.md 文件或 handbook YAML 字段残留 | |
 
 ## 设计

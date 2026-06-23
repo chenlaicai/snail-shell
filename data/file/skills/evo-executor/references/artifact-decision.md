@@ -11,7 +11,7 @@
 | 需要新增或修改 skill | Skill 变更 | `skill` | 与用户协商方案，由用户推进 PR |
 | 需要更新用户手册 | 文档变更 | `user-manual` | 记录更新内容和位置 |
 | 需要代码或检查器变更 | 代码变更 | `code` | 与用户协商方案，由用户推进 PR |
-| 适合沉淀为长期知识 | 知识库条目 | `knowledge` | 使用 knowledge-library skill create 模式写入 |
+| 适合沉淀为长期知识 | 知识库条目 | `knowledge` | 使用 snail-knowledge MCP server 的 add_knowledge tool 写入 |
 
 ## 决策原则
 
