@@ -219,15 +219,12 @@ export class IssueCollaboration implements CollaborationInput {
   }) {
     const { stageId, roleInstance, issue, stage, assignment, unreadMessages, agentMessage, signal } = input;
     const systemReminder = this.buildSystemReminder({ issue, stage, roleInstance, roleKey: assignment.role_key });
-    const runtimeContext = { issue_id: issue.id, stage_id: stage.id, message_id: String(agentMessage.id), role_instance: roleInstance };
-    const invokeOptions: InvokeOptions = {
-      signal,
-      contextEnv: { ...runtimeContext, ...issue.context },
-    };
+    const invokeOptions: InvokeOptions = { signal };
     const agentMessages = unreadMessages.map(message => this.toAgentMessage(message));
+    /** 唯一的上下文数据源：snail adapter 从这里构建 env vars，buildContextBlock 从 issue.context 渲染 system reminder */
     const firstCallRequest = {
       workspace_path: issue.workspace_path, messages: agentMessages, systemReminder: systemReminder || undefined,
-      context: { ...runtimeContext, stage_key: stage.key, ...issue.context },
+      context: { issue_id: issue.id, stage_id: stage.id, message_id: String(agentMessage.id), stage_key: stage.key, role_instance: roleInstance, ...issue.context },
     };
     const resumeRequest = { workspace_path: issue.workspace_path, messages: agentMessages, system_reminder: systemReminder };
     const onEvent = (event: AgentEvent) => this.handleAgentEvent(stageId, agentMessage.id, event);
