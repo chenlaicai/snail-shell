@@ -102,13 +102,20 @@ export function ChatMessage({ message, onInterrupt }: { message: MessageDto; onI
           )}
 
           {/* 最终答复：优先 context，其次 content，否则从 events 提取 text */}
-          <div className={`rounded-2xl px-4 py-3 text-[13px] leading-relaxed ${
+          {/* hasContext 时预留 pr-24 给来源标签，避免长文本与 badge 重叠（最长 kind mcp_final_body ~84px + right-3 12px = 96px） */}
+          <div className={`relative rounded-2xl px-4 py-3 text-[13px] leading-relaxed ${hasContext ? "pr-24" : ""} ${
             isUser
               ? "rounded-br-md bg-shell-600/20 border border-shell-600/20"
               : isStreaming
                 ? "rounded-bl-md bg-surface-2 border border-shell-500/50 shadow-[0_0_12px_rgba(214,138,62,0.15)]"
                 : "rounded-bl-md bg-surface-2 border border-white/6"
           }`}>
+            {/* 来源标签：absolute 定位避免 badge 占据内容流空间，right-3 与 contextUsage badge 视觉对齐 */}
+            {hasContext && (
+              <span className="absolute top-2 right-3 select-none text-[10px] text-text-grey font-mono">
+                {message.context!.kind}
+              </span>
+            )}
             {hasContext ? (
               <RichTextRenderer content={message.context!.context} />
             ) : message.content ? (

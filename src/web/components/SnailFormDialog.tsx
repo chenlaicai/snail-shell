@@ -47,6 +47,7 @@ export function SnailFormDialog({ open, mode, initialData, isPending, onSubmit, 
 
   if (!open) return null;
 
+  const isCreate = mode === "create";
   const keyInvalid = isCreate && key.trim().length > 0 && !KEY_PATTERN.test(key.trim());
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -63,8 +64,6 @@ export function SnailFormDialog({ open, mode, initialData, isPending, onSubmit, 
       invocation_timeout_ms: invocationTimeoutMs ? parseInt(invocationTimeoutMs, 10) : undefined,
     });
   };
-
-  const isCreate = mode === "create";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface-0/80 px-4" onClick={onClose}>
