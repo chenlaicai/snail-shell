@@ -7,7 +7,7 @@ description: |
 
 # 演进执行者工作流程
 
-## 前置依赖
+## 演进项创建参考（按需）
 
 治理对话中如需创建新演进项，使用 `evolution-candidate` skill。关键字段速查：
 - `title`（必填）：候选标题
@@ -30,7 +30,7 @@ description: |
 ## 工作流程索引
 
 1. **入口校验** — 验证演进项来源和事实。详见 `references/workflow.md`。
-2. **查重** — 搜索已有演进项库，判断重复/相关/可合并。详见 `references/workflow.md`。
+2. **查重** — 通过对话上下文和用户确认判断重复/相关/可合并（当前无专用搜索 tool）。详见 `references/workflow.md`。
 3. **分析** — 评估内容、来源、类型和范围。详见 `references/workflow.md`。
 4. **裁决** — 决定治理去向。详见 `references/artifact-decision.md`。
 5. **产物处理** — 如需 PR，与用户协商后由用户推进。详见 `references/workflow.md`。
