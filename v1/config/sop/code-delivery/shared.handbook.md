@@ -2,7 +2,7 @@
 
 ### PR 评论签名
 
-具体模板见 `.meta/templates/pr-comment-signature.md`。
+具体模板见 `v1/.meta/templates/pr-comment-signature.md`。
 
 **强制要求**：PR 评论必须按签名模板收尾，这是检视阶段的 required 检查项（rev-03）。
 
