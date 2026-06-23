@@ -45,7 +45,7 @@ doc_kind: spec
 | 新增规则级 tag 过滤 | `filterContentByTags()` 支持行首 `[tag]` 标记，无 tag 规则始终保留 |
 | 移除实现细节 | `record-issue-repo-context` 调用、`message-payload` 格式、`conversation` 表查询方法 |
 
-### 11 条实证原则
+### 12 条实证原则
 
 每条原则均从特性文档中的真实 incident 提取，附有具体 failure mode：
 
@@ -100,6 +100,7 @@ doc_kind: spec
 | `data/file/prompts/B-01-身份与责任契约.md` | 删除 |
 | `data/file/prompts/B-03-运行时边界.md` | 删除 |
 | `data/file/prompts/T-01-行为准则.md` | 新建，12 条规则，纯 XML 格式 |
+| `src/domain/tenet-prompt/model.ts` | 移除 `tags` 字段（已由规则级 tag 替代） |
 | `src/domain/tenet-prompt/_internal/repository.ts` | 新增 `filterContentByTags()`；移除 frontmatter 解析（5 个方法）；从文件名提取 id/title |
 
 ## 验收标准

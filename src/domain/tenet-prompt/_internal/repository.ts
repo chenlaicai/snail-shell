@@ -53,6 +53,8 @@ export class FileTenetPromptRepository implements TenetPromptRepository {
    * - 无 [tag] 前缀的行始终保留（通用规则）
    * - XML section 标签行始终保留
    * - 带 [tag] 的行仅在 tag 匹配时保留
+   * - [tag] 格式规范：行首 [tag1,tag2] 后必须有空格分隔，如 `[tag] 规则内容`
+   *   无空格（如 `[HARD]禁止xxx`）不被识别为 tag 行，会被当作通用规则保留
    */
   private filterContentByTags(content: string, tags: string[]): string {
     return content.split("\n").filter(line => {
@@ -87,6 +89,6 @@ export class FileTenetPromptRepository implements TenetPromptRepository {
 
   private parseDocument(raw: string, filename: string): PromptDocument {
     const title = filename.replace(/\.md$/, "");
-    return { id: title, title, content: raw.trim(), tags: [], scope: Scope.Platform };
+    return { id: title, title, content: raw.trim(), scope: Scope.Platform };
   }
 }
