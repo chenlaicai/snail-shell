@@ -1,5 +1,5 @@
 ---
-id: F20260623t1by
+id: F202606238vkw
 title: random-feature-id
 from_ids: []
 tags: [sop, numbering]
@@ -7,7 +7,7 @@ modules: [sop]
 doc_kind: spec
 ---
 
-# F20260623t1by [sop] 特性编号改为随机码格式
+# F202606238vkw [sop] 特性编号改为随机码格式
 
 ## 背景
 

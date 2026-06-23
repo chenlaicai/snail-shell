@@ -3,8 +3,8 @@ import path from "path";
 import { parse as parseYaml } from "yaml";
 
 const FRONTMATTER_RE = /^---\s*\n([\s\S]*?)\n---/;
-// 兼容旧格式 FYYYYMMDDNN（2位数字）和新格式 FYYYYMMDDxxxx（4位小写字母+数字）
-const featureDocPattern = /^F(\d{8})(\d{2}|[a-z0-9]{4})-.+\.md$/;
+// 兼容旧格式 FYYYYMMDDNN（2位数字）和新格式 FYYYYMMDDxxxx（4位，字符集 2-9a-kmnp-z，排除 0/o/1/l）
+const featureDocPattern = /^F(\d{8})(\d{2}|[2-9a-kmnp-z]{4})-.+\.md$/;
 
 export interface FeatureDocNumberingIssue {
   message: string;
@@ -40,12 +40,11 @@ function consumeFeatureDoc(rootDir: string, fullPath: string, fileName: string, 
   validateFrontmatter(fullPath, relativePath, issues);
   const dateStr: string = match[1];
   const suffix: string = match[2];
-  const isNewFormat = suffix.length === 4;
   records.push({
     relativePath,
     dateDir: path.relative(path.join(rootDir, "docs", "features"), path.dirname(fullPath)).split(path.sep).join(""),
-    // 旧格式按完整 ID 分组检测重复；新格式按日期分组检测碰撞
-    prefix: isNewFormat ? `F${dateStr}` : `F${dateStr}${suffix}`,
+    // 新旧格式均按完整 ID 分组：旧格式检测完全重复，新格式检测同日同随机码碰撞
+    prefix: `F${dateStr}${suffix}`,
     dateStr,
   });
 }
@@ -84,15 +83,8 @@ export function checkFeatureDocNumbering(rootDir = path.resolve(__dirname, "..")
 
   for (const [prefix, duplicates] of byPrefix) {
     if (duplicates.length <= 1) continue;
-    // prefix 含 9 字符为新格式日期前缀（FYYYYMMDD），11 字符为旧格式完整 ID（FYYYYMMDDNN）
-    const isNewFormat = prefix.length <= 9;
-    const label = isNewFormat
-      ? `${prefix.slice(1,5)}/${prefix.slice(5,7)}/${prefix.slice(7,9)}`
-      : prefix;
     issues.push({
-      message: isNewFormat
-        ? `docs/features/${label} 下存在编号碰撞`
-        : `docs/features 中存在重复编号 ${label}`,
+      message: `docs/features 中存在重复编号 ${prefix}`,
       files: duplicates.map((record) => record.relativePath),
     });
   }
