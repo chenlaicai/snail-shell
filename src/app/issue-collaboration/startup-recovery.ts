@@ -32,7 +32,11 @@ export function startupRecovery(messagePort: MessagePort, stagePort: StagePort, 
   }
 }
 
-/** 收敛单条孤儿 streaming 消息：设置兜底 context + 标记 interrupted */
+/**
+ * 收敛单条孤儿 streaming 消息：设置兜底 context + 标记 interrupted。
+ * context 必须在 completeMessage 之前设置，因为 completeMessage 追加的 signal
+ * 不会出现在已有事件列表中（事件列表在 append 之前快照）。
+ */
 function convergeOrphanMessage(messagePort: MessagePort, message: Message): void {
   const existing = messagePort.getContext(message.id);
   if (existing?.kind !== "mcp_final_body") {
@@ -42,5 +46,6 @@ function convergeOrphanMessage(messagePort: MessagePort, message: Message): void
       messagePort.setContext(message.id, "event_summary", "用户中断了本次回复");
     }
   }
-  messagePort.completeMessage(message.id, "interrupted");
+  /** signal 携带 restart reason，与正常中断（error message）区分 */
+  messagePort.completeMessage(message.id, "interrupted", { reason: "service_restart" });
 }
