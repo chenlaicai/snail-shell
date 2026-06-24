@@ -56,11 +56,11 @@ export function PropertiesPanel({ issue, stage }: PropertiesPanelProps) {
           </>
         )}
 
-        {currentStage?.output_artifacts && Object.keys(currentStage.output_artifacts).length > 0 && (
+        {issue.context && Object.keys(issue.context).length > 0 && (
           <>
             <Section title="Context">
               <div className="space-y-1.5">
-                {Object.entries(currentStage.output_artifacts).map(([key, value]) => (
+                {Object.entries(issue.context).map(([key, value]) => (
                   <div key={key} className="flex items-baseline gap-2">
                     <span className="text-[10px] text-shell-400 font-mono shrink-0 w-20 truncate">{key}</span>
                     <span className="text-[11px] text-text-secondary break-all">{String(value)}</span>
