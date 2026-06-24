@@ -1,14 +1,14 @@
 ---
-id: F202606243vgu
+id: F20260624ss39
 title: fix-issue-creation-log-format-skill-symlink
 from_ids: []
-tags: [issue, logging, skill, bugfix, error-handling]
+tags: [issue, logging, skill, feature-id, bugfix, error-handling]
 modules: [core, infra, agent-config]
 doc_kind: spec
 change_type: bugfix
 ---
 
-# F202606243vgu [core][infra] 修复 Issue 创建 500 错误 + 日志文件名格式 + Skill 符号链接
+# F20260624ss39 [core][infra] 修复 Issue 创建 500 错误 + 日志文件名格式 + Skill 符号链接 + 特性编号格式
 
 ## 修复 1：Issue 创建接口 500 错误
 
@@ -120,3 +120,28 @@ max_file_size_mb: 10
 
 - `src/infra/file-data-store.ts` — `fromRepoRoot` 和 `workspace` 改用 `path.resolve`
 - `src/domain/skill/_internal/repository.ts` — `loadSkillDir` 使用 `store.getBaseDir()` 构建绝对路径
+
+---
+
+## 修复 4：特性编号格式调整
+
+### 背景
+
+特性编号 `FYYYYMMDDxxxx` 中 xxxx 首位是数字时，与日期部分 `YYYYMMDD` 视觉上不好区分。
+
+### 修复
+
+修改 `.githooks/commit-msg` 正则表达式，要求 xxxx 首位必须是字母：
+
+| 项目 | 旧格式 | 新格式 |
+|------|--------|--------|
+| 正则表达式 | `\d{8}[2-9a-kmnp-z]{4}` | `\d{8}[a-kmnp-z][2-9a-kmnp-z]{3}` |
+| 示例 | `F202606243vgu` | `F20260624ss39` |
+
+字符集说明：
+- 首位：`[a-kmnp-z]`（字母，排除 l 和 o 以避免混淆）
+- 后 3 位：`[2-9a-kmnp-z]`（数字 2-9 或字母）
+
+### 修改文件
+
+- `.githooks/commit-msg` — 更新正则表达式和错误提示
