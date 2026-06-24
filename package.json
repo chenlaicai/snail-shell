@@ -34,7 +34,7 @@
     "clsx": "^2.1.1",
     "express": "^5.2.1",
     "hono": "^4.12.25",
-    "lucide-react": "^1.17.0",
+    "lucide-react": "^1.21.0",
     "marked": "^18.0.5",
     "mermaid": "^11.15.0",
     "pino": "^10.3.1",
