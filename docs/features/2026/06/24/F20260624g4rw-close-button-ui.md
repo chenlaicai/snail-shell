@@ -1,5 +1,5 @@
 ---
-id: F2026062401
+id: F20260624g4rw
 title: issue-ui-missing-wiring
 from_ids: [F2026062309, F2026062303]
 tags: [issue, close, context, ui, bugfix]
@@ -8,7 +8,7 @@ doc_kind: spec
 change_type: bugfix
 ---
 
-# F2026062401 [web] 补全 Issue 级 UI 缺失的两处接线
+# F20260624g4rw [web] 补全 Issue 级 UI 缺失的两处接线
 
 ## 背景
 
