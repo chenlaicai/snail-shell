@@ -33,8 +33,8 @@ doc_kind: spec
 |---|------|----------|----------|
 | B1 | 用户在多角色 stage 发消息（无 @mention） | 消息广播到所有非发言者 role_instance | 代码审查：resolveToSpeakers 中 others.length > 1 分支 |
 | B2 | 用户在多角色 stage 发消息（有 @mention） | 精确路由到被 mention 的角色 | 代码审查：resolveToSpeakers 中 mentions.length > 0 分支保持不变 |
-| B3 | invokeAgent 执行失败 | cursor 不推进，消息保持 unread；创建 system message 通知用户 | 代码审查：advanceCursor 移到 invokeAgent 之后 + 失败时创建 system message |
-| B4 | 长对话超过 50 条消息 | 早期上下文不被截断 | 代码审查：getUnreadMessages 传 Infinity 绕过默认 limit |
+| B3 | invokeAgent 执行失败 | cursor 不推进，消息保持 unread，call signal 保留可重试；invokeAgent catch 创建 failed agent message 通知用户 | 代码审查：advanceCursor + deleteCallSignal 移到 invokeAgent 成功之后 |
+| B4 | 长对话超过 50 条消息 | 早期上下文不被截断 | 代码审查：getUnreadMessages 传 Number.MAX_SAFE_INTEGER 绕过默认 limit |
 
 ## 设计
 
@@ -50,32 +50,30 @@ if (others.length > 1) {
 }
 ```
 
-### 变更 2: Cursor 时序修复
+### 变更 2: Cursor 时序 + Call Signal 生命周期修复
 
-`drainStage` 中将 `advanceCursor` 从 `invokeAgent` 之前移到之后。失败时 invokeAgent 抛出异常，advanceCursor 不执行，消息保持 unread。
+`drainStage` 中将 `advanceCursor` 和 `deleteCallSignal` 都移到 `invokeAgent` 成功之后。失败时 invokeAgent 抛出异常，两者均不执行：消息保持 unread，call signal 保留，下次 drain 可重新调度。
 
 ```typescript
-// 修复前
-this.deps.messagePort.advanceCursor(stageId, speaker, unread[unread.length - 1].id);
-await this.invokeAgent(stageId, speaker, unread);
-
 // 修复后
 await this.invokeAgent(stageId, speaker, unread);
+this.deps.messagePort.deleteCallSignal(stageId, speaker);
 this.deps.messagePort.advanceCursor(stageId, speaker, unread[unread.length - 1].id);
 ```
 
 ### 变更 3: 错误反馈
 
-drainStage 中 Promise.allSettled 后遍历 rejected 结果，为失败的 speaker 创建 system message 通知用户。
+invokeAgent 的 catch 块在失败时创建 status="failed" 的 agent message 通知用户（非 system message）。drainStage 的 rejection handler 仅记录日志，不重复创建错误消息。
 
 ### 变更 4: listByStage 限制
 
-`getUnreadMessages` 和 `findLatestRespondingSpeaker` 调用 `listByStage(stageId, Infinity)` 绕过默认 50 条限制。
+`getUnreadMessages` 和 `findLatestRespondingSpeaker` 调用 `listByStage(stageId, Number.MAX_SAFE_INTEGER)` 绕过默认 50 条限制。
 
 ### 设计取舍
 
-- `Infinity` 作为 limit 参数是临时方案，SQLite 将其视为极大整数。长期应改为 SQL 层 `WHERE id > cursor` 过滤。
+- `Number.MAX_SAFE_INTEGER` 作为 limit 参数是临时方案。长期应改为 SQL 层 `WHERE id > cursor` 过滤。
 - 多角色广播是默认行为，Agent 间 @mention 仍保持定向路由。
+- call signal 在 invokeAgent 成功后才删除，确保失败时可重试。
 
 ## 生效路径
 
@@ -92,8 +90,8 @@ drainStage 中 Promise.allSettled 后遍历 rejected 结果，为失败的 speak
 
 | 文件 | 变更类型 | 说明 |
 |------|----------|------|
-| `src/app/issue-collaboration/collaboration.ts` | 修改 | resolveToSpeakers 多角色广播 + advanceCursor 时序 + 错误反馈 |
-| `src/domain/message/_internal/adapter.ts` | 修改 | getUnreadMessages/findLatestRespondingSpeaker 传 Infinity |
+| `src/app/issue-collaboration/collaboration.ts` | 修改 | resolveToSpeakers 多角色广播 + advanceCursor/deleteCallSignal 时序 + 错误反馈 |
+| `src/domain/message/_internal/adapter.ts` | 修改 | getUnreadMessages/findLatestRespondingSpeaker 传 Number.MAX_SAFE_INTEGER |
 
 ## 验证
 
@@ -103,8 +101,8 @@ drainStage 中 Promise.allSettled 后遍历 rejected 结果，为失败的 speak
 - [x] `npm run lint` 无新增报错
 - [x] `npm run build` 通过
 - [ ] 多角色 stage 无 @mention 时消息广播到所有角色
-- [ ] invokeAgent 失败后 cursor 不推进，下次 drain 可重试
-- [ ] agent 失败时用户看到 system message 错误提示
+- [ ] invokeAgent 失败后 cursor 不推进、call signal 保留，下次 drain 可重试
+- [ ] agent 失败时用户看到 failed agent message 错误提示
 - [ ] 长对话超过 50 条消息时早期上下文不被截断
 
 ## 关联

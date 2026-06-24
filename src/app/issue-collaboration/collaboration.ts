@@ -149,9 +149,8 @@ export class IssueCollaboration implements CollaborationInput {
       log.debug({ stageId, targetSpeakers, remainingRounds }, "drainStage");
 
       const executions = targetSpeakers.map(async speaker => {
-        this.deps.messagePort.deleteCallSignal(stageId, speaker);
-
         if (speaker === "user") {
+          this.deps.messagePort.deleteCallSignal(stageId, speaker);
           const latest = this.deps.messagePort.listMessages(stageId).at(-1);
           if (latest) await this.notifyConsumers(stageId, "onUserCalled", latest);
           return false;
@@ -159,12 +158,14 @@ export class IssueCollaboration implements CollaborationInput {
 
         const unread = this.deps.messagePort.getUnreadMessages(stageId, speaker);
         if (unread.length === 0) {
+          this.deps.messagePort.deleteCallSignal(stageId, speaker);
           log.debug({ stageId, speaker }, "skip speaker (no unread)");
           return false;
         }
 
         log.debug({ stageId, speaker, unreadCount: unread.length }, "invoking agent");
         await this.invokeAgent(stageId, speaker, unread);
+        this.deps.messagePort.deleteCallSignal(stageId, speaker);
         this.deps.messagePort.advanceCursor(stageId, speaker, unread[unread.length - 1].id);
         return true;
       });
