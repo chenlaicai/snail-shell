@@ -47,11 +47,24 @@ export class IssueCollaboration implements CollaborationInput {
     });
   }
 
-  interruptMessage(messageId: number): boolean {
+  async interruptMessage(messageId: number): Promise<boolean> {
     const controller = this.activeInvocations.get(messageId);
-    if (!controller) return false;
+    if (!controller) {
+      /** 兜底收敛：无活跃 AbortController 但消息仍为 streaming 的孤儿消息 */
+      const message = this.deps.messagePort.getMessage(messageId);
+      if (!message || message.status !== "streaming") return false;
+      const context = this.extractTerminalContext(messageId, "interrupted");
+      this.deps.messagePort.setContext(messageId, context.kind, context.context);
+      this.deps.messagePort.completeMessage(messageId, "interrupted");
+      try {
+        await this.notifyConsumers(message.stage_id, "onMessageCompleted", this.mustGetMessage(messageId), this.deps.messagePort.getContext(messageId));
+      } catch (error) {
+        log.error({ messageId, stageId: message.stage_id, err: error }, "interruptMessage notifyConsumers failed");
+      }
+      log.info({ messageId, stageId: message.stage_id }, "interruptMessage (orphan fallback)");
+      return true;
+    }
     controller.abort();
-    this.activeInvocations.delete(messageId);
     log.info({ messageId }, "interruptMessage");
     return true;
   }

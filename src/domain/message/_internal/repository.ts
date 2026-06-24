@@ -83,6 +83,7 @@ type CallSignalRow = CallSignal;
 export interface MessageRepository {
   findById(id: number): Message | undefined;
   listByStage(stageId: string, limit?: number, offset?: number): Message[];
+  listByStatus(status: Message["status"], limit?: number): Message[];
   create(message: Message): Message;
   update(id: number, updates: Partial<Message>): void;
   transaction<T>(fn: () => T): T;
@@ -102,6 +103,13 @@ export class SQLiteMessageRepository implements MessageRepository {
     return this.db.all<MessageRow>(
       `SELECT * FROM message WHERE stage_id = ? ORDER BY id ASC LIMIT ? OFFSET ?`,
       [stageId, limit, offset],
+    ).map(mapMessage);
+  }
+
+  listByStatus(status: Message["status"], limit = 500): Message[] {
+    return this.db.all<MessageRow>(
+      `SELECT * FROM message WHERE status = ? ORDER BY id ASC LIMIT ?`,
+      [status, limit],
     ).map(mapMessage);
   }
 

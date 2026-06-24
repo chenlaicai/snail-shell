@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { formatDateTime } from "@/lib/utils";
 import { RichTextRenderer } from "@/components/RichTextRenderer";
+import { showToast } from "@/components/Toast";
 import type { MessageDto, MessageEvent } from "@/types";
 
 function extractContextUsage(events: MessageEvent[]): { label: string; percent: number } | null {
@@ -23,10 +24,30 @@ function extractContextUsage(events: MessageEvent[]): { label: string; percent: 
   return null;
 }
 
-export function ChatMessage({ message, onInterrupt }: { message: MessageDto; onInterrupt?: (messageId: number) => void }) {
+export function ChatMessage({ message, onInterrupt }: { message: MessageDto; onInterrupt?: (messageId: number) => Promise<void> }) {
   const isUser = message.role === "user";
   const isSystem = message.role === "system";
   const [expandedByUser, setExpandedByUser] = useState<boolean | null>(null);
+  const [interrupting, setInterrupting] = useState(false);
+  const interruptingRef = useRef(false);
+
+  const handleStop = useCallback(async () => {
+    if (interruptingRef.current || !onInterrupt) return;
+    interruptingRef.current = true;
+    setInterrupting(true);
+    try {
+      await onInterrupt(message.id);
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message === "already-completed") {
+        showToast("该消息已完成", false);
+      } else {
+        showToast(`中断请求失败：${err instanceof Error ? err.message : String(err)}`, true);
+      }
+      setInterrupting(false);
+    } finally {
+      interruptingRef.current = false;
+    }
+  }, [onInterrupt, message.id]);
 
   if (isSystem) {
     const text = message.events
@@ -133,11 +154,15 @@ export function ChatMessage({ message, onInterrupt }: { message: MessageDto; onI
               <span className="text-[11px] text-shell-400">AI is responding...</span>
               {onInterrupt && (
                 <button
-                  onClick={() => onInterrupt(message.id)}
-                  className="ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-status-red/15 text-status-red border border-status-red/30 hover:bg-status-red/25 transition-colors"
+                  onClick={handleStop}
+                  disabled={interrupting}
+                  className={`ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors ${interrupting
+                    ? "bg-status-red/10 text-status-red/60 border border-status-red/20 cursor-not-allowed"
+                    : "bg-status-red/15 text-status-red border border-status-red/30 hover:bg-status-red/25"
+                  }`}
                 >
                   <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
-                  Stop
+                  {interrupting ? "Stopping..." : "Stop"}
                 </button>
               )}
             </div>

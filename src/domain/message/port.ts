@@ -15,6 +15,7 @@ export interface MessagePort {
   createMessage(input: CreateMessageInput): Message;
   getMessage(id: number): Message | undefined;
   listMessages(stageId: string, limit?: number, offset?: number): Message[];
+  listMessagesByStatus(status: MessageStatus, limit?: number): Message[];
   updateMessageTargets(messageId: number, toSpeakers: string[]): void;
 
   /** 完成消息：追加终态信号事件 + 更新状态（原子操作） */
