@@ -58,6 +58,7 @@ export class IssueCollaboration implements CollaborationInput {
 
   async sendMessage(stageId: string, text: string, fromSpeaker = "user", toSpeakers?: string[]): Promise<void> {
     const stage = this.mustGetStage(stageId);
+    this.assertIssueOpen(stage.issue_id);
     /** 前端传入 to_speakers 时直接使用（UI 驱动的精确路由），否则走服务端 fallback 解析 */
     const targets: SpeakerTarget[] = toSpeakers && toSpeakers.length > 0
       ? toSpeakers.map(speaker => ({ speaker, source: "mention" as const }))
@@ -104,6 +105,10 @@ export class IssueCollaboration implements CollaborationInput {
     return stage;
   }
 
+  closeIssue(issueId: string): Issue {
+    return this.deps.issuePort.closeIssue(issueId);
+  }
+
   enqueueStage(stageId: string): void {
     this.queue.enqueue(stageId, async () => this.drainStage(stageId));
   }
@@ -119,6 +124,8 @@ export class IssueCollaboration implements CollaborationInput {
   }
 
   private async drainStage(stageId: string): Promise<void> {
+    const stage = this.deps.stagePort.findStage(stageId);
+    if (!stage || stage.left_at) return;
     let remainingRounds = this.maxCollaborationRounds;
 
     while (remainingRounds > 0) {
@@ -539,6 +546,11 @@ ${transitions || "无"}
     const message = this.deps.messagePort.getMessage(messageId);
     if (!message) throw new Error(`Message not found: ${messageId}`);
     return message;
+  }
+
+  private assertIssueOpen(issueId: string): void {
+    const issue = this.deps.issuePort.findIssue(issueId);
+    if (issue?.closed_at) throw new Error(`Issue is closed: ${issueId}`);
   }
 
   private async notifyConsumers(stageId: string, method: keyof CollaborationConsumer, ...args: unknown[]): Promise<void> {

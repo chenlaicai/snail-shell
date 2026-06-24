@@ -66,6 +66,11 @@ function createTestEnv() {
       const merged = { ...issue.context, ...context };
       issueRepo.updateContext(issueId, merged);
     },
+    closeIssue: (id: string) => {
+      const issue = issueRepo.findById(id);
+      if (!issue) throw new Error(`Issue not found: ${id}`);
+      return { ...issue, closed_at: new Date().toISOString() };
+    },
   };
   const server = createSnailIssueContextServer(issuePort);
   return { tmpDir, db, issueRepo, issuePort, server };
