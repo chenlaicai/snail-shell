@@ -164,16 +164,25 @@ export class IssueCollaboration implements CollaborationInput {
         }
 
         log.debug({ stageId, speaker, unreadCount: unread.length }, "invoking agent");
-        this.deps.messagePort.advanceCursor(stageId, speaker, unread[unread.length - 1].id);
         await this.invokeAgent(stageId, speaker, unread);
+        this.deps.messagePort.advanceCursor(stageId, speaker, unread[unread.length - 1].id);
         return true;
       });
 
       const results = await Promise.allSettled(executions);
       const agentCalls = results.filter(result => result.status === "fulfilled" && result.value).length;
-      const errors = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
-      if (errors.length > 0) {
-        log.error({ stageId, errors: errors.map(e => e.reason?.message ?? String(e.reason)) }, "drainStage agent errors");
+      for (let i = 0; i < results.length; i++) {
+        const result = results[i];
+        if (result.status === "rejected") {
+          const failedSpeaker = targetSpeakers[i];
+          log.error({ stageId, speaker: failedSpeaker, err: result.reason }, "drainStage agent failed");
+          if (failedSpeaker !== "user") {
+            const errorText = `任务执行失败: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`;
+            const sysMsg = this.deps.messagePort.createMessage({ stage_id: stageId, from_speaker: "system", to_speakers: ["user"], status: "completed" });
+            this.deps.messagePort.setContext(sysMsg.id, "final_text", errorText);
+            await this.notifyConsumers(stageId, "onMessageCompleted", sysMsg, this.deps.messagePort.getContext(sysMsg.id));
+          }
+        }
       }
       if (agentCalls === 0) return;
       remainingRounds -= agentCalls;
@@ -376,6 +385,11 @@ export class IssueCollaboration implements CollaborationInput {
   private async resolveToSpeakers(stage: Stage, text: string, fromSpeaker: string): Promise<SpeakerTarget[]> {
     const mentions = await this.resolveMentions(stage, text, fromSpeaker);
     if (mentions.length > 0) return mentions.map(speaker => ({ speaker, source: "mention" }));
+
+    const others = stage.role_instances.filter(instance => instance !== fromSpeaker);
+    if (others.length > 1) {
+      return others.map(speaker => ({ speaker, source: "default" as const }));
+    }
 
     const latest = this.deps.messagePort.findLatestRespondingSpeaker(stage.id);
     if (latest && latest !== fromSpeaker && stage.role_instances.includes(latest)) {
