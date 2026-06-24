@@ -57,7 +57,7 @@ feature 文档编号规则：
 
 1. 格式为 `FYYYYMMDDxxxx`。
 2. `YYYYMMDD` 使用创建文档当天日期。
-3. `xxxx` 为 4 位随机码（小写字母 + 数字，a-z0-9），创建时一次性分配，终身不变。
+3. `xxxx` 为 4 位随机码（字符集 `2-9a-kmnp-z`，排除 0/o/1/l），创建时一次性分配，终身不变。
 4. 日期目录格式为 `docs/features/YYYY/MM/DD/`。
 5. 文件名格式为 `FYYYYMMDDxxxx-kebab-case-title.md`。
 6. 生成随机码后，扫描对应日期目录确认不与已有编号碰撞；碰撞则重新生成。
