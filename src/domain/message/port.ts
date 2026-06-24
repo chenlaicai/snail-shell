@@ -38,6 +38,9 @@ export interface MessagePort {
   /** 查找最近响应的 speaker（最近一条 assistant 消息的 from_speaker） */
   findLatestRespondingSpeaker(stageId: string): string | null;
 
+  /** 查找 stage 中最新一条消息 */
+  findLatestMessage(stageId: string): Message | undefined;
+
   // CallSignal
   createCallSignal(stageId: string, targetSpeaker: string): void;
   getCallSignals(stageId: string): CallSignal[];

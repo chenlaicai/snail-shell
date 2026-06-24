@@ -149,31 +149,35 @@ export class IssueCollaboration implements CollaborationInput {
       log.debug({ stageId, targetSpeakers, remainingRounds }, "drainStage");
 
       const executions = targetSpeakers.map(async speaker => {
-        this.deps.messagePort.deleteCallSignal(stageId, speaker);
-
         if (speaker === "user") {
-          const latest = this.deps.messagePort.listMessages(stageId).at(-1);
+          this.deps.messagePort.deleteCallSignal(stageId, speaker);
+          const latest = this.deps.messagePort.findLatestMessage(stageId);
           if (latest) await this.notifyConsumers(stageId, "onUserCalled", latest);
           return false;
         }
 
         const unread = this.deps.messagePort.getUnreadMessages(stageId, speaker);
         if (unread.length === 0) {
+          this.deps.messagePort.deleteCallSignal(stageId, speaker);
           log.debug({ stageId, speaker }, "skip speaker (no unread)");
           return false;
         }
 
         log.debug({ stageId, speaker, unreadCount: unread.length }, "invoking agent");
-        this.deps.messagePort.advanceCursor(stageId, speaker, unread[unread.length - 1].id);
         await this.invokeAgent(stageId, speaker, unread);
+        this.deps.messagePort.deleteCallSignal(stageId, speaker);
+        this.deps.messagePort.advanceCursor(stageId, speaker, unread[unread.length - 1].id);
         return true;
       });
 
       const results = await Promise.allSettled(executions);
       const agentCalls = results.filter(result => result.status === "fulfilled" && result.value).length;
-      const errors = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
-      if (errors.length > 0) {
-        log.error({ stageId, errors: errors.map(e => e.reason?.message ?? String(e.reason)) }, "drainStage agent errors");
+      for (let i = 0; i < results.length; i++) {
+        const result = results[i];
+        if (result.status === "rejected") {
+          const failedSpeaker = targetSpeakers[i];
+          log.error({ stageId, speaker: failedSpeaker, err: result.reason }, "drainStage agent failed");
+        }
       }
       if (agentCalls === 0) return;
       remainingRounds -= agentCalls;

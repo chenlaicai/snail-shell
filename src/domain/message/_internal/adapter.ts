@@ -106,8 +106,7 @@ export class MessageAdapter implements MessagePort {
 
   getUnreadMessages(stageId: string, speaker: string): Message[] {
     const cursor = this.cursorRepo.get(stageId, speaker);
-    const all = this.messageRepo.listByStage(stageId);
-    return all.filter(m => m.id > cursor);
+    return this.messageRepo.listByStageAfterId(stageId, cursor);
   }
 
   initCursor(stageId: string, speaker: string): void {
@@ -115,14 +114,11 @@ export class MessageAdapter implements MessagePort {
   }
 
   findLatestRespondingSpeaker(stageId: string): string | null {
-    const messages = this.messageRepo.listByStage(stageId);
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const m = messages[i];
-      if (m.status === "completed" && m.from_speaker && m.from_speaker !== "user" && m.from_speaker !== "system") {
-        return m.from_speaker;
-      }
-    }
-    return null;
+    return this.messageRepo.findLatestRespondingSpeaker(stageId);
+  }
+
+  findLatestMessage(stageId: string): Message | undefined {
+    return this.messageRepo.findLatestMessage(stageId);
   }
 
   // ── CallSignal ───────────────────────────────────────────────────────
