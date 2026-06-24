@@ -60,6 +60,7 @@ async function initModules(repoRoot: string, serverSettings: ServerSettings) {
     },
     knowledge: knowledge.adapter,
     message: message.adapter,
+    issue: issue.issueAdapter,
   });
   const mcp = initMCP({ dataStore, workspaces, snailMCPServer: snailMCPServer.adapter, serverSettings });
   const featureChain = initFeatureChain(repoRoot);

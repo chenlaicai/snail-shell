@@ -226,14 +226,12 @@ export class IssueCollaboration implements CollaborationInput {
   }) {
     const { stageId, roleInstance, issue, stage, assignment, unreadMessages, agentMessage, signal } = input;
     const systemReminder = this.buildSystemReminder({ issue, stage, roleInstance, roleKey: assignment.role_key });
-    const invokeOptions: InvokeOptions = {
-      signal,
-      contextEnv: { issue_id: issue.id, stage_id: stage.id, message_id: String(agentMessage.id), role_instance: roleInstance },
-    };
+    const invokeOptions: InvokeOptions = { signal };
     const agentMessages = unreadMessages.map(message => this.toAgentMessage(message));
+    /** 唯一的上下文数据源：snail adapter 从这里构建 env vars，buildContextBlock 从 issue.context 渲染 system reminder */
     const firstCallRequest = {
       workspace_path: issue.workspace_path, messages: agentMessages, systemReminder: systemReminder || undefined,
-      context: { issue_id: issue.id, stage_id: stage.id, message_id: String(agentMessage.id), stage_key: stage.key, role_instance: roleInstance },
+      context: { issue_id: issue.id, stage_id: stage.id, message_id: String(agentMessage.id), stage_key: stage.key, role_instance: roleInstance, ...issue.context },
     };
     const resumeRequest = { workspace_path: issue.workspace_path, messages: agentMessages, system_reminder: systemReminder };
     const onEvent = (event: AgentEvent) => this.handleAgentEvent(stageId, agentMessage.id, event);
@@ -444,12 +442,16 @@ export class IssueCollaboration implements CollaborationInput {
 
   private buildContextBlock(issue: Issue, stage: Stage, roleDef: RoleDefinition | undefined): string {
     const transitions = stage.available_transitions.map(transition => `- ${transition.to}${transition.guard ? `: ${transition.guard}` : ""}`).join("\n");
-    const artifacts = Object.entries(stage.output_artifacts).map(([key, value]) => `${key}: ${value}`).join("\n");
     const sharedSkill = issue.sop_snapshot.shared_skill;
     const skillList = [
       sharedSkill ? `- \`${sharedSkill}\` — 共享规则（特性编号、PR签名、证据规则、完成标准）` : null,
       roleDef?.skill ? `- \`${roleDef.skill}\` — ${roleDef.name}工作流程` : null,
     ].filter(Boolean).join("\n");
+
+    /** Issue 上下文：只读视图，Agent 应使用 MCP 工具读写 */
+    const issueContext = Object.keys(issue.context).length > 0
+      ? Object.entries(issue.context).map(([key, value]) => `- **${key}**: ${value}`).join("\n")
+      : "无";
 
     return `<context>
 ## 项目上下文
@@ -458,13 +460,18 @@ export class IssueCollaboration implements CollaborationInput {
 **Issue ID**：${issue.id}
 **工作区**：${issue.workspace_path}
 **Issue 摘要**：${issue.summary ?? "无"}
-**可扩展上下文**：${issue.extendable_context != null ? JSON.stringify(issue.extendable_context) : "无"}
+
+## Issue 上下文（只读视图）
+
+${issueContext}
+
+> **注意**：这是只读视图。Agent 应使用 MCP 工具 \`set_context\` 和 \`get_context\` 读写 Issue 上下文。
+> Issue 上下文也会通过环境变量 \`SNAIL_CTX_*\` 注入，可通过 \`process.env\` 读取。
 
 ## 当前阶段
 
 **阶段**：${stage.title} (${stage.key})
 **阶段描述**：${stage.description}
-**阶段产物**：\n${artifacts || "无"}
 **所有角色实例**：${stage.role_instances.join(", ")}
 
 ## 可用 Skills

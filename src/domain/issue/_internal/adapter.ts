@@ -43,6 +43,14 @@ export class IssueAdapter implements IssuePort {
     validateSnailAssignmentPlan(sop, plan);
   }
 
+  updateContext(issueId: string, context: Record<string, string>): void {
+    const issue = this.issueRepo.findById(issueId);
+    if (!issue) throw new Error(`Issue not found: ${issueId}`);
+    // merge 语义：保留已有 key，更新/新增传入的 key
+    const merged = { ...issue.context, ...context };
+    this.issueRepo.updateContext(issueId, merged);
+  }
+
   createIssue(input: CreateIssueInput): Issue {
     const sop = this.sopPort.findByKey(input.adopted_sop_key);
     if (!sop) throw new Error(`SOP not found: ${input.adopted_sop_key}`);
@@ -56,7 +64,7 @@ export class IssueAdapter implements IssuePort {
       summary: input.summary ?? null,
       sop_snapshot: structuredClone(sop),
       snail_assignment_plan: structuredClone(input.snail_assignment_plan),
-      extendable_context: input.extendable_context ?? {},
+      context: input.context ?? {},
       created_at: now,
       closed_at: null,
     };

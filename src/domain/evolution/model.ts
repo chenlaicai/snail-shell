@@ -1,4 +1,4 @@
-/** Issue.extendable_context 中存储演进项 ID 的 key（同时也是环境变量名） */
+/** Issue.context 中存储演进项 ID 的 key（同时也是环境变量名） */
 export const EVOLUTION_ITEM_ID_KEY = "SNAIL_CTX_EVOLUTION_ITEM_ID";
 
 /** 演进项状态 */

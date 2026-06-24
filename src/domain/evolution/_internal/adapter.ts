@@ -88,7 +88,7 @@ export class EvolutionAdapter implements EvolutionPort {
       summary: item.content,
       adopted_sop_key: "evolution",
       snail_assignment_plan: this.createDefaultSnailAssignmentPlan("evolution", `[Evolution] ${item.title}`),
-      extendable_context: { [EVOLUTION_ITEM_ID_KEY]: item.id },
+      context: { [EVOLUTION_ITEM_ID_KEY]: item.id },
     });
 
     this.repo.update(itemId, {
