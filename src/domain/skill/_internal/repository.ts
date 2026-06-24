@@ -44,10 +44,11 @@ export class FileSkillRepository implements SkillRepository {
 
     const entries = store.listDirs(relativeDir);
     const skills: Skill[] = [];
+    const baseDir = store.getBaseDir();
 
     for (const entry of entries) {
-      const skillDirPath = path.join(relativeDir, entry);
-      const skillFilePath = path.join(skillDirPath, "SKILL.md");
+      const skillDirPath = path.join(baseDir, relativeDir, entry);
+      const skillFilePath = path.join(relativeDir, entry, "SKILL.md");
 
       if (!store.exists(skillFilePath)) continue;
 

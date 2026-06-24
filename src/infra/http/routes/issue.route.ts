@@ -57,17 +57,7 @@ export function createIssueRoutes(deps: IssueRoutesDeps) {
     return c.json(deps.issuePort.previewSopStages(c.req.param("sopKey"), c.req.query("title") ?? ""));
   });
 
-  app.post("/api/workspaces/:workspaceId/issues", zValidator("json", createIssueBody), async (c) => {
-    const body = c.req.valid("json");
-    const result = await deps.collaboration.createIssue({
-      workspace_path: decodeWorkspaceId(c.req.param("workspaceId")),
-      title: body.title,
-      summary: body.summary,
-      adopted_sop_key: body.adopted_sop_key,
-      snail_assignment_plan: body.snail_assignment_plan,
-    });
-    return c.json({ issue: toIssueDetail(deps, result.issue), stage: toStageDto(deps, result.stage) }, 201);
-  });
+  app.post("/api/workspaces/:workspaceId/issues", zValidator("json", createIssueBody), async (c) => createIssue(c, deps));
 
   app.get("/api/issues/:issueId", (c) => {
     const issue = deps.issuePort.findIssue(c.req.param("issueId"));
@@ -112,6 +102,30 @@ function listMessages(c: Context, deps: IssueRoutesDeps) {
   const limit = numberQuery(c.req.query("limit"));
   const offset = numberQuery(c.req.query("offset"));
   return c.json(deps.messagePort.listMessages(stageId, limit, offset).map(message => toMessageDto(deps, message)));
+}
+
+async function createIssue(c: Context, deps: IssueRoutesDeps) {
+  const body = createIssueBody.parse(await c.req.json());
+  try {
+    const result = await deps.collaboration.createIssue({
+      workspace_path: decodeWorkspaceId(requiredParam(c, "workspaceId")),
+      title: body.title,
+      summary: body.summary,
+      adopted_sop_key: body.adopted_sop_key,
+      snail_assignment_plan: body.snail_assignment_plan,
+    });
+    return c.json({ issue: toIssueDetail(deps, result.issue), stage: toStageDto(deps, result.stage) }, 201);
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message.startsWith("SOP not found:")) {
+        return c.json({ error: error.message }, 400);
+      }
+      if (error.message.includes("snail assignment") || error.message.includes("stage definitions")) {
+        return c.json({ error: error.message }, 400);
+      }
+    }
+    throw error;
+  }
 }
 
 async function sendMessage(c: Context, deps: IssueRoutesDeps) {

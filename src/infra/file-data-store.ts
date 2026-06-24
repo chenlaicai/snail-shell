@@ -24,13 +24,18 @@ export class FileDataStore extends FileLoader {
     super(baseDir);
   }
 
+  /** 获取 baseDir 绝对路径 */
+  getBaseDir(): string {
+    return this.baseDir;
+  }
+
   /** 从 repoRoot 创建平台级 FileDataStore（data/file/） */
   static fromRepoRoot(repoRoot: string): FileDataStore {
-    return new FileDataStore(path.join(repoRoot, "data", "file"));
+    return new FileDataStore(path.resolve(repoRoot, "data", "file"));
   }
 
   /** 创建 workspace 级 FileDataStore（<workspace>/.snail/） */
   workspace(workspacePath: string): FileDataStore {
-    return new FileDataStore(path.join(workspacePath, ".snail"));
+    return new FileDataStore(path.resolve(workspacePath, ".snail"));
   }
 }

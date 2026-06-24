@@ -30,9 +30,9 @@ function buildFileTarget(config: Required<LoggingConfig>): pino.TransportTargetO
     options: {
       file: logFile,
       size: `${config.max_file_size_mb}m`,
-      interval: "1d",
+      frequency: "daily",
       mkdir: true,
-      maxFiles: config.max_days,
+      limit: { count: config.max_days },
       dateFormat: "yyyy-MM-dd",
     },
     level: config.level,
