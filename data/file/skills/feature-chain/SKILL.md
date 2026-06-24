@@ -31,7 +31,7 @@ node .meta/skills/feature-chain/scripts/feature-chain.js --mode search --query <
 ### get — 获取单个 Feature 完整文档
 
 ```bash
-node .meta/skills/feature-chain/scripts/feature-chain.js --mode get --id <FYYYYMMDDNN>
+node .meta/skills/feature-chain/scripts/feature-chain.js --mode get --id <FYYYYMMDDxxxx>
 ```
 
 返回 frontmatter + 完整 Markdown 正文。
@@ -39,7 +39,7 @@ node .meta/skills/feature-chain/scripts/feature-chain.js --mode get --id <FYYYYM
 ### chain — 追溯引用链
 
 ```bash
-node .meta/skills/feature-chain/scripts/feature-chain.js --mode chain --id <FYYYYMMDDNN> [--direction backward|forward|both]
+node .meta/skills/feature-chain/scripts/feature-chain.js --mode chain --id <FYYYYMMDDxxxx> [--direction backward|forward|both]
 ```
 
 - backward（默认）: 该 Feature 引用的前置 Feature（from_ids 链）

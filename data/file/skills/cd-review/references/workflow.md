@@ -13,8 +13,7 @@
 - 分支名/worktree/feature 文档一致
 
 ### GATE-4: 确认 feature 文档编号合规
-- `FYYYYMMDDNN` 格式正确，在对应日期目录下不冲突
-- 严格按照「特性编号规则」验证编号是否为当前最新的未使用编号（包括顺延规则）
+- 严格按照特性编号规则（见 `cd-shared/references/feature-numbering.md`）验证格式合法且不与已有编号碰撞
 
 加载完整上下文：PR diff、提交记录、PR 说明、当前 Feature 文档、Stage 输入、conversation 上下文和已记录验证结果。
 

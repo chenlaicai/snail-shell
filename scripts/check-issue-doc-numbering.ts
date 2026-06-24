@@ -3,7 +3,8 @@ import path from "path";
 import { parse as parseYaml } from "yaml";
 
 const FRONTMATTER_RE = /^---\s*\n([\s\S]*?)\n---/;
-const featureDocPattern = /^F(\d{8})(\d{2})-.+\.md$/;
+// 兼容旧格式 FYYYYMMDDNN（2位数字）和新格式 FYYYYMMDDxxxx（4位，字符集 2-9a-kmnp-z，排除 0/o/1/l）
+const featureDocPattern = /^F(\d{8})(\d{2}|[2-9a-kmnp-z]{4})-.+\.md$/;
 
 export interface FeatureDocNumberingIssue {
   message: string;
@@ -14,6 +15,7 @@ interface FeatureDocRecord {
   relativePath: string;
   dateDir: string;
   prefix: string;
+  dateStr: string;
 }
 
 function walkFeatureDocs(rootDir: string, currentDir: string, records: FeatureDocRecord[], issues: FeatureDocNumberingIssue[]): void {
@@ -36,10 +38,14 @@ function consumeFeatureDoc(rootDir: string, fullPath: string, fileName: string, 
   if (!match) return;
 
   validateFrontmatter(fullPath, relativePath, issues);
+  const dateStr: string = match[1];
+  const suffix: string = match[2];
   records.push({
     relativePath,
     dateDir: path.relative(path.join(rootDir, "docs", "features"), path.dirname(fullPath)).split(path.sep).join(""),
-    prefix: `F${match[1]}${match[2]}`,
+    // 新旧格式均按完整 ID 分组：旧格式检测完全重复，新格式检测同日同随机码碰撞
+    prefix: `F${dateStr}${suffix}`,
+    dateStr,
   });
 }
 
@@ -87,10 +93,9 @@ export function checkFeatureDocNumbering(rootDir = path.resolve(__dirname, "..")
 }
 
 function validateDateDir(record: FeatureDocRecord, issues: FeatureDocNumberingIssue[]): void {
-  const expectedDateDir = record.prefix.slice(1, 9);
-  if (record.dateDir !== expectedDateDir) {
+  if (record.dateDir !== record.dateStr) {
     issues.push({
-      message: `${record.relativePath} 所在日期目录与编号 ${record.prefix} 不一致`,
+      message: `${record.relativePath} 所在日期目录与编号日期 ${record.dateStr} 不一致`,
       files: [record.relativePath],
     });
   }

@@ -140,7 +140,7 @@ stage_definitions:
         description: CI 全部通过
         required: true
       - id: merge-03
-        description: Feature 文档编号合规（严格按照「特性编号规则」验证）
+        description: Feature 文档编号合规（格式合法、目录不碰撞，详见「特性编号规则」）
         required: true
       - id: merge-04
         description: PR 标题和 commit 模板合规
