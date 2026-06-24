@@ -106,7 +106,7 @@ export class MessageAdapter implements MessagePort {
 
   getUnreadMessages(stageId: string, speaker: string): Message[] {
     const cursor = this.cursorRepo.get(stageId, speaker);
-    const all = this.messageRepo.listByStage(stageId, Infinity);
+    const all = this.messageRepo.listByStage(stageId, Number.MAX_SAFE_INTEGER);
     return all.filter(m => m.id > cursor);
   }
 
@@ -115,7 +115,7 @@ export class MessageAdapter implements MessagePort {
   }
 
   findLatestRespondingSpeaker(stageId: string): string | null {
-    const messages = this.messageRepo.listByStage(stageId, Infinity);
+    const messages = this.messageRepo.listByStage(stageId, Number.MAX_SAFE_INTEGER);
     for (let i = messages.length - 1; i >= 0; i--) {
       const m = messages[i];
       if (m.status === "completed" && m.from_speaker && m.from_speaker !== "user" && m.from_speaker !== "system") {
