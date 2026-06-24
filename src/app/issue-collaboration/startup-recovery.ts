@@ -39,10 +39,24 @@ export function startupRecovery(messagePort: MessagePort, stagePort: StagePort, 
  */
 function convergeOrphanMessage(messagePort: MessagePort, message: Message): void {
   const existing = messagePort.getContext(message.id);
-  if (existing?.kind !== "mcp_final_body") {
+  if (existing?.kind === "mcp_final_body") {
+    /** mcp_final_body 是 Agent 通过 MCP 主动设置的最终答复，保留原值 */
+  } else if (existing) {
+    /** 已有 context（final_text / event_summary 等），保留原值 */
+  } else {
+    /** 无 context：尝试从 text event 提取，否则生成兜底摘要 */
     const events = messagePort.getMessageEvents(message.id);
-    const hasTextEvent = events.some(e => e.payload.type === "text" && (e.payload as { text: string }).text.trim());
-    if (!hasTextEvent) {
+    let lastTextContext: string | null = null;
+    for (let i = events.length - 1; i >= 0; i--) {
+      const payload = events[i].payload;
+      if (payload.type === "text" && (payload as { text: string }).text.trim()) {
+        lastTextContext = (payload as { text: string }).text;
+        break;
+      }
+    }
+    if (lastTextContext) {
+      messagePort.setContext(message.id, "final_text", lastTextContext);
+    } else {
       messagePort.setContext(message.id, "event_summary", "用户中断了本次回复");
     }
   }
