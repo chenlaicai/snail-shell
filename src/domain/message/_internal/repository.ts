@@ -84,6 +84,12 @@ export interface MessageRepository {
   findById(id: number): Message | undefined;
   listByStage(stageId: string, limit?: number, offset?: number): Message[];
   listByStatus(status: Message["status"], limit?: number): Message[];
+  /** 查询 stageId 中 id > afterId 的所有消息（按 id ASC），用于 cursor-based 读取 */
+  listByStageAfterId(stageId: string, afterId: number): Message[];
+  /** 查询 stageId 中最近一条非 user/system 的已完成消息的 from_speaker */
+  findLatestRespondingSpeaker(stageId: string): string | null;
+  /** 查询 stageId 中最新一条消息（按 id DESC LIMIT 1） */
+  findLatestMessage(stageId: string): Message | undefined;
   create(message: Message): Message;
   update(id: number, updates: Partial<Message>): void;
   transaction<T>(fn: () => T): T;
@@ -111,6 +117,32 @@ export class SQLiteMessageRepository implements MessageRepository {
       `SELECT * FROM message WHERE status = ? ORDER BY id ASC LIMIT ?`,
       [status, limit],
     ).map(mapMessage);
+  }
+
+  listByStageAfterId(stageId: string, afterId: number): Message[] {
+    return this.db.all<MessageRow>(
+      `SELECT * FROM message WHERE stage_id = ? AND id > ? ORDER BY id ASC`,
+      [stageId, afterId],
+    ).map(mapMessage);
+  }
+
+  findLatestRespondingSpeaker(stageId: string): string | null {
+    const row = this.db.get<{ from_speaker: string }>(
+      `SELECT from_speaker FROM message
+       WHERE stage_id = ? AND from_speaker IS NOT NULL
+         AND from_speaker NOT IN ('user', 'system') AND status = 'completed'
+       ORDER BY id DESC LIMIT 1`,
+      [stageId],
+    );
+    return row?.from_speaker ?? null;
+  }
+
+  findLatestMessage(stageId: string): Message | undefined {
+    const row = this.db.get<MessageRow>(
+      `SELECT * FROM message WHERE stage_id = ? ORDER BY id DESC LIMIT 1`,
+      [stageId],
+    );
+    return row ? mapMessage(row) : undefined;
   }
 
   create(message: Message): Message {

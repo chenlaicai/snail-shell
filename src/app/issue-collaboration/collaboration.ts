@@ -151,7 +151,7 @@ export class IssueCollaboration implements CollaborationInput {
       const executions = targetSpeakers.map(async speaker => {
         if (speaker === "user") {
           this.deps.messagePort.deleteCallSignal(stageId, speaker);
-          const latest = this.deps.messagePort.listMessages(stageId).at(-1);
+          const latest = this.deps.messagePort.findLatestMessage(stageId);
           if (latest) await this.notifyConsumers(stageId, "onUserCalled", latest);
           return false;
         }
@@ -380,11 +380,6 @@ export class IssueCollaboration implements CollaborationInput {
   private async resolveToSpeakers(stage: Stage, text: string, fromSpeaker: string): Promise<SpeakerTarget[]> {
     const mentions = await this.resolveMentions(stage, text, fromSpeaker);
     if (mentions.length > 0) return mentions.map(speaker => ({ speaker, source: "mention" }));
-
-    const others = stage.role_instances.filter(instance => instance !== fromSpeaker);
-    if (others.length > 1) {
-      return others.map(speaker => ({ speaker, source: "default" as const }));
-    }
 
     const latest = this.deps.messagePort.findLatestRespondingSpeaker(stage.id);
     if (latest && latest !== fromSpeaker && stage.role_instances.includes(latest)) {
