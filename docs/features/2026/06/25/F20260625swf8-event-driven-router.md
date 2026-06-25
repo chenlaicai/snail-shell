@@ -184,6 +184,10 @@ Board 从 2 列改为 3 列：AI Running（蓝色）、Needs You（琥珀色）�
 - [x] route() 独立 try-catch（Medium: 下游路由失败不标记当前 agent 为失败）
 - [x] resumeRoute async + 内部错误处理（Low: 无 unhandled rejection）
 - [x] 清理全部死代码（dead files、unused exports、unused DTO types）
+- [x] stage.left_at 守卫移到 route() 入口，user 分支也受保护（中：已流转 stage 不触发 user 通知）
+- [x] dispatchStates 在 advanceStage 和 route 中 stage 已流转时清理（低：防止内存泄漏）
+- [x] computeActivityStatus 合并到 collaboration.getActivityStatus()，消除 route/websocket 重复（低：单一事实来源）
+- [x] websocket bridge 不再依赖 messagePort（低：减少耦合）
 
 ## 关联
 
