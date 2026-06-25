@@ -49,7 +49,7 @@ code-delivery SOP 的设计阶段（design）要求架构师先进入 worktree �
 
 - `cd-shared/SKILL.md` gotchas 新增 `[HARD] 文件修改前必须先进 worktree`
 - `cd-shared/SKILL.md` 核心规则新增 `Worktree 纪律` 子节
-- 新建 `cd-shared/references/worktree-discipline.md`，包含完整规则和执行流程（适用于 design/development/review 阶段）
+- 新建 `cd-shared/references/worktree-discipline.md`，包含完整规则和执行流程
 
 **第 2 层：cd-design SKILL.md gotchas**
 
@@ -63,13 +63,13 @@ code-delivery SOP 的设计阶段（design）要求架构师先进入 worktree �
 3. 当前问题本质是提示词层级设计问题，不是运行时缺陷
 
 不采用 buildContextBlock 全量注入，原因：
-1. worktree 约束对 design/development/review 阶段有意义，全量注入对 merge 阶段产生噪音
+1. worktree 约束通过 cd-shared skill 按需加载，无需在通用协作规则中全量注入
 2. cd-shared 作为前置依赖已覆盖所有 code-delivery 角色，无需重复注入
 
 ## 生效路径
 
 1. 修改 `data/file/skills/cd-shared/SKILL.md` — 新增 worktree 纪律子节和 gotcha
-2. 新建 `data/file/skills/cd-shared/references/worktree-discipline.md` — 完整 worktree 规则（design/development/review）
+2. 新建 `data/file/skills/cd-shared/references/worktree-discipline.md` — 完整 worktree 规则
 3. 修改 `data/file/skills/cd-design/SKILL.md` — gotchas 加入 [HARD] 约束
 
 ## 变更影响

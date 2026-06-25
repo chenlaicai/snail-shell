@@ -1,6 +1,6 @@
 # Worktree 纪律
 
-design、development、review 阶段的角色（architect、developer、reviewer）在执行任何文件修改前必须遵守本规则。merge 阶段的角色进入已有 worktree，不创建新 worktree。
+需要新建 worktree 的角色（当前：architect、developer、reviewer）在执行任何文件修改前必须遵守本规则。
 
 ## 规则
 
