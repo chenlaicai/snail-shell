@@ -79,8 +79,9 @@ change_type: bugfix
 
 **目的**：将 50 次/秒的 `setQueryData` 合并为批量更新，减少 React 重渲染次数。
 
-- 在 `useWebSocket.ts` 中用 `setTimeout(0)` 收集 16ms 窗口内的事件
-- 一次性调用 `setQueryData` 更新所有变更
+- 在 `useWebSocket.ts` 中用 `requestAnimationFrame` 收集一帧窗口内的事件
+- `setTimeout(50ms)` 兜底：标签页不可见时 rAF 不触发，setTimeout 确保事件不堆积
+- 一次性调用 `setQueryData` 更新所有变更，按 stage 分组批量处理
 - 预期效果：50 次/秒 → ~60 次/秒（每帧一次），但每次更新批量处理多个事件
 
 ### 修复 4：前端 — React.memo 包装 ChatMessage
