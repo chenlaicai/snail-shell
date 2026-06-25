@@ -28,13 +28,13 @@ export function createSnailIssueContextServer(issuePort: IssuePort): MCPServerCo
 function createSetContextTool(issuePort: IssuePort): MCPTool {
   return {
     name: "set_context",
-    description: "设置 Issue 级别的上下文（merge 语义）",
+    description: "设置 Issue 级别的上下文（merge 语义）。用于存储跨 Stage 传递的指针和元数据（文件路径、分支名、PR URL、状态标记）。禁止存放大段文本、检视计划、方案内容 — 这些应写入文件，context 只存文件路径。",
     inputSchema: {
       type: "object",
       properties: {
         issue_id: { type: "string", description: "Issue ID" },
-        key: { type: "string", description: "上下文 key（建议格式：{stage_key}.{artifact_name}）" },
-        value: { type: "string", description: "上下文 value" },
+        key: { type: "string", description: "上下文 key（建议格式：{stage_key}.{artifact_name}，如 design.feature_doc_path）" },
+        value: { type: "string", description: "上下文 value（应为短文本：路径、URL、状态标记等，禁止大段内容）" },
       },
       required: ["issue_id", "key", "value"],
     },
