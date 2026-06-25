@@ -61,19 +61,21 @@ Router 状态: Map<`${stageId}:${speaker}`, { status: "idle" | "invoking", pendi
 
 route(stageId, message):
   targets = message.to_speakers
+  if (stage.left_at) cleanupDispatchStates(); return  // 守卫：stage 已流转
   Promise.all(targets.map(speaker => dispatch(stageId, speaker)))
 
 dispatch(stageId, speaker):
-  if (stage.left_at) return                    // 守卫：stage 已流转
   if (speaker === "user") notifyUser(); return
   if (status === "invoking") pending = true; return  // 去重
   status = "invoking"
   while (pending):
+    state = get(key); if (!state) return       // stage 已流转被并发清理
     pending = false
     unread = getUnreadMessages()
     invokeAgent(unread)                        // agent 执行
     advanceCursor()                            // 成功后才推进
-  status = "idle"
+    state = get(key); if (!state) return       // 同上
+    if (!pending) status = "idle"; return
 ```
 
 事件链：sendMessage → route → dispatch → invokeAgent → completeMessage → route → dispatch → ...
@@ -188,6 +190,8 @@ Board 从 2 列改为 3 列：AI Running（蓝色）、Needs You（琥珀色）�
 - [x] dispatchStates 在 advanceStage 和 route 中 stage 已流转时清理（低：防止内存泄漏）
 - [x] computeActivityStatus 合并到 collaboration.getActivityStatus()，消除 route/websocket 重复（低：单一事实来源）
 - [x] websocket bridge 不再依赖 messagePort（低：减少耦合）
+- [x] dispatch while 循环 await 后增加 dispatchStates null check（中：并发 advanceStage 可能清理条目导致 TypeError）
+- [x] 特性文档伪代码同步更新：stage 守卫在 route() 而非 dispatch()（低：文档与代码一致性）
 
 ## 关联
 

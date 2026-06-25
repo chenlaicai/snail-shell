@@ -212,7 +212,8 @@ export class IssueCollaboration implements CollaborationInput {
 
     let remainingRounds = this.maxCollaborationRounds;
     while (remainingRounds > 0) {
-      const state = this.dispatchStates.get(key)!;
+      const state = this.dispatchStates.get(key);
+      if (!state) return; // stage 已流转，dispatchStates 被并发清理
       state.pending = false;
 
       const unread = this.deps.messagePort.getUnreadMessages(stageId, speaker);
@@ -232,8 +233,9 @@ export class IssueCollaboration implements CollaborationInput {
         // cursor 未推进，消息不会丢失
       }
 
-      // invoke 结束，检查 pending（期间可能有新消息到达）
-      const current = this.dispatchStates.get(key)!;
+      // invoke 结束，检查 pending（期间可能有新消息到达，或 stage 已流转被清理）
+      const current = this.dispatchStates.get(key);
+      if (!current) return;
       if (!current.pending) {
         this.dispatchStates.set(key, { status: "idle", pending: false });
         return;
