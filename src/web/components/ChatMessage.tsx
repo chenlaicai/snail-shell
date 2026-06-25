@@ -323,6 +323,7 @@ function EventItem({ event }: { event: MessageEvent }) {
   switch (type) {
     case "tool_call": {
       const toolName = p.tool_name as string;
+      // fallback p.input: 防御 collaboration 层未映射的事件流（如直接 SSE）
       const toolInput = p.tool_input ?? p.input;
       const summary = deriveToolCallSummary(toolName, toolInput);
       // MCP 工具名解析为 server.tool 格式用于显示
@@ -331,6 +332,8 @@ function EventItem({ event }: { event: MessageEvent }) {
       tag = "Tool";
       tagClass = "bg-shell-600/30 text-shell-300";
       detail = toolInput ? JSON.stringify(toolInput, null, 2) : null;
+      // 偏离 B6 字面规范：当 toolInput 非空但 summary 提取失败时仍保留展开箭头，
+      // 让用户可检视原始 JSON（调试价值 > 完全隐藏）
       showDetail = !!summary || !!toolInput;
       break;
     }
