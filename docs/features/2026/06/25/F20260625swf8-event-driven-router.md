@@ -1,12 +1,12 @@
 ---
-id: F202606252kux
+id: F20260625swf8
 title: event-driven-router
 tags: [refactor, collaboration, web]
 modules: [collaboration, web]
 doc_kind: spec
 ---
 
-# F202606252kux [collaboration] 事件驱动路由重构 + Issue 三态分组
+# F20260625swf8 [collaboration] 事件驱动路由重构 + Issue 三态分组
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 
