@@ -133,8 +133,12 @@ export class IssueCollaboration implements CollaborationInput {
   }
 
   /** 启动恢复用：重新路由一条已完成消息的 to_speakers */
-  resumeRoute(stageId: string, message: Message): void {
-    void this.route(stageId, message);
+  async resumeRoute(stageId: string, message: Message): Promise<void> {
+    try {
+      await this.route(stageId, message);
+    } catch (error) {
+      log.error({ stageId, messageId: message.id, err: error }, "resumeRoute failed");
+    }
   }
 
   /** 查询某个 stage 是否有任何 speaker 正在 invoking（用于 activity_status） */
@@ -167,6 +171,10 @@ export class IssueCollaboration implements CollaborationInput {
   private async dispatch(stageId: string, speaker: string): Promise<void> {
     const key = `${stageId}:${speaker}`;
 
+    // Stage 已流转或 issue 已关闭，停止调度
+    const stage = this.deps.stagePort.findStage(stageId);
+    if (!stage || stage.left_at) return;
+
     if (speaker === "user") {
       const latest = this.deps.messagePort.findLatestMessage(stageId);
       if (latest) await this.notifyConsumers(stageId, "onUserCalled", latest);
@@ -197,11 +205,13 @@ export class IssueCollaboration implements CollaborationInput {
       }
 
       log.debug({ stageId, speaker, unreadCount: unread.length }, "dispatch: invoking agent");
-      this.deps.messagePort.advanceCursor(stageId, speaker, unread[unread.length - 1].id);
       try {
         await this.invokeAgent(stageId, speaker, unread);
+        // invoke 成功后才推进 cursor，失败时 cursor 不动，下次重试
+        this.deps.messagePort.advanceCursor(stageId, speaker, unread[unread.length - 1].id);
       } catch (error) {
         log.error({ stageId, speaker, err: error }, "dispatch: agent invocation failed");
+        // cursor 未推进，消息不会丢失
       }
 
       // invoke 结束，检查 pending（期间可能有新消息到达）
@@ -258,8 +268,12 @@ export class IssueCollaboration implements CollaborationInput {
       await this.detectStageTransition(stage, roleInstance, completedMessage.id);
       await this.notifyConsumers(stageId, "onMessageCompleted", completedMessage, this.deps.messagePort.getContext(completedMessage.id));
 
-      // Router: 根据 to_speakers 触发下一步
-      await this.route(stageId, completedMessage);
+      // Router: 根据 to_speakers 触发下一步（独立 try-catch，下游路由失败不标记当前 agent 为失败）
+      try {
+        await this.route(stageId, completedMessage);
+      } catch (routeError) {
+        log.error({ stageId, roleInstance, err: routeError }, "route after invokeAgent failed");
+      }
     } catch (error) {
       log.error({
         stageId, roleInstance, issueId: issue.id, snailKey: assignment.snail_key,

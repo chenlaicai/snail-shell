@@ -32,7 +32,7 @@ export function startupRecovery(messagePort: MessagePort, stagePort: StagePort, 
     if (latest.to_speakers.length === 0) continue; // 无目标，stage 静默
 
     log.info({ stageId, messageId: latest.id, targets: latest.to_speakers }, "resuming stage routing");
-    collaboration.resumeRoute(stageId, latest);
+    void collaboration.resumeRoute(stageId, latest);
   }
 }
 

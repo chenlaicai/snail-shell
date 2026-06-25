@@ -29,7 +29,7 @@ export interface CollaborationInput {
   /** 查询 stage 是否有 agent 正在执行（用于 activity_status 判断） */
   isInvoking(stageId: string): boolean;
   /** 启动恢复：重新路由已完成消息的 to_speakers */
-  resumeRoute(stageId: string, message: Message): void;
+  resumeRoute(stageId: string, message: Message): Promise<void>;
 }
 
 export interface CollaborationConsumer {
