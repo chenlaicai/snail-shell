@@ -1,6 +1,6 @@
 # Worktree 纪律
 
-所有 code-delivery 角色（architect、developer、reviewer）在执行任何文件修改前必须遵守本规则。
+design 和 development 阶段的角色（architect、developer）在执行任何文件修改前必须遵守本规则。review 和 merge 阶段的角色进入已有 worktree，不创建新 worktree。
 
 ## 规则
 
@@ -14,7 +14,7 @@
 
 ```
 1. git fetch origin main
-2. EnterWorktree（或 git worktree add）基于 origin/main
+2. git worktree add <path> -b <branch> origin/main
 3. pwd 验证 cwd 在 worktree 内
 4. record-issue-repo-context 记录路径和分支
 5. 开始执行正式工作

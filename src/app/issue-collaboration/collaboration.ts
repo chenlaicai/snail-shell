@@ -585,7 +585,6 @@ ${transitions || "无"}
 - 你可以通过 @角色实例 请求其他角色回应
 - 如果阶段看起来完成了，建议 stage_transition 等待用户确认
 - 永远不要自动推进 Stage
-- **[HARD] 文件修改前必须先进入 worktree**，严禁在主目录写任何文件（包括 feature 文档）
 </context>`;
   }
 

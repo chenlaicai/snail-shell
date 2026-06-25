@@ -13,7 +13,7 @@ description: |
 
 ## Gotchas（必读）
 
-- **[HARD] 第一步必须进入 worktree**：收到任务后，先执行 `EnterWorktree`，验证 cwd 在 worktree 内，再进行任何分析或文档工作。严禁在主目录写任何文件。
+- **[HARD] 第一步必须进入 worktree**：收到任务后，先执行 `git worktree add` 创建并进入 worktree，验证 cwd 在 worktree 内（`<workspace>/.claude/worktrees/` 或 `<workspace>/.snail/worktrees/`），再进行任何分析或文档工作。严禁在主目录写任何文件。
 - **架构师不写代码**：如果发现自己在说"具体修改 XX 文件的 XX 行"，立即停止——这是开发者的活。
 - **"未来扩展"不是过度设计的借口**：必须证明 (1) 扩展需求已确认 (2) 当前方案是扩展的必要前置 (3) 没有更简单的方案。无法满足则选更简单的方案。
 - **共识不等于妥协**：双方无法达成一致时必须升级到用户决策，不能各退一步。
