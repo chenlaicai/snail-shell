@@ -66,7 +66,7 @@ agent 可能认为 cwd 会像普通 shell 一样持久化，但实际上每次 B
 **传递方式**：
 - agent 使用 EnterWorktree 进入 worktree 后，将 worktree 路径写入 Issue context
 - Issue context 会通过 `SNAIL_CTX_*` 环境变量自动注入到 agent 进程
-- agent 从 `process.env.SNAIL_CTX_worktree_path` 或 `get_context` 读取
+- agent 从环境变量或 `get_context` 读取（环境变量名取决于 set_context 的 key）
 
 **无需新增代码**：复用已有 `set_context` 机制，不需要修改 EnterWorktree 或协作系统。
 
@@ -114,7 +114,7 @@ agent 可能认为 cwd 会像普通 shell 一样持久化，但实际上每次 B
 
 1. **当 agent 使用 EnterWorktree 后**，所有路径必须使用绝对路径，以 worktree 路径开头
 2. **系统如何传递 worktree 路径**：EnterWorktree 完成后将 worktree 路径写入 Issue context（key: `worktree_path`），通过 `SNAIL_CTX_*` 环境变量自动注入
-3. **agent 如何知道 worktree 路径**：从 `process.env.SNAIL_CTX_worktree_path` 或 `get_context` 读取
+3. **agent 如何知道 worktree 路径**：从环境变量或 `get_context` 读取（环境变量名取决于 set_context 的 key）
 
 ## 风险与决策记录
 
