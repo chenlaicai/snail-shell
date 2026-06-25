@@ -295,7 +295,7 @@ function extractFirstStringValue(obj: Record<string, unknown>): string | null {
   }
   // 无 string 值：降级到 JSON.stringify 截断
   const json = JSON.stringify(obj);
-  if (!json || json === "{}") return null;
+  if (json === "{}") return null;
   return truncateText(json, 60);
 }
 
