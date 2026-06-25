@@ -6,7 +6,6 @@ import type {
   MessageEventPayload,
   MessageContext,
   MessageContextKind,
-  CallSignal,
 } from "@domain/message/model";
 import type { MessagePort } from "@domain/message/port";
 import type {
@@ -14,7 +13,6 @@ import type {
   EventRepository,
   ContextRepository,
   ReadCursorRepository,
-  CallSignalRepository,
 } from "@domain/message/_internal/repository";
 
 export class MessageAdapter implements MessagePort {
@@ -23,7 +21,6 @@ export class MessageAdapter implements MessagePort {
     private eventRepo: EventRepository,
     private contextRepo: ContextRepository,
     private cursorRepo: ReadCursorRepository,
-    private callSignalRepo: CallSignalRepository,
   ) {}
 
   // ── Message CRUD ─────────────────────────────────────────────────────
@@ -119,30 +116,5 @@ export class MessageAdapter implements MessagePort {
 
   findLatestMessage(stageId: string): Message | undefined {
     return this.messageRepo.findLatestMessage(stageId);
-  }
-
-  // ── CallSignal ───────────────────────────────────────────────────────
-
-  createCallSignal(stageId: string, targetSpeaker: string): void {
-    this.callSignalRepo.create(stageId, targetSpeaker);
-  }
-
-  getCallSignals(stageId: string): CallSignal[] {
-    return this.callSignalRepo.listByStage(stageId);
-  }
-
-  getAllCallSignals(): Map<string, CallSignal[]> {
-    const all = this.callSignalRepo.listAll();
-    const groups = new Map<string, CallSignal[]>();
-    for (const s of all) {
-      const list = groups.get(s.stage_id) ?? [];
-      list.push(s);
-      groups.set(s.stage_id, list);
-    }
-    return groups;
-  }
-
-  deleteCallSignal(stageId: string, targetSpeaker: string): void {
-    this.callSignalRepo.delete(stageId, targetSpeaker);
   }
 }

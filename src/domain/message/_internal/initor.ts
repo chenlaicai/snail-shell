@@ -4,7 +4,6 @@ import {
   SQLiteEventRepository,
   SQLiteContextRepository,
   SQLiteReadCursorRepository,
-  SQLiteCallSignalRepository,
 } from "@domain/message/_internal/repository";
 import { MessageAdapter } from "@domain/message/_internal/adapter";
 
@@ -14,14 +13,12 @@ export function init(db: SQLiteDatabase) {
   const eventRepo = new SQLiteEventRepository(db);
   const contextRepo = new SQLiteContextRepository(db);
   const cursorRepo = new SQLiteReadCursorRepository(db);
-  const callSignalRepo = new SQLiteCallSignalRepository(db);
 
   const adapter = new MessageAdapter(
     messageRepo,
     eventRepo,
     contextRepo,
     cursorRepo,
-    callSignalRepo,
   );
 
   return {
@@ -29,7 +26,6 @@ export function init(db: SQLiteDatabase) {
     eventRepo,
     contextRepo,
     cursorRepo,
-    callSignalRepo,
     adapter,
   };
 }

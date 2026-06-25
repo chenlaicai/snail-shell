@@ -115,10 +115,3 @@ export interface ReadCursor {
   updated_at: string;
 }
 
-// ── CallSignal ────────────────────────────────────────────────────────
-
-export interface CallSignal {
-  stage_id: string;
-  target_speaker: string;
-  created_at: string;
-}

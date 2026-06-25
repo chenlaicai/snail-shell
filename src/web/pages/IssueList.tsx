@@ -6,7 +6,7 @@ import { queryKeys } from "@/queries/keys";
 import { TopBar } from "@/components/TopBar";
 import { IssueRow } from "@/components/IssueRow";
 import { NewIssueDialog } from "@/components/NewIssueDialog";
-import { groupByStatus, statusColumns } from "@/lib/issue-utils";
+import { groupByActivityStatus, activityStatusColumns } from "@/lib/issue-utils";
 import type { IssueDetailDto } from "@/types";
 
 export function IssueList() {
@@ -27,7 +27,7 @@ export function IssueList() {
     enabled: !!workspaceId,
   });
 
-  const grouped = groupByStatus(issues);
+  const grouped = groupByActivityStatus(issues);
 
   const toggle = (status: string) => {
     setCollapsed((prev) => {
@@ -77,7 +77,7 @@ export function IssueList() {
         {issues.length === 0 ? (
           <div className="text-center text-text-muted text-sm py-16">No issues in this workspace</div>
         ) : (
-          statusColumns.map((group) => {
+          activityStatusColumns.map((group) => {
             const groupIssues = grouped[group.status] ?? [];
             if (groupIssues.length === 0) return null;
             const isCollapsed = collapsed.has(group.status);

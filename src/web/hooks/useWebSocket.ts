@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useConversationStore } from "../stores/conversationStore";
 import { queryKeys } from "../queries/keys";
-import type { IssueRealtimeMessage, MessageDto, WsServerMessage } from "../types";
+import type { IssueRealtimeMessage, IssueDetailDto, MessageDto, WsServerMessage } from "../types";
 
 /** 创建占位 MessageDto——用于 WebSocket message_started 和乐观发送 */
 export function createPlaceholderMessage(
@@ -63,6 +63,9 @@ class EventBatcher {
     const { event } = msg;
     const stageId = event.stage_id;
 
+    // 实时更新 activity_status
+    this.updateIssueActivityStatus(msg.issue_id, msg.activity_status);
+
     if (event.type === "stage_transition_suggested") {
       this.pendingStageTransitions.push({ issueId: msg.issue_id, stageId });
       this.schedule();
@@ -91,6 +94,19 @@ class EventBatcher {
     }
 
     this.schedule();
+  }
+
+  private updateIssueActivityStatus(issueId: string, activityStatus: IssueDetailDto["activity_status"]): void {
+    this.queryClient.setQueryData(
+      queryKeys.issues.detail(issueId),
+      (old: IssueDetailDto | null | undefined) => old ? { ...old, activity_status: activityStatus } : old,
+    );
+    this.queryClient.setQueriesData(
+      { queryKey: queryKeys.workspaces.issues(""), exact: false },
+      (old: IssueDetailDto[] | undefined) => old?.map(issue =>
+        issue.id === issueId ? { ...issue, activity_status: activityStatus } : issue,
+      ),
+    );
   }
 
   private schedule(): void {

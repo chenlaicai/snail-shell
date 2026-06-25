@@ -6,7 +6,6 @@ import type {
   MessageEventPayload,
   MessageContext,
   MessageContextKind,
-  CallSignal,
 } from "@domain/message/model";
 
 /** 消息端口 */
@@ -40,10 +39,4 @@ export interface MessagePort {
 
   /** 查找 stage 中最新一条消息 */
   findLatestMessage(stageId: string): Message | undefined;
-
-  // CallSignal
-  createCallSignal(stageId: string, targetSpeaker: string): void;
-  getCallSignals(stageId: string): CallSignal[];
-  getAllCallSignals(): Map<string, CallSignal[]>;
-  deleteCallSignal(stageId: string, targetSpeaker: string): void;
 }

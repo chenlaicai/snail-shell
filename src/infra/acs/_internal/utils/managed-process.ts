@@ -4,9 +4,9 @@ import type { ChildProcess } from "child_process";
 // 错误类型
 // ═══════════════════════════════════════════════════════════
 
-export type AgentStopReason = "user_interrupt" | "system_timeout" | "server_shutdown";
+type AgentStopReason = "user_interrupt" | "system_timeout" | "server_shutdown";
 
-export interface AgentStopDetail {
+interface AgentStopDetail {
   reason: AgentStopReason;
   phase: "requested" | "graceful_wait" | "terminate_sent" | "kill_sent" | "closed" | "kill_unconfirmed";
   requested_at: string;
@@ -21,7 +21,7 @@ export interface AgentStopDetail {
   process_group_signal_error?: string | null;
 }
 
-export class AgentInvocationInterruptedError extends Error {
+class AgentInvocationInterruptedError extends Error {
   readonly detail: AgentStopDetail | null;
   constructor(message = "Agent invocation interrupted", detail: AgentStopDetail | null = null) {
     super(message);
@@ -30,7 +30,7 @@ export class AgentInvocationInterruptedError extends Error {
   }
 }
 
-export class AgentInvocationTerminatedError extends Error {
+class AgentInvocationTerminatedError extends Error {
   readonly detail: AgentStopDetail;
   constructor(message: string, detail: AgentStopDetail) {
     super(message);
@@ -43,20 +43,20 @@ export class AgentInvocationTerminatedError extends Error {
 // 进程生命周期管理
 // ═══════════════════════════════════════════════════════════
 
-export interface ManagedProcessStopOptions {
+interface ManagedProcessStopOptions {
   gracefulTimeoutMs?: number;
   terminateTimeoutMs?: number;
   killConfirmTimeoutMs?: number;
 }
 
-export interface ManagedProcessController {
+interface ManagedProcessController {
   stopDetail(): AgentStopDetail | null;
   waitForStop(): Promise<void>;
   throwIfStopped(): Promise<void>;
   cleanup(): void;
 }
 
-export interface ProcessGroupProbe {
+interface ProcessGroupProbe {
   isAlive(pid: number): boolean;
 }
 
