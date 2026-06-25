@@ -582,10 +582,6 @@ ${transitions || "无"}
 - 你可以通过 @角色实例 请求其他角色回应
 - 如果阶段看起来完成了，建议 stage_transition 等待用户确认
 - 永远不要自动推进 Stage
-
-## cwd 提示
-
-你的 spawn cwd 是主仓库路径 \`${issue.workspace_path}\`。每次 Bash 调用都是独立的，cwd 不会持久化。详见 system prompt 中的 \`<cwd>\` 规则。
 </context>`;
   }
 
