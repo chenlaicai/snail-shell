@@ -36,7 +36,8 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
   ): Promise<InvokeResult> {
     setupCapabilities(request);
 
-    log.info({ agentType: this.name, workspacePath: request.workspacePath, messageCount: request.messages.length }, "agent.invocation.started");
+    const startTime = Date.now();
+    log.info({ agentType: this.name, snailKey: request.snailKey, messageId: request.messageId, workspacePath: request.workspacePath, messageCount: request.messages.length }, "agent.invocation.started");
 
     // 构建 CLI args
     const args = [
@@ -94,20 +95,10 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
     this.writeMessages(proc, request.messages, request.prompt.systemReminder);
 
     // 等待完成
-    try {
-      await stdoutDone;
-      proc.stdin?.end();
-      await new Promise<void>(resolve => proc.on("close", () => {
-        processController.cleanup();
-        resolve();
-      }));
-      await processController.throwIfStopped();
-    } finally {
-      if (promptFilePath) cleanupFile(promptFilePath);
-    }
+    await this.waitAndCleanup(proc, stdoutDone, processController, promptFilePath);
 
     if (proc.exitCode !== 0 && !resultContent) {
-      log.error({ agentType: this.name, exitCode: proc.exitCode, stderr: stderr.slice(0, 500) }, "agent.invocation.failed");
+      log.error({ agentType: this.name, snailKey: request.snailKey, messageId: request.messageId, exitCode: proc.exitCode, stderr: stderr.slice(0, 500) }, "agent.invocation.failed");
       throw new Error(`claude code exited with code ${proc.exitCode}: ${stderr}`);
     }
 
@@ -120,7 +111,7 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
       throw new Error(`claude code returned no output events${formatDiagnostics(stderr)}`);
     }
 
-    log.info({ agentType: this.name, outputEventCount }, "agent.invocation.completed");
+    log.info({ agentType: this.name, snailKey: request.snailKey, messageId: request.messageId, outputEventCount, duration: Date.now() - startTime }, "agent.invocation.completed");
     return { waitForStop: () => processController.waitForStop() };
   }
 
@@ -192,6 +183,20 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
   private writeStdin(proc: ChildProcess, data: unknown): void {
     if (proc.stdin && !proc.stdin.destroyed) {
       proc.stdin.write(JSON.stringify(data) + "\n");
+    }
+  }
+
+  private async waitAndCleanup(proc: ChildProcess, stdoutDone: Promise<void>, processController: ReturnType<typeof manageInvocationProcess>, promptFilePath: string | null): Promise<void> {
+    try {
+      await stdoutDone;
+      proc.stdin?.end();
+      await new Promise<void>(resolve => proc.on("close", () => {
+        processController.cleanup();
+        resolve();
+      }));
+      await processController.throwIfStopped();
+    } finally {
+      if (promptFilePath) cleanupFile(promptFilePath);
     }
   }
 }

@@ -42,6 +42,12 @@ export function createApp(deps: AppDeps) {
 
   app.use("*", cors());
 
+  // HTTP 请求异常日志（next() 抛出的异常）
+  app.onError((err, c) => {
+    log.error({ method: c.req.method, path: c.req.path, err }, "http.request.error");
+    return c.json({ error: "Internal Server Error" }, 500);
+  });
+
   // HTTP 请求日志中间件（跳过健康检查路径）
   app.use("*", async (c, next) => {
     if (c.req.path === "/health") return next();

@@ -30,6 +30,9 @@ export interface FirstCallRequest {
   messages: Message[];
   /** 当前工作目录 */
   workspacePath: string;
+  /** 日志关联标识（由编排层传入，仅用于日志） */
+  snailKey?: string;
+  messageId?: string;
 }
 
 /**
@@ -46,6 +49,9 @@ export interface ResumeRequest {
   messages: Message[];
   /** 当前工作目录 */
   workspacePath: string;
+  /** 日志关联标识（由编排层传入，仅用于日志） */
+  snailKey?: string;
+  messageId?: string;
 }
 
 // ═══════════════════════════════════════════════════════════

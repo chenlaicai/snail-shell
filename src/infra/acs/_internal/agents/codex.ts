@@ -54,7 +54,9 @@ export class CodexAgent implements AgentRuntimePort {
     onEvent: (event: AgentEvent) => void,
     options: InvokeOptions = {},
   ): Promise<InvokeResult> {
-    log.info({ agentType: this.name, workspacePath: request.workspacePath, messageCount: request.messages.length }, "agent.invocation.started");
+    const logCtx = { agentType: this.name, snailKey: request.snailKey, messageId: request.messageId };
+    log.info({ ...logCtx, workspacePath: request.workspacePath, messageCount: request.messages.length }, "agent.invocation.started");
+    const startTime = Date.now();
 
     // 注入 capabilities（文件系统级别）
     writeCodexGuardConfig(request.guard_profile.deny, request.workspacePath);
@@ -74,7 +76,7 @@ export class CodexAgent implements AgentRuntimePort {
     this.writePrompt(proc, promptText);
 
     // 处理输出
-    return this.processOutput(proc, onEvent, options, null);
+    return this.processOutput(proc, onEvent, options, null, logCtx, startTime);
   }
 
   /**
@@ -85,6 +87,9 @@ export class CodexAgent implements AgentRuntimePort {
     onEvent: (event: AgentEvent) => void,
     options: InvokeOptions = {},
   ): Promise<InvokeResult> {
+    const logCtx = { agentType: this.name, snailKey: request.snailKey, messageId: request.messageId };
+    const startTime = Date.now();
+
     // 构建 resume 的 CLI args
     const model = options.model ?? CodexAgent.DEFAULT_MODEL;
     const statefulInput = buildStatefulPromptInput(false, "", request.systemReminder, request.messages);
@@ -98,7 +103,7 @@ export class CodexAgent implements AgentRuntimePort {
     this.writePrompt(proc, promptText);
 
     // 处理输出
-    return this.processOutput(proc, onEvent, options, request.sessionId);
+    return this.processOutput(proc, onEvent, options, request.sessionId, logCtx, startTime);
   }
 
   // ── 通用辅助方法 ──────────────────────────────────────────────────────
@@ -127,6 +132,8 @@ export class CodexAgent implements AgentRuntimePort {
     onEvent: (event: AgentEvent) => void,
     options: InvokeOptions,
     existingThreadId: string | null,
+    logCtx: { agentType: string; snailKey?: string; messageId?: string },
+    startTime: number,
   ): Promise<InvokeResult> {
     const processController = manageInvocationProcess({
       proc,
@@ -161,7 +168,7 @@ export class CodexAgent implements AgentRuntimePort {
 
     if (state.failed || exitCode !== 0) {
       const errorMsg = stderr || state.rawOutput.join("");
-      log.error({ agentType: this.name, exitCode, stderr: stderr.slice(0, 500) }, "agent.invocation.failed");
+      log.error({ ...logCtx, exitCode, stderr: stderr.slice(0, 500) }, "agent.invocation.failed");
       throw new Error(`codex exec failed (exit ${exitCode}): ${errorMsg}`);
     }
 
@@ -176,7 +183,7 @@ export class CodexAgent implements AgentRuntimePort {
       throw new Error(`codex returned no output events${suffix}`);
     }
 
-    log.info({ agentType: this.name, threadId: state.threadId, outputEventCount: state.outputEventCount }, "agent.invocation.completed");
+    log.info({ ...logCtx, threadId: state.threadId, outputEventCount: state.outputEventCount, duration: Date.now() - startTime }, "agent.invocation.completed");
     return { sessionId: state.threadId, waitForStop: () => processController.waitForStop() };
   }
 }

@@ -115,7 +115,7 @@ export class LobbyAwareChannel implements IMChannelAdapter {
   }
 
   private scheduleInbound(message: IMInboundMessage): void {
-    void this.handleInbound(message).catch((err) => log.error({ err, channelType: this.channelType, chatId: message.chat_id, messageId: message.message_id }));
+    void this.handleInbound(message).catch((err) => log.error({ err, channelType: this.channelType, chatId: message.chat_id, messageId: message.message_id }, "im.inbound.failed"));
   }
 
   private async handleInbound(message: IMInboundMessage): Promise<void> {
