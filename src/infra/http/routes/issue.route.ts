@@ -152,12 +152,12 @@ async function interruptMessage(c: Context, deps: IssueRoutesDeps) {
   return c.json({ interrupted });
 }
 
-function toIssueDetail(deps: Pick<IssueRoutesDeps, "stagePort" | "messagePort" | "collaboration">, issue: Issue) {
+function toIssueDetail(deps: Pick<IssueRoutesDeps, "stagePort" | "collaboration">, issue: Issue) {
   const stages = deps.stagePort.listStages(issue.id).map(stage => toStageDto(deps, stage, issue));
   const currentStage = stages.find(stage => !stage.left_at) ?? stages.at(-1);
   if (!currentStage) throw new Error(`Issue has no current stage: ${issue.id}`);
 
-  const activityStatus = computeActivityStatus(issue, currentStage, deps);
+  const activityStatus = deps.collaboration.getActivityStatus(currentStage.id, issue.closed_at);
 
   return {
     ...issue,
@@ -166,23 +166,6 @@ function toIssueDetail(deps: Pick<IssueRoutesDeps, "stagePort" | "messagePort" |
     current_stage: currentStage,
     activity_status: activityStatus,
   };
-}
-
-function computeActivityStatus(
-  issue: Issue,
-  currentStage: { id: string; left_at: string | null },
-  deps: Pick<IssueRoutesDeps, "messagePort" | "collaboration">,
-): "ai_running" | "needs_human" | "completed" {
-  if (issue.closed_at) return "completed";
-
-  // Router 有 agent 正在执行
-  if (deps.collaboration.isInvoking(currentStage.id)) return "ai_running";
-
-  // 兜底：检查最新消息是否仍在 streaming
-  const latest = deps.messagePort.findLatestMessage(currentStage.id);
-  if (latest?.status === "streaming") return "ai_running";
-
-  return "needs_human";
 }
 
 function toStageDto(deps: Pick<IssueRoutesDeps, "stagePort">, stage: Stage, issue?: Issue) {

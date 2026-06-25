@@ -124,6 +124,7 @@ export class IssueCollaboration implements CollaborationInput {
 
   async advanceStage(stageId: string, targetKey: string): Promise<Stage> {
     const stage = this.deps.stagePort.advanceStage(stageId, targetKey);
+    this.cleanupDispatchStates(stageId);
     this.initStageCursors(stage);
     return stage;
   }
@@ -149,6 +150,23 @@ export class IssueCollaboration implements CollaborationInput {
     return false;
   }
 
+  /** 计算 stage 的 activity_status（唯一实现，供 route 和 websocket 共用） */
+  getActivityStatus(stageId: string, issueClosedAt?: string | null): "ai_running" | "needs_human" | "completed" {
+    if (issueClosedAt) return "completed";
+    if (this.isInvoking(stageId)) return "ai_running";
+    const latest = this.deps.messagePort.findLatestMessage(stageId);
+    if (latest?.status === "streaming") return "ai_running";
+    return "needs_human";
+  }
+
+  /** 清理某个 stage 的所有 dispatch 状态（stage 流转或关闭时调用） */
+  private cleanupDispatchStates(stageId: string): void {
+    const prefix = `${stageId}:`;
+    for (const key of this.dispatchStates.keys()) {
+      if (key.startsWith(prefix)) this.dispatchStates.delete(key);
+    }
+  }
+
   // ── Router: 事件驱动路由中枢 ────────────────────────────────────────
 
   /**
@@ -158,6 +176,10 @@ export class IssueCollaboration implements CollaborationInput {
   private async route(stageId: string, message: Message): Promise<void> {
     const targets = message.to_speakers;
     if (targets.length === 0) return; // 无目标，stage 静默
+
+    // Stage 已流转或 issue 已关闭，停止调度并清理
+    const stage = this.deps.stagePort.findStage(stageId);
+    if (!stage || stage.left_at) { this.cleanupDispatchStates(stageId); return; }
 
     const uniqueTargets = [...new Set(targets)];
     await Promise.all(uniqueTargets.map(speaker => this.dispatch(stageId, speaker)));
@@ -170,10 +192,6 @@ export class IssueCollaboration implements CollaborationInput {
    */
   private async dispatch(stageId: string, speaker: string): Promise<void> {
     const key = `${stageId}:${speaker}`;
-
-    // Stage 已流转或 issue 已关闭，停止调度
-    const stage = this.deps.stagePort.findStage(stageId);
-    if (!stage || stage.left_at) return;
 
     if (speaker === "user") {
       const latest = this.deps.messagePort.findLatestMessage(stageId);
