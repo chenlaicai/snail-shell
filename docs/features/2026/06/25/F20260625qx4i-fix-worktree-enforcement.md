@@ -25,9 +25,8 @@ code-delivery SOP 的设计阶段（design）要求架构师先进入 worktree �
 
 ## 目标
 
-1. 在 Agent 必经路径上设置 worktree 约束，确保在 skill 加载前就能看到
-2. 将 worktree 纪律提升为跨角色共享规则
-3. 在 SKILL.md gotchas 中加入 [HARD] 级别硬约束
+1. 将 worktree 纪律提升为跨角色共享规则（cd-shared）
+2. 在 SKILL.md gotchas 中加入 [HARD] 级别硬约束
 
 ## 非目标
 
@@ -39,27 +38,22 @@ code-delivery SOP 的设计阶段（design）要求架构师先进入 worktree �
 
 | # | 场景 | 预期行为 | 测试覆盖 |
 |---|------|----------|----------|
-| B1 | 当 design stage 开始，Agent 收到第一条消息时 | system reminder 的协作规则中包含 worktree 硬约束 | 验证 buildContextBlock 输出包含 worktree 提醒 |
-| B2 | 当 Agent 加载 cd-shared skill 时 | gotchas 和核心规则中均包含 worktree 纪律 | 验证 SKILL.md 和 references/worktree-discipline.md 内容 |
-| B3 | 当 Agent 加载 cd-design skill 时 | gotchas 第一条为 worktree [HARD] 约束 | 验证 SKILL.md gotchas 首条 |
+| B1 | 当 Agent 加载 cd-shared skill 时 | gotchas 和核心规则中均包含 worktree 纪律 | 验证 SKILL.md 和 references/worktree-discipline.md 内容 |
+| B2 | 当 Agent 加载 cd-design skill 时 | gotchas 第一条为 worktree [HARD] 约束 | 验证 SKILL.md gotchas 首条 |
 
 ## 设计
 
-### 三层加固策略
+### 两层加固策略
 
 **第 1 层：cd-shared 共享规则**
 
 - `cd-shared/SKILL.md` gotchas 新增 `[HARD] 文件修改前必须先进 worktree`
 - `cd-shared/SKILL.md` 核心规则新增 `Worktree 纪律` 子节
-- 新建 `cd-shared/references/worktree-discipline.md`，包含完整规则和执行流程
+- 新建 `cd-shared/references/worktree-discipline.md`，包含完整规则和执行流程（仅适用于 design/development 阶段）
 
 **第 2 层：cd-design SKILL.md gotchas**
 
-- gotchas 列表顶部新增 `[HARD] 第一步必须进入 worktree`
-
-**第 3 层：buildContextBlock 上下文注入**
-
-- `collaboration.ts` 的 `buildContextBlock()` 协作规则中追加 `[HARD] 文件修改前必须先进入 worktree`
+- gotchas 列表顶部新增 `[HARD] 第一步必须进入 worktree`，指定 `git worktree add` 命令
 
 ### 设计取舍
 
@@ -68,12 +62,15 @@ code-delivery SOP 的设计阶段（design）要求架构师先进入 worktree �
 2. 代码级校验（如 hook 拦截文件写入）实现复杂度高，且容易误伤正常操作
 3. 当前问题本质是提示词层级设计问题，不是运行时缺陷
 
+不采用 buildContextBlock 全量注入，原因：
+1. worktree 约束仅对 design/development 阶段有意义，全量注入对 review/merge 阶段产生噪音
+2. cd-shared 作为前置依赖已覆盖所有 code-delivery 角色，无需重复注入
+
 ## 生效路径
 
 1. 修改 `data/file/skills/cd-shared/SKILL.md` — 新增 worktree 纪律子节和 gotcha
-2. 新建 `data/file/skills/cd-shared/references/worktree-discipline.md` — 完整 worktree 规则
+2. 新建 `data/file/skills/cd-shared/references/worktree-discipline.md` — 完整 worktree 规则（design/development only）
 3. 修改 `data/file/skills/cd-design/SKILL.md` — gotchas 加入 [HARD] 约束
-4. 修改 `src/app/issue-collaboration/collaboration.ts` — buildContextBlock 注入提醒
 
 ## 变更影响
 
