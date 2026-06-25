@@ -99,7 +99,7 @@ agent 可能认为 cwd 会像普通 shell 一样持久化，但实际上每次 B
 |---|---|---|
 | 层 1 | system prompt 文件 | 增加 cwd 规则：永远使用绝对路径 |
 | 层 1 | system-reminder 注入逻辑（`collaboration.ts` 的 `buildContextBlock`） | 增加 cwd 提示 |
-| 层 1 | EnterWorktree 完成后 | 将 worktree 路径写入 Issue context（key: `worktree_path`） |
+| 层 1 | EnterWorktree 完成后（agent 职责，软约束） | 将 worktree 路径写入 Issue context（key: `worktree_path`） |
 
 ## 验证
 
