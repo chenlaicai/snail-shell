@@ -170,13 +170,13 @@ Board 从 2 列改为 3 列：AI Running（蓝色）、Needs You（琥珀色）�
 
 ### 功能
 
-- [ ] 创建 issue → "Needs You"
-- [ ] 用户发消息给 agent → "AI Running"（实时切换）
-- [ ] AI 回复完成 → "Needs You"（实时切换）
-- [ ] AI @user → "Needs You"
-- [ ] AI @另一个 agent → "AI Running"（事件链继续）
-- [ ] 两个 agent 互相对话 → 始终 "AI Running"
-- [ ] 关闭 issue → "Completed"
+- [x] 创建 issue → "Needs You"（API 验证通过）
+- [ ] 用户发消息给 agent → "AI Running"（实时切换，需要 snail 配置）
+- [ ] AI 回复完成 → "Needs You"（实时切换，需要 snail 配置）
+- [ ] AI @user → "Needs You"（需要 snail 配置）
+- [ ] AI @另一个 agent → "AI Running"（事件链继续，需要 snail 配置）
+- [ ] 两个 agent 互相对话 → 始终 "AI Running"（需要 snail 配置）
+- [x] 关闭 issue → "Completed"（API 验证通过）
 - [ ] 服务器重启 → startupRecovery 正确恢复
 - [ ] 两个不同 issue 的同名 agent 互不干扰
 
@@ -195,6 +195,7 @@ Board 从 2 列改为 3 列：AI Running（蓝色）、Needs You（琥珀色）�
 - [x] 特性文档伪代码同步更新：stage 守卫在 route() 而非 dispatch()（低：文档与代码一致性）
 - [x] 变更 4 描述同步：createIssueWebSocketBridge 不再依赖 messagePort（低：文档与代码一致性）
 - [x] call_signal 删除完整性验证说明：npm run build 通过确认无遗漏调用点（低：交叉验证）
+- [x] 功能测试：创建 issue → needs_human、关闭 → completed（API 验证通过，agent 执行需 snail 配置）
 
 ## 关联
 
