@@ -46,7 +46,7 @@ export function createIssueWebSocketBridge(collaboration: CollaborationInput): I
             return;
           }
           log.info({ issueId }, "connected");
-          consumer = createConsumer(issueId, socket);
+          consumer = createConsumer(issueId, socket, collaboration);
           collaboration.registerIssueConsumer(issueId, consumer);
           heartbeatTimer = setInterval(() => {
             try {
@@ -65,22 +65,22 @@ export function createIssueWebSocketBridge(collaboration: CollaborationInput): I
   };
 }
 
-function createConsumer(issueId: string, socket: IssueSocket): CollaborationConsumer {
+function createConsumer(issueId: string, socket: IssueSocket, collaboration: CollaborationInput): CollaborationConsumer {
   return {
     onMessageStarted(stageId, message) {
-      send(socket, { type: "issue_event", issue_id: issueId, event: { type: "message_started", stage_id: stageId, ...toMessageEventBase(message) } });
+      send(socket, { type: "issue_event", issue_id: issueId, activity_status: collaboration.getActivityStatus(stageId), event: { type: "message_started", stage_id: stageId, ...toMessageEventBase(message) } });
     },
     onEvent(stageId, event) {
-      send(socket, { type: "issue_event", issue_id: issueId, event: { type: "message_event_appended", stage_id: stageId, message_id: event.message_id, event } });
+      send(socket, { type: "issue_event", issue_id: issueId, activity_status: collaboration.getActivityStatus(stageId), event: { type: "message_event_appended", stage_id: stageId, message_id: event.message_id, event } });
     },
     onMessageCompleted(stageId, message, context) {
-      send(socket, { type: "issue_event", issue_id: issueId, event: { type: "message_status_changed", stage_id: stageId, message_id: message.id, status: message.status, context } });
+      send(socket, { type: "issue_event", issue_id: issueId, activity_status: collaboration.getActivityStatus(stageId), event: { type: "message_status_changed", stage_id: stageId, message_id: message.id, status: message.status, context } });
     },
     onUserCalled(stageId, message) {
-      send(socket, { type: "issue_event", issue_id: issueId, event: { type: "user_called", stage_id: stageId, ...toMessageEventBase(message) } });
+      send(socket, { type: "issue_event", issue_id: issueId, activity_status: collaboration.getActivityStatus(stageId), event: { type: "user_called", stage_id: stageId, ...toMessageEventBase(message) } });
     },
     onStageTransitionSuggested(stageId, suggestion) {
-      send(socket, { type: "issue_event", issue_id: issueId, event: { type: "stage_transition_suggested", stage_id: stageId, suggestion: toSuggestionPayload(suggestion) } });
+      send(socket, { type: "issue_event", issue_id: issueId, activity_status: collaboration.getActivityStatus(stageId), event: { type: "stage_transition_suggested", stage_id: stageId, suggestion: toSuggestionPayload(suggestion) } });
     },
   };
 }

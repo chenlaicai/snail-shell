@@ -6,22 +6,13 @@ import { getLogger } from "@infra/logger";
 
 const log = getLogger({ module: "startup-recovery" });
 
+/**
+ * 启动恢复：收敛孤儿 streaming 消息，然后从 open stages 的最新消息 to_speakers 重新路由。
+ */
 export function startupRecovery(messagePort: MessagePort, stagePort: StagePort, collaboration: IssueCollaboration): void {
-  // 现有逻辑：恢复 CallSignal 驱动的 stage 排队
-  const signalsByStage = messagePort.getAllCallSignals();
-  const stageIds = [...signalsByStage.keys()];
-  const openStageIds = new Set(stagePort.listOpenStageIds(stageIds));
-  for (const stageId of stageIds) {
-    if (!openStageIds.has(stageId)) continue;
-    collaboration.enqueueStage(stageId);
-  }
-
-  // 新增：收敛孤儿 streaming 消息（服务重启后 activeInvocations 丢失）
+  // 1. 收敛孤儿 streaming 消息（服务重启后 activeInvocations 丢失）
   const streamingMessages = messagePort.listMessagesByStatus("streaming");
   const orphanMessages = streamingMessages.filter(m => m.from_speaker !== "user");
-  if (orphanMessages.length === 0) return;
-
-  log.info({ count: orphanMessages.length }, "converging orphan streaming messages");
   for (const message of orphanMessages) {
     try {
       convergeOrphanMessage(messagePort, message);
@@ -29,6 +20,18 @@ export function startupRecovery(messagePort: MessagePort, stagePort: StagePort, 
     } catch (error) {
       log.error({ messageId: message.id, err: error }, "failed to converge orphan message");
     }
+  }
+
+  // 2. 重新路由有未处理 to_speakers 的 open stages
+  const openStages = stagePort.listAllOpenStageIds();
+  for (const stageId of openStages) {
+    const latest = messagePort.findLatestMessage(stageId);
+    if (!latest) continue;
+    if (latest.status === "streaming") continue; // 已在上面收敛
+    if (latest.to_speakers.length === 0) continue; // 无目标，stage 静默
+
+    log.info({ stageId, messageId: latest.id, targets: latest.to_speakers }, "resuming stage routing");
+    void collaboration.resumeRoute(stageId, latest);
   }
 }
 

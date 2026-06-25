@@ -20,7 +20,7 @@ export type RoleSnailAssignment = {
 };
 
 export type StageStatus = "in_progress" | "completed";
-export type IssueStatus = "active" | "closed";
+export type ActivityStatus = "ai_running" | "needs_human" | "completed";
 export type StageDto = {
   id: string;
   workspace_path: string;
@@ -43,7 +43,6 @@ export type StageDto = {
   stage_definition?: { title: string; roles: RoleDefinitionDto[] };
 };
 export type StageDetailDto = StageDto;
-export type UpdateStageBody = { output_artifacts?: Record<string, string> };
 
 export type RoleDefinitionDto = { key?: string; name: string; description?: string; snail_template_id?: string; is_primary?: boolean; count?: number; skill?: string | null; prohibition?: string | null; self_check?: string | null };
 export type StagePreviewDto = {
@@ -64,10 +63,6 @@ export type SopDto = {
   scope: string;
 };
 export type SopDetailDto = SopDto;
-export type SopTransitionDto = SopDto["transitions"][number];
-export type SopStageDefinitionInputDto = SopDto["stage_definitions"][number];
-export type SopStageDefinitionWithRolesDto = SopStageDefinitionInputDto;
-export type DeleteSopResult = { ok: true };
 
 export type IssueDto = {
   id: string;
@@ -81,12 +76,8 @@ export type IssueDto = {
   created_at: string;
   closed_at: string | null;
 };
-export type IssueDetailDto = IssueDto & { stages: StageDetailDto[]; current_stage: StageDetailDto };
+export type IssueDetailDto = IssueDto & { stages: StageDetailDto[]; current_stage: StageDetailDto; activity_status: ActivityStatus };
 export type CreateIssueResult = { issue: IssueDetailDto; stage: StageDetailDto };
-export type AdvanceIssueResult = StageDetailDto;
-export type IssueCleanupResult = { ok: true };
-export type RepoCleanupResult = { ok: true };
-export type RepoCleanupStep = { label: string; ok: boolean };
 export type StageSuggestion = {
   stage_id: string;
   message_id: number;
@@ -102,6 +93,7 @@ export type StageSuggestion = {
 export type IssueRealtimeMessage = {
   type: "issue_event";
   issue_id: string;
+  activity_status: ActivityStatus;
   event:
     | { type: "message_started"; stage_id: string; message_id: number; role: MessageRole; role_name: string | null; client_id: string | null; status: MessageStatus }
     | { type: "message_event_appended"; stage_id: string; message_id: number; event: MessageEvent }
@@ -113,17 +105,10 @@ export type IssueRealtimeMessage = {
 export type WsHeartbeatMessage = { type: "heartbeat"; issue_id: string; ts: number };
 export type WsServerMessage = IssueRealtimeMessage | WsHeartbeatMessage;
 
-export type MessageStatus = "streaming" | "completed" | "failed" | "interrupted" | "cancelled";
-export type MessageRole = "user" | "assistant" | "system";
-export type RoleName = string;
-export type StageType = string;
-export type ConversationKind = "stage" | "discussion" | "planning" | "design" | "implementation" | "review" | "bugfix";
-export type ConversationStatus = "active" | "completed";
-export type ConversationOwnerType = "stage";
-export type WorkspaceModule = "issue";
+type MessageStatus = "streaming" | "completed" | "failed" | "interrupted" | "cancelled";
+type MessageRole = "user" | "assistant" | "system";
 
 export type MessageEvent = { id: number; message_id: number; seq: number; payload: Record<string, unknown> & { type: string }; created_at: string };
-export type MessageEventSource = Record<string, unknown>;
 export type MessageContext = { message_id: number; kind: string; context: string; created_at: string };
 export type MessageDto = {
   id: number;
@@ -148,39 +133,21 @@ export type ConversationDto = {
   stage_id: string;
   issue_id: string;
   title: string;
-  kind: ConversationKind;
-  status: ConversationStatus;
+  kind: "stage" | "discussion" | "planning" | "design" | "implementation" | "review" | "bugfix";
+  status: "active" | "completed";
   default_role: string;
   participating_roles: string[];
   summary: string | null;
   created_at: string;
   updated_at: string;
 };
-export type ConversationDetailDto = ConversationDto;
-export type ConversationMessagesPage = { items: MessageDto[] };
-export type ConversationRecentMessagesSnapshot = { items: MessageDto[] };
-export type ConversationHistoryWindow = { items: MessageDto[] };
-export type ConversationHistorySearchPage = { items: MessageDto[] };
-export type ConversationEventWithMessage = MessageEvent & { message_from_role: string | null };
-export type ConversationDispatchState = { dispatches: MessageDispatch[]; inbox_groups: DispatchInboxGroup[] };
-export type BossMentionItem = { dispatch_id: number; message_id: number; from_role: string | null; created_at: string; preview: string };
-export type SendMessageResult = { ok: true; messageIds?: number[] };
-export type ApproveToolResult = { approved: boolean; status: string };
-export type InterruptMessageResult = { interrupted: boolean };
-export type MessageDispatch = { id: number };
-export type DispatchInboxGroup = { to_role: string; status: string; messages?: DispatchInboxPreviewItem[] };
-export type DispatchInboxPreviewItem = { message_id: number; preview: string };
 
 export type EvolutionItemDto = { id: string; workspace_id: string; status: string; issue_id: string | null; title: string; content: string; tags: string[]; result: string | null; metadata: unknown; created_at: string; updated_at: string };
 export type EvolutionItemWithConversationDto = EvolutionItemDto;
 export type EvolutionItemSearchResultDto = EvolutionItemDto;
-export type KnowledgeLibraryScope = "platform" | "workspace" | "global";
 export type KnowledgeEntryDto = { id: string; title: string; tags: string[]; content: string; scope: string };
 export type KnowledgeSearchResultDto = KnowledgeEntryDto;
-export type LobbySessionDto = { id: string; [key: string]: unknown };
-export type LobbyMessageDto = { id: string; [key: string]: unknown };
 export type PromptDto = { id: string; title: string; content: string; tags: string[]; scope: string };
 export type SkillDto = { name: string; description: string; content: string; scope: string; dir_path: string };
 export type SnailDenTemplateDto = { key: string; name: string; agent_name: string; model: string; context_window?: number; invocation_timeout_ms?: number };
 export type McpConfigDto = { name: string; command?: string; args?: string[]; env?: Record<string, string>; url?: string; scope: string; source?: 'builtin' | 'platform' | 'workspace'; workspace_path?: string };
-export type RoleDto = { name: string; description?: string };

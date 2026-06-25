@@ -19,6 +19,8 @@ export interface StagePort {
   listStages(issueId: string): Stage[];
   /** 返回 issue 未关闭的 stage ID 子集 */
   listOpenStageIds(stageIds: string[]): string[];
+  /** 返回所有 open stage ID（未 left 且 issue 未 closed） */
+  listAllOpenStageIds(): string[];
   /** 预览 stage 定义（只读，不创建），供页面展示角色实例供用户选择 snail */
   previewStage(issueId: string, stageKey: string): StagePreview;
   getStageSnailAssignmentPlan(issueId: string, stageKey: string): StageSnailAssignmentPlan;

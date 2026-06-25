@@ -112,6 +112,10 @@ export class StageAdapter implements StagePort {
     return this.stageRepo.listOpenStageIds(stageIds);
   }
 
+  listAllOpenStageIds(): string[] {
+    return this.stageRepo.listAllOpenStageIds();
+  }
+
   previewStage(issueId: string, stageKey: string): StagePreview {
     const issue = this.mustFindIssue(issueId);
     const stageDef = findStageDefinition(issue.sop_snapshot, stageKey);

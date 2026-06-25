@@ -152,15 +152,19 @@ async function interruptMessage(c: Context, deps: IssueRoutesDeps) {
   return c.json({ interrupted });
 }
 
-function toIssueDetail(deps: Pick<IssueRoutesDeps, "stagePort">, issue: Issue) {
+function toIssueDetail(deps: Pick<IssueRoutesDeps, "stagePort" | "collaboration">, issue: Issue) {
   const stages = deps.stagePort.listStages(issue.id).map(stage => toStageDto(deps, stage, issue));
   const currentStage = stages.find(stage => !stage.left_at) ?? stages.at(-1);
   if (!currentStage) throw new Error(`Issue has no current stage: ${issue.id}`);
+
+  const activityStatus = deps.collaboration.getActivityStatus(currentStage.id, issue.closed_at);
+
   return {
     ...issue,
     workspace_id: encodeWorkspaceId(issue.workspace_path),
     stages,
     current_stage: currentStage,
+    activity_status: activityStatus,
   };
 }
 

@@ -26,6 +26,12 @@ export interface CollaborationInput {
   listStageTransitionSuggestions(stageId: string): StageTransitionSuggestion[];
   advanceStage(stageId: string, targetKey: string): Promise<Stage>;
   closeIssue(issueId: string): Issue;
+  /** 查询 stage 是否有 agent 正在执行（用于 activity_status 判断） */
+  isInvoking(stageId: string): boolean;
+  /** 计算 stage 的 activity_status（唯一实现） */
+  getActivityStatus(stageId: string, issueClosedAt?: string | null): "ai_running" | "needs_human" | "completed";
+  /** 启动恢复：重新路由已完成消息的 to_speakers */
+  resumeRoute(stageId: string, message: Message): Promise<void>;
 }
 
 export interface CollaborationConsumer {

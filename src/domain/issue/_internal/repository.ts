@@ -20,6 +20,8 @@ export interface StageRepository {
   findActiveByIssue(issueId: string): Stage | undefined;
   /** 返回 issue 未关闭的 stage ID 子集（单次 JOIN 查询） */
   listOpenStageIds(stageIds: string[]): string[];
+  /** 返回所有 open stage ID（left_at IS NULL 且 issue 未 closed） */
+  listAllOpenStageIds(): string[];
   create(stage: Stage): void;
   update(stageId: string, updates: Partial<Pick<Stage, "left_at" | "output_artifacts">>): void;
   transaction<T>(fn: () => T): T;
@@ -202,6 +204,12 @@ export class SQLiteStageRepository implements StageRepository {
       for (const row of rows) results.push(row.id);
     }
     return results;
+  }
+
+  listAllOpenStageIds(): string[] {
+    return this.db.all<{ id: string }>(
+      `SELECT s.id FROM stage s JOIN issue i ON i.id = s.issue_id WHERE s.left_at IS NULL AND i.closed_at IS NULL`,
+    ).map(row => row.id);
   }
 
   create(stage: Stage): void {

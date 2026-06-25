@@ -18,14 +18,12 @@ export function IssueCard({ issue }: { issue: IssueDetailDto }) {
         <div className="flex-1 text-[13px] font-medium leading-snug">{issue.title}</div>
       </div>
 
-      {stage && (
-        <div className="flex items-center gap-2 mb-2">
-          <StatusBadge status={stage.status} />
-          {stage.stage_definition && (
-            <span className="text-[11px] text-text-muted">{stage.stage_definition.title}</span>
-          )}
-        </div>
-      )}
+      <div className="flex items-center gap-2 mb-2">
+        <StatusBadge status={issue.activity_status} />
+        {stage?.stage_definition && (
+          <span className="text-[11px] text-text-muted">{stage.stage_definition.title}</span>
+        )}
+      </div>
 
       <div className="flex items-center justify-between">
         <span className="text-[11px] text-text-muted">{formatRelativeTime(issue.created_at)}</span>

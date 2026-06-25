@@ -9,7 +9,7 @@ export interface StatefulPromptInput {
   incrementalMessages?: Message[];
 }
 
-export interface RenderStatefulPromptOptions {
+interface RenderStatefulPromptOptions {
   /** 跳过 systemPrompt 渲染（用于 Codex 等原生 developer_instructions 注入的运行时） */
   skipSystemPrompt?: boolean;
 }

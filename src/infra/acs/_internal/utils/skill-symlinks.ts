@@ -57,37 +57,6 @@ function ensureSingleSkillSymlink(linkDir: string, skill: SkillCapability): void
   }
 }
 
-/**
- * 清理 invokeMessage 创建的符号链接目录。
- */
-export function cleanupSkillSymlinks(workspacePath: string): void {
-  const linkDirs = [
-    path.join(workspacePath, ".claude", "skills"),
-    path.join(workspacePath, ".agents", "skills"),
-  ];
-  for (const linkDir of linkDirs) {
-    cleanupSingleDir(linkDir);
-  }
-}
-
-function cleanupSingleDir(linkDir: string): void {
-  try {
-    if (!fs.existsSync(linkDir)) return;
-    const entries = fs.readdirSync(linkDir, { withFileTypes: true });
-    for (const entry of entries) {
-      if (!entry.isSymbolicLink()) continue;
-      try { fs.unlinkSync(path.join(linkDir, entry.name)); } catch { /* best-effort */ }
-    }
-    removeIfEmpty(linkDir);
-  } catch { /* directory doesn't exist, fine */ }
-}
-
-function removeIfEmpty(dir: string): void {
-  try {
-    if (fs.readdirSync(dir).length === 0) fs.rmdirSync(dir);
-  } catch { /* ignore */ }
-}
-
 function ensureDir(dir: string): void {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
