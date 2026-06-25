@@ -178,7 +178,7 @@ export const ChatMessage = React.memo(ChatMessageInner, (prev, next) => {
     && prev.message.status === next.message.status
     && prev.message.content === next.message.content
     && prev.message.context === next.message.context
-    && prev.message.events.length === next.message.events.length
+    && prev.message.events === next.message.events
     && prev.onInterrupt === next.onInterrupt;
 });
 

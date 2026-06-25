@@ -177,6 +177,13 @@ class EventBatcher {
     }
     this.pendingStageTransitions = [];
   }
+
+  /** 组件卸载时调用，确保 pending 事件不丢失 */
+  dispose(): void {
+    if (this.batch.size > 0 || this.pendingStageTransitions.length > 0) {
+      this.flush();
+    }
+  }
 }
 
 interface WsHandlers {
@@ -256,6 +263,7 @@ export function useIssueRealtime(issueId: string | null, currentStageId: string 
     connect();
     return () => {
       mounted = false;
+      batcherRef.current.dispose();
       clearTimer(reconnectTimer);
       if (activeWs) {
         const ws = activeWs;

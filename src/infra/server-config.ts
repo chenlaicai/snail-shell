@@ -23,6 +23,6 @@ export function resolveServerSettings(config: ServerConfig | null): ServerSettin
   const port = config?.port ?? DEFAULT_SERVER_PORT;
   const httpBaseUrl = `http://localhost:${port}`;
   const wsBaseUrl = `ws://localhost:${port}`;
-  const maxConcurrentAgents = config?.max_concurrent_agents ?? DEFAULT_MAX_CONCURRENT_AGENTS;
+  const maxConcurrentAgents = Math.max(1, config?.max_concurrent_agents ?? DEFAULT_MAX_CONCURRENT_AGENTS);
   return { port, httpBaseUrl, wsBaseUrl, maxConcurrentAgents };
 }

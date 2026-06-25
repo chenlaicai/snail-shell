@@ -122,8 +122,9 @@ change_type: bugfix
 
 ## 验证
 
-- [ ] TypeScript 编译 + lint 通过
-- [ ] 5 个 agent 并发运行时，新建 issue、加载 SOP 正常响应
-- [ ] agent 持续产出事件时，浏览器 DevTools Performance 面板无长帧（>16ms）
-- [ ] 消息列表超过 100 条时，滚动流畅
-- [ ] `server.yaml` 配置 `max_concurrent_agents: 10` 后系统正常运行
+- [x] TypeScript 编译 + lint 通过（CI build 通过）
+- [x] `npm run build` 全量构建通过（含前端 vite build）
+- [ ] 5 个 agent 并发运行时，新建 issue、加载 SOP 正常响应（待集成测试）
+- [ ] agent 持续产出事件时，浏览器 DevTools Performance 面板无长帧（>16ms）（待集成测试）
+- [ ] 消息列表超过 100 条时，滚动流畅（待集成测试）
+- [ ] `server.yaml` 配置 `max_concurrent_agents: 10` 后系统正常运行（待集成测试）
