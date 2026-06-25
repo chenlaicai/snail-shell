@@ -11,4 +11,13 @@ export interface SopPort {
 
   /** 获取指定 workspace 的 SOPs（平台 + 该 workspace） */
   findByWorkspace(workspace: Workspace): Sop[];
+
+  /** 创建 SOP */
+  create(sop: Sop): Sop;
+
+  /** 更新 SOP（部分更新） */
+  update(key: string, patch: Partial<Omit<Sop, 'key' | 'scope'>>): Sop;
+
+  /** 删除 SOP */
+  remove(key: string): void;
 }

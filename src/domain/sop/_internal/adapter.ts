@@ -21,4 +21,16 @@ export class SopAdapter implements SopPort {
   findByWorkspace(workspace: Workspace): Sop[] {
     return this.repo.findByWorkspace(workspace);
   }
+
+  create(sop: Sop): Sop {
+    return this.repo.create(sop);
+  }
+
+  update(key: string, patch: Partial<Omit<Sop, 'key' | 'scope'>>): Sop {
+    return this.repo.update(key, patch);
+  }
+
+  remove(key: string): void {
+    this.repo.remove(key);
+  }
 }
