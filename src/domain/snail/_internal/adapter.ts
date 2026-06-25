@@ -9,9 +9,19 @@ import type { GuardProfilePort } from "@domain/guard-profile/port";
 import type { Snail, SnailFirstCallRequest, SnailResumeRequest, SnailInstance, SnailInvokeResult } from "@domain/snail/model";
 import type { SnailPort } from "@domain/snail/port";
 import type { SnailRepository } from "@domain/snail/_internal/repository";
+import { Semaphore } from "@infra/semaphore";
 import { getLogger } from "@infra/logger";
 
 const log = getLogger({ module: "snail" });
+
+export interface SnailAdapterDeps {
+  repo: SnailRepository;
+  registry: AgentRegistryPort;
+  tenetPrompt: TenetPromptPort;
+  skill: SkillPort;
+  mcp: MCPPort;
+  guardProfile: GuardProfilePort;
+}
 
 /**
  * Snail 适配器实现。
@@ -21,15 +31,23 @@ const log = getLogger({ module: "snail" });
  */
 export class SnailAdapter implements SnailPort {
   private static readonly DEFAULT_TIMEOUT_MS = 120 * 60 * 1000;
+  private readonly repo: SnailRepository;
+  private readonly registry: AgentRegistryPort;
+  private readonly tenetPrompt: TenetPromptPort;
+  private readonly skill: SkillPort;
+  private readonly mcp: MCPPort;
+  private readonly guardProfile: GuardProfilePort;
+  private readonly agentSemaphore: Semaphore;
 
-  constructor(
-    private repo: SnailRepository,
-    private registry: AgentRegistryPort,
-    private tenetPrompt: TenetPromptPort,
-    private skill: SkillPort,
-    private mcp: MCPPort,
-    private guardProfile: GuardProfilePort,
-  ) {}
+  constructor(deps: SnailAdapterDeps, maxConcurrentAgents = 3) {
+    this.repo = deps.repo;
+    this.registry = deps.registry;
+    this.tenetPrompt = deps.tenetPrompt;
+    this.skill = deps.skill;
+    this.mcp = deps.mcp;
+    this.guardProfile = deps.guardProfile;
+    this.agentSemaphore = new Semaphore(maxConcurrentAgents);
+  }
 
   list(): Snail[] {
     return this.repo.list();
@@ -60,6 +78,20 @@ export class SnailAdapter implements SnailPort {
   }
 
   async invokeFirstCall(
+    snailKey: string,
+    request: SnailFirstCallRequest,
+    onEvent: (event: AgentEvent) => void,
+    options: InvokeOptions = {},
+  ): Promise<SnailInvokeResult> {
+    const release = await this.agentSemaphore.acquire("global");
+    try {
+      return await this.doInvokeFirstCall(snailKey, request, onEvent, options);
+    } finally {
+      release();
+    }
+  }
+
+  private async doInvokeFirstCall(
     snailKey: string,
     request: SnailFirstCallRequest,
     onEvent: (event: AgentEvent) => void,
@@ -113,6 +145,20 @@ export class SnailAdapter implements SnailPort {
   }
 
   async invokeResume(
+    snailInstanceId: string,
+    request: SnailResumeRequest,
+    onEvent: (event: AgentEvent) => void,
+    options: InvokeOptions = {},
+  ): Promise<SnailInvokeResult> {
+    const release = await this.agentSemaphore.acquire("global");
+    try {
+      return await this.doInvokeResume(snailInstanceId, request, onEvent, options);
+    } finally {
+      release();
+    }
+  }
+
+  private async doInvokeResume(
     snailInstanceId: string,
     request: SnailResumeRequest,
     onEvent: (event: AgentEvent) => void,

@@ -21,6 +21,7 @@ export class SQLiteDatabase {
     const dbPath = path.join(dbDir, "snail-shell.db");
     this.db = new Database(dbPath);
     this.db.pragma("journal_mode = WAL");
+    this.db.pragma("busy_timeout = 5000");
     this.db.pragma("foreign_keys = ON");
   }
 

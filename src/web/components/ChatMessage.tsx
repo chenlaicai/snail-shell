@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { formatDateTime } from "@/lib/utils";
 import { RichTextRenderer } from "@/components/RichTextRenderer";
 import { showToast } from "@/components/Toast";
@@ -24,7 +24,7 @@ function extractContextUsage(events: MessageEvent[]): { label: string; percent: 
   return null;
 }
 
-export function ChatMessage({ message, onInterrupt }: { message: MessageDto; onInterrupt?: (messageId: number) => Promise<void> }) {
+function ChatMessageInner({ message, onInterrupt }: { message: MessageDto; onInterrupt?: (messageId: number) => Promise<void> }) {
   const isUser = message.role === "user";
   const isSystem = message.role === "system";
   const [expandedByUser, setExpandedByUser] = useState<boolean | null>(null);
@@ -172,6 +172,15 @@ export function ChatMessage({ message, onInterrupt }: { message: MessageDto; onI
     </div>
   );
 }
+
+export const ChatMessage = React.memo(ChatMessageInner, (prev, next) => {
+  return prev.message.id === next.message.id
+    && prev.message.status === next.message.status
+    && prev.message.content === next.message.content
+    && prev.message.context === next.message.context
+    && prev.message.events === next.message.events
+    && prev.onInterrupt === next.onInterrupt;
+});
 
 /** 流式过程折叠区：展示所有事件类型（含 text event），流式过程和最终答复是两个独立展示区域 */
 function EventStream({ events, expanded, onToggle }: { events: MessageEvent[]; expanded: boolean; onToggle: () => void }) {
