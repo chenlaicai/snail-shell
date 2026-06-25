@@ -248,7 +248,7 @@ function emitClaudeAssistantEvents(event: any, onEvent: (event: AgentEvent) => v
     }
     if (block.type === "tool_use") {
       onOutputEvent();
-      onEvent({ type: "message_event", event: { kind: "tool_call", payload: { tool_name: block.name, call_id: block.id, input: block.input ?? null, title: null }, source: { runtime_event_type: "assistant", runtime_message_id: messageId, runtime_call_id: block.id ?? null } } });
+      onEvent({ type: "message_event", event: { kind: "tool_call", payload: { tool_name: block.name, call_id: block.id, input: block.input ?? null }, source: { runtime_event_type: "assistant", runtime_message_id: messageId, runtime_call_id: block.id ?? null } } });
     }
   }
 }

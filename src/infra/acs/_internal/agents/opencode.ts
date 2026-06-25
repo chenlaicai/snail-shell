@@ -346,7 +346,7 @@ function emitOpenCodeToolEvents(state: OpenCodeParseState, event: OpenCodeEvent,
   const tool = event.part!.tool_use!;
   emitOpenCodeEvent(state, onEvent, {
     kind: "tool_call",
-    payload: { tool_name: tool.name, call_id: tool.id, input: tool.input, title: null },
+    payload: { tool_name: tool.name, call_id: tool.id, input: tool.input },
     source: { runtime_event_type: "tool_use", runtime_message_id: null, runtime_call_id: tool.id },
   });
   if (event.part?.tool_result) {

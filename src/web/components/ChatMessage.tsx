@@ -237,6 +237,78 @@ function truncateText(text: string, maxLen: number): string {
   return text.slice(0, maxLen) + "...";
 }
 
+/** 从 tool_input 派生 tool_call 摘要文本。返回 null 表示无法派生（降级到仅显示工具名）。 */
+function deriveToolCallSummary(toolName: string, input: unknown): string | null {
+  if (input == null || typeof input !== "object") return null;
+  const inp = input as Record<string, unknown>;
+
+  // 已知工具：结构化提取
+  switch (toolName) {
+    case "Bash":
+      return typeof inp.command === "string" ? inp.command : null;
+    case "Read": {
+      if (typeof inp.file_path !== "string") return null;
+      const offset = typeof inp.offset === "number" ? inp.offset : null;
+      const limit = typeof inp.limit === "number" ? inp.limit : null;
+      if (offset != null && limit != null) {
+        return `${inp.file_path} L${offset}-${offset + limit}`;
+      }
+      return inp.file_path;
+    }
+    case "Edit":
+    case "Write":
+      return typeof inp.file_path === "string" ? inp.file_path : null;
+    case "Glob":
+      return typeof inp.pattern === "string" ? inp.pattern : null;
+    case "Grep": {
+      if (typeof inp.pattern !== "string") return null;
+      return typeof inp.path === "string" ? `${inp.pattern} in ${inp.path}` : inp.pattern;
+    }
+    case "Agent":
+      return typeof inp.prompt === "string" ? inp.prompt : null;
+    case "WebFetch":
+      return typeof inp.url === "string" ? inp.url : null;
+    case "WebSearch":
+      return typeof inp.query === "string" ? inp.query : null;
+    case "TodoWrite": {
+      const todos = Array.isArray(inp.todos) ? inp.todos : null;
+      return todos ? `${todos.length} item${todos.length !== 1 ? "s" : ""}` : null;
+    }
+    case "Skill":
+      return typeof inp.skill === "string" ? inp.skill : null;
+  }
+
+  // MCP 工具：mcp__<server>__<tool> 格式 → 显示 server.tool
+  // 摘要：取 Object.values 中第一个 string 值
+  if (toolName.startsWith("mcp__")) {
+    return extractFirstStringValue(inp);
+  }
+
+  // 未知工具：取 Object.values 中第一个 string 值
+  return extractFirstStringValue(inp);
+}
+
+/** 从对象中提取第一个 typeof === 'string' 的 value，无则降级到 JSON.stringify 截断 */
+function extractFirstStringValue(obj: Record<string, unknown>): string | null {
+  for (const val of Object.values(obj)) {
+    if (typeof val === "string") return val;
+  }
+  // 无 string 值：降级到 JSON.stringify 截断
+  const json = JSON.stringify(obj);
+  if (!json || json === "{}") return null;
+  return truncateText(json, 60);
+}
+
+/** 解析 MCP 工具名为 server.tool 格式 */
+function parseMcpToolName(toolName: string): string {
+  // mcp__<server>__<tool> → server.tool
+  const parts = toolName.split("__");
+  if (parts.length >= 3 && parts[0] === "mcp") {
+    return `${parts[1]}.${parts.slice(2).join("__")}`;
+  }
+  return toolName;
+}
+
 function EventItem({ event }: { event: MessageEvent }) {
   const [expanded, setExpanded] = useState(false);
   const type = event.payload?.type;
@@ -251,12 +323,15 @@ function EventItem({ event }: { event: MessageEvent }) {
   switch (type) {
     case "tool_call": {
       const toolName = p.tool_name as string;
-      const title = p.title as string | undefined;
-      label = toolName;
+      const toolInput = p.tool_input ?? p.input;
+      const summary = deriveToolCallSummary(toolName, toolInput);
+      // MCP 工具名解析为 server.tool 格式用于显示
+      const displayToolName = toolName.startsWith("mcp__") ? parseMcpToolName(toolName) : toolName;
+      label = summary ? `${displayToolName} · ${truncateText(summary, 60)}` : displayToolName;
       tag = "Tool";
       tagClass = "bg-shell-600/30 text-shell-300";
-      detail = title ?? null;
-      showDetail = !!title;
+      detail = toolInput ? JSON.stringify(toolInput, null, 2) : null;
+      showDetail = !!summary || !!toolInput;
       break;
     }
     case "tool_result": {
