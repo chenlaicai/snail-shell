@@ -5,6 +5,7 @@ import type { SkillPort } from "@domain/skill/port";
 import type { SopPort } from "@domain/sop/port";
 import type { SnailPort } from "@domain/snail/port";
 import type { MCPPort } from "@domain/mcp-config/port";
+import { Scope } from "@domain/workspace/model";
 
 interface MetaRoutesDeps {
   tenetPrompt: TenetPromptPort;
@@ -88,6 +89,101 @@ function registerSnailDenRoutes(app: Hono, snail: SnailPort) {
   });
 }
 
+const RoleDefinitionSchema = z.object({
+  key: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string().optional().default(""),
+  is_primary: z.boolean().optional().default(false),
+  count: z.number().int().positive().optional().default(1),
+  skill: z.string().nullable().optional().default(null),
+  prohibition: z.string().nullable().optional().default(null),
+  self_check: z.string().nullable().optional().default(null),
+});
+
+const StageDefinitionSchema = z.object({
+  key: z.string().min(1),
+  title: z.string().min(1),
+  description: z.string().optional().default(""),
+  roles: z.array(RoleDefinitionSchema).optional().default([]),
+});
+
+const TransitionSchema = z.object({
+  from: z.string().min(1),
+  to: z.string().min(1),
+  guard: z.string().nullable().optional().default(null),
+});
+
+const CreateSopBodySchema = z.object({
+  key: z.string().min(1).regex(KEY_PATTERN, "key must match pattern [a-zA-Z0-9_-]+"),
+  name: z.string().min(1),
+  description: z.string().nullable().optional().default(null),
+  shared_skill: z.string().nullable().optional().default(null),
+  stage_definitions: z.array(StageDefinitionSchema).optional().default([]),
+  transitions: z.array(TransitionSchema).optional().default([]),
+});
+
+const UpdateSopBodySchema = z.object({
+  name: z.string().min(1).optional(),
+  description: z.string().nullable().optional(),
+  shared_skill: z.string().nullable().optional(),
+  stage_definitions: z.array(StageDefinitionSchema).optional(),
+  transitions: z.array(TransitionSchema).optional(),
+}).refine(obj => Object.keys(obj).length > 0, {
+  message: "At least one field must be provided",
+});
+
+function registerSopRoutes(app: Hono, sop: SopPort) {
+  app.post("/api/sops", async (c) => {
+    const parsed = CreateSopBodySchema.safeParse(await c.req.json());
+    if (!parsed.success) {
+      return c.json({ error: parsed.error.issues[0].message }, 400);
+    }
+    try {
+      const created = sop.create({ ...parsed.data, scope: Scope.Platform });
+      return c.json(created, 201);
+    } catch (e) {
+      const msg = (e as Error).message;
+      if (msg.includes("already exists")) return c.json({ error: msg }, 409);
+      throw e;
+    }
+  });
+
+  app.patch("/api/sops/:sopKey", async (c) => {
+    const sopKey = c.req.param("sopKey");
+    const raw = await c.req.json();
+    if ("key" in raw) {
+      return c.json({ error: "key cannot be modified" }, 400);
+    }
+    if ("scope" in raw) {
+      return c.json({ error: "scope cannot be modified" }, 400);
+    }
+    const parsed = UpdateSopBodySchema.safeParse(raw);
+    if (!parsed.success) {
+      return c.json({ error: parsed.error.issues[0].message }, 400);
+    }
+    try {
+      const updated = sop.update(sopKey, parsed.data);
+      return c.json(updated);
+    } catch (e) {
+      const msg = (e as Error).message;
+      if (msg.includes("not found")) return c.json({ error: msg }, 404);
+      throw e;
+    }
+  });
+
+  app.delete("/api/sops/:sopKey", (c) => {
+    const sopKey = c.req.param("sopKey");
+    try {
+      sop.remove(sopKey);
+      return c.json({ ok: true });
+    } catch (e) {
+      const msg = (e as Error).message;
+      if (msg.includes("not found")) return c.json({ error: msg }, 404);
+      throw e;
+    }
+  });
+}
+
 export function createMetaRoutes(deps: MetaRoutesDeps) {
   const app = new Hono();
 
@@ -108,6 +204,7 @@ export function createMetaRoutes(deps: MetaRoutesDeps) {
     return c.json(sop);
   });
 
+  registerSopRoutes(app, deps.sop);
   registerSnailDenRoutes(app, deps.snail);
 
   return app;

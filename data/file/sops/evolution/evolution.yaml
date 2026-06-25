@@ -4,28 +4,11 @@
 
 name: 演进治理流程
 description: 演进项治理。入口校验、查重、分析、裁决和产物处理。
-first_stage: development
 
 stage_definitions:
   - key: development
     title: 演进治理
-    sequence: 1
-    input_description: 演进项内容。
-    output_description: >
-      完成演进项治理，必要时提交系统提示词、skill、文档、代码或检查器 PR，
-      并回写治理去向。产物要求：演进项来源和事实被查证；
-      入口校验、查重、裁决去向已回写；演进项不会绕过治理自动生效。
-    acceptance_focus:
-      - 演进项来源和事实被查证
-      - 入口校验、查重、裁决去向已回写
-      - 演进项不会绕过治理自动生效
-    acceptance_checklist:
-      - id: evo-01
-        description: 演进项来源和事实已查证
-        required: true
-      - id: evo-02
-        description: 裁决去向已回写
-        required: true
+    description: 完成演进项治理，必要时提交系统提示词、skill、文档、代码或检查器 PR，并回写治理去向。
     roles:
       - key: executor
         name: 演进执行者

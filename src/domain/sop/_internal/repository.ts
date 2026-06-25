@@ -1,4 +1,4 @@
-import { parse as parseYaml } from "yaml";
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import type { Workspace } from "@domain/workspace/model";
 import { Scope } from "@domain/workspace/model";
 import type { Sop, StageDefinition, RoleDefinition, Transition } from "@domain/sop/model";
@@ -12,6 +12,9 @@ export interface SopRepository {
   list(): Sop[];
   findByKey(key: string): Sop | undefined;
   findByWorkspace(workspace: Workspace): Sop[];
+  create(sop: Sop): Sop;
+  update(key: string, patch: Partial<Omit<Sop, 'key' | 'scope'>>): Sop;
+  remove(key: string): void;
 }
 
 /** SOP 文件存储实现 */
@@ -42,6 +45,66 @@ export class FileSopRepository implements SopRepository {
   findByWorkspace(workspace: Workspace): Sop[] {
     const workspaceSops = this.workspaceSops.get(workspace.path) ?? [];
     return [...this.platformSops, ...workspaceSops];
+  }
+
+  create(sop: Sop): Sop {
+    if (this.findByKey(sop.key)) {
+      throw new Error(`SOP with key '${sop.key}' already exists`);
+    }
+    const dir = `${FileSopRepository.DIR}/${sop.key}`;
+    this.dataStore.ensureDir(dir);
+    this.dataStore.writeFile(`${dir}/${sop.key}.yaml`, this.serializeSop(sop));
+    this.platformSops.push(sop);
+    return sop;
+  }
+
+  update(key: string, patch: Partial<Omit<Sop, 'key' | 'scope'>>): Sop {
+    const existing = this.findByKey(key);
+    if (!existing) {
+      throw new Error(`SOP with key '${key}' not found`);
+    }
+    const updated: Sop = { ...existing, ...patch, key };
+    const dir = `${FileSopRepository.DIR}/${key}`;
+    this.dataStore.writeFile(`${dir}/${key}.yaml`, this.serializeSop(updated));
+
+    // Update in-memory cache
+    const platformIdx = this.platformSops.findIndex(s => s.key === key);
+    if (platformIdx !== -1) {
+      this.platformSops[platformIdx] = updated;
+    } else {
+      for (const [wsPath, sops] of this.workspaceSops) {
+        const wsIdx = sops.findIndex(s => s.key === key);
+        if (wsIdx !== -1) {
+          sops[wsIdx] = updated;
+          this.workspaceSops.set(wsPath, sops);
+          break;
+        }
+      }
+    }
+    return updated;
+  }
+
+  remove(key: string): void {
+    const existing = this.findByKey(key);
+    if (!existing) {
+      throw new Error(`SOP with key '${key}' not found`);
+    }
+    this.dataStore.deleteDir(`${FileSopRepository.DIR}/${key}`);
+
+    // Update in-memory cache
+    const platformIdx = this.platformSops.findIndex(s => s.key === key);
+    if (platformIdx !== -1) {
+      this.platformSops.splice(platformIdx, 1);
+    } else {
+      for (const [wsPath, sops] of this.workspaceSops) {
+        const wsIdx = sops.findIndex(s => s.key === key);
+        if (wsIdx !== -1) {
+          sops.splice(wsIdx, 1);
+          this.workspaceSops.set(wsPath, sops);
+          break;
+        }
+      }
+    }
   }
 
   private loadSopDir(store: FileDataStore): Sop[] {
@@ -131,5 +194,37 @@ export class FileSopRepository implements SopRepository {
       to: data.to as string,
       guard: (data.guard as string) ?? null,
     };
+  }
+
+  private serializeSop(sop: Sop): string {
+    const data: Record<string, unknown> = {
+      name: sop.name,
+    };
+    if (sop.description) data.description = sop.description;
+    if (sop.shared_skill) data.shared_skill = sop.shared_skill;
+
+    data.stage_definitions = sop.stage_definitions.map(sd => {
+      const stage: Record<string, unknown> = { key: sd.key, title: sd.title };
+      if (sd.description) stage.description = sd.description;
+      stage.roles = sd.roles.map(r => {
+        const role: Record<string, unknown> = { key: r.key, name: r.name };
+        if (r.description) role.description = r.description;
+        if (r.is_primary) role.is_primary = r.is_primary;
+        if (r.count !== 1) role.count = r.count;
+        if (r.skill) role.skill = r.skill;
+        if (r.prohibition) role.prohibition = r.prohibition;
+        if (r.self_check) role.self_check = r.self_check;
+        return role;
+      });
+      return stage;
+    });
+
+    data.transitions = sop.transitions.map(t => {
+      const transition: Record<string, unknown> = { from: t.from, to: t.to };
+      if (t.guard) transition.guard = t.guard;
+      return transition;
+    });
+
+    return stringifyYaml(data, { lineWidth: 120 });
   }
 }

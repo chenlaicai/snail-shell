@@ -25,6 +25,9 @@ export type ApiEndpoints = {
   "POST /api/stages/:stageId/advance": EndpointDef<{ stageId: string }, never, { target_key: string }, Dto.StageDetailDto>;
   "GET /api/sops": EndpointDef<never, { source?: string }, never, Dto.SopDto[]>;
   "GET /api/sops/:sopKey": EndpointDef<{ sopKey: string }, never, never, Dto.SopDetailDto | null>;
+  "POST /api/sops": EndpointDef<never, never, Omit<Dto.SopDto, 'scope'>, Dto.SopDto>;
+  "PATCH /api/sops/:sopKey": EndpointDef<{ sopKey: string }, never, Partial<Omit<Dto.SopDto, 'key' | 'scope'>>, Dto.SopDto>;
+  "DELETE /api/sops/:sopKey": EndpointDef<{ sopKey: string }, never, never, { ok: true }>;
   "GET /api/meta/prompts": EndpointDef<never, never, never, Dto.PromptDto[]>;
   "GET /api/meta/skills": EndpointDef<never, never, never, Dto.SkillDto[]>;
   "GET /api/meta/mcp-configs": EndpointDef<never, { workspace_root?: string }, never, Dto.McpConfigDto[]>;
