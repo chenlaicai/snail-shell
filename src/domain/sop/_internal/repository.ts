@@ -200,20 +200,20 @@ export class FileSopRepository implements SopRepository {
     const data: Record<string, unknown> = {
       name: sop.name,
     };
-    if (sop.description) data.description = sop.description;
-    if (sop.shared_skill) data.shared_skill = sop.shared_skill;
+    if (sop.description != null) data.description = sop.description;
+    if (sop.shared_skill != null) data.shared_skill = sop.shared_skill;
 
     data.stage_definitions = sop.stage_definitions.map(sd => {
       const stage: Record<string, unknown> = { key: sd.key, title: sd.title };
-      if (sd.description) stage.description = sd.description;
+      if (sd.description != null) stage.description = sd.description;
       stage.roles = sd.roles.map(r => {
         const role: Record<string, unknown> = { key: r.key, name: r.name };
-        if (r.description) role.description = r.description;
+        if (r.description != null) role.description = r.description;
         if (r.is_primary) role.is_primary = r.is_primary;
-        if (r.count !== 1) role.count = r.count;
-        if (r.skill) role.skill = r.skill;
-        if (r.prohibition) role.prohibition = r.prohibition;
-        if (r.self_check) role.self_check = r.self_check;
+        if (r.count != null && r.count !== 1) role.count = r.count;
+        if (r.skill != null) role.skill = r.skill;
+        if (r.prohibition != null) role.prohibition = r.prohibition;
+        if (r.self_check != null) role.self_check = r.self_check;
         return role;
       });
       return stage;
@@ -221,7 +221,7 @@ export class FileSopRepository implements SopRepository {
 
     data.transitions = sop.transitions.map(t => {
       const transition: Record<string, unknown> = { from: t.from, to: t.to };
-      if (t.guard) transition.guard = t.guard;
+      if (t.guard != null) transition.guard = t.guard;
       return transition;
     });
 
