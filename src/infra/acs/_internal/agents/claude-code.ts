@@ -34,9 +34,9 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
     onEvent: (event: AgentEvent) => void,
     options: InvokeOptions = {},
   ): Promise<InvokeResult> {
-    this.prepareCapabilities(request);
+    setupCapabilities(request);
 
-    log.info({ agentType: this.name }, "agent.invocation.started");
+    log.info({ agentType: this.name, workspacePath: request.workspacePath, messageCount: request.messages.length }, "agent.invocation.started");
 
     // 构建 CLI args
     const args = [
@@ -134,11 +134,6 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
 
   // ── 内部方法 ──────────────────────────────────────────────────────
 
-  private prepareCapabilities(request: FirstCallRequest): void {
-    ensureMcpServers(request.capabilities.mcpServers, request.workspacePath, "claude");
-    ensureSkillSymlinks(request.workspacePath, request.capabilities.skills);
-  }
-
   private async readOutput(
     proc: ChildProcess,
     onEvent: (event: AgentEvent) => void,
@@ -199,6 +194,11 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
       proc.stdin.write(JSON.stringify(data) + "\n");
     }
   }
+}
+
+function setupCapabilities(request: FirstCallRequest): void {
+  ensureMcpServers(request.capabilities.mcpServers, request.workspacePath, "claude");
+  ensureSkillSymlinks(request.workspacePath, request.capabilities.skills);
 }
 
 function cleanupFile(filePath: string): void {

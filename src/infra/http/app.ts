@@ -45,11 +45,12 @@ export function createApp(deps: AppDeps) {
   // HTTP 请求日志中间件（跳过健康检查路径）
   app.use("*", async (c, next) => {
     if (c.req.path === "/health") return next();
+    const method = c.req.method;
+    const path = c.req.path;
+    log.info({ method, path }, "http.request.started");
     const start = Date.now();
     await next();
     const duration = Date.now() - start;
-    const method = c.req.method;
-    const path = c.req.path;
     const status = c.res.status;
     if (status >= 400) {
       log.error({ method, path, status, duration }, "http.request.error");

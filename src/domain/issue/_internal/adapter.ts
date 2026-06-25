@@ -215,12 +215,13 @@ export class StageAdapter implements StagePort {
       current.left_at = leftAt;
       this.stageRepo.update(currentStageId, { left_at: leftAt });
 
-      log.info({ fromStageId: current.id, toStageId: null, targetKey }, "stage.advanced");
-      return this.createStageInTransaction({
+      const newStage = this.createStageInTransaction({
         issue_id: current.issue_id,
         key: targetKey,
         from_stage_id: current.id,
       });
+      log.info({ fromStageId: current.id, toStageId: newStage.id, targetKey }, "stage.advanced");
+      return newStage;
     });
   }
 
