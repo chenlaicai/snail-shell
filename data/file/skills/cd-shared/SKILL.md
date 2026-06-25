@@ -13,8 +13,16 @@ description: |
 - **evidence 不能是 "I checked"**：passed 项必须附带验证命令 + 实际输出，或影响面清单逐条确认，或配置对一致性对比。
 - **完成标准是"做到最好"**：不是"没有阻塞项"。发现的质量改进必须在当前 PR 修复，不得推到"后续 feature"。
 - **签名必须独占一行**：PR 评论最后一行 `by <角色名>（<Snail 名称>）`，与正文之间保留空行，不得挤在同一行。
+- **[HARD] 文件修改前必须先进 worktree**：严禁在主目录写任何文件，包括 feature 文档。详见 `references/worktree-discipline.md`。
 
 ## 核心规则
+
+### Worktree 纪律
+
+- **任何文件修改前必须先创建并进入 worktree**（基于最新 `origin/main`）
+- 验证当前工作目录在 `<workspace>/.claude/worktrees/` 或 `<workspace>/.snail/worktrees/` 内
+- **严禁在主目录进行任何文件修改**（包括 feature 文档、代码、配置）
+- 详见 `references/worktree-discipline.md`
 
 ### 特性编号
 
