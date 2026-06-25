@@ -1,0 +1,45 @@
+# SOP: 代码检视流程
+# 来源: platform
+# 文件名即 key: code-review
+
+name: 代码检视流程
+description: 独立的代码检视流程，适用于检视外部提交的 PR（如同一 workspace 项目中别人提交的 PR）。
+first_stage: review
+
+shared_skill: cd-shared
+
+stage_definitions:
+  - key: review
+    title: PR 检视
+    sequence: 1
+    input_description: 外部提交的 PR。
+    output_description: >
+      两位审查者对抗性检视 PR，在 PR 上留下可追溯的检视结论。
+      产物要求：记录被检视的 PR；记录审查者结论和剩余风险；
+      两位审查者均已在 PR 上留下结论后，本阶段即完成。
+      检视意见的修复发生在系统外，由外部 PR 作者自行处理。
+    acceptance_focus:
+      - 两位审查者是否均已在 PR 上留下可追溯评论
+      - 两位审查者是否交叉审视了对方的结论
+      - 审查者是否独立执行了验证命令并将输出作为证据
+    acceptance_checklist:
+      - id: rev-01
+        description: 两位审查者均已在 PR 上留下完整的检视结论，逐条列出处置状态
+        required: true
+      - id: rev-02
+        description: 根据变更类型独立执行验证命令，实际输出作为检视证据写入 gate_evidence；不允许以 "看了 diff" 作为唯一 evidence
+        required: true
+      - id: rev-03
+        description: PR 评论已按签名模板收尾
+        required: true
+    roles:
+      - key: reviewer
+        name: 审查者
+        description: 负责对 PR 做对抗性代码检视，两位审查者交叉审视，在 PR 上留下可追溯评论。
+        is_primary: true
+        count: 2
+        skill: cd-review
+        prohibition: 不得使用低风险标签跳过问题，不得替开发者做决定
+        self_check: 如果发现自己在说这个问题不重要，立即停止
+
+transitions: []
