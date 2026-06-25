@@ -188,8 +188,7 @@ SELECT * FROM message WHERE stage_id = ? AND id < ? ORDER BY id DESC LIMIT 50
 
 **前端**：
 - `src/web/queries/conversation.queries.ts` — `messages` 查询：支持 `before_id` 参数
-- `src/web/pages/IssueConversation.tsx` — 消息列表：反转显示顺序，实现上拉加载逻辑
-- `src/web/hooks/useScrollToTop.ts` — 新增 hook：监听滚动到顶部事件，触发加载历史消息
+- `src/web/pages/IssueConversation.tsx` — 消息列表：反转显示顺序，实现上拉加载逻辑（含滚动到顶部检测）
 
 **测试**：
 - 更新相关测试用例
