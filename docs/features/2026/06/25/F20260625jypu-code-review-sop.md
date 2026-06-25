@@ -1,7 +1,7 @@
 ---
 id: F20260625jypu
 title: code-review-sop
-from_ids: []
+from_ids: [F2026062208, F20260624zu5p]
 tags: [sop, review, code-review, external-pr]
 modules: [sop]
 doc_kind: spec
@@ -38,9 +38,9 @@ doc_kind: spec
 
 | # | 场景 | 预期行为 | 测试覆盖 |
 |---|------|----------|----------|
-| B1 | 当用户选择 code-review SOP 创建 issue 时 | 系统创建单 stage（review）的 issue，直接进入检视流程 | |
-| B2 | 当检视阶段开始时 | 两位审查者按照 cd-review skill 执行对抗性检视，交叉审视 | |
-| B3 | 当检视完成时 | 两位审查者均表示可等待用户合入后，stage 完成 | |
+| B1 | 当用户选择 code-review SOP 创建 issue 时 | 系统创建单 stage（review）的 issue，直接进入检视流程 | 验证 FileSopRepository 能正确加载 code-review.yaml |
+| B2 | 当检视阶段开始时 | 两位审查者按照 cd-review skill 执行对抗性检视，交叉审视 | 验证 skill 引用名称正确，运行时能正确注入 agent context |
+| B3 | 当检视完成时 | 两位审查者均已在 PR 上留下结论后，stage 完成 | 验证 stage 完成逻辑正确 |
 
 ## 设计
 
