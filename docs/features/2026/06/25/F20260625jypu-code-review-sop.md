@@ -1,5 +1,5 @@
 ---
-id: F20260624vd9t
+id: F20260625jypu
 title: code-review-sop
 from_ids: []
 tags: [sop, review, code-review, external-pr]
@@ -7,7 +7,7 @@ modules: [sop]
 doc_kind: spec
 ---
 
-# F20260624vd9t [sop] 新增独立代码检视 SOP
+# F20260625jypu [sop] 新增独立代码检视 SOP
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 <!-- 进入实现阶段后不得单方面修改，如需变更须通过问题卡片向用户提出并确认 -->
