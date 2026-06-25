@@ -98,7 +98,7 @@ export class IssueCollaboration implements CollaborationInput {
     });
 
     this.deps.messagePort.setContext(message.id, "final_text", text);
-    await this.notifyConsumers(stageId, "onMessageStarted", message);
+    // 用户消息是即时完成的，不需要 onMessageStarted（前端已通过乐观更新显示）
     await this.notifyConsumers(stageId, "onMessageCompleted", message, this.deps.messagePort.getContext(message.id));
 
     // Router: 根据 to_speakers 触发下一步
