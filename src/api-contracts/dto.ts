@@ -20,7 +20,6 @@ export type RoleSnailAssignment = {
 };
 
 export type StageStatus = "in_progress" | "completed";
-export type IssueStatus = "active" | "closed";
 export type ActivityStatus = "ai_running" | "needs_human" | "completed";
 export type StageDto = {
   id: string;
