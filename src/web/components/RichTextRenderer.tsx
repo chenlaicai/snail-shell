@@ -120,8 +120,6 @@ function incrementalSplitMermaidBlocks(
     last = regex.lastIndex;
   }
   if (last < newContent.length) blockCount++;
-  // 检查新内容是否还有尾部 markdown block
-  if (last < newContent.length) blockCount++;
 
   if (blockCount <= cachedBlocks.length) {
     /** block 数未变：最后一个 block 有新内容，替换它 */
@@ -132,14 +130,12 @@ function incrementalSplitMermaidBlocks(
     return result;
   }
 
-  /** block 数增加：前 N-1 个复用，新增的 block 全量解析 */
-  const result = cachedBlocks.slice(0, cachedBlocks.length - 1);
-  const lastCached = cachedBlocks[cachedBlocks.length - 1];
-  const newPart = newContent.slice(cachedContent.length);
-  const combined = lastCached.content + newPart;
-  const newBlocks = splitMermaidBlocks(combined);
-  result.push(...newBlocks);
-  return result;
+  /** block 数增加：从缓存重建完整内容后全量拆分（缓存的 mermaid block 不含 fence，需还原） */
+  const fullCached = cachedBlocks.map(b =>
+    b.type === "mermaid" ? "```mermaid\n" + b.content + "\n```" : b.content,
+  ).join("");
+  const tail = newContent.slice(fullCached.length);
+  return splitMermaidBlocks(fullCached + tail);
 }
 
 function sanitizeHtml(html: string): string {
