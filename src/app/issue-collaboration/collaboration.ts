@@ -8,7 +8,6 @@ import type { SnailFirstCallRequest, SnailResumeRequest } from "@domain/snail/mo
 import type { LiteAIPort } from "@domain/lite-ai/port";
 import type { AgentEvent, Message as AgentMessage, InvokeOptions } from "@infra/acs/model";
 import type { CollaborationConsumer, CollaborationInput, CreateIssueResult, StageTransitionSuggestion } from "@app/issue-collaboration/port";
-import { StageQueue } from "@app/issue-collaboration/stage-queue";
 import { getLogger } from "@infra/logger";
 
 const log = getLogger({ module: "collaboration" });
@@ -28,16 +27,29 @@ type SpeakerTarget = {
   source: "mention" | "reply" | "default";
 };
 
+// ── Router per-speaker dispatch state ─────────────────────────────────
+
+type DispatchStatus = "idle" | "invoking";
+
+interface DispatchState {
+  status: DispatchStatus;
+  pending: boolean;
+}
+
 export class IssueCollaboration implements CollaborationInput {
   private readonly issueConsumers = new Map<string, Set<CollaborationConsumer>>();
-  private readonly queue = new StageQueue();
   private readonly suggestions = new Map<string, StageTransitionSuggestion[]>();
   private readonly maxCollaborationRounds: number;
   private readonly activeInvocations = new Map<number, AbortController>();
 
+  /** Router per-speaker dispatch state, key = `${stageId}:${speaker}` */
+  private readonly dispatchStates = new Map<string, DispatchState>();
+
   constructor(private readonly deps: CollaborationDeps) {
     this.maxCollaborationRounds = deps.maxCollaborationRounds ?? 30;
   }
+
+  // ── Public API ──────────────────────────────────────────────────────
 
   async createIssue(input: CreateIssueInput): Promise<CreateIssueResult> {
     return this.deps.stagePort.transaction(() => {
@@ -86,13 +98,11 @@ export class IssueCollaboration implements CollaborationInput {
     });
 
     this.deps.messagePort.setContext(message.id, "final_text", text);
-    for (const target of targets) {
-      this.deps.messagePort.createCallSignal(stageId, target.speaker);
-    }
-
     await this.notifyConsumers(stageId, "onMessageStarted", message);
     await this.notifyConsumers(stageId, "onMessageCompleted", message, this.deps.messagePort.getContext(message.id));
-    this.enqueueStage(stageId);
+
+    // Router: 根据 to_speakers 触发下一步
+    await this.route(stageId, message);
   }
 
   registerIssueConsumer(issueId: string, consumer: CollaborationConsumer): void {
@@ -122,67 +132,93 @@ export class IssueCollaboration implements CollaborationInput {
     return this.deps.issuePort.closeIssue(issueId);
   }
 
-  enqueueStage(stageId: string): void {
-    this.queue.enqueue(stageId, async () => this.drainStage(stageId));
+  /** 启动恢复用：重新路由一条已完成消息的 to_speakers */
+  resumeRoute(stageId: string, message: Message): void {
+    void this.route(stageId, message);
   }
 
-  private createInitialStage(issue: Issue, stageKey = issue.sop_snapshot.stage_definitions[0]?.key): Stage {
-    if (!stageKey) throw new Error(`No stage definitions found for issue: ${issue.id}`);
-    const stage = this.deps.stagePort.createStage({
-      issue_id: issue.id,
-      key: stageKey,
-    });
-    this.initStageCursors(stage);
-    return stage;
-  }
-
-  private async drainStage(stageId: string): Promise<void> {
-    const stage = this.deps.stagePort.findStage(stageId);
-    if (!stage || stage.left_at) return;
-    let remainingRounds = this.maxCollaborationRounds;
-
-    while (remainingRounds > 0) {
-      const signals = this.deps.messagePort.getCallSignals(stageId);
-      if (signals.length === 0) return;
-
-      const targetSpeakers = [...new Set(signals.map(signal => signal.target_speaker))];
-      log.debug({ stageId, targetSpeakers, remainingRounds }, "drainStage");
-
-      const executions = targetSpeakers.map(async speaker => {
-        if (speaker === "user") {
-          this.deps.messagePort.deleteCallSignal(stageId, speaker);
-          const latest = this.deps.messagePort.findLatestMessage(stageId);
-          if (latest) await this.notifyConsumers(stageId, "onUserCalled", latest);
-          return false;
-        }
-
-        const unread = this.deps.messagePort.getUnreadMessages(stageId, speaker);
-        if (unread.length === 0) {
-          this.deps.messagePort.deleteCallSignal(stageId, speaker);
-          log.debug({ stageId, speaker }, "skip speaker (no unread)");
-          return false;
-        }
-
-        log.debug({ stageId, speaker, unreadCount: unread.length }, "invoking agent");
-        await this.invokeAgent(stageId, speaker, unread);
-        this.deps.messagePort.deleteCallSignal(stageId, speaker);
-        this.deps.messagePort.advanceCursor(stageId, speaker, unread[unread.length - 1].id);
-        return true;
-      });
-
-      const results = await Promise.allSettled(executions);
-      const agentCalls = results.filter(result => result.status === "fulfilled" && result.value).length;
-      for (let i = 0; i < results.length; i++) {
-        const result = results[i];
-        if (result.status === "rejected") {
-          const failedSpeaker = targetSpeakers[i];
-          log.error({ stageId, speaker: failedSpeaker, err: result.reason }, "drainStage agent failed");
-        }
-      }
-      if (agentCalls === 0) return;
-      remainingRounds -= agentCalls;
+  /** 查询某个 stage 是否有任何 speaker 正在 invoking（用于 activity_status） */
+  isInvoking(stageId: string): boolean {
+    for (const [key, state] of this.dispatchStates) {
+      if (key.startsWith(`${stageId}:`) && state.status === "invoking") return true;
     }
+    return false;
   }
+
+  // ── Router: 事件驱动路由中枢 ────────────────────────────────────────
+
+  /**
+   * Router 唯一入口：消息完成时，根据 to_speakers 触发下一步行动。
+   * 核心语义：cursor 决定 agent 认知边界，to_speakers 决定谁该行动。
+   */
+  private async route(stageId: string, message: Message): Promise<void> {
+    const targets = message.to_speakers;
+    if (targets.length === 0) return; // 无目标，stage 静默
+
+    const uniqueTargets = [...new Set(targets)];
+    await Promise.all(uniqueTargets.map(speaker => this.dispatch(stageId, speaker)));
+  }
+
+  /**
+   * Per-speaker 调度：去重 + 排队。
+   * - 空闲 → 立即 invoke，期间新触发标记 pending，invoke 结束后自动用新 cursor 继续
+   * - 正在 invoke → 标记 pending，等当前 invoke 结束后重新检查
+   */
+  private async dispatch(stageId: string, speaker: string): Promise<void> {
+    const key = `${stageId}:${speaker}`;
+
+    if (speaker === "user") {
+      const latest = this.deps.messagePort.findLatestMessage(stageId);
+      if (latest) await this.notifyConsumers(stageId, "onUserCalled", latest);
+      return;
+    }
+
+    const existing = this.dispatchStates.get(key);
+    if (existing?.status === "invoking") {
+      // Agent 正在忙，标记 pending
+      existing.pending = true;
+      log.debug({ stageId, speaker }, "dispatch: agent busy, marked pending");
+      return;
+    }
+
+    // Agent 空闲，开始 invoke 循环
+    this.dispatchStates.set(key, { status: "invoking", pending: true });
+
+    let remainingRounds = this.maxCollaborationRounds;
+    while (remainingRounds > 0) {
+      const state = this.dispatchStates.get(key)!;
+      state.pending = false;
+
+      const unread = this.deps.messagePort.getUnreadMessages(stageId, speaker);
+      if (unread.length === 0) {
+        log.debug({ stageId, speaker }, "dispatch: no unread messages");
+        this.dispatchStates.set(key, { status: "idle", pending: false });
+        return;
+      }
+
+      log.debug({ stageId, speaker, unreadCount: unread.length }, "dispatch: invoking agent");
+      this.deps.messagePort.advanceCursor(stageId, speaker, unread[unread.length - 1].id);
+      try {
+        await this.invokeAgent(stageId, speaker, unread);
+      } catch (error) {
+        log.error({ stageId, speaker, err: error }, "dispatch: agent invocation failed");
+      }
+
+      // invoke 结束，检查 pending（期间可能有新消息到达）
+      const current = this.dispatchStates.get(key)!;
+      if (!current.pending) {
+        this.dispatchStates.set(key, { status: "idle", pending: false });
+        return;
+      }
+      // 有新消息，继续下一轮 invoke
+      remainingRounds--;
+    }
+
+    log.warn({ stageId, speaker }, "dispatch: max rounds reached");
+    this.dispatchStates.set(key, { status: "idle", pending: false });
+  }
+
+  // ── Agent Invocation ────────────────────────────────────────────────
 
   private async invokeAgent(stageId: string, roleInstance: string, unreadMessages: Message[]): Promise<void> {
     const stage = this.mustGetStage(stageId);
@@ -209,15 +245,21 @@ export class IssueCollaboration implements CollaborationInput {
         this.deps.stagePort.setSnailInstanceId(stageId, roleInstance, result.snail_instance_id);
       }
 
+      // 解析 @mentions 填入 to_speakers
+      const targets = this.resolveReplies(stage, roleInstance, agentMessage.id);
+      this.deps.messagePort.updateMessageTargets(agentMessage.id, targets);
+
       const context = this.extractTerminalContext(agentMessage.id, "completed");
       this.deps.messagePort.setContext(agentMessage.id, context.kind, context.context);
       this.deps.messagePort.completeMessage(agentMessage.id, "completed");
       const completedMessage = this.mustGetMessage(agentMessage.id);
 
-      log.info({ stageId, roleInstance, messageId: agentMessage.id, contextKind: context.kind }, "invokeAgent completed");
-      this.routeAgentReplies(stage, roleInstance, completedMessage.id);
+      log.info({ stageId, roleInstance, messageId: agentMessage.id, contextKind: context.kind, targets }, "invokeAgent completed");
       await this.detectStageTransition(stage, roleInstance, completedMessage.id);
       await this.notifyConsumers(stageId, "onMessageCompleted", completedMessage, this.deps.messagePort.getContext(completedMessage.id));
+
+      // Router: 根据 to_speakers 触发下一步
+      await this.route(stageId, completedMessage);
     } catch (error) {
       log.error({
         stageId, roleInstance, issueId: issue.id, snailKey: assignment.snail_key,
@@ -288,13 +330,7 @@ export class IssueCollaboration implements CollaborationInput {
     void this.notifyConsumers(stageId, "onEvent", appended);
   }
 
-  private routeAgentReplies(stage: Stage, roleInstance: string, messageId: number): void {
-    const replies = this.resolveReplies(stage, roleInstance, messageId);
-    this.deps.messagePort.updateMessageTargets(messageId, replies);
-    for (const speaker of replies) {
-      this.deps.messagePort.createCallSignal(stage.id, speaker);
-    }
-  }
+  // ── Reply Resolution ────────────────────────────────────────────────
 
   private resolveReplies(stage: Stage, roleInstance: string, messageId: number): string[] {
     const mentions = new Set<string>();
@@ -316,6 +352,8 @@ export class IssueCollaboration implements CollaborationInput {
   private isValidReplyMention(stage: Stage, roleInstance: string, mention: string): boolean {
     return mention === "user" || (mention !== roleInstance && stage.role_instances.includes(mention));
   }
+
+  // ── Stage Transition Detection ──────────────────────────────────────
 
   private async detectStageTransition(stage: Stage, roleInstance: string, messageId: number): Promise<void> {
     const suggestion = this.extractStageTransitionSuggestion(stage, roleInstance, messageId);
@@ -377,6 +415,8 @@ export class IssueCollaboration implements CollaborationInput {
     }
   }
 
+  // ── Mention Resolution ──────────────────────────────────────────────
+
   private async resolveToSpeakers(stage: Stage, text: string, fromSpeaker: string): Promise<SpeakerTarget[]> {
     const mentions = await this.resolveMentions(stage, text, fromSpeaker);
     if (mentions.length > 0) return mentions.map(speaker => ({ speaker, source: "mention" }));
@@ -417,6 +457,8 @@ export class IssueCollaboration implements CollaborationInput {
     }
     return [...result];
   }
+
+  // ── Context & System Reminder ───────────────────────────────────────
 
   private extractTerminalContext(messageId: number, status: "completed" | "interrupted" | "failed"): MessageContext {
     const existing = this.deps.messagePort.getContext(messageId);
@@ -540,11 +582,23 @@ ${transitions || "无"}
     return { type: "error", error: agentEvent.payload.error };
   }
 
+  // ── Helpers ─────────────────────────────────────────────────────────
+
   private initStageCursors(stage: Stage): void {
     this.deps.messagePort.initCursor(stage.id, "user");
     for (const roleInstance of stage.role_instances) {
       this.deps.messagePort.initCursor(stage.id, roleInstance);
     }
+  }
+
+  private createInitialStage(issue: Issue, stageKey = issue.sop_snapshot.stage_definitions[0]?.key): Stage {
+    if (!stageKey) throw new Error(`No stage definitions found for issue: ${issue.id}`);
+    const stage = this.deps.stagePort.createStage({
+      issue_id: issue.id,
+      key: stageKey,
+    });
+    this.initStageCursors(stage);
+    return stage;
   }
 
   private mustGetStage(stageId: string): Stage {

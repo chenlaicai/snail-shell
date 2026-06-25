@@ -5,7 +5,6 @@ import type {
   MessageEventPayload,
   MessageContext,
   MessageContextKind,
-  CallSignal,
 } from "@domain/message/model";
 
 const MESSAGE_SCHEMA = `
@@ -46,15 +45,6 @@ CREATE TABLE IF NOT EXISTS read_cursor (
   updated_at TEXT NOT NULL,
   PRIMARY KEY(stage_id, speaker)
 );
-
-CREATE TABLE IF NOT EXISTS call_signal (
-  stage_id TEXT NOT NULL,
-  target_speaker TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  PRIMARY KEY(stage_id, target_speaker)
-);
-
-CREATE INDEX IF NOT EXISTS idx_call_signal_stage_id ON call_signal(stage_id);
 `;
 
 type MessageRow = {
@@ -76,7 +66,6 @@ type MessageEventRow = {
 };
 
 type MessageContextRow = MessageContext;
-type CallSignalRow = CallSignal;
 
 // ── Message Repository ────────────────────────────────────────────────
 
@@ -284,43 +273,6 @@ export class SQLiteReadCursorRepository implements ReadCursorRepository {
        ON CONFLICT(stage_id, speaker) DO UPDATE SET last_read_message_id = excluded.last_read_message_id, updated_at = excluded.updated_at`,
       [stageId, speaker, messageId, new Date().toISOString()],
     );
-  }
-}
-
-// ── CallSignal Repository ─────────────────────────────────────────────
-
-export interface CallSignalRepository {
-  create(stageId: string, targetSpeaker: string): void;
-  listByStage(stageId: string): CallSignal[];
-  listAll(): CallSignal[];
-  delete(stageId: string, targetSpeaker: string): void;
-}
-
-export class SQLiteCallSignalRepository implements CallSignalRepository {
-  constructor(private db: SQLiteDatabase) {
-    db.initSchema(MESSAGE_SCHEMA);
-  }
-
-  create(stageId: string, targetSpeaker: string): void {
-    this.db.run(
-      `INSERT OR IGNORE INTO call_signal (stage_id, target_speaker, created_at) VALUES (?, ?, ?)`,
-      [stageId, targetSpeaker, new Date().toISOString()],
-    );
-  }
-
-  listByStage(stageId: string): CallSignal[] {
-    return this.db.all<CallSignalRow>(
-      `SELECT * FROM call_signal WHERE stage_id = ? ORDER BY created_at ASC, target_speaker ASC`,
-      [stageId],
-    );
-  }
-
-  listAll(): CallSignal[] {
-    return this.db.all<CallSignalRow>(`SELECT * FROM call_signal ORDER BY created_at ASC, stage_id ASC, target_speaker ASC`);
-  }
-
-  delete(stageId: string, targetSpeaker: string): void {
-    this.db.run(`DELETE FROM call_signal WHERE stage_id = ? AND target_speaker = ?`, [stageId, targetSpeaker]);
   }
 }
 

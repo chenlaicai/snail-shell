@@ -124,7 +124,7 @@ function startHttpServer(modules: Awaited<ReturnType<typeof initModules>>["modul
   });
   app.route("/im", modules.im.app);
   const port = serverSettings.port;
-  const websocketBridge = createIssueWebSocketBridge(modules.collaboration.adapter);
+  const websocketBridge = createIssueWebSocketBridge(modules.collaboration.adapter, modules.message.adapter);
   app.get("/issue-events", websocketBridge.route);
   serve({ fetch: app.fetch, port, websocket: { server: websocketBridge.server } }, (info) => {
     log.info({ port: info.port }, "HTTP server listening");

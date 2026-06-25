@@ -6,7 +6,7 @@ import { queryKeys } from "@/queries/keys";
 import { TopBar } from "@/components/TopBar";
 import { IssueCard } from "@/components/IssueCard";
 import { NewIssueDialog } from "@/components/NewIssueDialog";
-import { groupByStatus, statusColumns } from "@/lib/issue-utils";
+import { groupByActivityStatus, activityStatusColumns } from "@/lib/issue-utils";
 import type { IssueDetailDto } from "@/types";
 
 export function IssueBoard() {
@@ -26,7 +26,7 @@ export function IssueBoard() {
     enabled: !!workspaceId,
   });
 
-  const grouped = groupByStatus(issues);
+  const grouped = groupByActivityStatus(issues);
 
   return (
     <>
@@ -60,7 +60,7 @@ export function IssueBoard() {
           <div className="text-center text-text-muted text-sm py-16">No issues in this workspace</div>
         ) : (
           <div className="flex gap-4 h-full min-w-max">
-            {statusColumns.map((col) => {
+            {activityStatusColumns.map((col) => {
               const colIssues = grouped[col.status] ?? [];
               return (
                 <div key={col.status} className="w-[280px] flex flex-col shrink-0">

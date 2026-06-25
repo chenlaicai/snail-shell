@@ -7,7 +7,7 @@ export function IssueRow({ issue }: { issue: IssueDetailDto }) {
   const navigate = useNavigate();
   const { workspaceId } = useParams();
   const stage = issue.current_stage;
-  const isDone = stage?.status === "completed";
+  const isDone = issue.activity_status === "completed";
 
   return (
     <div
@@ -19,7 +19,7 @@ export function IssueRow({ issue }: { issue: IssueDetailDto }) {
         <span className={`text-[13px] font-medium truncate ${isDone ? "line-through decoration-text-muted/50" : ""}`}>{issue.title}</span>
       </div>
       <div className="w-28 shrink-0 flex items-center justify-center">
-        {stage && <StatusBadge status={stage.status} />}
+        <StatusBadge status={issue.activity_status} />
       </div>
       <div className="w-40 shrink-0 text-[12px] text-text-muted truncate">{stage?.stage_definition?.title ?? "—"}</div>
       <div className="w-20 shrink-0 text-right text-[11px] text-text-muted">{formatRelativeTime(issue.created_at)}</div>

@@ -3,7 +3,9 @@ import { upgradeWebSocket } from "@hono/node-server";
 import { WebSocketServer } from "ws";
 import { getLogger } from "@infra/logger";
 import type { CollaborationConsumer, CollaborationInput, StageTransitionSuggestion } from "@app/issue-collaboration/port";
+import type { MessagePort } from "@domain/message/port";
 import type { Message } from "@domain/message/model";
+import type { ActivityStatus } from "@api-contracts/dto";
 
 const log = getLogger({ module: "websocket" });
 
@@ -17,7 +19,7 @@ interface IssueWebSocketBridge {
   route: MiddlewareHandler;
 }
 
-export function createIssueWebSocketBridge(collaboration: CollaborationInput): IssueWebSocketBridge {
+export function createIssueWebSocketBridge(collaboration: CollaborationInput, messagePort: MessagePort): IssueWebSocketBridge {
   return {
     server: new WebSocketServer({ noServer: true }),
     route: upgradeWebSocket((c) => {
@@ -46,7 +48,7 @@ export function createIssueWebSocketBridge(collaboration: CollaborationInput): I
             return;
           }
           log.info({ issueId }, "connected");
-          consumer = createConsumer(issueId, socket);
+          consumer = createConsumer(issueId, socket, collaboration, messagePort);
           collaboration.registerIssueConsumer(issueId, consumer);
           heartbeatTimer = setInterval(() => {
             try {
@@ -65,22 +67,32 @@ export function createIssueWebSocketBridge(collaboration: CollaborationInput): I
   };
 }
 
-function createConsumer(issueId: string, socket: IssueSocket): CollaborationConsumer {
+function computeActivityStatus(stageId: string, collaboration: CollaborationInput, messagePort: MessagePort): ActivityStatus {
+  if (collaboration.isInvoking(stageId)) return "ai_running";
+  const latest = messagePort.findLatestMessage(stageId);
+  if (latest?.status === "streaming") return "ai_running";
+  return "needs_human";
+}
+
+function createConsumer(issueId: string, socket: IssueSocket, collaboration: CollaborationInput, messagePort: MessagePort): CollaborationConsumer {
   return {
     onMessageStarted(stageId, message) {
-      send(socket, { type: "issue_event", issue_id: issueId, event: { type: "message_started", stage_id: stageId, ...toMessageEventBase(message) } });
+      const activityStatus = computeActivityStatus(stageId, collaboration, messagePort);
+      send(socket, { type: "issue_event", issue_id: issueId, activity_status: activityStatus, event: { type: "message_started", stage_id: stageId, ...toMessageEventBase(message) } });
     },
     onEvent(stageId, event) {
-      send(socket, { type: "issue_event", issue_id: issueId, event: { type: "message_event_appended", stage_id: stageId, message_id: event.message_id, event } });
+      send(socket, { type: "issue_event", issue_id: issueId, activity_status: computeActivityStatus(stageId, collaboration, messagePort), event: { type: "message_event_appended", stage_id: stageId, message_id: event.message_id, event } });
     },
     onMessageCompleted(stageId, message, context) {
-      send(socket, { type: "issue_event", issue_id: issueId, event: { type: "message_status_changed", stage_id: stageId, message_id: message.id, status: message.status, context } });
+      const activityStatus = computeActivityStatus(stageId, collaboration, messagePort);
+      send(socket, { type: "issue_event", issue_id: issueId, activity_status: activityStatus, event: { type: "message_status_changed", stage_id: stageId, message_id: message.id, status: message.status, context } });
     },
     onUserCalled(stageId, message) {
-      send(socket, { type: "issue_event", issue_id: issueId, event: { type: "user_called", stage_id: stageId, ...toMessageEventBase(message) } });
+      const activityStatus = computeActivityStatus(stageId, collaboration, messagePort);
+      send(socket, { type: "issue_event", issue_id: issueId, activity_status: activityStatus, event: { type: "user_called", stage_id: stageId, ...toMessageEventBase(message) } });
     },
     onStageTransitionSuggested(stageId, suggestion) {
-      send(socket, { type: "issue_event", issue_id: issueId, event: { type: "stage_transition_suggested", stage_id: stageId, suggestion: toSuggestionPayload(suggestion) } });
+      send(socket, { type: "issue_event", issue_id: issueId, activity_status: computeActivityStatus(stageId, collaboration, messagePort), event: { type: "stage_transition_suggested", stage_id: stageId, suggestion: toSuggestionPayload(suggestion) } });
     },
   };
 }

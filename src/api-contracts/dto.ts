@@ -21,6 +21,7 @@ export type RoleSnailAssignment = {
 
 export type StageStatus = "in_progress" | "completed";
 export type IssueStatus = "active" | "closed";
+export type ActivityStatus = "ai_running" | "needs_human" | "completed";
 export type StageDto = {
   id: string;
   workspace_path: string;
@@ -81,7 +82,7 @@ export type IssueDto = {
   created_at: string;
   closed_at: string | null;
 };
-export type IssueDetailDto = IssueDto & { stages: StageDetailDto[]; current_stage: StageDetailDto };
+export type IssueDetailDto = IssueDto & { stages: StageDetailDto[]; current_stage: StageDetailDto; activity_status: ActivityStatus };
 export type CreateIssueResult = { issue: IssueDetailDto; stage: StageDetailDto };
 export type AdvanceIssueResult = StageDetailDto;
 export type IssueCleanupResult = { ok: true };
@@ -102,6 +103,7 @@ export type StageSuggestion = {
 export type IssueRealtimeMessage = {
   type: "issue_event";
   issue_id: string;
+  activity_status: ActivityStatus;
   event:
     | { type: "message_started"; stage_id: string; message_id: number; role: MessageRole; role_name: string | null; client_id: string | null; status: MessageStatus }
     | { type: "message_event_appended"; stage_id: string; message_id: number; event: MessageEvent }
