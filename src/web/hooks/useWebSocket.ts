@@ -33,92 +33,143 @@ export function createPlaceholderMessage(
   };
 }
 
-function addPlaceholderMessage(
-  queryClient: ReturnType<typeof useQueryClient>,
-  stageId: string,
-  opts: { id: number; role: MessageDto["role"]; from_role?: string | null; client_id?: string | null; status?: MessageDto["status"] },
-): void {
-  queryClient.setQueryData(
-    queryKeys.stages.messages(stageId),
-    (old: MessageDto[] | undefined) => {
-      if (old?.some((m) => m.id === opts.id)) return old;
-      return [...(old ?? []), createPlaceholderMessage(stageId, opts)];
-    },
-  );
+/** 按 stageId 缓存的事件批次：每种事件类型一个数组 */
+interface StageBatch {
+  messageStarted: Array<Extract<IssueRealtimeMessage["event"], { type: "message_started" }>>;
+  messageEventAppended: Array<Extract<IssueRealtimeMessage["event"], { type: "message_event_appended" }>>;
+  messageStatusChanged: Array<Extract<IssueRealtimeMessage["event"], { type: "message_status_changed" }>>;
+  userCalled: Array<Extract<IssueRealtimeMessage["event"], { type: "user_called" }>>;
 }
 
-function applyMessageStatusChanged(
-  queryClient: ReturnType<typeof useQueryClient>,
-  stageId: string,
-  event: Extract<IssueRealtimeMessage["event"], { type: "message_status_changed" }>,
-): void {
-  queryClient.setQueryData(
-    queryKeys.stages.messages(stageId),
-    (old: MessageDto[] | undefined) => old?.map((m) =>
-      m.id === event.message_id
-        ? {
-            ...m,
-            status: event.status,
-            context: event.context ?? m.context,
-            content: event.context?.context ?? m.content,
-            updated_at: new Date().toISOString(),
-          }
-        : m
-    ),
-  );
+function createEmptyBatch(): StageBatch {
+  return { messageStarted: [], messageEventAppended: [], messageStatusChanged: [], userCalled: [] };
 }
 
-function handleRealtimeMessage(
-  msg: WsServerMessage,
-  queryClient: ReturnType<typeof useQueryClient>,
-) {
-  if (msg.type === "heartbeat") return;
-  const { event } = msg;
-  const stageId = event.stage_id;
+/**
+ * WebSocket 事件批处理器。
+ *
+ * 将 16ms 窗口内（一帧）的多个 WebSocket 事件收集后一次性 setQueryData，
+ * 避免每个事件都触发独立的 React 重渲染周期。
+ */
+class EventBatcher {
+  private batch = new Map<string, StageBatch>();
+  private pendingStageTransitions: Array<{ issueId: string; stageId: string }> = [];
+  private scheduled = false;
 
-  if (event.type === "message_started") {
-    addPlaceholderMessage(queryClient, stageId, {
-      id: event.message_id,
-      role: event.role,
-      from_role: event.role_name,
-      client_id: event.client_id,
-      status: event.status,
-    });
-    return;
+  constructor(private queryClient: ReturnType<typeof useQueryClient>) {}
+
+  add(msg: WsServerMessage): void {
+    if (msg.type === "heartbeat") return;
+    const { event } = msg;
+    const stageId = event.stage_id;
+
+    if (event.type === "stage_transition_suggested") {
+      this.pendingStageTransitions.push({ issueId: msg.issue_id, stageId });
+      this.schedule();
+      return;
+    }
+
+    let stageBatch = this.batch.get(stageId);
+    if (!stageBatch) {
+      stageBatch = createEmptyBatch();
+      this.batch.set(stageId, stageBatch);
+    }
+
+    switch (event.type) {
+      case "message_started":
+        stageBatch.messageStarted.push(event);
+        break;
+      case "message_event_appended":
+        stageBatch.messageEventAppended.push(event);
+        break;
+      case "message_status_changed":
+        stageBatch.messageStatusChanged.push(event);
+        break;
+      case "user_called":
+        stageBatch.userCalled.push(event);
+        break;
+    }
+
+    this.schedule();
   }
 
-  if (event.type === "message_event_appended") {
-    queryClient.setQueryData(
-      queryKeys.stages.messages(stageId),
-      (old: MessageDto[] | undefined) => old?.map((m) =>
-        m.id === event.message_id
-          ? { ...m, events: [...(m.events ?? []), event.event] }
-          : m
-      ),
-    );
-    return;
+  private schedule(): void {
+    if (this.scheduled) return;
+    this.scheduled = true;
+    requestAnimationFrame(() => this.flush());
   }
 
-  if (event.type === "message_status_changed") {
-    applyMessageStatusChanged(queryClient, stageId, event);
-    return;
+  private applyBatch(stageId: string, batch: StageBatch, old: MessageDto[] | undefined): MessageDto[] {
+    let result = old ?? [];
+
+    // 1. 添加占位消息（message_started + user_called）
+    for (const event of [...batch.messageStarted, ...batch.userCalled]) {
+      if (result.some((m) => m.id === event.message_id)) continue;
+      result = [...result, createPlaceholderMessage(stageId, {
+        id: event.message_id, role: event.role, from_role: event.role_name,
+        client_id: event.client_id, status: event.status,
+      })];
+    }
+
+    // 2. 批量追加 events
+    if (batch.messageEventAppended.length > 0) {
+      const eventsByMessage = new Map<number, typeof batch.messageEventAppended>();
+      for (const event of batch.messageEventAppended) {
+        const arr = eventsByMessage.get(event.message_id) ?? [];
+        arr.push(event);
+        eventsByMessage.set(event.message_id, arr);
+      }
+      result = result.map((m) => {
+        const newEvents = eventsByMessage.get(m.id);
+        if (!newEvents) return m;
+        return { ...m, events: [...(m.events ?? []), ...newEvents.map((e) => e.event)] };
+      });
+    }
+
+    // 3. 批量更新状态
+    if (batch.messageStatusChanged.length > 0) {
+      const statusByMessage = new Map<number, typeof batch.messageStatusChanged>();
+      for (const event of batch.messageStatusChanged) {
+        const arr = statusByMessage.get(event.message_id) ?? [];
+        arr.push(event);
+        statusByMessage.set(event.message_id, arr);
+      }
+      result = result.map((m) => {
+        const updates = statusByMessage.get(m.id);
+        if (!updates) return m;
+        const latest = updates[updates.length - 1];
+        return {
+          ...m,
+          status: latest.status,
+          context: latest.context ?? m.context,
+          content: latest.context?.context ?? m.content,
+          updated_at: new Date().toISOString(),
+        };
+      });
+    }
+
+    return result;
   }
 
-  if (event.type === "user_called") {
-    addPlaceholderMessage(queryClient, stageId, {
-      id: event.message_id,
-      role: event.role,
-      from_role: event.role_name,
-      client_id: event.client_id,
-      status: event.status,
-    });
-    return;
-  }
+  private flush(): void {
+    this.scheduled = false;
 
-  if (event.type === "stage_transition_suggested") {
-    queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(msg.issue_id) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.stages.detail(stageId) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.stages.messages(stageId) });
+    for (const [stageId, batch] of this.batch) {
+      this.queryClient.setQueryData(
+        queryKeys.stages.messages(stageId),
+        (old: MessageDto[] | undefined) => this.applyBatch(stageId, batch, old),
+      );
+    }
+
+    this.batch.clear();
+
+    // Stage transition 事件：invalidate 查询
+    for (const { issueId, stageId } of this.pendingStageTransitions) {
+      this.queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(issueId) });
+      this.queryClient.invalidateQueries({ queryKey: queryKeys.stages.detail(stageId) });
+      this.queryClient.invalidateQueries({ queryKey: queryKeys.stages.messages(stageId) });
+    }
+    this.pendingStageTransitions = [];
   }
 }
 
@@ -154,15 +205,13 @@ export function useIssueRealtime(issueId: string | null, currentStageId: string 
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectDelay = useRef(1000);
   const queryClient = useQueryClient();
+  const batcherRef = useRef(new EventBatcher(queryClient));
   const setWsStatus = useConversationStore((state) => state.setWsStatus);
   const currentStageIdRef = useRef<string | null>(null);
   currentStageIdRef.current = currentStageId;
 
   useEffect(() => {
-    if (!issueId) {
-      setWsStatus("disconnected");
-      return;
-    }
+    if (!issueId) { setWsStatus("disconnected"); return; }
     let mounted = true;
     let activeWs: WebSocket | null = null;
 
@@ -182,7 +231,7 @@ export function useIssueRealtime(issueId: string | null, currentStageId: string 
             setWsStatus("connected");
             reconnectDelay.current = 1000;
           },
-          onMessage: (msg) => handleRealtimeMessage(msg, queryClient),
+          onMessage: (msg) => batcherRef.current!.add(msg),
           onClose: () => {
             if (!mounted || activeWs !== ws || wsRef.current !== ws) return;
             setWsStatus("disconnected");

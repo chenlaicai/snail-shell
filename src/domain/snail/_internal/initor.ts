@@ -18,8 +18,8 @@ export interface SnailDeps {
 }
 
 /** 初始化 Snail 模块 */
-export function init(dataStore: FileDataStore, db: SQLiteDatabase, deps: SnailDeps) {
+export function init(dataStore: FileDataStore, db: SQLiteDatabase, deps: SnailDeps, maxConcurrentAgents?: number) {
   const repo = new FileSnailRepository(dataStore, db);
-  const adapter = new SnailAdapter(repo, deps.registry, deps.tenetPrompt, deps.skill, deps.mcp, deps.guardProfile);
+  const adapter = new SnailAdapter({ repo, registry: deps.registry, tenetPrompt: deps.tenetPrompt, skill: deps.skill, mcp: deps.mcp, guardProfile: deps.guardProfile }, maxConcurrentAgents);
   return { repo, adapter };
 }

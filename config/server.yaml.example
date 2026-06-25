@@ -4,6 +4,10 @@
 # 后端 HTTP 服务监听端口
 port: 3000
 
+# 最大并发 agent 子进程数（全局）
+# 超出上限的 agent 调用会排队等待，避免资源耗尽导致系统卡死
+# max_concurrent_agents: 3
+
 # Web Vite dev server 监听端口
 # Vite 同时会将 /api 和 /ws 代理到上面的后端端口
 web_port: 5173
