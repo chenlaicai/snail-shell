@@ -92,7 +92,7 @@ dispatch(stageId, speaker):
 
 ### 变更 4: WebSocket 实时推送
 
-createIssueWebSocketBridge 接收 messagePort，每个事件附带 computeActivityStatus 结果。前端 handleRealtimeMessage 收到事件后更新 issue detail 缓存和 issues list 缓存。
+createIssueWebSocketBridge 只接收 collaboration（不再依赖 messagePort），通过 collaboration.getActivityStatus() 计算 activity_status，每个事件附带结果。前端 handleRealtimeMessage 收到事件后更新 issue detail 缓存和 issues list 缓存。
 
 ### 变更 5: 前端三态分组
 
@@ -114,6 +114,7 @@ Board 从 2 列改为 3 列：AI Running（蓝色）、Needs You（琥珀色）�
 - **语义不变量**：cursor 是 agent 认知边界的核心，to_speakers 是路由事实
 - **并发模型**：Router 内 async/await 自然序列化，同 stage 无需额外队列
 - **Issue 隔离**：per-speaker 状态以 (stage_id, speaker) 为 key，不同 issue 的同名 agent 完全独立
+- **call_signal 删除完整性**：`getAllCallSignals`/`getCallSignals`/`createCallSignal`/`deleteCallSignal` 唯一调用方为 `collaboration.ts` 和 `startup-recovery.ts`，本次 PR 已全部重写。`npm run build` 通过确认无遗漏调用点
 
 <!-- [design-time] 章节结束 -->
 
@@ -135,8 +136,8 @@ Board 从 2 列改为 3 列：AI Running（蓝色）、Needs You（琥珀色）�
 | `src/app/issue-collaboration/port.ts` | 修改 | 新增 isInvoking + resumeRoute |
 | `src/api-contracts/dto.ts` | 修改 | 新增 ActivityStatus，IssueDetailDto 加字段，WebSocket 事件加 activity_status |
 | `src/infra/http/routes/issue.route.ts` | 修改 | computeActivityStatus + toIssueDetail 附加字段 |
-| `src/infra/http/stage-websocket.ts` | 修改 | 每个事件附带 activity_status |
-| `src/main.ts` | 修改 | createIssueWebSocketBridge 传入 messagePort |
+| `src/infra/http/stage-websocket.ts` | 修改 | 每个事件附带 activity_status，通过 collaboration.getActivityStatus() 计算，不再依赖 messagePort |
+| `src/main.ts` | 修改 | createIssueWebSocketBridge 只传入 collaboration |
 | `src/web/lib/issue-utils.ts` | 修改 | 新增 groupByActivityStatus + activityStatusColumns |
 | `src/web/components/StatusBadge.tsx` | 修改 | 新增 ai_running/needs_human 配置 |
 | `src/web/components/IssueCard.tsx` | 修改 | 展示 activity_status |
@@ -192,6 +193,8 @@ Board 从 2 列改为 3 列：AI Running（蓝色）、Needs You（琥珀色）�
 - [x] websocket bridge 不再依赖 messagePort（低：减少耦合）
 - [x] dispatch while 循环 await 后增加 dispatchStates null check（中：并发 advanceStage 可能清理条目导致 TypeError）
 - [x] 特性文档伪代码同步更新：stage 守卫在 route() 而非 dispatch()（低：文档与代码一致性）
+- [x] 变更 4 描述同步：createIssueWebSocketBridge 不再依赖 messagePort（低：文档与代码一致性）
+- [x] call_signal 删除完整性验证说明：npm run build 通过确认无遗漏调用点（低：交叉验证）
 
 ## 关联
 
