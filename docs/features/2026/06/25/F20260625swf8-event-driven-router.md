@@ -199,3 +199,28 @@ Board 从 2 列改为 3 列：AI Running（蓝色）、Needs You（琥珀色）�
 | D3 | 去掉 StageQueue | async/await 自然序列化，不需要额外队列 | 跨 route 调用的重复 invoke 需要接受 | 去掉 | Router 内 per-speaker 去重已足够 | 架构师-1、用户 | 2026-06-25 |
 | D4 | Cursor 驱动而非消息标记 | cursor 天然隔离 (stage_id, speaker)，不需要 processed 标记 | 需要新增 listAllOpenStageIds 查询 | Cursor 驱动 | 复用已有 ReadCursor 机制 | 架构师-1、用户 | 2026-06-25 |
 | D5 | activity_status 计算位置 | 后端 computeActivityStatus 保证一致性 | 每次请求多查一次消息 | 后端计算 | 单一事实来源，WebSocket 也用同一逻辑 | 架构师-1 | 2026-06-25 |
+| D6 | IssueStatus 与 ActivityStatus | ActivityStatus 完全覆盖 IssueStatus 语义，后者是冗余子集 | 可能有未发现的使用点 | 删除 IssueStatus | grep 确认无外部引用 | 架构师-1 | 2026-06-25 |
+
+## 踩坑记录
+
+### P1: 安装的 hook 与源文件不一致
+
+**现象**：特性编号 `F202606252kux`（第 9 位是数字 `2`）通过了 commit-msg hook 校验，但源文件 `.githooks/commit-msg` 的正则要求第 9 位必须是字母 `[a-kmnp-z]`。
+
+**原因**：安装到 `.git/hooks/commit-msg` 的 hook 被手动修改过，正则从 `\d{8}[a-kmnp-z][2-9a-kmnp-z]{3}` 放宽为 `\d{8}[2-9a-kmnp-z]{4}`。`npm run prepare`（`git config core.hooksPath .githooks`）指向源文件，但 worktree 环境下 hooks path 指向主仓库的 `.git/hooks/`，而该文件是旧版本。
+
+**教训**：
+- `git config core.hooksPath` 在 worktree 中指向主仓库的 `.git/hooks/`，不是 `.githooks/`。需要确认 hooks path 指向正确的位置。
+- 修改 hook 后应同步到 `.githooks/` 源文件并验证两者一致。
+- 生成特性编号后应立即用源文件的正则验证，不要依赖 hook 通过作为唯一校验。
+
+### P2: rebase 后文件名未更新
+
+**现象**：rebase 将 commit message 中的 `F202606252kux` 替换为 `F20260625swf8`，但特性文档文件名仍为 `F202606252kux-event-driven-router.md`。PR 在 GitHub 上显示旧文件名。
+
+**原因**：`git rebase --exec` 只修改 commit message 内容，不会自动修改文件内容或文件名。rebase 后我在工作区做了 `mv` + `sed`，但没有立即 commit，rename 留在 staging area 未被推送。
+
+**教训**：
+- rebase 改 ID 后，必须检查所有包含旧 ID 的文件（文件名、frontmatter、正文引用），一次性提交。
+- 不能假设 rebase 会自动处理文件名变更。
+- 推送前用 `git diff origin/main --name-status` 验证最终文件状态。
