@@ -43,6 +43,8 @@ export interface SnailResumeRequest {
   messages: Message[];
   /** 动态上下文 */
   system_reminder?: string;
+  /** 日志关联标识（由编排层传入，仅用于日志） */
+  messageId?: string;
 }
 
 // ── Snail Instance ────────────────────────────────────────────────────

@@ -9,6 +9,9 @@ import { chromium, type BrowserContext, type Page } from "playwright-core";
 import path from "path";
 import os from "os";
 import fs from "fs";
+import { getLogger } from "@infra/logger";
+
+const log = getLogger({ module: "browser" });
 
 const DEFAULT_TIMEOUT = 30_000;
 const CLEANUP_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 天
@@ -55,12 +58,12 @@ export function cleanupStaleBrowserProfiles(): void {
         if (Date.now() - stat.mtimeMs > CLEANUP_MAX_AGE_MS) {
           fs.rmSync(fullPath, { recursive: true, force: true });
         }
-      } catch {
-        // 忽略单个目录的清理错误
+      } catch (err) {
+        log.warn({ err, path: fullPath }, "browser.profile.cleanup.failed");
       }
     }
-  } catch {
-    // 忽略扫描错误
+  } catch (err) {
+    log.warn({ err }, "browser.profile.scan.failed");
   }
 }
 
@@ -172,7 +175,7 @@ export async function checkLoginStatus(config?: BrowserConfig): Promise<boolean>
         const state = (globalThis as any).__INITIAL_STATE__;
         return !!state?.user?.userPageData?.basicInfo?.nickname;
       })
-      .catch(() => false);
+      .catch((err) => { log.warn({ err }, "browser.login.check.failed"); return false; });
     return !!hasUser;
   } finally {
     await context?.close();
@@ -197,7 +200,7 @@ export async function waitForLogin(timeoutMs = 120_000, config?: BrowserConfig):
         .locator(".main-container .user .link-wrapper .channel")
         .count()
         .then((c) => c > 0)
-        .catch(() => false);
+        .catch((err) => { log.warn({ err }, "browser.login.detect.failed"); return false; });
       if (isLoggedIn) return true;
       await page.waitForTimeout(1000);
     }

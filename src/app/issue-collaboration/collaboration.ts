@@ -326,7 +326,7 @@ export class IssueCollaboration implements CollaborationInput {
       workspace_path: issue.workspace_path, messages: agentMessages, systemReminder: systemReminder || undefined,
       context: { issue_id: issue.id, stage_id: stage.id, message_id: String(agentMessage.id), stage_key: stage.key, role_instance: roleInstance, ...issue.context },
     };
-    const resumeRequest = { workspace_path: issue.workspace_path, messages: agentMessages, system_reminder: systemReminder };
+    const resumeRequest = { workspace_path: issue.workspace_path, messages: agentMessages, system_reminder: systemReminder, messageId: String(agentMessage.id) };
     const onEvent = (event: AgentEvent) => this.handleAgentEvent(stageId, agentMessage.id, event);
 
     return assignment.snail_instance_id
@@ -348,6 +348,7 @@ export class IssueCollaboration implements CollaborationInput {
       return await this.deps.snailPort.invokeResume(input.snailInstanceId, input.resumeRequest, input.onEvent, input.invokeOptions);
     } catch (error) {
       if (!this.isMissingSnailInstanceError(error, input.snailInstanceId)) throw error;
+      log.warn({ snailInstanceId: input.snailInstanceId, snailKey: input.snailKey, stageId: input.stageId }, "invokeResume.instance_missing.fallback");
       const result = await this.deps.snailPort.invokeFirstCall(input.snailKey, input.firstCallRequest, input.onEvent, input.invokeOptions);
       this.deps.stagePort.setSnailInstanceId(input.stageId, input.roleInstance, result.snail_instance_id);
       return result;
@@ -445,6 +446,7 @@ export class IssueCollaboration implements CollaborationInput {
       const parsed = JSON.parse(text) as { stage_transition?: { target_key?: string; reason?: string; guard?: string | null } };
       return parsed.stage_transition ?? null;
     } catch {
+      log.debug({ textLength: text.length }, "stage_transition.parse.skipped");
       return null;
     }
   }
@@ -477,7 +479,8 @@ export class IssueCollaboration implements CollaborationInput {
       const parsed = JSON.parse(answer) as unknown;
       if (!Array.isArray(parsed)) return [];
       return parsed.filter((item): item is string => typeof item === "string" && item !== fromSpeaker && stage.role_instances.includes(item));
-    } catch {
+    } catch (err) {
+      log.warn({ err, stageId: stage.id }, "mention.resolve.failed");
       return [];
     }
   }

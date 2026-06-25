@@ -34,6 +34,10 @@ export class ClaudeCodeStatefulAgent implements AgentRuntimePort {
     onEvent: (event: AgentEvent) => void,
     options: InvokeOptions = {},
   ): Promise<InvokeResult> {
+    const logCtx = { agentType: this.name, snailKey: request.snailKey, messageId: request.messageId };
+    log.info({ ...logCtx, workspacePath: request.workspacePath, messageCount: request.messages.length }, "agent.invocation.started");
+    const startTime = Date.now();
+
     // 注入 capabilities（文件系统级别）
     ensureMcpServers(request.capabilities.mcpServers, request.workspacePath, "claude");
     ensureSkillSymlinks(request.workspacePath, request.capabilities.skills);
@@ -51,7 +55,7 @@ export class ClaudeCodeStatefulAgent implements AgentRuntimePort {
     this.writeMessages(proc, request.messages, request.prompt.systemReminder);
 
     try {
-      return await this.processOutput(proc, onEvent, options, null);
+      return await this.processOutput(proc, onEvent, options, null, logCtx, startTime);
     } finally {
       if (promptFilePath) {
         cleanupFile(promptFilePath);
@@ -67,6 +71,9 @@ export class ClaudeCodeStatefulAgent implements AgentRuntimePort {
     onEvent: (event: AgentEvent) => void,
     options: InvokeOptions = {},
   ): Promise<InvokeResult> {
+    const logCtx = { agentType: this.name, snailKey: request.snailKey, messageId: request.messageId };
+    const startTime = Date.now();
+
     // 构建 resume 的 CLI args
     const args = this.buildBaseArgs(options);
     this.addMcpConfigArg(args, request.workspacePath);
@@ -79,7 +86,7 @@ export class ClaudeCodeStatefulAgent implements AgentRuntimePort {
     this.writeMessages(proc, request.messages, request.systemReminder);
 
     // 处理输出
-    return this.processOutput(proc, onEvent, options, request.sessionId);
+    return this.processOutput(proc, onEvent, options, request.sessionId, logCtx, startTime);
   }
 
   // ── 通用辅助方法 ──────────────────────────────────────────────────────
@@ -165,6 +172,8 @@ export class ClaudeCodeStatefulAgent implements AgentRuntimePort {
     onEvent: (event: AgentEvent) => void,
     options: InvokeOptions,
     existingSessionId: string | null,
+    logCtx: { agentType: string; snailKey?: string; messageId?: string },
+    startTime: number,
   ): Promise<InvokeResult> {
     const processController = manageInvocationProcess({
       proc,
@@ -227,6 +236,7 @@ export class ClaudeCodeStatefulAgent implements AgentRuntimePort {
     if (stdoutError) throw stdoutError;
 
     if (proc.exitCode !== 0 && !resultContent) {
+      log.error({ ...logCtx, exitCode: proc.exitCode, stderr: stderr.slice(0, 500) }, "agent.invocation.failed");
       throw new Error(`claude code stateful exited with code ${proc.exitCode}: ${stderr}`);
     }
 
@@ -239,6 +249,7 @@ export class ClaudeCodeStatefulAgent implements AgentRuntimePort {
       throw new Error(`claude code stateful returned no output events${formatDiagnostics(stderr)}`);
     }
 
+    log.info({ ...logCtx, outputEventCount, duration: Date.now() - startTime }, "agent.invocation.completed");
     return {
       sessionId: extractedSessionId,
       waitForStop: () => processController.waitForStop(),
