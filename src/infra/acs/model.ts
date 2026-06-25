@@ -58,7 +58,7 @@ export interface ResumeRequest {
  * 首次调用时通过 agent 原生方式注入。
  * 后续调用仅 systemReminder 可能更新（通过 <system-reminder> 标签）。
  */
-export interface PromptSpec {
+interface PromptSpec {
   /** 静态系统提示词：constitution、角色手册、skill 引用。整场不变，可被 LLM 缓存。 */
   systemPrompt: string;
   /** 动态运行时上下文：workspace/stage 状态、日期、剩余轮次等。仅变化时注入。 */

@@ -106,7 +106,7 @@ export interface StagePreview {
   role_instances: RoleInstancePreview[];
 }
 
-export interface RoleInstancePreview {
+interface RoleInstancePreview {
   role_key: string;
   role_instance: string;
   description: string;

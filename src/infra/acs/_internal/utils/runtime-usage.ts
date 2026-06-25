@@ -1,6 +1,6 @@
 import type { AgentEvent, LifecycleSignal } from "@infra/acs/model";
 
-export interface RuntimeUsageDetail {
+interface RuntimeUsageDetail {
   input_tokens: number | null;
   output_tokens: number | null;
   total_tokens: number | null;

@@ -142,6 +142,20 @@ Board 从 2 列改为 3 列：AI Running（蓝色）、Needs You（琥珀色）�
 | `src/web/pages/IssueBoard.tsx` | 修改 | 三态 Board 分组 |
 | `src/web/pages/IssueList.tsx` | 修改 | 三态 List 分组 |
 | `src/web/hooks/useWebSocket.ts` | 修改 | 收到事件时更新 activity_status 缓存 |
+| `src/api-contracts/dto.ts` | 修改 | 删除 32 个未使用 DTO 类型，内部类型去掉 export |
+| `src/web/lib/issue-utils.ts` | 修改 | 删除 IssueStatus / getIssueStatus / groupByStatus / statusColumns 死代码 |
+| `src/web/queries/lobby.queries.ts` | 删除 | 空文件 |
+| `src/web/queries/index.ts` | 删除 | 未使用的 barrel export |
+| `src/web/mutations/index.ts` | 删除 | 未使用的 barrel export |
+| `src/infra/semaphore.ts` | 删除 | 未使用的 Semaphore 类 |
+| `src/infra/acs/_internal/utils/stateless-runtime-adapter.ts` | 删除 | 未使用的 renderStatelessTranscript |
+| `src/infra/server-config.ts` | 修改 | DEFAULT_SERVER_PORT / resolveServerSettings 去掉 export |
+| `src/infra/acs/_internal/utils/skill-symlinks.ts` | 修改 | 删除未使用的 cleanupSkillSymlinks |
+| `src/infra/acs/_internal/utils/managed-process.ts` | 修改 | 内部类型去掉 export |
+| `src/infra/acs/_internal/utils/runtime-usage.ts` | 修改 | RuntimeUsageDetail 去掉 export |
+| `src/infra/acs/_internal/utils/stateful-prompt-format.ts` | 修改 | RenderStatefulPromptOptions 去掉 export |
+| `src/infra/acs/model.ts` | 修改 | PromptSpec 去掉 export |
+| `src/domain/issue/model.ts` | 修改 | RoleInstancePreview 去掉 export |
 
 ## 验证
 
@@ -169,6 +183,7 @@ Board 从 2 列改为 3 列：AI Running（蓝色）、Needs You（琥珀色）�
 - [x] dispatch 入口检查 stage.left_at（Medium: 不在已流转 stage 上 invoke）
 - [x] route() 独立 try-catch（Medium: 下游路由失败不标记当前 agent 为失败）
 - [x] resumeRoute async + 内部错误处理（Low: 无 unhandled rejection）
+- [x] 清理全部死代码（dead files、unused exports、unused DTO types）
 
 ## 关联
 
