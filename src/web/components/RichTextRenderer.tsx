@@ -134,7 +134,7 @@ function incrementalSplitMermaidBlocks(
   const fullCached = cachedBlocks.map(b =>
     b.type === "mermaid" ? "```mermaid\n" + b.content + "\n```" : b.content,
   ).join("");
-  const tail = newContent.slice(fullCached.length);
+  const tail = newContent.slice(cachedContent.length);
   return splitMermaidBlocks(fullCached + tail);
 }
 
