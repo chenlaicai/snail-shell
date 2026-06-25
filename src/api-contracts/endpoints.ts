@@ -18,7 +18,7 @@ export type ApiEndpoints = {
   "POST /api/issues/:issueId/close": EndpointDef<{ issueId: string }, never, never, Dto.IssueDetailDto>;
   "GET /api/issues/:issueId/stages": EndpointDef<{ issueId: string }, never, never, Dto.StageDetailDto[]>;
   "GET /api/stages/:stageId": EndpointDef<{ stageId: string }, never, never, Dto.StageDetailDto | null>;
-  "GET /api/stages/:stageId/messages": EndpointDef<{ stageId: string }, { limit?: number; offset?: number }, never, Dto.MessageDto[]>;
+  "GET /api/stages/:stageId/messages": EndpointDef<{ stageId: string }, { limit?: number; before_id?: number }, never, Dto.MessageDto[]>;
   "POST /api/stages/:stageId/messages": EndpointDef<{ stageId: string }, never, { text: string; from_speaker?: string }, { ok: true }>;
   "POST /api/stages/:stageId/messages/:messageId/interrupt": EndpointDef<{ stageId: string; messageId: string }, never, never, { interrupted: boolean }>;
   "GET /api/stages/:stageId/transition-suggestions": EndpointDef<{ stageId: string }, never, never, Dto.StageSuggestion[]>;

@@ -103,8 +103,8 @@ export function createIssueRoutes(deps: IssueRoutesDeps) {
 function listMessages(c: Context, deps: IssueRoutesDeps) {
   const stageId = requiredParam(c, "stageId");
   const limit = numberQuery(c.req.query("limit"));
-  const offset = numberQuery(c.req.query("offset"));
-  return c.json(deps.messagePort.listMessages(stageId, limit, offset).map(message => toMessageDto(deps, message)));
+  const beforeId = numberQuery(c.req.query("before_id"));
+  return c.json(deps.messagePort.listMessages(stageId, limit, beforeId).map(message => toMessageDto(deps, message)));
 }
 
 async function createIssue(c: Context, deps: IssueRoutesDeps) {

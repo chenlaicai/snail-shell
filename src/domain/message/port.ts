@@ -13,7 +13,8 @@ export interface MessagePort {
   // Message CRUD
   createMessage(input: CreateMessageInput): Message;
   getMessage(id: number): Message | undefined;
-  listMessages(stageId: string, limit?: number, offset?: number): Message[];
+  /** 查询 stage 中消息，默认返回最新 limit 条（DESC）；beforeId 用于加载更早消息 */
+  listMessages(stageId: string, limit?: number, beforeId?: number): Message[];
   listMessagesByStatus(status: MessageStatus, limit?: number): Message[];
   updateMessageTargets(messageId: number, toSpeakers: string[]): void;
 

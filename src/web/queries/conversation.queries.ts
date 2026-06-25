@@ -10,7 +10,7 @@ export const conversationQueries = {
       queryFn: () => api("GET /api/stages/:stageId", { params: { stageId } }),
     }),
 
-  messages: (stageId: string, query?: { limit?: number; offset?: number }) =>
+  messages: (stageId: string, query?: { limit?: number; before_id?: number }) =>
     queryOptions({
       queryKey: queryKeys.stages.messages(stageId),
       queryFn: () => api("GET /api/stages/:stageId/messages", { params: { stageId }, query, schema: MessageDtoSchema.array() }),
