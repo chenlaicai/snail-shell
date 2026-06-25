@@ -7,8 +7,7 @@ import { getLogger } from "@infra/logger";
 const log = getLogger({ module: "startup-recovery" });
 
 /**
- * 启动恢复：基于最新消息 + cursor 重新路由。
- * 不依赖 call_signal 表——直接从消息的 to_speakers 派生路由。
+ * 启动恢复：收敛孤儿 streaming 消息，然后从 open stages 的最新消息 to_speakers 重新路由。
  */
 export function startupRecovery(messagePort: MessagePort, stagePort: StagePort, collaboration: IssueCollaboration): void {
   // 1. 收敛孤儿 streaming 消息（服务重启后 activeInvocations 丢失）
