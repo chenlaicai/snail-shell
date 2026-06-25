@@ -50,6 +50,7 @@ doc_kind: spec
 - **first_stage**：`review`（单 stage 入口）
 - **shared_skill**：`cd-shared`（复用特性编号、PR 签名、证据规则）
 - **transitions**：`[]`（无转移边，完成即结束）
+- **SOP 定位**：检视阶段——审查者完成检视并在 PR 上留下结论即为完成，检视意见的修复发生在系统外，由外部 PR 作者自行处理。与 code-delivery 的 review 阶段不同，本 SOP 没有 developer 角色，不追求系统内的检视闭环。
 
 ### 角色定义
 
@@ -68,7 +69,7 @@ doc_kind: spec
 
 | ID | 描述 | required |
 |----|------|----------|
-| rev-01 | 所有检视意见已逐条处理 | true |
+| rev-01 | 两位审查者均已在 PR 上留下完整的检视结论，逐条列出处置状态 | true |
 | rev-02 | 根据变更类型独立执行验证命令，实际输出作为检视证据写入 gate_evidence | true |
 | rev-03 | PR 评论已按签名模板收尾 | true |
 
