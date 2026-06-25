@@ -34,6 +34,8 @@ export class ClaudeCodeStatefulAgent implements AgentRuntimePort {
     onEvent: (event: AgentEvent) => void,
     options: InvokeOptions = {},
   ): Promise<InvokeResult> {
+    log.info({ agentType: this.name, workspacePath: request.workspacePath, messageCount: request.messages.length }, "agent.invocation.started");
+
     // 注入 capabilities（文件系统级别）
     ensureMcpServers(request.capabilities.mcpServers, request.workspacePath, "claude");
     ensureSkillSymlinks(request.workspacePath, request.capabilities.skills);
@@ -227,6 +229,7 @@ export class ClaudeCodeStatefulAgent implements AgentRuntimePort {
     if (stdoutError) throw stdoutError;
 
     if (proc.exitCode !== 0 && !resultContent) {
+      log.error({ agentType: this.name, exitCode: proc.exitCode, stderr: stderr.slice(0, 500) }, "agent.invocation.failed");
       throw new Error(`claude code stateful exited with code ${proc.exitCode}: ${stderr}`);
     }
 
@@ -239,6 +242,7 @@ export class ClaudeCodeStatefulAgent implements AgentRuntimePort {
       throw new Error(`claude code stateful returned no output events${formatDiagnostics(stderr)}`);
     }
 
+    log.info({ agentType: this.name, outputEventCount }, "agent.invocation.completed");
     return {
       sessionId: extractedSessionId,
       waitForStop: () => processController.waitForStop(),

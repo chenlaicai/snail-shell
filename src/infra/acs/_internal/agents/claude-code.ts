@@ -34,9 +34,9 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
     onEvent: (event: AgentEvent) => void,
     options: InvokeOptions = {},
   ): Promise<InvokeResult> {
-    // 注入 capabilities
-    ensureMcpServers(request.capabilities.mcpServers, request.workspacePath, "claude");
-    ensureSkillSymlinks(request.workspacePath, request.capabilities.skills);
+    this.prepareCapabilities(request);
+
+    log.info({ agentType: this.name }, "agent.invocation.started");
 
     // 构建 CLI args
     const args = [
@@ -84,9 +84,7 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
     });
 
     // 读取 stdout 事件
-    let outputEventCount = 0;
-    let resultContent = "";
-    let stderr = "";
+    let outputEventCount = 0, resultContent = "", stderr = "";
     const stdoutDone = this.readOutput(proc, onEvent, () => { outputEventCount++; }, (content) => { resultContent = content; }, options.contextWindow);
     proc.stderr?.on("data", (chunk: Buffer) => {
       stderr += chunk.toString();
@@ -109,6 +107,7 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
     }
 
     if (proc.exitCode !== 0 && !resultContent) {
+      log.error({ agentType: this.name, exitCode: proc.exitCode, stderr: stderr.slice(0, 500) }, "agent.invocation.failed");
       throw new Error(`claude code exited with code ${proc.exitCode}: ${stderr}`);
     }
 
@@ -121,6 +120,7 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
       throw new Error(`claude code returned no output events${formatDiagnostics(stderr)}`);
     }
 
+    log.info({ agentType: this.name, outputEventCount }, "agent.invocation.completed");
     return { waitForStop: () => processController.waitForStop() };
   }
 
@@ -133,6 +133,11 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
   }
 
   // ── 内部方法 ──────────────────────────────────────────────────────
+
+  private prepareCapabilities(request: FirstCallRequest): void {
+    ensureMcpServers(request.capabilities.mcpServers, request.workspacePath, "claude");
+    ensureSkillSymlinks(request.workspacePath, request.capabilities.skills);
+  }
 
   private async readOutput(
     proc: ChildProcess,

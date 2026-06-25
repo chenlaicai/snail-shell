@@ -54,6 +54,8 @@ export class CodexAgent implements AgentRuntimePort {
     onEvent: (event: AgentEvent) => void,
     options: InvokeOptions = {},
   ): Promise<InvokeResult> {
+    log.info({ agentType: this.name, workspacePath: request.workspacePath, messageCount: request.messages.length }, "agent.invocation.started");
+
     // 注入 capabilities（文件系统级别）
     writeCodexGuardConfig(request.guard_profile.deny, request.workspacePath);
     ensureMcpServers(request.capabilities.mcpServers, request.workspacePath, "codex");
@@ -159,6 +161,7 @@ export class CodexAgent implements AgentRuntimePort {
 
     if (state.failed || exitCode !== 0) {
       const errorMsg = stderr || state.rawOutput.join("");
+      log.error({ agentType: this.name, exitCode, stderr: stderr.slice(0, 500) }, "agent.invocation.failed");
       throw new Error(`codex exec failed (exit ${exitCode}): ${errorMsg}`);
     }
 
@@ -173,6 +176,7 @@ export class CodexAgent implements AgentRuntimePort {
       throw new Error(`codex returned no output events${suffix}`);
     }
 
+    log.info({ agentType: this.name, threadId: state.threadId, outputEventCount: state.outputEventCount }, "agent.invocation.completed");
     return { sessionId: state.threadId, waitForStop: () => processController.waitForStop() };
   }
 }

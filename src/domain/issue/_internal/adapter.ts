@@ -15,6 +15,9 @@ import type { IssuePort, StagePort } from "@domain/issue/port";
 import type { IssueRepository, StageRepository, RoleSnailAssignmentRepository } from "@domain/issue/_internal/repository";
 import type { SopPort } from "@domain/sop/port";
 import type { Sop, StageDefinition } from "@domain/sop/model";
+import { getLogger } from "@infra/logger";
+
+const log = getLogger({ module: "issue" });
 
 // ── Issue Adapter ─────────────────────────────────────────────────────
 
@@ -49,6 +52,7 @@ export class IssueAdapter implements IssuePort {
     // merge 语义：保留已有 key，更新/新增传入的 key
     const merged = { ...issue.context, ...context };
     this.issueRepo.updateContext(issueId, merged);
+    log.info({ issueId, updatedKeys: Object.keys(context) }, "issue.context.updated");
   }
 
   createIssue(input: CreateIssueInput): Issue {
@@ -69,6 +73,7 @@ export class IssueAdapter implements IssuePort {
       closed_at: null,
     };
     this.issueRepo.create(issue);
+    log.info({ issueId: issue.id, title: issue.title, sopKey: input.adopted_sop_key, workspacePath: input.workspace_path }, "issue.created");
     return issue;
   }
 
@@ -86,6 +91,7 @@ export class IssueAdapter implements IssuePort {
         this.stageRepo.update(activeStage.id, { left_at: now });
       }
 
+      log.info({ issueId: id, closedAt: now, activeStageId: activeStage?.id ?? null }, "issue.closed");
       return { ...issue, closed_at: now };
     });
   }
@@ -166,6 +172,7 @@ export class StageAdapter implements StagePort {
       left_at: null,
     };
     this.stageRepo.create(stage);
+    log.info({ stageId, key: stageDef.key, issueId: issue.id, roleInstances }, "stage.created");
 
     for (const roleDef of stageDef.roles) {
       const instances = roleDef.count <= 1
@@ -208,6 +215,7 @@ export class StageAdapter implements StagePort {
       current.left_at = leftAt;
       this.stageRepo.update(currentStageId, { left_at: leftAt });
 
+      log.info({ fromStageId: current.id, toStageId: null, targetKey }, "stage.advanced");
       return this.createStageInTransaction({
         issue_id: current.issue_id,
         key: targetKey,
@@ -236,6 +244,7 @@ export class StageAdapter implements StagePort {
       description: latest.description,
       created_at: new Date().toISOString(),
     });
+    log.info({ stageId, roleInstance, newSnailId }, "stage.snail.switch");
   }
 
   setSnailInstanceId(stageId: string, roleInstance: string, snailInstanceId: string): void {

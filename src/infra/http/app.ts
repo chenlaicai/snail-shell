@@ -5,6 +5,7 @@ import { createIssueRoutes } from "@infra/http/routes/issue.route";
 import { createMetaRoutes } from "@infra/http/routes/meta.route";
 import { createKnowledgeRoutes } from "@infra/http/routes/knowledge.route";
 import { createEvolutionRoutes } from "@infra/http/routes/evolution.route";
+import { getLogger } from "@infra/logger";
 import type { WorkspaceAdapter } from "@domain/workspace/_internal/adapter";
 import type { IssuePort, StagePort } from "@domain/issue/port";
 import type { MessagePort } from "@domain/message/port";
@@ -17,6 +18,8 @@ import type { MCPPort } from "@domain/mcp-config/port";
 import type { KnowledgePort } from "@domain/knowledge/port";
 import type { EvolutionPort } from "@domain/evolution/port";
 import type { Hono as HonoApp } from "hono";
+
+const log = getLogger({ module: "http" });
 
 export interface AppDeps {
   workspaceAdapter: WorkspaceAdapter;
@@ -38,6 +41,23 @@ export function createApp(deps: AppDeps) {
   const app = new Hono();
 
   app.use("*", cors());
+
+  // HTTP 请求日志中间件（跳过健康检查路径）
+  app.use("*", async (c, next) => {
+    if (c.req.path === "/health") return next();
+    const start = Date.now();
+    await next();
+    const duration = Date.now() - start;
+    const method = c.req.method;
+    const path = c.req.path;
+    const status = c.res.status;
+    if (status >= 400) {
+      log.error({ method, path, status, duration }, "http.request.error");
+    } else {
+      log.info({ method, path, status, duration }, "http.request.completed");
+    }
+  });
+
   app.route("/", createWorkspaceRoutes(deps.workspaceAdapter));
   app.route("/", createIssueRoutes(deps));
   app.route("/", createMetaRoutes(deps));

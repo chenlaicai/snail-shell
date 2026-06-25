@@ -1,4 +1,7 @@
 import type { ChildProcess } from "child_process";
+import { getLogger } from "@infra/logger";
+
+const log = getLogger({ module: "managed-process" });
 
 // ═══════════════════════════════════════════════════════════
 // 错误类型
@@ -117,6 +120,7 @@ export function manageInvocationProcess(input: {
   const requestStop = (reason: AgentStopReason) => {
     if (stopState.promise || closeState.closed) return;
     stopState.detail = createStopDetail(reason, timing);
+    log.info({ reason, agentName: input.agentName }, "agent.stop.requested");
     clearTimers(lifecycleTimers);
     stopState.promise = runStopProtocol({ ...input, closeState, detail: stopState.detail, processGroupProbe });
   };
@@ -202,10 +206,12 @@ async function runStopProtocol(input: { proc: ChildProcess; agentName: string; c
 async function runStopStage(context: StopContext, stage: StopStage): Promise<boolean> {
   context.detail.phase = stage.phase;
   if (stage.forced) context.detail.forced = true;
+  log.info({ phase: stage.phase, signal: stage.signal, agentName: context.agentName }, "agent.stop.stage");
   sendProcessTreeSignal(context, stage.signal, stage.label);
   if (!await waitForProcessGroupExit(context, stage.timeoutMs)) return false;
   context.detail.phase = "closed";
   context.detail.closed_at = new Date().toISOString();
+  log.info({ phase: "closed", agentName: context.agentName, exitCode: context.detail.exit_code }, "agent.stop.completed");
   return true;
 }
 

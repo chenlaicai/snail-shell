@@ -2,12 +2,15 @@ import { Hono, type Context } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { decodeWorkspaceId, encodeWorkspaceId, toWorkspaceDto } from "@infra/http/workspace-id";
+import { getLogger } from "@infra/logger";
 import type { WorkspaceAdapter } from "@domain/workspace/_internal/adapter";
 import type { IssuePort, StagePort } from "@domain/issue/port";
 import type { MessagePort } from "@domain/message/port";
 import type { CollaborationInput } from "@app/issue-collaboration/port";
 import type { Issue, Stage } from "@domain/issue/model";
 import type { Message } from "@domain/message/model";
+
+const log = getLogger({ module: "http" });
 
 interface IssueRoutesDeps {
   workspaceAdapter: WorkspaceAdapter;
@@ -135,6 +138,7 @@ async function sendMessage(c: Context, deps: IssueRoutesDeps) {
     await deps.collaboration.sendMessage(stageId, body.text, body.from_speaker, body.to_speakers);
   } catch (error) {
     if (error instanceof Error && error.message.startsWith("Issue is closed:")) {
+      log.warn({ stageId, error: error.message }, "issue.send.blocked");
       return c.json({ error: "Issue is closed" }, 409);
     }
     throw error;

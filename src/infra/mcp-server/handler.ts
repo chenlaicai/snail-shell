@@ -1,6 +1,9 @@
 import { Hono } from "hono";
+import { getLogger } from "@infra/logger";
 import type { SnailMCPServerAdapter } from "@domain/snail-mcp-server/_internal/adapter";
 import type { JsonRpcRequest } from "@domain/snail-mcp-server/model";
+
+const log = getLogger({ module: "mcp-server" });
 
 /**
  * MCP HTTP 处理器。
@@ -43,12 +46,13 @@ export function createMcpHandler(adapter: SnailMCPServerAdapter): Hono {
 
   // 处理 JSON-RPC 请求（每个 MCP Server 独立端点）
   app.post("/:serverName", async (c) => {
+    const serverName = c.req.param("serverName");
     try {
-      const serverName = c.req.param("serverName");
       const body = await c.req.json<JsonRpcRequest>();
       const response = await adapter.handleRequest(serverName, body);
       return c.json(response);
     } catch (err) {
+      log.warn({ err, serverName }, "mcp.handler.error");
       return c.json({ jsonrpc: "2.0", error: { code: -32603, message: (err as Error).message } }, 500);
     }
   });
