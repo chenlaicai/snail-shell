@@ -511,7 +511,7 @@ ${transitions || "无"}
 
 你的 spawn cwd 是主仓库路径 \`${issue.workspace_path}\`。每次 Bash 调用都是独立的，cwd 不会持久化。
 
-如果你使用了 EnterWorktree，**必须使用绝对路径**，所有文件操作都以 worktree 路径开头。worktree 路径可通过 Issue context（key: \`worktree_path\`）或环境变量 \`SNAIL_CTX_worktree_path\` 获取。
+如果你进入了 worktree 目录，**必须使用绝对路径**，所有文件操作都以 worktree 路径开头。worktree 路径可通过 Issue context（key: \`worktree_path\`）或环境变量 \`SNAIL_CTX_worktree_path\` 获取。
 </context>`;
   }
 
