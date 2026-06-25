@@ -46,3 +46,7 @@ ls docs/features/YYYY/MM/DD/F*.md 2>/dev/null
 
 - `[Incompatible]` 仅在存在不兼容更新时出现
 - `module` 为小写中划线格式（如 prompt、project-management、web、sop 等）
+
+## 合入阶段 PR 标题编号核对
+
+合入者执行 squash 前，必须核对 PR 标题中的特性编号与当前 Issue 关联的 Feature 文档编号一致。不一致时，合入者必须先修正 PR 标题再 squash。开发者在 Feature 文档编号变化时有主动更新 PR 标题的责任。

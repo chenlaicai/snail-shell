@@ -105,7 +105,7 @@ stage_definitions:
         required: true
       - id: rev-03
         description: PR 评论已按签名模板收尾
-        required: false
+        required: true
     roles:
       - key: developer
         name: 开发者
@@ -147,6 +147,12 @@ stage_definitions:
         required: true
       - id: merge-05
         description: 使用 Squash Merge 合入（禁止普通 merge）
+        required: true
+      - id: merge-06
+        description: PR 标题中的特性编号与当前 Issue 关联的 Feature 文档编号一致
+        required: true
+      - id: merge-07
+        description: PR 评论签名合规（签名格式正确、角色名和 Snail 名称与 system prompt 注入值一致）
         required: true
     roles:
       - key: merger
