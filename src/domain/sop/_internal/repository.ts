@@ -51,21 +51,28 @@ export class FileSopRepository implements SopRepository {
     if (this.findByKey(sop.key)) {
       throw new Error(`SOP with key '${sop.key}' already exists`);
     }
+    const store = this.getStoreForScope(sop);
     const dir = `${FileSopRepository.DIR}/${sop.key}`;
-    this.dataStore.ensureDir(dir);
-    this.dataStore.writeFile(`${dir}/${sop.key}.yaml`, this.serializeSop(sop));
-    this.platformSops.push(sop);
+    store.ensureDir(dir);
+    store.writeFile(`${dir}/${sop.key}.yaml`, this.serializeSop(sop));
+    if (sop.scope === Scope.Workspace && sop.workspace) {
+      const sops = this.workspaceSops.get(sop.workspace.path) ?? [];
+      sops.push(sop);
+      this.workspaceSops.set(sop.workspace.path, sops);
+    } else {
+      this.platformSops.push(sop);
+    }
     return sop;
   }
 
   update(key: string, patch: Partial<Omit<Sop, 'key' | 'scope'>>): Sop {
-    const existing = this.findByKey(key);
+    const { sop: existing, store } = this.findByKeyWithStore(key);
     if (!existing) {
       throw new Error(`SOP with key '${key}' not found`);
     }
     const updated: Sop = { ...existing, ...patch, key };
     const dir = `${FileSopRepository.DIR}/${key}`;
-    this.dataStore.writeFile(`${dir}/${key}.yaml`, this.serializeSop(updated));
+    store.writeFile(`${dir}/${key}.yaml`, this.serializeSop(updated));
 
     // Update in-memory cache
     const platformIdx = this.platformSops.findIndex(s => s.key === key);
@@ -85,11 +92,11 @@ export class FileSopRepository implements SopRepository {
   }
 
   remove(key: string): void {
-    const existing = this.findByKey(key);
+    const { sop: existing, store } = this.findByKeyWithStore(key);
     if (!existing) {
       throw new Error(`SOP with key '${key}' not found`);
     }
-    this.dataStore.deleteDir(`${FileSopRepository.DIR}/${key}`);
+    store.deleteDir(`${FileSopRepository.DIR}/${key}`);
 
     // Update in-memory cache
     const platformIdx = this.platformSops.findIndex(s => s.key === key);
@@ -105,6 +112,23 @@ export class FileSopRepository implements SopRepository {
         }
       }
     }
+  }
+
+  private getStoreForScope(sop: Sop): FileDataStore {
+    if (sop.scope === Scope.Workspace && sop.workspace) {
+      return this.dataStore.workspace(sop.workspace.path);
+    }
+    return this.dataStore;
+  }
+
+  private findByKeyWithStore(key: string): { sop: Sop | undefined; store: FileDataStore } {
+    const platformSop = this.platformSops.find(s => s.key === key);
+    if (platformSop) return { sop: platformSop, store: this.dataStore };
+    for (const [wsPath, sops] of this.workspaceSops) {
+      const wsSop = sops.find(s => s.key === key);
+      if (wsSop) return { sop: wsSop, store: this.dataStore.workspace(wsPath) };
+    }
+    return { sop: undefined, store: this.dataStore };
   }
 
   private loadSopDir(store: FileDataStore): Sop[] {

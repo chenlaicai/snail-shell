@@ -150,6 +150,9 @@ function registerSopRoutes(app: Hono, sop: SopPort) {
 
   app.patch("/api/sops/:sopKey", async (c) => {
     const sopKey = c.req.param("sopKey");
+    if (!KEY_PATTERN.test(sopKey)) {
+      return c.json({ error: "sopKey must match pattern [a-zA-Z0-9_-]+" }, 400);
+    }
     const raw = await c.req.json();
     if ("key" in raw) {
       return c.json({ error: "key cannot be modified" }, 400);
@@ -173,6 +176,9 @@ function registerSopRoutes(app: Hono, sop: SopPort) {
 
   app.delete("/api/sops/:sopKey", (c) => {
     const sopKey = c.req.param("sopKey");
+    if (!KEY_PATTERN.test(sopKey)) {
+      return c.json({ error: "sopKey must match pattern [a-zA-Z0-9_-]+" }, 400);
+    }
     try {
       sop.remove(sopKey);
       return c.json({ ok: true });
