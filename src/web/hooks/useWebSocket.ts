@@ -96,7 +96,13 @@ class EventBatcher {
   private schedule(): void {
     if (this.scheduled) return;
     this.scheduled = true;
-    requestAnimationFrame(() => this.flush());
+    // requestAnimationFrame 在标签页不可见时不触发，用 setTimeout 兜底
+    requestAnimationFrame(() => {
+      if (this.scheduled) this.flush();
+    });
+    setTimeout(() => {
+      if (this.scheduled) this.flush();
+    }, 50);
   }
 
   private applyBatch(stageId: string, batch: StageBatch, old: MessageDto[] | undefined): MessageDto[] {
