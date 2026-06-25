@@ -1,5 +1,5 @@
 ---
-id: F202606257jm9
+id: F20260625bc8d
 title: fix-agent-concurrency-freeze
 from_ids: []
 tags: [collaboration, web, performance, websocket, concurrency, bugfix]
@@ -8,7 +8,7 @@ doc_kind: spec
 change_type: bugfix
 ---
 
-# F202606257jm9 [core][web] 修复多 Agent 并发时系统卡死
+# F20260625bc8d [core][web] 修复多 Agent 并发时系统卡死
 
 ## 背景
 
