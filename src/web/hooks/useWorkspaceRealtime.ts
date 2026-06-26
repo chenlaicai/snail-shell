@@ -1,14 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "../queries/keys";
-import type { IssueDetailDto, ActivityStatus } from "../types";
-
-interface WorkspaceWsMessage {
-  type: "activity_status_changed" | "heartbeat";
-  issue_id?: string;
-  activity_status?: ActivityStatus;
-  ts?: number;
-}
+import type { IssueDetailDto, ActivityStatus, WorkspaceWsMessage } from "../types";
 
 function clearTimer(timer: React.MutableRefObject<ReturnType<typeof setTimeout> | null>): void {
   if (timer.current) {

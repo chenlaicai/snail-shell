@@ -159,12 +159,13 @@ export class IssueCollaboration implements CollaborationInput {
 
   closeIssue(issueId: string): Issue {
     const issue = this.deps.issuePort.closeIssue(issueId);
+    const prevStatus = this.lastActivityStatus.get(issueId) ?? "needs_human";
     this.lastActivityStatus.delete(issueId);  // 清理缓存
     // 通知 workspace consumer：状态变为 completed
     const consumers = this.workspaceConsumers.get(issue.workspace_path);
     if (consumers) {
       for (const consumer of consumers) {
-        consumer.onActivityStatusChanged(issueId, "completed", "needs_human");
+        consumer.onActivityStatusChanged(issueId, "completed", prevStatus);
       }
     }
     return issue;
