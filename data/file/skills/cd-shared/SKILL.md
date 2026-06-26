@@ -2,16 +2,16 @@
 name: cd-shared
 description: |
   代码交付 SOP 的跨角色共享规则。当你的角色属于 code-delivery SOP 的任意阶段时，本 skill 提供特性编号、PR 签名、证据规则和完成标准。
-  触发条件：code-delivery SOP 中的任意角色被激活时自动适用。需要 Snail Shell 环境（`issue_id` 环境变量存在）。
+  触发条件：code-delivery SOP 中的任意角色被激活时自动适用。
+  存在两种运行场景：Snail Shell 环境（`issue_id` 环境变量存在）下完整执行 SOP 规则；原生环境下作为代码交付最佳实践指南使用，跳过 SOP 专有操作。
 ---
 
 # 代码交付共享规则
 
-## 环境检查
+## 环境识别
 
-本 skill 为 SOP 工作流专用。执行前检查 `issue_id` 环境变量是否存在：
-- **存在**：Snail Shell 环境，按以下规则执行。
-- **不存在**：原生环境，本 skill 不适用。跳过 SOP 专有操作（特性编号、PR 签名、stage gate 等），按用户直接指令工作。
+- **`issue_id` 环境变量存在**：Snail Shell 环境，完整执行以下规则，包括特性编号、PR 签名、stage gate 等 SOP 专有操作。
+- **`issue_id` 环境变量不存在**：原生环境，以下规则中的通用部分（worktree 纪律、evidence 规则、完成标准等）仍然适用。SOP 专有操作（特性编号分配、PR 签名模板、stage gate checklist）可跳过。
 
 ## Gotchas（必读）
 

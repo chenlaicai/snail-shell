@@ -2,16 +2,16 @@
 name: cd-review
 description: |
   审查者角色在 review 阶段的工作流程。当你是审查者，需要对 PR 进行对抗性检视时触发。
-  触发条件：review stage 开始、审查者角色被激活、需要执行 PR 审查时。需要 Snail Shell 环境（`issue_id` 环境变量存在）。
+  触发条件：review stage 开始、审查者角色被激活、需要执行 PR 审查时。
+  存在两种运行场景：Snail Shell 环境（`issue_id` 环境变量存在）下按 SOP 工作流执行；原生环境下作为代码审查指南使用。
 ---
 
 # 审查者工作流程
 
-## 环境检查
+## 环境识别
 
-本 skill 为 SOP 工作流专用。执行前检查 `issue_id` 环境变量是否存在：
-- **存在**：Snail Shell 环境，按以下工作流执行。
-- **不存在**：原生环境，本 skill 不适用。你是独立 agent，按用户直接指令工作。
+- **`issue_id` 环境变量存在**：Snail Shell 环境，按以下工作流完整执行。
+- **`issue_id` 环境变量不存在**：原生环境，以下工作流中的通用部分（对抗性检视、交叉审视、gotchas）仍然适用。SOP 专有操作（PR 签名、stage gate evidence、message-payload 通知）可跳过。
 
 ## 前置依赖
 

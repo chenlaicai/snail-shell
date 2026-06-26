@@ -2,16 +2,16 @@
 name: cd-development
 description: |
   开发者角色在 development 阶段的工作流程。当你是开发者，需要基于锁定的 Feature 文档进行编码实现、提交 PR 时触发。
-  触发条件：development stage 开始、开发者角色被激活、需要实现设计方案时。需要 Snail Shell 环境（`issue_id` 环境变量存在）。
+  触发条件：development stage 开始、开发者角色被激活、需要实现设计方案时。
+  存在两种运行场景：Snail Shell 环境（`issue_id` 环境变量存在）下按 SOP 工作流执行；原生环境下作为开发者工作流指南使用。
 ---
 
 # 开发者工作流程
 
-## 环境检查
+## 环境识别
 
-本 skill 为 SOP 工作流专用。执行前检查 `issue_id` 环境变量是否存在：
-- **存在**：Snail Shell 环境，按以下工作流执行。
-- **不存在**：原生环境，本 skill 不适用。你是独立 agent，按用户直接指令工作。
+- **`issue_id` 环境变量存在**：Snail Shell 环境，按以下工作流完整执行。
+- **`issue_id` 环境变量不存在**：原生环境，以下工作流中的通用部分（实现规范、测试规则、代码原则、gotchas）仍然适用。SOP 专有操作（Feature 文档确认、task anchor 设置、PR 提交模板、stage gate）可跳过。
 
 ## 前置依赖
 
