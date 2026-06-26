@@ -292,7 +292,7 @@ export class IssueCollaboration implements CollaborationInput {
         this.deps.stagePort.setSnailInstanceId(stageId, roleInstance, result.snail_instance_id);
       }
 
-      /** 先提取 terminal context（触发 message-payload mentions 存储），再合并路由目标 */
+      /** 先提取 terminal context（触发 message-payload mentions 存储），再按优先级解析路由目标 */
       const context = this.extractTerminalContext(agentMessage.id, "completed");
       this.deps.messagePort.setContext(agentMessage.id, context.kind, context.context);
 
@@ -327,6 +327,7 @@ export class IssueCollaboration implements CollaborationInput {
       throw error;
     } finally {
       this.activeInvocations.delete(agentMessage.id);
+      this.cleanupInMemoryStores(agentMessage.id);
     }
   }
 
@@ -381,6 +382,12 @@ export class IssueCollaboration implements CollaborationInput {
     const payload = this.mapAgentEvent(event);
     const appended = this.deps.messagePort.appendEvent(messageId, payload);
     void this.notifyConsumers(stageId, "onEvent", appended);
+  }
+
+  /** 清理 in-memory store，防止 agent 异常时条目泄漏 */
+  private cleanupInMemoryStores(messageId: number): void {
+    mcpToSpeakersStore.delete(messageId);
+    this.messagePayloadMentionsStore.delete(messageId);
   }
 
   // ── Reply Resolution ────────────────────────────────────────────────

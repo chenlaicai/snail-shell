@@ -5,7 +5,7 @@ import type { StagePort } from "@domain/issue/port";
 /**
  * MCP set_final_body 声明的 to_speakers 暂存区。
  * 生命周期：set_final_body 写入 → invokeAgent 完成后读取并删除。
- * collaboration 层从这里读取 MCP 声明的路由目标，与文本 @mentions 合并后写入 message.to_speakers。
+ * collaboration 层按优先级读取：有 MCP to_speakers 直接使用，不与低优先级来源合并。
  */
 export const mcpToSpeakersStore = new Map<number, string[]>();
 
