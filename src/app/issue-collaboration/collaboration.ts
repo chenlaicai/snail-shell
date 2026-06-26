@@ -102,7 +102,18 @@ export class IssueCollaboration implements CollaborationInput {
     await this.notifyConsumers(stageId, "onMessageCompleted", message, this.deps.messagePort.getContext(message.id));
 
     // Router: 根据 to_speakers 触发下一步
-    await this.route(stageId, message);
+    // fire-and-forget：route → dispatch → invokeAgent 链路可能阻塞数分钟（agent 运行 + 信号量排队），
+    // 如果 await 会导致 HTTP 响应被阻塞，浏览器连接池耗尽后 UI 完全卡死。
+    //
+    // 错误处理：route() 可能因 dispatch 内 getUnreadMessages/advanceCursor 等 DB 操作失败而 reject，
+    // 也可能因 invokeAgent 失败而传播异常（dispatch 内的 try-catch 仅覆盖 invokeAgent 调用）。
+    // 这里用 .catch() 记录日志而非向上传播，因为：
+    //   1. 消息已持久化 + WebSocket 已通知，用户已看到自己的消息
+    //   2. agent 路由失败是后台操作，不应阻塞 HTTP 响应
+    //   3. 与 resumeRoute() 的 try-catch 模式本质相同，区别仅在于 sendMessage 必须 fire-and-forget
+    void this.route(stageId, message).catch((error) => {
+      log.error({ stageId, messageId: message.id, err: error }, "sendMessage: route failed");
+    });
   }
 
   registerIssueConsumer(issueId: string, consumer: CollaborationConsumer): void {
