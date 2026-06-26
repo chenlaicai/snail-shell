@@ -132,12 +132,14 @@ class EventBatcher {
     let changed = false;
 
     // 1. 添加占位消息（message_started + user_called）
+    //    前置插入以保持 DESC 顺序（后端 listByStage 返回 id DESC）
     for (const event of [...batch.messageStarted, ...batch.userCalled]) {
+      // 防止重复插入：WebSocket 可能重发相同事件（网络抖动、重连后重放等）
       if (result.some((m) => m.id === event.message_id)) continue;
-      result = [...result, createPlaceholderMessage(stageId, {
+      result = [createPlaceholderMessage(stageId, {
         id: event.message_id, role: event.role, from_role: event.role_name,
         client_id: event.client_id, status: event.status,
-      })];
+      }), ...result];
       changed = true;
     }
 
