@@ -174,21 +174,29 @@ function ChatMessageInner({ message, onInterrupt }: { message: MessageDto; onInt
 }
 
 export const ChatMessage = React.memo(ChatMessageInner, (prev, next) => {
-  return prev.message.id === next.message.id
-    && prev.message.status === next.message.status
-    && prev.message.content === next.message.content
-    && prev.message.context === next.message.context
-    && prev.message.events === next.message.events
-    && prev.onInterrupt === next.onInterrupt;
+  if (prev.message.id !== next.message.id) return false;
+  if (prev.message.status !== next.message.status) return false;
+  if (prev.message.content !== next.message.content) return false;
+  if (prev.message.context !== next.message.context) return false;
+  if (prev.onInterrupt !== next.onInterrupt) return false;
+  /** 轻量事件比较：length + 最后事件 ID，避免引用比较在结构共享失败时误判 */
+  const prevEvents = prev.message.events;
+  const nextEvents = next.message.events;
+  if (prevEvents === nextEvents) return true;
+  if (prevEvents.length !== nextEvents.length) return false;
+  if (prevEvents.length === 0) return true;
+  return prevEvents[prevEvents.length - 1].id === nextEvents[nextEvents.length - 1].id;
 });
 
-/** 流式过程折叠区：展示所有事件类型（含 text event），流式过程和最终答复是两个独立展示区域 */
+/** 流式过程折叠区：展示除 text 外的事件类型（text 已在最终答复区展示），流式过程和最终答复是两个独立展示区域 */
 function EventStream({ events, expanded, onToggle }: { events: MessageEvent[]; expanded: boolean; onToggle: () => void }) {
+  /** 过滤 text events（已在最终答复区展示），减少 EventStream 渲染量 */
   const { filteredEvents, toolCalls, commands } = useMemo(() => {
+    const filtered = events.filter((e) => e.payload?.type !== "text");
     return {
-      filteredEvents: events,
-      toolCalls: events.filter((e) => e.payload?.type === "tool_call").length,
-      commands: events.filter((e) => e.payload?.type === "command").length,
+      filteredEvents: filtered,
+      toolCalls: filtered.filter((e) => e.payload?.type === "tool_call").length,
+      commands: filtered.filter((e) => e.payload?.type === "command").length,
     };
   }, [events]);
 
