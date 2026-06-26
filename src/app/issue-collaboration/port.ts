@@ -49,7 +49,7 @@ export interface CollaborationInput {
   listStageTransitionSuggestions(stageId: string): StageTransitionSuggestion[];
   advanceStage(stageId: string, targetKey: string): Promise<Stage>;
   rollbackStage(stageId: string, targetKey: string): Promise<Stage>;
-  getStageAuditTrail(stageId: string): Promise<StageAuditRecord[]>;
+  getStageAuditTrail(stageId: string): StageAuditRecord[];
   closeIssue(issueId: string): Issue;
   /** 查询 stage 是否有 agent 正在执行（用于 activity_status 判断） */
   isInvoking(stageId: string): boolean;

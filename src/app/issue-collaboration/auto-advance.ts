@@ -45,7 +45,7 @@ export class AutoAdvanceEngine {
     const reviewRound = (disagreement.review_round ?? 0) + 1;
     disagreement.review_round = reviewRound;
     await this.deps.generateDisagreementCard(stageId, disagreement);
-    if (reviewRound > 2) {
+    if (reviewRound > 1) {
       log.warn({ stageId, reviewRound }, "review round exceeds threshold");
     }
   }

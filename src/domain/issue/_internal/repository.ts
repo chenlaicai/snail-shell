@@ -277,24 +277,31 @@ export class SQLiteStageRepository implements StageRepository {
       const current = this.findById(currentStageId);
       if (!current) throw new Error(`Stage not found: ${currentStageId}`);
 
-      // 查找目标 stage（from_stage_id 指向当前 stage 的下一个 stage）
-      const targetStage = this.db.get<StageRow>(
-        `SELECT * FROM stage WHERE from_stage_id = ? AND key = ?`,
-        [currentStageId, targetKey]
-      );
-
-      if (targetStage) {
-        // 如果目标 stage 已存在，删除它（回退）
-        this.db.run(`DELETE FROM stage WHERE id = ?`, [targetStage.id]);
+      // 找到前一个 stage（当前 stage 的 from_stage_id）
+      if (!current.from_stage_id) {
+        throw new Error(`Cannot rollback: stage ${currentStageId} has no previous stage`);
       }
 
-      // 清除当前 stage 的 left_at
-      this.db.run(`UPDATE stage SET left_at = NULL WHERE id = ?`, [currentStageId]);
+      const previousStage = this.findById(current.from_stage_id);
+      if (!previousStage) {
+        throw new Error(`Cannot rollback: previous stage ${current.from_stage_id} not found`);
+      }
 
-      const updated = this.findById(currentStageId);
-      if (!updated) throw new Error(`Stage not found after rollback: ${currentStageId}`);
+      // 验证前一个 stage 的 key 是否匹配目标 key
+      if (previousStage.key !== targetKey) {
+        throw new Error(`Cannot rollback: previous stage key "${previousStage.key}" does not match target "${targetKey}"`);
+      }
 
-      log.info({ stageId: currentStageId, targetKey }, "stage.rollback");
+      // 删除当前 stage
+      this.db.run(`DELETE FROM stage WHERE id = ?`, [currentStageId]);
+
+      // 清除前一个 stage 的 left_at
+      this.db.run(`UPDATE stage SET left_at = NULL WHERE id = ?`, [previousStage.id]);
+
+      const updated = this.findById(previousStage.id);
+      if (!updated) throw new Error(`Stage not found after rollback: ${previousStage.id}`);
+
+      log.info({ fromStageId: currentStageId, toStageId: previousStage.id, targetKey }, "stage.rollback");
       return updated;
     });
   }

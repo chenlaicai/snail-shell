@@ -229,11 +229,11 @@ export class StageAdapter implements StagePort {
     return this.stageRepo.rollbackStage(currentStageId, targetKey);
   }
 
-  async recordAudit(audit: StageAuditRecord): Promise<void> {
+  recordAudit(audit: StageAuditRecord): void {
     this.stageRepo.recordAudit(audit);
   }
 
-  async getAuditTrail(stageId: string): Promise<StageAuditRecord[]> {
+  getAuditTrail(stageId: string): StageAuditRecord[] {
     return this.stageRepo.getAuditTrail(stageId);
   }
 

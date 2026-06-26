@@ -47,10 +47,10 @@ export interface StagePort {
   rollbackStage(currentStageId: string, targetKey: string): Stage;
 
   /** 记录审计轨迹 */
-  recordAudit(audit: StageAuditRecord): Promise<void>;
+  recordAudit(audit: StageAuditRecord): void;
 
   /** 获取审计轨迹 */
-  getAuditTrail(stageId: string): Promise<StageAuditRecord[]>;
+  getAuditTrail(stageId: string): StageAuditRecord[];
 
   /** 切换 snail：追加新 RoleSnailAssignment 记录（seq+1） */
   switchSnail(stageId: string, roleInstance: string, newSnailId: string): void;
