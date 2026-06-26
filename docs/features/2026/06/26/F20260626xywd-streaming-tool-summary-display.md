@@ -1,5 +1,5 @@
 ---
-id: F20260625e5tj
+id: F20260626xywd
 title: streaming-tool-summary-display
 from_ids: [F20260624ax7k]
 tags: [web, streaming, ux, bugfix, infra, workflow]
@@ -7,7 +7,7 @@ modules: [web, infra]
 doc_kind: spec
 ---
 
-# F20260625e5tj [web/infra] 流式 tool_call 展示优化 + 设计规则补强
+# F20260626xywd [web/infra] 流式 tool_call 展示优化 + 设计规则补强
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 <!-- 进入实现阶段后不得单方面修改，如需变更须通过问题卡片向用户提出并确认 -->

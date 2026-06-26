@@ -10,30 +10,11 @@ shared_skill: cd-shared
 stage_definitions:
   - key: design
     title: 需求对齐与设计
-    sequence: 1
     description: |
+      两位架构师交叉审视需求，产出锁定的 Feature 文档。
       GATE-1: 必须先创建 worktree 并切换到 worktree 目录，再进行任何文件操作。
       验证：pwd 输出必须包含 .snail/worktrees/。
       违反 GATE-1 的任何产出（feature 文档、代码）必须迁移到 worktree 后才能继续。
-    input_description: 用户需求描述。
-    output_description: >
-      两位架构师交叉审视需求，产出锁定的 Feature 文档。产物要求：
-      Feature 文档的 [design-time] 章节（背景、目标、非目标、设计、生效路径）已完成并锁定；
-      无未解决的设计争议；关键设计取舍有正反两面论述记录。
-    acceptance_focus:
-      - 两位架构师是否均明确表示设计方案可接受
-      - Feature 文档的 [design-time] 章节是否已锁定
-      - 是否有未解决的设计争议
-    acceptance_checklist:
-      - id: design-01
-        description: Feature 文档的 [design-time] 章节已锁定
-        required: true
-      - id: design-02
-        description: 无未解决的设计争议
-        required: true
-      - id: design-03
-        description: 关键设计取舍有正反两面论述记录
-        required: false
     roles:
       - key: designer
         name: 架构师
