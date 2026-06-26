@@ -191,7 +191,7 @@ SELECT * FROM message WHERE stage_id = ? AND id < ? ORDER BY id DESC LIMIT 50
 - `src/web/pages/IssueConversation.tsx` — 消息列表：反转显示顺序，实现上拉加载逻辑（含滚动到顶部检测）
 
 **测试**：
-- 更新相关测试用例
+- 后端 `listByStage` 和 `listMessages` 当前无独立测试文件，不在本 PR 补充范围内
 
 ## 设计决策
 

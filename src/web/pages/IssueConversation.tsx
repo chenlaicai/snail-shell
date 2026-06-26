@@ -59,7 +59,7 @@ export function IssueConversation() {
 
   // 上拉加载更早的历史消息
   const [olderHistory, setOlderHistory] = useState<MessageDto[]>([]);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const isLoadingHistoryRef = useRef(false);
   const allHistoryLoadedRef = useRef(false);
   const prevStageIdRef = useRef<string | null>(null);
 
@@ -104,8 +104,8 @@ export function IssueConversation() {
 
   /** 加载更早的历史消息：cursor-based 翻页，加载后保持滚动位置不变 */
   const loadMoreHistory = useCallback(async () => {
-    if (isLoadingHistory || allHistoryLoadedRef.current || !stageId || sorted.length === 0) return;
-    setIsLoadingHistory(true);
+    if (isLoadingHistoryRef.current || allHistoryLoadedRef.current || !stageId || sorted.length === 0) return;
+    isLoadingHistoryRef.current = true;
     try {
       const earliestId = sorted[0].id;
       const older = await api("GET /api/stages/:stageId/messages", {
@@ -128,9 +128,9 @@ export function IssueConversation() {
         el.scrollTop = prevScrollTop + (newScrollHeight - prevScrollHeight);
       });
     } finally {
-      setIsLoadingHistory(false);
+      isLoadingHistoryRef.current = false;
     }
-  }, [isLoadingHistory, stageId, sorted]);
+  }, [stageId, sorted]);
 
   /** 更新滚动状态 + 滚动到顶部时触发加载更早消息 */
   const handleScroll = useCallback(() => {
