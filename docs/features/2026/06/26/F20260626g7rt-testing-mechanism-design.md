@@ -161,7 +161,7 @@ Snail Shell 基于 hexagonal architecture，port 的实现就是 side effect（W
 - 目录：`tests/golden/<module>/`
 - 格式：JSON（diff-friendly）
 - 更新机制：`UPDATE_GOLDEN=1 npx vitest run` 时自动更新快照
-- 实现：轻量封装 `expect(actual).toMatchGolden('path/to/golden.json')`，约 50 行代码
+- 实现：轻量封装 `expect(actual).toMatchGolden('path/to/golden.json')`，约 35 行代码
 
 **Property-based testing**：
 - 依赖：`fast-check`
@@ -176,7 +176,7 @@ Snail Shell 基于 hexagonal architecture，port 的实现就是 side effect（W
 | `eslint.config.mjs` L45-52 | `tests/**/*.ts` 规则块 | 保留（复用） |
 | `package.json` | 无 `test` script | 新增 `"test": "vitest run"` |
 | `package.json` | `prompt:evaluate` 引用不存在的脚本 | 删除或注释 |
-| `.github/pull_request_template.md` L32 | `npm run test` checkbox | 保留（将恢复功能） |
+| `.github/pull_request_template.md` L32 | `npm run test` checkbox | 已存在，无需修改 |
 | `README.md` L108-113 | `npm run test` 文档 | 更新为实际命令 |
 
 ### P2 详设：SOP 对齐
@@ -247,8 +247,7 @@ Snail Shell 基于 hexagonal architecture，port 的实现就是 side effect（W
 | `data/file/skills/cd-review/references/adversarial-check.md` | 修改 | 测试质量检查更新 |
 | `data/file/skills/cd-shared/references/evidence-rules.md` | 修改 | 增加测试类型验证命令 |
 | `README.md` | 修改 | 更新测试命令文档 |
-| `.github/pull_request_template.md` | 修改 | 保留 test checkbox（恢复功能） |
-| `tests/` | 新增 | 测试目录（初始为空，随 feature 按需添加） |
+| `tests/` | 新增 | 测试目录和 golden-file 工具 |
 
 ## 验证
 
