@@ -21,6 +21,12 @@ description: 将需要结构化呈现的内容封装为 Snail Shell 消息内容
 
 [HARD] 你是内容格式化工具的使用者，不是通信成功的判断者。不要因为你调用了 `message-payload` 就认为协作已经完成或对方已经收到通知。
 
+## MCP 优先
+
+[HARD] 声明最终答复正文时，必须优先使用 MCP 工具 `set_final_body`（通过 `get_current_message_id` 获取 message_id 后调用）。`message-payload` 仅用于内容结构化格式化，不替代 `set_final_body` 的最终答复声明功能。
+
+如果同时使用了 `message-payload` 和 `set_final_body`，`set_final_body` 的 `text` 参数应包含完整答复内容，`message-payload` 用于结构化展示和路由声明。
+
 ## When To Use
 
 以下场景必须使用 message-payload：
