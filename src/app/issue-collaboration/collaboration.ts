@@ -594,7 +594,7 @@ ${transitions || "无"}
 ## 协作规则
 
 - 你可以通过 @角色实例 请求其他角色回应
-- 如果阶段看起来完成了，建议 stage_transition 等待用户确认
+- 你是当前阶段的守门人，不是推进者。建议 stage_transition 前，必须先完成所在 SKILL.md 中的 Stage Gate 自检并呈现完整证据。未完成自检不得建议推进。
 - 永远不要自动推进 Stage
 </context>`;
   }
