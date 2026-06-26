@@ -15,6 +15,8 @@ import { useIssueRealtime } from "@/hooks/useWebSocket";
 import { useSendMessage } from "@/mutations/conversation.mutations";
 import type { IssueDetailDto, StageDetailDto, MessageDto } from "@/types";
 
+const SCROLL_THRESHOLD = 80;
+
 export function IssueConversation() {
   const { workspaceId, issueId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -103,9 +105,10 @@ export function IssueConversation() {
   const totalSize = virtualizer.getTotalSize();
   useLayoutEffect(() => {
     const el = scrollRef.current;
-    if (!el) return;
-    if (wasAtBottomRef.current) {
-      el.scrollTop = el.scrollHeight;
+    if (!el || sorted.length === 0) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < SCROLL_THRESHOLD;
+    if (atBottom || wasAtBottomRef.current) {
+      virtualizer.scrollToIndex(sorted.length - 1, { align: 'end' });
     }
   }, [sorted, totalSize]);
 
@@ -143,15 +146,14 @@ export function IssueConversation() {
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const threshold = 80;
-    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < SCROLL_THRESHOLD;
     wasAtBottomRef.current = atBottom;
 
     // smooth scroll 动画期间忽略中间位置，避免按钮闪烁
     if (isSmoothScrollingRef.current) return;
 
     // 更新滚动位置状态
-    if (el.scrollTop < threshold) {
+    if (el.scrollTop < SCROLL_THRESHOLD) {
       setScrollPosition('top');
     } else if (atBottom) {
       setScrollPosition('bottom');
@@ -160,7 +162,7 @@ export function IssueConversation() {
     }
 
     // 滚动到顶部时自动加载更早的历史消息
-    if (el.scrollTop < threshold) {
+    if (el.scrollTop < SCROLL_THRESHOLD) {
       loadMoreHistory();
     }
   }, [loadMoreHistory]);
