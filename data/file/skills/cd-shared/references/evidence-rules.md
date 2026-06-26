@@ -21,6 +21,6 @@ task_anchor 中有 `verification_commands` 时，按其执行。没有时，按�
 | `rename` | `grep -r "旧名字" <受影响目录>` | 输出为 0 匹配 |
 | `migration` | 列出所有消费者，逐一确认已切换 | 每条消费者确认结果（路径/命令 + 结果） |
 | `config-sync` | 列出关联配置对，逐条读取对比 | 每个配置对的关键字段值一致（附实际值） |
-| `refactor` | 启动验证 + 核心路径 smoke test | 启动日志/测试输出 |
-| `feature` | 正向 + 边界 case 验证 | 执行结果 |
+| `refactor` | `npm run check` + `npm run test` + 核心路径 smoke test | 编译输出 + 测试输出 + 启动日志 |
+| `feature` | `npm run check` + `npm run test` + 正向 + 边界 case 验证 | 编译输出 + 测试输出 + 执行结果 |
 | `bugfix` | 复现步骤确认修复 + 回归检查 | 修复前后对比 |
