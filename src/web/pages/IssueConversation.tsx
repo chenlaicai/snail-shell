@@ -94,8 +94,10 @@ export function IssueConversation() {
   });
 
   // 只在用户已经在底部时自动滚动，避免打断用户阅读历史消息
-  // useLayoutEffect 保证在 DOM 变更后、浏览器绘制前执行，避免新消息与上一条重叠
-  // 依赖 sorted + totalSize：sorted 变化触发首次滚动，totalSize 变化（虚拟器测量后）再次修正
+  // useLayoutEffect + totalSize 双依赖：虚拟器先用 estimateSize 估算高度渲染，再通过
+  // ref 回调测量实际 DOM 高度并触发 re-render。如果只依赖 sorted，滚动在测量前执行，
+  // scrollHeight 基于估算值；测量后 translateY 位置修正了但滚动位置未更新 → 消息重叠。
+  // 加入 totalSize 依赖后，测量完成引起的 re-render 会再次触发滚动，用实际高度修正位置。
   const totalSize = virtualizer.getTotalSize();
   useLayoutEffect(() => {
     const el = scrollRef.current;
