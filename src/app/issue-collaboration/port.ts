@@ -6,6 +6,23 @@ export interface CreateIssueResult {
   stage: Stage;
 }
 
+export interface Position {
+  speaker: string;
+  stance: "for" | "against" | "neutral";
+  argument: string;
+  evidence?: string;
+}
+
+export interface StageAuditRecord {
+  stage_id: string;
+  from_key: string;
+  to_key: string;
+  trigger: "auto" | "manual";
+  trigger_reason: string;
+  consensus_content: string;
+  timestamp: number;
+}
+
 export interface StageTransitionSuggestion {
   stage_id: string;
   message_id: number;
@@ -15,6 +32,10 @@ export interface StageTransitionSuggestion {
   guard: string | null;
   artifacts: Record<string, string>;
   created_at: string;
+  consensus?: boolean;
+  positions?: Position[];
+  review_round?: number;
+  gate_evidence?: Record<string, unknown>;
 }
 
 export interface CollaborationInput {
@@ -27,6 +48,8 @@ export interface CollaborationInput {
   unregisterWorkspaceConsumer(workspaceId: string, consumer: WorkspaceConsumer): void;
   listStageTransitionSuggestions(stageId: string): StageTransitionSuggestion[];
   advanceStage(stageId: string, targetKey: string): Promise<Stage>;
+  rollbackStage(stageId: string, targetKey: string): Promise<Stage>;
+  getStageAuditTrail(stageId: string): Promise<StageAuditRecord[]>;
   closeIssue(issueId: string): Issue;
   /** 查询 stage 是否有 agent 正在执行（用于 activity_status 判断） */
   isInvoking(stageId: string): boolean;
@@ -42,6 +65,9 @@ export interface CollaborationConsumer {
   onMessageCompleted(stageId: string, message: Message, context: MessageContext | null): void | Promise<void>;
   onUserCalled(stageId: string, message: Message): void | Promise<void>;
   onStageTransitionSuggested?(stageId: string, suggestion: StageTransitionSuggestion): void | Promise<void>;
+  onMergeReady?(stageId: string, data: { suggestions: StageTransitionSuggestion[] }): void | Promise<void>;
+  onDisagreement?(stageId: string, suggestion: StageTransitionSuggestion): void | Promise<void>;
+  onAutoAdvanced?(stageId: string, data: { from: string; to: string; reason: string }): void | Promise<void>;
 }
 
 export interface WorkspaceConsumer {

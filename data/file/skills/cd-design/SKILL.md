@@ -67,3 +67,50 @@ description: |
 
 4. 确认所有标 ✅ 的 required 项均有实质性证据后，才可在消息中包含 stage_transition 建议
 5. 存在未通过项时，不得建议推进，应继续解决设计争议
+
+## 信号协议
+
+完成 Gate 自检后，通过结构化信号表达阶段工作结果：
+
+### 共识信号（两个架构师都认可）
+
+```json
+{
+  "stage_transition": {
+    "target_key": "development",
+    "consensus": true,
+    "reason": "设计文档已锁定，无未解决争议",
+    "guard": "design-01: Feature 文档已锁定; design-02: 无未解决争议",
+    "gate_evidence": {
+      "design-01": "docs/features/2026/06/26/F20260626m4vx.md 已锁定",
+      "design-02": "所有争议已解决"
+    }
+  }
+}
+```
+
+### 分歧信号（存在争议）
+
+```json
+{
+  "stage_transition": {
+    "target_key": "development",
+    "consensus": false,
+    "reason": "关于自动推进条件存在分歧",
+    "positions": [
+      {
+        "speaker": "architect-1",
+        "stance": "for",
+        "argument": "应该使用客观条件判断",
+        "evidence": "第二轮红蓝对抗 #5"
+      },
+      {
+        "speaker": "architect-2",
+        "stance": "against",
+        "argument": "需要引入风险等级",
+        "evidence": "复杂任务需要更细粒度控制"
+      }
+    ]
+  }
+}
+```

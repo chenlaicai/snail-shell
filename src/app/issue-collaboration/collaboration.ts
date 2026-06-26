@@ -1,13 +1,17 @@
 import type { Message, MessageContext, MessageEvent, MessageEventPayload } from "@domain/message/model";
 import type { MessagePort } from "@domain/message/port";
-import type { IssuePort, StagePort } from "@domain/issue/port";
+import type { IssuePort, StagePort, StageAuditRecord } from "@domain/issue/port";
 import type { CreateIssueInput, Issue, Stage } from "@domain/issue/model";
 import type { RoleDefinition } from "@domain/sop/model";
 import type { SnailPort } from "@domain/snail/port";
 import type { SnailFirstCallRequest, SnailResumeRequest } from "@domain/snail/model";
 import type { LiteAIPort } from "@domain/lite-ai/port";
 import type { AgentEvent, Message as AgentMessage, InvokeOptions } from "@infra/acs/model";
-import type { CollaborationConsumer, CollaborationInput, CreateIssueResult, StageTransitionSuggestion, WorkspaceConsumer } from "@app/issue-collaboration/port";
+import type { CollaborationConsumer, CollaborationInput, CreateIssueResult, Position, StageTransitionSuggestion, WorkspaceConsumer } from "@app/issue-collaboration/port";
+import { AutoAdvanceEngine } from "@app/issue-collaboration/auto-advance";
+import { ConsumerNotifier } from "@app/issue-collaboration/consumer-notifier";
+import { MessageHandler } from "@app/issue-collaboration/message-handler";
+import { CollaborationHelpers } from "@app/issue-collaboration/helpers";
 import { getLogger } from "@infra/logger";
 
 const log = getLogger({ module: "collaboration" });
@@ -45,12 +49,28 @@ export class IssueCollaboration implements CollaborationInput {
   private readonly suggestions = new Map<string, StageTransitionSuggestion[]>();
   private readonly maxCollaborationRounds: number;
   private readonly activeInvocations = new Map<number, AbortController>();
+  private readonly autoAdvanceEngine: AutoAdvanceEngine;
+  private readonly consumerNotifier: ConsumerNotifier;
+  private readonly messageHandler: MessageHandler;
+  private readonly helpers: CollaborationHelpers;
 
   /** Router per-speaker dispatch state, key = `${stageId}:${speaker}` */
   private readonly dispatchStates = new Map<string, DispatchState>();
 
   constructor(private readonly deps: CollaborationDeps) {
     this.maxCollaborationRounds = deps.maxCollaborationRounds ?? 30;
+    this.consumerNotifier = new ConsumerNotifier();
+    this.helpers = new CollaborationHelpers(deps.issuePort, deps.stagePort, deps.messagePort);
+    this.messageHandler = new MessageHandler({
+      getContext: (messageId) => this.deps.messagePort.getContext(messageId)
+    });
+    this.autoAdvanceEngine = new AutoAdvanceEngine({
+      advanceStage: (stageId, targetKey) => this.advanceStage(stageId, targetKey),
+      recordAuditTrail: (fromStage, toStage, suggestion) => this.recordAuditTrail(fromStage, toStage, suggestion),
+      notifyConsumers: (stageId, method, ...args) => this.notifyConsumers(stageId, method as keyof CollaborationConsumer, ...args),
+      generateDisagreementCard: (stageId, suggestion) => this.generateDisagreementCard(stageId, suggestion),
+      mustGetIssue: (issueId) => this.helpers.mustGetIssue(issueId)
+    });
   }
 
   // ── Public API ──────────────────────────────────────────────────────
@@ -431,25 +451,106 @@ export class IssueCollaboration implements CollaborationInput {
     suggestions.push(suggestion);
     this.suggestions.set(stage.id, suggestions);
     await this.notifyConsumers(stage.id, "onStageTransitionSuggested", suggestion);
+    await this.autoAdvanceEngine.evaluate(stage, suggestions);
+    // 清理已处理的信号（自动推进成功时）
+    if (!this.suggestions.has(stage.id)) return;
+    // 如果自动推进成功，suggestions 已被清理
+  }
+
+  private async recordAuditTrail(fromStage: Stage, toStage: Stage, suggestion: StageTransitionSuggestion): Promise<void> {
+    const audit: StageAuditRecord = {
+      stage_id: fromStage.id,
+      from_key: fromStage.key,
+      to_key: toStage.key,
+      trigger: "auto",
+      trigger_reason: suggestion.reason,
+      consensus_content: suggestion.guard ?? "",
+      timestamp: Date.now()
+    };
+    await this.deps.stagePort.recordAudit(audit);
+  }
+
+  private async generateDisagreementCard(stageId: string, suggestion: StageTransitionSuggestion): Promise<void> {
+    const positions = suggestion.positions ?? [];
+    const options = positions.map(p => ({
+      label: `${p.speaker}: ${p.stance}`,
+      description: p.argument
+    }));
+
+    await this.notifyConsumers(stageId, "onDisagreement", {
+      ...suggestion,
+      question: {
+        text: suggestion.reason,
+        options
+      }
+    });
+  }
+
+  async rollbackStage(stageId: string, targetKey: string): Promise<Stage> {
+    const stage = this.deps.stagePort.rollbackStage(stageId, targetKey);
+    this.cleanupDispatchStates(stageId);
+    this.suggestions.delete(stageId);
+    this.initStageCursors(stage);
+    return stage;
+  }
+
+  async getStageAuditTrail(stageId: string): Promise<StageAuditRecord[]> {
+    return this.deps.stagePort.getAuditTrail(stageId);
   }
 
   private extractStageTransitionSuggestion(stage: Stage, roleInstance: string, messageId: number): StageTransitionSuggestion | null {
     for (const event of this.deps.messagePort.getMessageEvents(messageId)) {
-      if (event.payload.type === "signal" && typeof event.payload.stage_transition === "object" && event.payload.stage_transition) {
-        const payload = event.payload.stage_transition as Record<string, unknown>;
-        const targetKey = String(payload.target_key ?? payload.to ?? "");
-        if (!targetKey || !stage.available_transitions.some(transition => transition.to === targetKey)) continue;
-        return this.makeStageTransitionSuggestion({ stage, roleInstance, messageId, targetKey, reason: payload.reason, guard: payload.guard });
-      }
-
-      if (event.payload.type === "text") {
-        const parsed = this.tryParseStageTransition(event.payload.text);
-        if (parsed?.target_key && stage.available_transitions.some(transition => transition.to === parsed.target_key)) {
-          return this.makeStageTransitionSuggestion({ stage, roleInstance, messageId, targetKey: parsed.target_key, reason: parsed.reason, guard: parsed.guard });
-        }
+      const payload = this.extractSignalPayload(event, stage);
+      if (payload) {
+        return this.makeStageTransitionSuggestion({
+          stage, roleInstance, messageId, targetKey: payload.targetKey,
+          reason: payload.reason,
+          guard: payload.guard,
+          consensus: payload.consensus,
+          positions: payload.positions,
+          gate_evidence: payload.gate_evidence
+        });
       }
     }
     return null;
+  }
+
+  private extractSignalPayload(event: MessageEvent, stage: Stage): { targetKey: string; reason: unknown; guard: unknown; consensus?: boolean; positions?: Position[]; gate_evidence?: Record<string, unknown> } | null {
+    if (event.payload.type === "signal" && typeof event.payload.stage_transition === "object" && event.payload.stage_transition) {
+      return this.extractFromSignalPayload(event.payload.stage_transition as Record<string, unknown>, stage);
+    }
+
+    if (event.payload.type === "text") {
+      return this.extractFromTextPayload(event.payload.text, stage);
+    }
+
+    return null;
+  }
+
+  private extractFromSignalPayload(payload: Record<string, unknown>, stage: Stage): { targetKey: string; reason: unknown; guard: unknown; consensus?: boolean; positions?: Position[]; gate_evidence?: Record<string, unknown> } | null {
+    const targetKey = String(payload.target_key ?? payload.to ?? "");
+    if (!targetKey || !stage.available_transitions.some(transition => transition.to === targetKey)) return null;
+    return {
+      targetKey,
+      reason: payload.reason,
+      guard: payload.guard,
+      consensus: typeof payload.consensus === "boolean" ? payload.consensus : undefined,
+      positions: Array.isArray(payload.positions) ? payload.positions as Position[] : undefined,
+      gate_evidence: typeof payload.gate_evidence === "object" ? payload.gate_evidence as Record<string, unknown> : undefined
+    };
+  }
+
+  private extractFromTextPayload(text: string, stage: Stage): { targetKey: string; reason: unknown; guard: unknown; consensus?: boolean; positions?: Position[]; gate_evidence?: Record<string, unknown> } | null {
+    const parsed = this.tryParseStageTransition(text);
+    if (!parsed?.target_key || !stage.available_transitions.some(transition => transition.to === parsed.target_key)) return null;
+    return {
+      targetKey: parsed.target_key,
+      reason: parsed.reason,
+      guard: parsed.guard,
+      consensus: typeof parsed.consensus === "boolean" ? parsed.consensus : undefined,
+      positions: Array.isArray(parsed.positions) ? parsed.positions as Position[] : undefined,
+      gate_evidence: typeof parsed.gate_evidence === "object" ? parsed.gate_evidence as Record<string, unknown> : undefined
+    };
   }
 
   private makeStageTransitionSuggestion(input: {
@@ -459,8 +560,11 @@ export class IssueCollaboration implements CollaborationInput {
     targetKey: string;
     reason: unknown;
     guard: unknown;
+    consensus?: boolean;
+    positions?: Position[];
+    gate_evidence?: Record<string, unknown>;
   }): StageTransitionSuggestion {
-    const { stage, roleInstance, messageId, targetKey, reason, guard } = input;
+    const { stage, roleInstance, messageId, targetKey, reason, guard, consensus, positions, gate_evidence } = input;
     const transition = stage.available_transitions.find(item => item.to === targetKey);
     return {
       stage_id: stage.id,
@@ -471,12 +575,15 @@ export class IssueCollaboration implements CollaborationInput {
       guard: typeof guard === "string" ? guard : transition?.guard ?? null,
       artifacts: { ...stage.output_artifacts },
       created_at: new Date().toISOString(),
+      consensus,
+      positions,
+      gate_evidence
     };
   }
 
-  private tryParseStageTransition(text: string): { target_key?: string; reason?: string; guard?: string | null } | null {
+  private tryParseStageTransition(text: string): { target_key?: string; reason?: string; guard?: string | null; consensus?: boolean; positions?: Position[]; gate_evidence?: Record<string, unknown> } | null {
     try {
-      const parsed = JSON.parse(text) as { stage_transition?: { target_key?: string; reason?: string; guard?: string | null } };
+      const parsed = JSON.parse(text) as { stage_transition?: { target_key?: string; reason?: string; guard?: string | null; consensus?: boolean; positions?: Position[]; gate_evidence?: Record<string, unknown> } };
       return parsed.stage_transition ?? null;
     } catch {
       log.debug({ textLength: text.length }, "stage_transition.parse.skipped");
@@ -622,39 +729,19 @@ ${transitions || "无"}
 
 - 你可以通过 @角色实例 请求其他角色回应
 - 你是当前阶段的守门人，不是推进者。建议 stage_transition 前，必须先完成所在 SKILL.md 中的 Stage Gate 自检并呈现完整证据。未完成自检不得建议推进。
-- 永远不要自动推进 Stage
+- 通过信号表达阶段工作结果：
+  - \`consensus: true\` — 对抗达成共识，建议推进
+  - \`consensus: false\` — 存在分歧，需要用户决策
+  - \`consensus: true\` + \`gate_evidence\` — Gate 自检完成（单人完成场景）
 </context>`;
   }
 
   private toAgentMessage(message: Message): AgentMessage {
-    const context = this.deps.messagePort.getContext(message.id);
-    const prefix = message.to_speakers.length > 0 ? `${message.to_speakers.map(target => `@${target}`).join(" ")} ` : "";
-    return {
-      role: message.from_speaker === "user" ? "human" : message.from_speaker === "system" || message.from_speaker === null ? "system" : "agent",
-      speaker: message.from_speaker ?? "system",
-      content: `${prefix}${context?.context ?? ""}`.trim(),
-    };
+    return this.messageHandler.toAgentMessage(message) as AgentMessage;
   }
 
   private mapAgentEvent(event: AgentEvent): MessageEventPayload {
-    const agentEvent = event.event;
-    if (agentEvent.kind === "text") {
-      return { type: "text", text: agentEvent.payload.text };
-    }
-    if (agentEvent.kind === "tool_call") {
-      return { type: "tool_call", tool_name: agentEvent.payload.tool_name, tool_input: agentEvent.payload.input };
-    }
-    if (agentEvent.kind === "tool_result") {
-      return { type: "tool_result", tool_name: "tool", result: agentEvent.payload.output };
-    }
-    if (agentEvent.kind === "signal") {
-      const data = typeof agentEvent.payload.data === "object" && agentEvent.payload.data ? agentEvent.payload.data as Record<string, unknown> : {};
-      return { type: "signal", signal: agentEvent.payload.signal_type, ...data };
-    }
-    if (agentEvent.kind === "error") {
-      return { type: "error", error: agentEvent.payload.message };
-    }
-    return { type: "error", error: agentEvent.payload.error };
+    return this.messageHandler.mapAgentEvent(event);
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────
@@ -675,69 +762,33 @@ ${transitions || "无"}
   }
 
   private initStageCursors(stage: Stage): void {
-    this.deps.messagePort.initCursor(stage.id, "user");
-    for (const roleInstance of stage.role_instances) {
-      this.deps.messagePort.initCursor(stage.id, roleInstance);
-    }
+    this.helpers.initStageCursors(stage);
   }
 
   private createInitialStage(issue: Issue, stageKey = issue.sop_snapshot.stage_definitions[0]?.key): Stage {
-    if (!stageKey) throw new Error(`No stage definitions found for issue: ${issue.id}`);
-    const stage = this.deps.stagePort.createStage({
-      issue_id: issue.id,
-      key: stageKey,
-    });
-    this.initStageCursors(stage);
-    return stage;
+    return this.helpers.createInitialStage(issue, stageKey);
   }
 
   private mustGetStage(stageId: string): Stage {
-    const stage = this.deps.stagePort.findStage(stageId);
-    if (!stage) throw new Error(`Stage not found: ${stageId}`);
-    return stage;
+    return this.helpers.mustGetStage(stageId);
   }
 
   private mustGetIssue(issueId: string): Issue {
-    const issue = this.deps.issuePort.findIssue(issueId);
-    if (!issue) throw new Error(`Issue not found: ${issueId}`);
-    return issue;
+    return this.helpers.mustGetIssue(issueId);
   }
 
   private mustGetMessage(messageId: number): Message {
-    const message = this.deps.messagePort.getMessage(messageId);
-    if (!message) throw new Error(`Message not found: ${messageId}`);
-    return message;
+    return this.helpers.mustGetMessage(messageId);
   }
 
   private assertIssueOpen(issueId: string): void {
-    const issue = this.deps.issuePort.findIssue(issueId);
-    if (issue?.closed_at) throw new Error(`Issue is closed: ${issueId}`);
+    this.helpers.assertIssueOpen(issueId);
   }
 
   private async notifyConsumers(stageId: string, method: keyof CollaborationConsumer, ...args: unknown[]): Promise<void> {
     const stage = this.mustGetStage(stageId);
-    const consumers = [...(this.issueConsumers.get(stage.issue_id) ?? [])];
-    await Promise.allSettled(consumers.map(async consumer => {
-      if (method === "onMessageStarted" && consumer.onMessageStarted) {
-        await consumer.onMessageStarted(stageId, args[0] as Message);
-        return;
-      }
-      if (method === "onEvent" && consumer.onEvent) {
-        await consumer.onEvent(stageId, args[0] as MessageEvent);
-        return;
-      }
-      if (method === "onMessageCompleted") {
-        await consumer.onMessageCompleted(stageId, args[0] as Message, args[1] as MessageContext | null);
-        return;
-      }
-      if (method === "onUserCalled") {
-        await consumer.onUserCalled(stageId, args[0] as Message);
-        return;
-      }
-      if (method === "onStageTransitionSuggested" && consumer.onStageTransitionSuggested) {
-        await consumer.onStageTransitionSuggested(stageId, args[0] as StageTransitionSuggestion);
-      }
-    }));
+    const consumers = this.issueConsumers.get(stage.issue_id) ?? new Set<CollaborationConsumer>();
+    await this.consumerNotifier.notifyConsumers(consumers, stageId, method, args);
 
     // 通知 workspace consumer：activity_status 变化
     const issue = this.deps.issuePort.findIssue(stage.issue_id);
