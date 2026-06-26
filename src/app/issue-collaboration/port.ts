@@ -64,3 +64,7 @@ export interface CollaborationConsumer {
 export interface WorkspaceConsumer {
   onActivityStatusChanged(issueId: string, activityStatus: "ai_running" | "needs_human" | "completed", previousStatus: "ai_running" | "needs_human" | "completed"): void;
 }
+
+export interface WorkspaceConsumer {
+  onActivityStatusChanged(issueId: string, activityStatus: "ai_running" | "needs_human" | "completed", previousStatus: "ai_running" | "needs_human" | "completed"): void;
+}
