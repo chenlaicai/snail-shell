@@ -340,4 +340,5 @@ tryParseJsonPayload(text) {
 | 2 | `to_speakers` 是否必填 | 必选。Agent 调用 `set_final_body` 时必须声明路由目标，消除"忘记传"的风险 | 2026-06-25 |
 | 3 | JSON payload 识别范围 | 仅限 `format === "blocks"` 且有 `fallback_text`，避免误解析 | 2026-06-25 |
 | 4 | 一步查询 vs 两步调用 | 选择两步方案：`get_current_message_id` + `set_final_body`。链路透明 > 调用次数，Agent 获取 message_id 后可复用 | 2026-06-25 |
-| 5 | P1 路由机制适配 F20260625swf8 | `call_signal` 表已删除，改用 in-memory store 传递 `to_speakers` 到 collaboration 层，合并后写入 `message.to_speakers`，由 Router `route()` 触发 dispatch | 2026-06-25 |
+| 5 | P1 路由机制适配 F20260625swf8 | `call_signal` 表已删除，改用 in-memory store 传递 `to_speakers` 到 collaboration 层，写入 `message.to_speakers`，由 Router `route()` 触发 dispatch | 2026-06-25 |
+| 6 | **[纠错]** 路由目标是严格优先级，不是合并 | 开发者错误地将 MCP to_speakers、message-payload mentions、文本 @mentions 合并去重。正确逻辑：有 MCP 用 MCP，没有才降级到 message-payload，再没有才降级到文本提取。不存在"合并"。此错误源于对业务语义的误解——路由目标是"谁该行动"的声明，不是多个来源的并集 | 2026-06-26 |

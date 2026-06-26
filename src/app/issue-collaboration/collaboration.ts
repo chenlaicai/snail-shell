@@ -296,7 +296,7 @@ export class IssueCollaboration implements CollaborationInput {
       const context = this.extractTerminalContext(agentMessage.id, "completed");
       this.deps.messagePort.setContext(agentMessage.id, context.kind, context.context);
 
-      const targets = this.resolveMergedTargets(stage, roleInstance, agentMessage.id);
+      const targets = this.resolveReplyTargets(stage, roleInstance, agentMessage.id);
       this.deps.messagePort.updateMessageTargets(agentMessage.id, targets);
       this.deps.messagePort.completeMessage(agentMessage.id, "completed");
       const completedMessage = this.mustGetMessage(agentMessage.id);
@@ -386,16 +386,23 @@ export class IssueCollaboration implements CollaborationInput {
   // ── Reply Resolution ────────────────────────────────────────────────
 
   /**
-   * 合并三个来源的路由目标：MCP set_final_body 的 to_speakers、message-payload 的 blocks[0].mentions、文本 @mentions。
-   * 三个来源各自读后即删，合并去重。
+   * 按优先级解析路由目标（严格优先级，不合并）：
+   * 1. MCP set_final_body 的 to_speakers（最高优先级）
+   * 2. message-payload 的 blocks[0].mentions
+   * 3. 文本 @mentions（最低优先级）
+   *
+   * 有高优先级来源时直接返回，不与低优先级合并。
    */
-  private resolveMergedTargets(stage: Stage, roleInstance: string, messageId: number): string[] {
+  private resolveReplyTargets(stage: Stage, roleInstance: string, messageId: number): string[] {
     const mcpToSpeakers = mcpToSpeakersStore.get(messageId);
     mcpToSpeakersStore.delete(messageId);
+    if (mcpToSpeakers && mcpToSpeakers.length > 0) return mcpToSpeakers;
+
     const payloadMentions = this.messagePayloadMentionsStore.get(messageId);
     this.messagePayloadMentionsStore.delete(messageId);
-    const textMentions = this.resolveReplies(stage, roleInstance, messageId);
-    return [...new Set([...(mcpToSpeakers ?? []), ...(payloadMentions ?? []), ...textMentions])];
+    if (payloadMentions && payloadMentions.length > 0) return payloadMentions;
+
+    return this.resolveReplies(stage, roleInstance, messageId);
   }
 
   private resolveReplies(stage: Stage, roleInstance: string, messageId: number): string[] {
