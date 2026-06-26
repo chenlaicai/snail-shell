@@ -7,7 +7,7 @@ import type { SnailPort } from "@domain/snail/port";
 import type { SnailFirstCallRequest, SnailResumeRequest } from "@domain/snail/model";
 import type { LiteAIPort } from "@domain/lite-ai/port";
 import type { AgentEvent, Message as AgentMessage, InvokeOptions } from "@infra/acs/model";
-import type { CollaborationConsumer, CollaborationInput, CreateIssueResult, StageTransitionSuggestion } from "@app/issue-collaboration/port";
+import type { CollaborationConsumer, CollaborationInput, CreateIssueResult, StageTransitionSuggestion, WorkspaceConsumer } from "@app/issue-collaboration/port";
 import { getLogger } from "@infra/logger";
 
 const log = getLogger({ module: "collaboration" });
@@ -40,6 +40,8 @@ interface DispatchState {
 
 export class IssueCollaboration implements CollaborationInput {
   private readonly issueConsumers = new Map<string, Set<CollaborationConsumer>>();
+  private readonly workspaceConsumers = new Map<string, Set<WorkspaceConsumer>>();
+  private readonly lastActivityStatus = new Map<string, "ai_running" | "needs_human" | "completed">();  // issueId → status
   private readonly suggestions = new Map<string, StageTransitionSuggestion[]>();
   private readonly maxCollaborationRounds: number;
   private readonly activeInvocations = new Map<number, AbortController>();
@@ -131,6 +133,19 @@ export class IssueCollaboration implements CollaborationInput {
     if (consumers.size === 0) this.issueConsumers.delete(issueId);
   }
 
+  registerWorkspaceConsumer(workspaceId: string, consumer: WorkspaceConsumer): void {
+    const consumers = this.workspaceConsumers.get(workspaceId) ?? new Set<WorkspaceConsumer>();
+    consumers.add(consumer);
+    this.workspaceConsumers.set(workspaceId, consumers);
+  }
+
+  unregisterWorkspaceConsumer(workspaceId: string, consumer: WorkspaceConsumer): void {
+    const consumers = this.workspaceConsumers.get(workspaceId);
+    if (!consumers) return;
+    consumers.delete(consumer);
+    if (consumers.size === 0) this.workspaceConsumers.delete(workspaceId);
+  }
+
   listStageTransitionSuggestions(stageId: string): StageTransitionSuggestion[] {
     return [...(this.suggestions.get(stageId) ?? [])];
   }
@@ -143,7 +158,16 @@ export class IssueCollaboration implements CollaborationInput {
   }
 
   closeIssue(issueId: string): Issue {
-    return this.deps.issuePort.closeIssue(issueId);
+    const issue = this.deps.issuePort.closeIssue(issueId);
+    this.lastActivityStatus.delete(issueId);  // 清理缓存
+    // 通知 workspace consumer：状态变为 completed
+    const consumers = this.workspaceConsumers.get(issue.workspace_path);
+    if (consumers) {
+      for (const consumer of consumers) {
+        consumer.onActivityStatusChanged(issueId, "completed", "needs_human");
+      }
+    }
+    return issue;
   }
 
   /** 启动恢复用：重新路由一条已完成消息的 to_speakers */
@@ -640,6 +664,20 @@ ${transitions || "无"}
 
   // ── Helpers ─────────────────────────────────────────────────────────
 
+  /** 通知 workspace consumer：activity_status 实际变化时才触发 */
+  private notifyWorkspaceStatusChange(issueId: string, newStatus: "ai_running" | "needs_human" | "completed"): void {
+    const prev = this.lastActivityStatus.get(issueId);
+    if (prev === newStatus) return;  // 无变化，跳过
+    this.lastActivityStatus.set(issueId, newStatus);
+    const issue = this.deps.issuePort.findIssue(issueId);
+    if (!issue) return;
+    const consumers = this.workspaceConsumers.get(issue.workspace_path);
+    if (!consumers) return;
+    for (const consumer of consumers) {
+      consumer.onActivityStatusChanged(issueId, newStatus, prev!);
+    }
+  }
+
   private initStageCursors(stage: Stage): void {
     this.deps.messagePort.initCursor(stage.id, "user");
     for (const roleInstance of stage.role_instances) {
@@ -704,5 +742,12 @@ ${transitions || "无"}
         await consumer.onStageTransitionSuggested(stageId, args[0] as StageTransitionSuggestion);
       }
     }));
+
+    // 通知 workspace consumer：activity_status 变化
+    const issue = this.deps.issuePort.findIssue(stage.issue_id);
+    if (issue && !issue.closed_at) {
+      const newStatus = this.getActivityStatus(stageId, issue.closed_at);
+      this.notifyWorkspaceStatusChange(stage.issue_id, newStatus);
+    }
   }
 }

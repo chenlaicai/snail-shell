@@ -7,12 +7,16 @@ import { TopBar } from "@/components/TopBar";
 import { IssueCard } from "@/components/IssueCard";
 import { NewIssueDialog } from "@/components/NewIssueDialog";
 import { groupByActivityStatus, activityStatusColumns } from "@/lib/issue-utils";
+import { useWorkspaceRealtime } from "@/hooks/useWorkspaceRealtime";
 import type { IssueDetailDto } from "@/types";
 
 export function IssueBoard() {
   const { workspaceId } = useParams();
   const navigate = useNavigate();
   const [showNewIssue, setShowNewIssue] = useState(false);
+
+  // Workspace 级实时订阅：单个 WebSocket 连接覆盖整个 workspace 的 issue 状态变化
+  useWorkspaceRealtime(workspaceId ?? null);
 
   const { data: workspace, isLoading: wsLoading } = useQuery({
     queryKey: queryKeys.workspaces.detail(workspaceId ?? ""),

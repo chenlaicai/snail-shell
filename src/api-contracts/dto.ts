@@ -105,6 +105,10 @@ export type IssueRealtimeMessage = {
 export type WsHeartbeatMessage = { type: "heartbeat"; issue_id: string; ts: number };
 export type WsServerMessage = IssueRealtimeMessage | WsHeartbeatMessage;
 
+export type WorkspaceWsMessage =
+  | { type: "activity_status_changed"; issue_id: string; activity_status: ActivityStatus; previous_status: ActivityStatus }
+  | { type: "heartbeat"; ts: number };
+
 type MessageStatus = "streaming" | "completed" | "failed" | "interrupted" | "cancelled";
 type MessageRole = "user" | "assistant" | "system";
 
