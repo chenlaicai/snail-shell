@@ -131,6 +131,8 @@ export class SnailAdapter implements SnailPort {
       guard_profile: guardProfile,
       messages: request.messages,
       workspacePath: request.workspace_path,
+      snailKey,
+      messageId: request.context?.message_id != null ? String(request.context.message_id) : undefined,
     }, onEvent, invokeOptions);
 
     // 记录 session_id
@@ -180,7 +182,7 @@ export class SnailAdapter implements SnailPort {
     const invokeOptions = this.buildOptions(snail, options);
 
     const result = await agent.invokeResume(
-      { sessionId, systemReminder: request.system_reminder ?? "", messages: request.messages, workspacePath: request.workspace_path },
+      { sessionId, systemReminder: request.system_reminder ?? "", messages: request.messages, workspacePath: request.workspace_path, snailKey: instance.snail_key, messageId: request.messageId },
       onEvent,
       invokeOptions,
     );

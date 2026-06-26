@@ -34,9 +34,10 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
     onEvent: (event: AgentEvent) => void,
     options: InvokeOptions = {},
   ): Promise<InvokeResult> {
-    // 注入 capabilities
-    ensureMcpServers(request.capabilities.mcpServers, request.workspacePath, "claude");
-    ensureSkillSymlinks(request.workspacePath, request.capabilities.skills);
+    setupCapabilities(request);
+
+    const startTime = Date.now();
+    log.info({ agentType: this.name, snailKey: request.snailKey, messageId: request.messageId, workspacePath: request.workspacePath, messageCount: request.messages.length }, "agent.invocation.started");
 
     // 构建 CLI args
     const args = [
@@ -84,9 +85,7 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
     });
 
     // 读取 stdout 事件
-    let outputEventCount = 0;
-    let resultContent = "";
-    let stderr = "";
+    let outputEventCount = 0, resultContent = "", stderr = "";
     const stdoutDone = this.readOutput(proc, onEvent, () => { outputEventCount++; }, (content) => { resultContent = content; }, options.contextWindow);
     proc.stderr?.on("data", (chunk: Buffer) => {
       stderr += chunk.toString();
@@ -96,19 +95,10 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
     this.writeMessages(proc, request.messages, request.prompt.systemReminder);
 
     // 等待完成
-    try {
-      await stdoutDone;
-      proc.stdin?.end();
-      await new Promise<void>(resolve => proc.on("close", () => {
-        processController.cleanup();
-        resolve();
-      }));
-      await processController.throwIfStopped();
-    } finally {
-      if (promptFilePath) cleanupFile(promptFilePath);
-    }
+    await this.waitAndCleanup(proc, stdoutDone, processController, promptFilePath);
 
     if (proc.exitCode !== 0 && !resultContent) {
+      log.error({ agentType: this.name, snailKey: request.snailKey, messageId: request.messageId, exitCode: proc.exitCode, stderr: stderr.slice(0, 500) }, "agent.invocation.failed");
       throw new Error(`claude code exited with code ${proc.exitCode}: ${stderr}`);
     }
 
@@ -121,6 +111,7 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
       throw new Error(`claude code returned no output events${formatDiagnostics(stderr)}`);
     }
 
+    log.info({ agentType: this.name, snailKey: request.snailKey, messageId: request.messageId, outputEventCount, duration: Date.now() - startTime }, "agent.invocation.completed");
     return { waitForStop: () => processController.waitForStop() };
   }
 
@@ -194,6 +185,25 @@ export class ClaudeCodeAgent implements AgentRuntimePort {
       proc.stdin.write(JSON.stringify(data) + "\n");
     }
   }
+
+  private async waitAndCleanup(proc: ChildProcess, stdoutDone: Promise<void>, processController: ReturnType<typeof manageInvocationProcess>, promptFilePath: string | null): Promise<void> {
+    try {
+      await stdoutDone;
+      proc.stdin?.end();
+      await new Promise<void>(resolve => proc.on("close", () => {
+        processController.cleanup();
+        resolve();
+      }));
+      await processController.throwIfStopped();
+    } finally {
+      if (promptFilePath) cleanupFile(promptFilePath);
+    }
+  }
+}
+
+function setupCapabilities(request: FirstCallRequest): void {
+  ensureMcpServers(request.capabilities.mcpServers, request.workspacePath, "claude");
+  ensureSkillSymlinks(request.workspacePath, request.capabilities.skills);
 }
 
 function cleanupFile(filePath: string): void {

@@ -102,7 +102,18 @@ export class IssueCollaboration implements CollaborationInput {
     await this.notifyConsumers(stageId, "onMessageCompleted", message, this.deps.messagePort.getContext(message.id));
 
     // Router: 根据 to_speakers 触发下一步
-    await this.route(stageId, message);
+    // fire-and-forget：route → dispatch → invokeAgent 链路可能阻塞数分钟（agent 运行 + 信号量排队），
+    // 如果 await 会导致 HTTP 响应被阻塞，浏览器连接池耗尽后 UI 完全卡死。
+    //
+    // 错误处理：route() 可能因 dispatch 内 getUnreadMessages/advanceCursor 等 DB 操作失败而 reject，
+    // 也可能因 invokeAgent 失败而传播异常（dispatch 内的 try-catch 仅覆盖 invokeAgent 调用）。
+    // 这里用 .catch() 记录日志而非向上传播，因为：
+    //   1. 消息已持久化 + WebSocket 已通知，用户已看到自己的消息
+    //   2. agent 路由失败是后台操作，不应阻塞 HTTP 响应
+    //   3. 与 resumeRoute() 的 try-catch 模式本质相同，区别仅在于 sendMessage 必须 fire-and-forget
+    void this.route(stageId, message).catch((error) => {
+      log.error({ stageId, messageId: message.id, err: error }, "sendMessage: route failed");
+    });
   }
 
   registerIssueConsumer(issueId: string, consumer: CollaborationConsumer): void {
@@ -326,7 +337,7 @@ export class IssueCollaboration implements CollaborationInput {
       workspace_path: issue.workspace_path, messages: agentMessages, systemReminder: systemReminder || undefined,
       context: { issue_id: issue.id, stage_id: stage.id, message_id: String(agentMessage.id), stage_key: stage.key, role_instance: roleInstance, ...issue.context },
     };
-    const resumeRequest = { workspace_path: issue.workspace_path, messages: agentMessages, system_reminder: systemReminder };
+    const resumeRequest = { workspace_path: issue.workspace_path, messages: agentMessages, system_reminder: systemReminder, messageId: String(agentMessage.id) };
     const onEvent = (event: AgentEvent) => this.handleAgentEvent(stageId, agentMessage.id, event);
 
     return assignment.snail_instance_id
@@ -348,6 +359,7 @@ export class IssueCollaboration implements CollaborationInput {
       return await this.deps.snailPort.invokeResume(input.snailInstanceId, input.resumeRequest, input.onEvent, input.invokeOptions);
     } catch (error) {
       if (!this.isMissingSnailInstanceError(error, input.snailInstanceId)) throw error;
+      log.warn({ snailInstanceId: input.snailInstanceId, snailKey: input.snailKey, stageId: input.stageId }, "invokeResume.instance_missing.fallback");
       const result = await this.deps.snailPort.invokeFirstCall(input.snailKey, input.firstCallRequest, input.onEvent, input.invokeOptions);
       this.deps.stagePort.setSnailInstanceId(input.stageId, input.roleInstance, result.snail_instance_id);
       return result;
@@ -445,6 +457,7 @@ export class IssueCollaboration implements CollaborationInput {
       const parsed = JSON.parse(text) as { stage_transition?: { target_key?: string; reason?: string; guard?: string | null } };
       return parsed.stage_transition ?? null;
     } catch {
+      log.debug({ textLength: text.length }, "stage_transition.parse.skipped");
       return null;
     }
   }
@@ -477,7 +490,8 @@ export class IssueCollaboration implements CollaborationInput {
       const parsed = JSON.parse(answer) as unknown;
       if (!Array.isArray(parsed)) return [];
       return parsed.filter((item): item is string => typeof item === "string" && item !== fromSpeaker && stage.role_instances.includes(item));
-    } catch {
+    } catch (err) {
+      log.warn({ err, stageId: stage.id }, "mention.resolve.failed");
       return [];
     }
   }

@@ -4,28 +4,11 @@
 
 name: 知识问答助理
 description: 通用知识问答场景，AI 助理负责意图理解、信息检索、梳理归纳和结构化回答。
-first_stage: chat
 
 stage_definitions:
   - key: chat
     title: 对话
-    sequence: 1
-    input_description: 用户提出的问题或需求。
-    output_description: >
-      AI 助理理解用户意图，通过模型知识或网络搜索获取信息，
-      梳理归纳后给出结构化回答。产物要求：用户问题已得到回答；
-      使用外部信息时来源已标注；有存疑的点已向用户追问而非猜测。
-    acceptance_focus:
-      - 用户问题是否已得到回答
-      - 使用外部信息时来源是否已标注
-      - 有存疑的点是否已向用户追问
-    acceptance_checklist:
-      - id: chat-01
-        description: 用户问题已得到回答
-        required: true
-      - id: chat-02
-        description: 使用外部信息时来源已标注
-        required: false
+    description: AI 助理理解用户意图，通过模型知识或网络搜索获取信息，梳理归纳后给出结构化回答。
     roles:
       - key: assistant
         name: 助理

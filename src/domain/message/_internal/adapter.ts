@@ -44,8 +44,8 @@ export class MessageAdapter implements MessagePort {
     return this.messageRepo.findById(id);
   }
 
-  listMessages(stageId: string, limit?: number, offset?: number): Message[] {
-    return this.messageRepo.listByStage(stageId, limit, offset);
+  listMessages(stageId: string, limit?: number, beforeId?: number): Message[] {
+    return this.messageRepo.listByStage(stageId, limit, beforeId);
   }
 
   listMessagesByStatus(status: MessageStatus, limit?: number): Message[] {
