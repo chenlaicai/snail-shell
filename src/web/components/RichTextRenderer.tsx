@@ -122,12 +122,15 @@ function incrementalSplitMermaidBlocks(
   if (last < newContent.length) blockCount++;
 
   if (blockCount <= cachedBlocks.length) {
-    /** block 数未变：最后一个 block 有新内容，替换它 */
-    const result = cachedBlocks.slice(0, cachedBlocks.length - 1);
     const lastCached = cachedBlocks[cachedBlocks.length - 1];
-    const tailContent = newContent.slice(cachedContent.length);
-    result.push({ type: lastCached.type, content: lastCached.content + tailContent });
-    return result;
+    if (lastCached.type === "markdown") {
+      /** block 数未变且尾部是 markdown：直接追加 tail */
+      const result = cachedBlocks.slice(0, cachedBlocks.length - 1);
+      const tailContent = newContent.slice(cachedContent.length);
+      result.push({ type: "markdown", content: lastCached.content + tailContent });
+      return result;
+    }
+    // 尾部是 mermaid：tail 一定是新 block 的开始，走全量重建
   }
 
   /** block 数增加：从缓存重建完整内容后全量拆分（缓存的 mermaid block 不含 fence，需还原） */

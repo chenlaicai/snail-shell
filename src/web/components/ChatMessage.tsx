@@ -188,7 +188,7 @@ export const ChatMessage = React.memo(ChatMessageInner, (prev, next) => {
   return prevEvents[prevEvents.length - 1].id === nextEvents[nextEvents.length - 1].id;
 });
 
-/** 流式过程折叠区：展示所有事件类型（含 text event），流式过程和最终答复是两个独立展示区域 */
+/** 流式过程折叠区：展示除 text 外的事件类型（text 已在最终答复区展示），流式过程和最终答复是两个独立展示区域 */
 function EventStream({ events, expanded, onToggle }: { events: MessageEvent[]; expanded: boolean; onToggle: () => void }) {
   /** 过滤 text events（已在最终答复区展示），减少 EventStream 渲染量 */
   const { filteredEvents, toolCalls, commands } = useMemo(() => {
