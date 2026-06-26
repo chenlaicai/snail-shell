@@ -1,6 +1,6 @@
 import { useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { api } from "@/services/api-client";
 import { queryKeys } from "@/queries/keys";
@@ -94,13 +94,16 @@ export function IssueConversation() {
   });
 
   // 只在用户已经在底部时自动滚动，避免打断用户阅读历史消息
-  useEffect(() => {
+  // useLayoutEffect 保证在 DOM 变更后、浏览器绘制前执行，避免新消息与上一条重叠
+  // 依赖 sorted + totalSize：sorted 变化触发首次滚动，totalSize 变化（虚拟器测量后）再次修正
+  const totalSize = virtualizer.getTotalSize();
+  useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     if (wasAtBottomRef.current) {
-      requestAnimationFrame(() => el.scrollTop = el.scrollHeight);
+      el.scrollTop = el.scrollHeight;
     }
-  }, [sorted]);
+  }, [sorted, totalSize]);
 
   /** 加载更早的历史消息：cursor-based 翻页，加载后保持滚动位置不变 */
   const loadMoreHistory = useCallback(async () => {
