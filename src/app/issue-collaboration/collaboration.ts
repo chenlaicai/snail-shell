@@ -614,8 +614,9 @@ ${transitions || "无"}
     if (!issue) return;
     const consumers = this.workspaceConsumers.get(issue.workspace_path);
     if (!consumers) return;
+    const previousStatus = prev ?? "needs_human";
     for (const consumer of consumers) {
-      consumer.onActivityStatusChanged(issueId, newStatus, prev!);
+      consumer.onActivityStatusChanged(issueId, newStatus, previousStatus);
     }
   }
 
