@@ -167,6 +167,18 @@ describe("IssueCollaboration", () => {
 
       expect(allMentions).toEqual(["开发者"]);
     });
+
+    it("merges MCP to_speakers, message-payload mentions, and text mentions", () => {
+      /** 模拟三个来源的合并：MCP + message-payload blocks[0].mentions + 文本 @mentions */
+      mcpToSpeakersStore.set(1, ["开发者"]);
+      const payloadMentions = ["审查者"];
+      const textMentions = ["开发者", "user"];
+      const mcpToSpeakers = mcpToSpeakersStore.get(1);
+      mcpToSpeakersStore.delete(1);
+      const allMentions = [...new Set([...(mcpToSpeakers ?? []), ...payloadMentions, ...textMentions])];
+
+      expect(allMentions).toEqual(["开发者", "审查者", "user"]);
+    });
   });
 
   // ── B6: 未调用 set_final_body 时仅从文本提取 mentions ──
@@ -197,7 +209,7 @@ describe("IssueCollaboration", () => {
     });
   });
 
-  // ── B7: JSON payload 含 fallback_text 时提取 fallback_text ──
+  // ── B7: JSON payload 含 fallback_text 时提取 fallback_text + mentions ──
   describe("B7: JSON payload fallback extraction", () => {
     it("extracts fallback_text from format=blocks JSON", () => {
       const jsonPayload = JSON.stringify({
@@ -210,7 +222,21 @@ describe("IssueCollaboration", () => {
       const tryExtract = (collaboration as any).tryExtractJsonPayloadFallback.bind(collaboration);
       const result = tryExtract(jsonPayload);
 
-      expect(result).toBe("这是降级文本");
+      expect(result).toEqual({ fallback: "这是降级文本", mentions: [] });
+    });
+
+    it("extracts mentions from blocks[0].mentions", () => {
+      const jsonPayload = JSON.stringify({
+        format: "blocks",
+        fallback_text: "请处理",
+        blocks: [{ type: "text", text: "请处理", mentions: ["开发者", "审查者"] }],
+      });
+
+      const { collaboration } = createCollaboration();
+      const tryExtract = (collaboration as any).tryExtractJsonPayloadFallback.bind(collaboration);
+      const result = tryExtract(jsonPayload);
+
+      expect(result).toEqual({ fallback: "请处理", mentions: ["开发者", "审查者"] });
     });
 
     it("returns null for JSON without format=blocks", () => {

@@ -48,6 +48,9 @@ export class IssueCollaboration implements CollaborationInput {
   /** Router per-speaker dispatch state, key = `${stageId}:${speaker}` */
   private readonly dispatchStates = new Map<string, DispatchState>();
 
+  /** message-payload JSON 提取的 mentions 暂存区（extractTerminalContext 写入，resolveMergedTargets 读取） */
+  private readonly messagePayloadMentionsStore = new Map<number, string[]>();
+
   constructor(private readonly deps: CollaborationDeps) {
     this.maxCollaborationRounds = deps.maxCollaborationRounds ?? 30;
   }
@@ -289,11 +292,12 @@ export class IssueCollaboration implements CollaborationInput {
         this.deps.stagePort.setSnailInstanceId(stageId, roleInstance, result.snail_instance_id);
       }
 
-      const targets = this.resolveMergedTargets(stage, roleInstance, agentMessage.id);
-      this.deps.messagePort.updateMessageTargets(agentMessage.id, targets);
-
+      /** 先提取 terminal context（触发 message-payload mentions 存储），再合并路由目标 */
       const context = this.extractTerminalContext(agentMessage.id, "completed");
       this.deps.messagePort.setContext(agentMessage.id, context.kind, context.context);
+
+      const targets = this.resolveMergedTargets(stage, roleInstance, agentMessage.id);
+      this.deps.messagePort.updateMessageTargets(agentMessage.id, targets);
       this.deps.messagePort.completeMessage(agentMessage.id, "completed");
       const completedMessage = this.mustGetMessage(agentMessage.id);
 
@@ -382,14 +386,16 @@ export class IssueCollaboration implements CollaborationInput {
   // ── Reply Resolution ────────────────────────────────────────────────
 
   /**
-   * 合并 MCP set_final_body 声明的 to_speakers 与文本 @mentions。
-   * MCP to_speakers 从 in-memory store 读取（读后即删），与文本提取结果去重合并。
+   * 合并三个来源的路由目标：MCP set_final_body 的 to_speakers、message-payload 的 blocks[0].mentions、文本 @mentions。
+   * 三个来源各自读后即删，合并去重。
    */
   private resolveMergedTargets(stage: Stage, roleInstance: string, messageId: number): string[] {
     const mcpToSpeakers = mcpToSpeakersStore.get(messageId);
     mcpToSpeakersStore.delete(messageId);
+    const payloadMentions = this.messagePayloadMentionsStore.get(messageId);
+    this.messagePayloadMentionsStore.delete(messageId);
     const textMentions = this.resolveReplies(stage, roleInstance, messageId);
-    return [...new Set([...(mcpToSpeakers ?? []), ...textMentions])];
+    return [...new Set([...(mcpToSpeakers ?? []), ...(payloadMentions ?? []), ...textMentions])];
   }
 
   private resolveReplies(stage: Stage, roleInstance: string, messageId: number): string[] {
@@ -467,14 +473,21 @@ export class IssueCollaboration implements CollaborationInput {
   }
 
   /**
-   * 识别 message-payload JSON 格式并提取 fallback_text。
+   * 识别 message-payload JSON 格式并提取 fallback_text 和 mentions。
    * 仅识别 format === "blocks" 且有 fallback_text 字段的 JSON，避免误解析其他 JSON 内容。
+   * mentions 从 blocks[0].mentions 提取（message-payload skill 的 --mentions 参数）。
    */
-  private tryExtractJsonPayloadFallback(text: string): string | null {
+  private tryExtractJsonPayloadFallback(text: string): { fallback: string; mentions: string[] } | null {
     try {
       const obj = JSON.parse(text) as Record<string, unknown>;
       if (obj.format === "blocks" && typeof obj.fallback_text === "string" && obj.fallback_text.trim()) {
-        return obj.fallback_text;
+        const blocks = Array.isArray(obj.blocks) ? obj.blocks : [];
+        const firstBlock = blocks[0] as Record<string, unknown> | undefined;
+        const rawMentions = firstBlock?.mentions;
+        const mentions = Array.isArray(rawMentions)
+          ? rawMentions.filter((m): m is string => typeof m === "string" && m.length > 0)
+          : [];
+        return { fallback: obj.fallback_text, mentions };
       }
     } catch { /* not JSON, ignore */ }
     return null;
@@ -545,9 +558,12 @@ export class IssueCollaboration implements CollaborationInput {
     for (let index = events.length - 1; index >= 0; index--) {
       const event = events[index];
       if (event.payload.type === "text" && event.payload.text.trim()) {
-        /** 尝试从 message-payload JSON 中提取 fallback_text（P2 降级） */
-        const jsonFallback = this.tryExtractJsonPayloadFallback(event.payload.text);
-        if (jsonFallback) return { message_id: messageId, kind: "final_text", context: jsonFallback, created_at: new Date().toISOString() };
+        /** 尝试从 message-payload JSON 中提取 fallback_text 和 mentions（P2 降级） */
+        const jsonPayload = this.tryExtractJsonPayloadFallback(event.payload.text);
+        if (jsonPayload) {
+          if (jsonPayload.mentions.length > 0) this.messagePayloadMentionsStore.set(messageId, jsonPayload.mentions);
+          return { message_id: messageId, kind: "final_text", context: jsonPayload.fallback, created_at: new Date().toISOString() };
+        }
         return { message_id: messageId, kind: "final_text", context: event.payload.text, created_at: new Date().toISOString() };
       }
     }
