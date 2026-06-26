@@ -12,6 +12,8 @@ import { getLogger } from "@infra/logger";
 
 const log = getLogger({ module: "collaboration" });
 
+const truncateForUI = (text: string, maxLen = 200) => text.length > maxLen ? text.slice(0, maxLen) + "..." : text;
+
 interface CollaborationDeps {
   issuePort: IssuePort;
   createIssue: (input: CreateIssueInput) => Issue;
@@ -313,7 +315,7 @@ export class IssueCollaboration implements CollaborationInput {
       }, "invokeAgent failed");
       const status = abortController.signal.aborted ? "interrupted" : "failed";
       const errorReason = error instanceof Error ? error.message : String(error);
-      const context = this.extractTerminalContext(agentMessage.id, status, errorReason);
+      const context = this.extractTerminalContext(agentMessage.id, status, truncateForUI(errorReason));
       /** interrupted 时无 text event 则 context.kind 为 "event_summary"，context 内容为固定中断文案 */
       this.deps.messagePort.setContext(agentMessage.id, context.kind, context.context);
       this.deps.messagePort.completeMessage(agentMessage.id, status, { error: errorReason });
@@ -509,6 +511,7 @@ export class IssueCollaboration implements CollaborationInput {
 
   // ── Context & System Reminder ───────────────────────────────────────
 
+  /** reason 编码进 context 字符串而非扩展 MessageContext 结构，因为 MessageContext 是 WebSocket 实时推送的 payload，改动需跨协议层；而 context 字符串已贯穿 MessageContext → WS → UI 全链路，零改动即可生效 */
   private extractTerminalContext(messageId: number, status: "completed" | "interrupted" | "failed", reason?: string): MessageContext {
     const existing = this.deps.messagePort.getContext(messageId);
     if (existing?.kind === "mcp_final_body") return existing;

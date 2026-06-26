@@ -1,7 +1,7 @@
 ---
 id: F20260626bth6
 title: 消息中断/失败原因可观测性
-from_ids: []
+from_ids: [F2026062304, F20260624ekws]
 tags: [observability, ux, collaboration]
 modules: [collaboration, startup-recovery]
 ---
