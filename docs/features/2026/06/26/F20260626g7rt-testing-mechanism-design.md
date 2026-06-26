@@ -137,8 +137,7 @@ S1-S5 中的大部分标准（S1 触发条件具体、S2 预期行为可观测�
 |------|------|------|
 | 副作用验证 | `expect(fn).toHaveBeenCalled()` | `expect(fn).toBeCalledTimes(N)` |
 | 参数验证 | — | `expect(fn).toHaveBeenCalledWith(args)` |
-| 返回值验证 | `expect(result).toEqual(expected)` | — |
-| 状态变更验证 | `expect(db.getState()).toBe(expected)` | — |
+| 返回值/状态验证 | `expect(result).toBe(expected)` / `.toEqual(expected)` / `.toMatchObject(partial)` / `.toContain(item)` | — |
 | 错误验证 | `expect(error).toBeInstanceOf(ExpectedError)` | — |
 
 **设计决策：为什么允许 `toHaveBeenCalled()` 但禁止参数断言**（红蓝对抗 D5 裁决）：

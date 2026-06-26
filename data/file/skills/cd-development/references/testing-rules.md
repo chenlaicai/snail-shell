@@ -29,8 +29,7 @@ it('关闭 issue 后自动归档', async () => { ... })
 |------|------|------|
 | 副作用验证 | `expect(fn).toHaveBeenCalled()` | `expect(fn).toBeCalledTimes(N)` |
 | 参数验证 | — | `expect(fn).toHaveBeenCalledWith(args)` |
-| 返回值验证 | `expect(result).toEqual(expected)` | — |
-| 状态变更验证 | `expect(db.getState()).toBe(expected)` | — |
+| 返回值/状态验证 | `expect(result).toBe(expected)` / `.toEqual(expected)` / `.toMatchObject(partial)` / `.toContain(item)` | — |
 | 错误验证 | `expect(error).toBeInstanceOf(ExpectedError)` | — |
 
 **理由**：Snail Shell 基于 hexagonal architecture，port 的实现是 side effect。允许断言"副作用是否触发"，禁止断言"副作用的具体参数"。如果需要验证副作用的输出内容，应使用 golden-file 或状态变更断言。

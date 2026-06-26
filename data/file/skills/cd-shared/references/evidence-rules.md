@@ -24,3 +24,4 @@ task_anchor 中有 `verification_commands` 时，按其执行。没有时，按�
 | `refactor` | `npm run check` + `npm run test` + 核心路径 smoke test | 编译输出 + 测试输出 + 启动日志 |
 | `feature` | `npm run check` + `npm run test` + 正向 + 边界 case 验证 | 编译输出 + 测试输出 + 执行结果 |
 | `bugfix` | 复现步骤确认修复 + 回归检查 | 修复前后对比 |
+| `testing` | `npm run check` + `npm run test` | 编译输出 + 测试输出 + 断言约束 lint 通过 |
