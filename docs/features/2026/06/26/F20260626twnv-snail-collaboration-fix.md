@@ -69,7 +69,7 @@ F20260625swf8 对 collaboration 层进行了重大重构：
 ## 目标
 
 1. **P0 — `set_final_body` 可靠化**：新增 `get_current_message_id` MCP 工具，Agent 显式获取 message_id 后传给 `set_final_body`，消除传错参数的可能性
-2. **P1 — mention 路由合并**：`set_final_body` 增加必选 `to_speakers` 参数，与文本中 `@角色名` 合并去重，通过 in-memory store 传递给 collaboration 层
+2. **P1 — mention 路由严格优先级**：`set_final_body` 增加必选 `to_speakers` 参数，通过 in-memory store 传递给 collaboration 层。路由目标按严格优先级解析：MCP to_speakers > message-payload mentions > 文本 @mentions，有高优先级来源时直接返回，不与低优先级合并
 3. **P2 — JSON payload 降级**：`extractTerminalContext` 识别 JSON payload 并提取 `fallback_text`
 
 ## 非目标
@@ -87,7 +87,7 @@ F20260625swf8 对 collaboration 层进行了重大重构：
 | B2 | 当 Agent 调用 `get_current_message_id` 但 DB 中无对应 streaming message 时 | 抛出明确错误信息 `"No active streaming message found"` | |
 | B3 | 当 Agent 调用 `set_final_body(text, message_id, to_speakers)` 且 message_id 有效时 | `mcp_final_body` 写入成功，`to_speakers` 存入 in-memory store | |
 | B4 | 当 Agent 调用 `set_final_body` 但 message_id 无效时 | 报错，提示调用 `get_current_message_id` 获取正确 ID | |
-| B5 | 当 `set_final_body` 写入 `to_speakers` 后 invokeAgent 完成时 | MCP 声明的 `to_speakers` 与文本中 `@角色名` 合并去重，写入 `message.to_speakers`，Router 触发 dispatch | |
+| B5 | 当 `set_final_body` 写入 `to_speakers` 后 invokeAgent 完成时 | MCP 声明的 `to_speakers` 作为最高优先级直接使用，不与低优先级来源合并，写入 `message.to_speakers`，Router 触发 dispatch | |
 | B6 | 当 `set_final_body` 未被调用时 | 仅从文本中正则提取 mention（保持现有行为） | |
 | B7 | 当 `set_final_body` 未被调用且最后一个 text event 是 JSON payload 含 `fallback_text` 时 | `extractTerminalContext` 提取 `fallback_text` 作为 `final_text` | |
 | B8 | 当 `set_final_body` 未被调用且最后一个 text event 是纯文本时 | 保持现有行为：该文本作为 `final_text` | |
@@ -180,7 +180,7 @@ Agent 从 `get_current_message_id` 获得明确的数字 ID，不会传错。
 - 边界：同一 issue 的不同 stage 不会同时 active（stage transition 是串行的）
 - 时效性：`get_current_message_id` 和 `set_final_body` 都在 `invokeAgent` 期间调用，message 状态始终是 `streaming`
 
-### P1 详设：mention 路由合并
+### P1 详设：mention 路由严格优先级
 
 #### 数据流（适配 F20260625swf8 新架构）
 
@@ -192,10 +192,11 @@ Agent 调用 set_final_body(text, message_id, to_speakers)
 
 invokeAgent 完成后（collaboration.ts）：
   → extractTerminalContext(messageId)  // 返回 mcp_final_body
-  → resolveReplies(stage, roleInstance, messageId)  // 从文本提取 @mentions
-  → 从 mcpToSpeakersStore 读取 MCP 声明的 to_speakers
-  → 合并去重：[...new Set([...mcpToSpeakers, ...textMentions])]
-  → updateMessageTargets(messageId, mergedTargets)  // 写入 message.to_speakers
+  → resolveReplyTargets(stage, roleInstance, messageId)  // 严格优先级解析
+    → 有 MCP to_speakers? 直接返回（不与低优先级合并）
+    → 有 message-payload mentions? 直接返回
+    → 降级到文本 @mentions
+  → updateMessageTargets(messageId, targets)  // 写入 message.to_speakers
   → route(stageId, completedMessage)  // Router 触发 dispatch
 ```
 
@@ -205,14 +206,17 @@ invokeAgent 完成后（collaboration.ts）：
 // MCP handler 层（snail-final-response.ts）
 const mcpToSpeakersStore = new Map<number, string[]>();
 
-// collaboration 层（invokeAgent 完成后）
+// collaboration 层（resolveReplyTargets 严格优先级）
 const mcpToSpeakers = mcpToSpeakersStore.get(messageId);
 mcpToSpeakersStore.delete(messageId);  // 读后即删
+if (mcpToSpeakers?.length) return mcpToSpeakers;  // 最高优先级，直接返回
 
-// 合并逻辑
-const textMentions = this.resolveReplies(stage, roleInstance, messageId);
-const allMentions = [...new Set([...(mcpToSpeakers ?? []), ...textMentions])];
-this.deps.messagePort.updateMessageTargets(messageId, allMentions);
+// 降级到 message-payload mentions
+const payloadMentions = this.messagePayloadMentionsStore.get(messageId);
+if (payloadMentions?.length) return payloadMentions;
+
+// 最终降级到文本 @mentions
+return this.resolveReplies(stage, roleInstance, messageId);
 ```
 
 #### 为什么用 in-memory store 而非 DB
@@ -272,13 +276,13 @@ tryParseJsonPayload(text) {
 ## 生效路径
 
 - `src/domain/snail-mcp-server/_internal/servers/snail-final-response.ts` — 新增 `get_current_message_id` 工具 + `set_final_body` 增加 `to_speakers`
-- `src/app/issue-collaboration/collaboration.ts` — `invokeAgent` 后处理中的 mention 合并 + `extractTerminalContext` JSON payload 识别
+- `src/app/issue-collaboration/collaboration.ts` — `invokeAgent` 后处理中的 mention 严格优先级解析 + `extractTerminalContext` JSON payload 识别
 
 ## 设计约束摘要
 
 - **边界**：`set_final_body` 是 Agent 声明最终答复的正途，text event 是降级兜底。不得将 text event 提升为最高优先级。
 - **关键决策**：新增 `get_current_message_id` MCP 工具，Agent 显式获取 message_id 后传给 `set_final_body`。链路透明，不会传错。
-- **关键决策**：`to_speakers` 为必选参数。MCP 声明的 `to_speakers` 通过 in-memory store 传递给 collaboration 层，与文本 `@角色名` 合并去重后写入 `message.to_speakers`，由 Router 的 `route()` 触发 dispatch。
+- **关键决策**：`to_speakers` 为必选参数。MCP 声明的 `to_speakers` 通过 in-memory store 传递给 collaboration 层，按严格优先级解析路由目标（MCP > message-payload > 文本），有高优先级来源时直接返回不合并，写入 `message.to_speakers`，由 Router 的 `route()` 触发 dispatch。
 - **关键决策**：JSON payload 识别仅限 `format === "blocks"` 且有 `fallback_text` 的格式。
 - **语义不变量**：`extractTerminalContext` 的优先级链 `mcp_final_body > final_text > event_summary` 不得改变。
 - **非目标**：不改变 adapter 层 `mentions` 硬编码为 `[]` 的现状。
@@ -290,7 +294,7 @@ tryParseJsonPayload(text) {
 | 文件 | 变更类型 | 说明 |
 |------|----------|------|
 | `src/domain/snail-mcp-server/_internal/servers/snail-final-response.ts` | 修改 | 新增 `get_current_message_id` 工具；`set_final_body` 增加 `to_speakers`（required）+ in-memory store |
-| `src/app/issue-collaboration/collaboration.ts` | 修改 | `invokeAgent` 后处理：从 in-memory store 读取 MCP to_speakers，合并去重，写入 `message.to_speakers`；`extractTerminalContext`：增加 JSON payload 识别 |
+| `src/app/issue-collaboration/collaboration.ts` | 修改 | `invokeAgent` 后处理：从 in-memory store 读取 MCP to_speakers，按严格优先级解析路由目标（MCP > message-payload > 文本），写入 `message.to_speakers`；`extractTerminalContext`：增加 JSON payload 识别 |
 | 相关测试文件 | 新增/修改 | 覆盖 B1-B9 业务行为 |
 
 ## 验证
@@ -305,9 +309,9 @@ tryParseJsonPayload(text) {
 - [ ] `text` 为空时报错
 - [ ] `to_speakers` 为空数组时报错
 
-### P1 — mention 路由合并
+### P1 — mention 路由严格优先级
 
-- [ ] `to_speakers` 参数与文本 `@角色名` 合并去重后写入 `message.to_speakers`
+- [ ] `to_speakers` 参数按严格优先级解析：MCP > message-payload > 文本，有高优先级来源时直接返回不合并
 - [ ] Router 的 `route()` 正确触发 dispatch
 - [ ] 无效 mention 被过滤
 - [ ] 未调用 `set_final_body` 时保持现有文本提取行为

@@ -42,18 +42,18 @@ function createGetCurrentMessageIdTool(messagePort: MessagePort, stagePort: Stag
 
       /** 遍历 issue 的所有 stage，找到最新的 streaming message */
       const stages = stagePort.listStages(issueId);
-      let latestStreaming: { id: number; created_at: string } | undefined;
+      let latestStreamingId: number | undefined;
       for (const stage of stages) {
         const messages = messagePort.listMessages(stage.id);
         for (const msg of messages) {
-          if (msg.status === "streaming" && (!latestStreaming || msg.id > latestStreaming.id)) {
-            latestStreaming = { id: msg.id, created_at: msg.created_at };
+          if (msg.status === "streaming" && (!latestStreamingId || msg.id > latestStreamingId)) {
+            latestStreamingId = msg.id;
           }
         }
       }
 
-      if (!latestStreaming) throw new Error("No active streaming message found");
-      return { message_id: latestStreaming.id };
+      if (!latestStreamingId) throw new Error("No active streaming message found");
+      return { message_id: latestStreamingId };
     },
   };
 }
@@ -69,7 +69,6 @@ function createSetFinalBodyTool(messagePort: MessagePort) {
       type: "object",
       properties: {
         text: { type: "string", description: "最终答复的 Markdown 正文" },
-        conversation_id: { type: "string" },
         message_id: { type: "string", description: "当前消息的 ID，通过环境变量 message_id 注入" },
         to_speakers: {
           type: "array",
