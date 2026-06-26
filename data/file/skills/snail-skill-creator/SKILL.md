@@ -1,9 +1,16 @@
 ---
 name: snail-skill-creator
-description: 创建或维护 Snail Shell 内置 skill 时使用。用于确保新 skill 遵循 Claude Code skill 规范与本仓库目录约束。
+description: |
+  创建或维护 Snail Shell 内置 skill 时使用。用于确保新 skill 遵循 Claude Code skill 规范与本仓库目录约束。
+  存在两种运行场景：Snail Shell 环境（`issue_id` 环境变量存在）下按完整规范创建 skill；原生环境下可用于创建通用 Claude Code skill（不涉及 Snail Shell 专有目录结构）。
 ---
 
 # Snail Skill Creator
+
+## 环境识别
+
+- **`issue_id` 环境变量存在**：Snail Shell 环境，按完整规范创建 skill（包括 `data/file/skills/` 目录结构、scripts/db-bridge 集成等）。
+- **`issue_id` 环境变量不存在**：原生环境，可用于创建通用 Claude Code skill（`.claude/skills/` 目录结构），不涉及 Snail Shell 专有约束。
 
 ## Purpose
 
