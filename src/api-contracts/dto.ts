@@ -130,6 +130,8 @@ export type MessageDto = {
   content?: string;
   context: MessageContext | null;
   events: MessageEvent[];
+  /** EventBatcher 在收到新事件时设置，用于 stuck-streaming 检测 */
+  _lastEventAt?: number;
 };
 
 export type ConversationDto = {

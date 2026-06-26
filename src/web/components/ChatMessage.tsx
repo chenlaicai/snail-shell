@@ -79,15 +79,14 @@ function ChatMessageInner({ message, onInterrupt }: { message: MessageDto; onInt
   const stuckCheckRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!isStreaming) { setIsStuck(false); return; }
-    const msg = message as MessageDto & { _lastEventAt?: number };
     const check = () => {
-      const lastActivity = msg._lastEventAt ?? new Date(msg.created_at).getTime();
+      const lastActivity = message._lastEventAt ?? new Date(message.created_at).getTime();
       const elapsed = Date.now() - lastActivity;
       if (elapsed >= STUCK_THRESHOLD_MS) {
         setIsStuck(true);
-        console.warn(`[StuckDetector] message #${msg.id} stuck in streaming for ${Math.round(elapsed / 1000)}s`, {
-          messageId: msg.id, status: msg.status, eventCount: msg.events.length,
-          lastEventAt: msg._lastEventAt, createdAt: msg.created_at,
+        console.warn(`[StuckDetector] message #${message.id} stuck in streaming for ${Math.round(elapsed / 1000)}s`, {
+          messageId: message.id, status: message.status, eventCount: message.events.length,
+          lastEventAt: message._lastEventAt, createdAt: message.created_at,
         });
       } else {
         setIsStuck(false);
@@ -245,9 +244,7 @@ export const ChatMessage = React.memo(ChatMessageInner, (prev, next) => {
   if (prev.message.context !== next.message.context) return false;
   if (prev.onInterrupt !== next.onInterrupt) return false;
   /** _lastEventAt 变化时需重渲染以更新 stuck-streaming 检测 */
-  const prevMsg = prev.message as MessageDto & { _lastEventAt?: number };
-  const nextMsg = next.message as MessageDto & { _lastEventAt?: number };
-  if (prevMsg._lastEventAt !== nextMsg._lastEventAt) return false;
+  if (prev.message._lastEventAt !== next.message._lastEventAt) return false;
   /** 轻量事件比较：length + 最后事件 ID，避免引用比较在结构共享失败时误判 */
   const prevEvents = prev.message.events;
   const nextEvents = next.message.events;

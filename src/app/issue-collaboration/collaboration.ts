@@ -115,14 +115,19 @@ export class IssueCollaboration implements CollaborationInput {
     const targets: SpeakerTarget[] = toSpeakers && toSpeakers.length > 0
       ? toSpeakers.map(speaker => ({ speaker, source: "mention" as const }))
       : await this.resolveToSpeakers(stage, text, fromSpeaker);
-    log.info({ stageId, fromSpeaker, targets: targets.map(t => `${t.speaker}(${t.source})`) }, "sendMessage.resolved");
+    log.info({ stageId, fromSpeaker, targets: targets.map(t => `${t.speaker}(${t.source})`) }, "sendMessage.targets");
 
     if (targets.length > 0) {
       this.deps.messagePort.updateMessageTargets(message.id, targets.map(t => t.speaker));
     }
 
     // 用户消息是即时完成的，不需要 onMessageStarted（前端已通过乐观更新显示）
-    await this.notifyConsumers(stageId, "onMessageCompleted", message, this.deps.messagePort.getContext(message.id));
+    // notifyConsumers 可能因 IM API 超时而失败，但不应阻止 route（agent 触发）
+    try {
+      await this.notifyConsumers(stageId, "onMessageCompleted", message, this.deps.messagePort.getContext(message.id));
+    } catch (err) {
+      log.warn({ stageId, messageId: message.id, err }, "sendMessage: notifyConsumers failed, continuing to route");
+    }
 
     // Router: 根据 to_speakers 触发下一步
     await this.route(stageId, message);
