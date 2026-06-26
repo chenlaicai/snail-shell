@@ -288,15 +288,19 @@ function deriveToolCallSummary(toolName: string, input: unknown): string | null 
   return extractFirstStringValue(inp);
 }
 
-/** 从对象中提取第一个 typeof === 'string' 的 value，无则降级到 JSON.stringify 截断 */
+/** 从对象中提取第一个 typeof === 'string' 的 value，无则降级到 JSON.stringify（不截断，由调用方处理） */
 function extractFirstStringValue(obj: Record<string, unknown>): string | null {
   for (const val of Object.values(obj)) {
     if (typeof val === "string") return val;
   }
-  // 无 string 值：降级到 JSON.stringify 截断
-  const json = JSON.stringify(obj);
-  if (json === "{}") return null;
-  return truncateText(json, 60);
+  // 无 string 值：降级到 JSON.stringify
+  try {
+    const json = JSON.stringify(obj);
+    if (!json || json === "{}") return null;
+    return json;
+  } catch {
+    return null;
+  }
 }
 
 /** 解析 MCP 工具名为 server.tool 格式 */
@@ -323,15 +327,14 @@ function EventItem({ event }: { event: MessageEvent }) {
   switch (type) {
     case "tool_call": {
       const toolName = p.tool_name as string;
-      // fallback p.input: 防御 collaboration 层未映射的事件流（如直接 SSE）
-      const toolInput = p.tool_input ?? p.input;
+      const toolInput = p.tool_input as unknown;
       const summary = deriveToolCallSummary(toolName, toolInput);
       // MCP 工具名解析为 server.tool 格式用于显示
       const displayToolName = toolName.startsWith("mcp__") ? parseMcpToolName(toolName) : toolName;
       label = summary ? `${displayToolName} · ${truncateText(summary, 60)}` : displayToolName;
       tag = "Tool";
       tagClass = "bg-shell-600/30 text-shell-300";
-      detail = toolInput ? JSON.stringify(toolInput, null, 2) : null;
+      try { detail = toolInput ? JSON.stringify(toolInput, null, 2) : null; } catch { detail = null; }
       // 偏离 B6 字面规范：当 toolInput 非空但 summary 提取失败时仍保留展开箭头，
       // 让用户可检视原始 JSON（调试价值 > 完全隐藏）
       showDetail = !!summary || !!toolInput;
