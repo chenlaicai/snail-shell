@@ -15,8 +15,8 @@ export function useSendMessage(stageId: string) {
       const previous = qc.getQueryData<MessageDto[]>(queryKeys.stages.messages(stageId));
       const optimisticId = Date.now();
       qc.setQueryData(queryKeys.stages.messages(stageId), (old: MessageDto[] | undefined) => [
-        ...(old ?? []),
         createPlaceholderMessage(stageId, { id: optimisticId, role: "user", status: "completed", content: body.text }),
+        ...(old ?? []),
       ]);
       return { previous, optimisticId };
     },

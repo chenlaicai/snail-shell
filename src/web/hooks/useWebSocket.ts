@@ -125,12 +125,13 @@ class EventBatcher {
     let result = old ?? [];
 
     // 1. 添加占位消息（message_started + user_called）
+    //    前置插入以保持 DESC 顺序（后端 listByStage 返回 id DESC）
     for (const event of [...batch.messageStarted, ...batch.userCalled]) {
       if (result.some((m) => m.id === event.message_id)) continue;
-      result = [...result, createPlaceholderMessage(stageId, {
+      result = [createPlaceholderMessage(stageId, {
         id: event.message_id, role: event.role, from_role: event.role_name,
         client_id: event.client_id, status: event.status,
-      })];
+      }), ...result];
     }
 
     // 2. 批量追加 events
