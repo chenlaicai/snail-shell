@@ -85,6 +85,8 @@ export function IssueConversation() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const wasAtBottomRef = useRef(true);
+  const [scrollPosition, setScrollPosition] = useState<'top' | 'middle' | 'bottom'>('bottom');
+  const isSmoothScrollingRef = useRef(false);
 
   const virtualizer = useVirtualizer({
     count: sorted.length,
@@ -142,12 +144,48 @@ export function IssueConversation() {
     const el = scrollRef.current;
     if (!el) return;
     const threshold = 80;
-    wasAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+    wasAtBottomRef.current = atBottom;
+
+    // smooth scroll 动画期间忽略中间位置，避免按钮闪烁
+    if (isSmoothScrollingRef.current) return;
+
+    // 更新滚动位置状态
+    if (el.scrollTop < threshold) {
+      setScrollPosition('top');
+    } else if (atBottom) {
+      setScrollPosition('bottom');
+    } else {
+      setScrollPosition('middle');
+    }
+
     // 滚动到顶部时自动加载更早的历史消息
     if (el.scrollTop < threshold) {
       loadMoreHistory();
     }
   }, [loadMoreHistory]);
+
+  /** 一键到顶：滚动到第一条消息，禁用粘性底部 */
+  const scrollToTop = useCallback(() => {
+    if (sorted.length === 0) return;
+    isSmoothScrollingRef.current = true;
+    virtualizer.scrollToIndex(0, { align: 'start', behavior: 'smooth' });
+    wasAtBottomRef.current = false;
+    setScrollPosition('top');
+    // 动画结束后恢复滚动事件处理
+    setTimeout(() => { isSmoothScrollingRef.current = false; }, 500);
+  }, [sorted.length, virtualizer]);
+
+  /** 一键到底：滚动到最后一条消息，恢复粘性底部 */
+  const scrollToBottom = useCallback(() => {
+    if (sorted.length === 0) return;
+    isSmoothScrollingRef.current = true;
+    virtualizer.scrollToIndex(sorted.length - 1, { align: 'end', behavior: 'smooth' });
+    wasAtBottomRef.current = true;
+    setScrollPosition('bottom');
+    // 动画结束后恢复滚动事件处理
+    setTimeout(() => { isSmoothScrollingRef.current = false; }, 500);
+  }, [sorted.length, virtualizer]);
 
   const sendMutation = useSendMessage(stageId ?? "");
 
@@ -207,7 +245,7 @@ export function IssueConversation() {
 
       <div className="flex flex-1 min-h-0">
         <div className="flex-1 flex flex-col min-w-0">
-          <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-6 py-6">
+          <div ref={scrollRef} onScroll={handleScroll} className="relative flex-1 overflow-y-auto px-6 py-6">
             <div className="mx-auto flex w-full max-w-[920px] flex-col gap-5">
 
               {/* Issue header */}
@@ -284,7 +322,36 @@ export function IssueConversation() {
                   })}
                 </div>
               )}
+
             </div>
+
+            {/* 滚动按钮：一键到顶/到底 */}
+            {sorted.length > 0 && (
+              <div className="sticky bottom-4 flex flex-col gap-2 items-end pointer-events-none">
+                {scrollPosition !== 'top' && (
+                  <button
+                    onClick={scrollToTop}
+                    className="w-8 h-8 rounded-full bg-surface-2/80 hover:bg-surface-2 border border-white/10 flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors pointer-events-auto"
+                    title="回到顶部"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                    </svg>
+                  </button>
+                )}
+                {scrollPosition !== 'bottom' && (
+                  <button
+                    onClick={scrollToBottom}
+                    className="w-8 h-8 rounded-full bg-surface-2/80 hover:bg-surface-2 border border-white/10 flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors pointer-events-auto"
+                    title="回到底部"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Input */}
