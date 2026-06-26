@@ -195,7 +195,7 @@ export type MessageEvent =
   /** 文本输出：agent 的自然语言回复 */
   | { kind: "text"; payload: { text: string; mentions: string[] }; source: EventSource }
   /** 工具调用：agent 调用工具的请求 */
-  | { kind: "tool_call"; payload: { tool_name: string; call_id: string; input: unknown; title: string | null }; source: EventSource }
+  | { kind: "tool_call"; payload: { tool_name: string; call_id: string; input: unknown }; source: EventSource }
   /** 工具结果：工具执行结果（由 runtime 生成） */
   | { kind: "tool_result"; payload: { call_id: string; output: string; is_error: boolean }; source: EventSource }
   /** 生命周期信号：runtime 生成的会话生命周期事件 */
