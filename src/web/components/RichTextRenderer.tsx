@@ -17,7 +17,28 @@ const ALLOWED_ATTRIBUTES: Record<string, Set<string>> = {
 };
 
 export function RichTextRenderer({ content }: { content: string }) {
-  const blocks = useMemo(() => splitMermaidBlocks(content), [content]);
+  /**
+   * 增量解析：streaming 期间 content 频繁追加，缓存前 N-1 个 block，
+   * 只对最后一个 block（可能包含新增内容）重新执行 marked.parse + sanitizeHtml。
+   * 前提：前端 block 已闭合，不会因后续内容改变解析结果。
+   */
+  const cacheRef = useRef({
+    content: "",
+    blocks: [] as Array<{ type: "markdown" | "mermaid"; content: string }>,
+  });
+
+  const blocks = useMemo(() => {
+    const cached = cacheRef.current;
+    let result: Array<{ type: "markdown" | "mermaid"; content: string }>;
+    if (content.startsWith(cached.content) && cached.blocks.length > 0) {
+      result = incrementalSplitMermaidBlocks(content, cached.content, cached.blocks);
+    } else {
+      /** 非增量（内容截断/重写）：全量重新解析 */
+      result = splitMermaidBlocks(content);
+    }
+    cacheRef.current = { content, blocks: result };
+    return result;
+  }, [content]);
 
   return (
     <div className="space-y-3 text-text-primary">
@@ -79,6 +100,45 @@ function splitMermaidBlocks(input: string): Array<{ type: "markdown" | "mermaid"
   }
   if (last < input.length) blocks.push({ type: "markdown", content: input.slice(last) });
   return blocks.length > 0 ? blocks : [{ type: "markdown", content: input }];
+}
+
+/**
+ * 增量拆分：新内容以旧内容为前缀时，复用前 N-1 个 block，只对最后一个 block 重新拆分。
+ * 当 block 数量变化（新内容产生了新 block）时，追加新 block 到缓存。
+ */
+function incrementalSplitMermaidBlocks(
+  newContent: string,
+  cachedContent: string,
+  cachedBlocks: Array<{ type: "markdown" | "mermaid"; content: string }>,
+): Array<{ type: "markdown" | "mermaid"; content: string }> {
+  /** 计算新内容中的 block 数量，判断是否可增量复用 */
+  const regex = /```mermaid\n([\s\S]*?)```/g;
+  let last = 0;
+  let blockCount = 0;
+  while (regex.exec(newContent)) {
+    blockCount++;
+    last = regex.lastIndex;
+  }
+  if (last < newContent.length) blockCount++;
+
+  if (blockCount <= cachedBlocks.length) {
+    const lastCached = cachedBlocks[cachedBlocks.length - 1];
+    if (lastCached.type === "markdown") {
+      /** block 数未变且尾部是 markdown：直接追加 tail */
+      const result = cachedBlocks.slice(0, cachedBlocks.length - 1);
+      const tailContent = newContent.slice(cachedContent.length);
+      result.push({ type: "markdown", content: lastCached.content + tailContent });
+      return result;
+    }
+    // 尾部是 mermaid：tail 一定是新 block 的开始，走全量重建
+  }
+
+  /** block 数增加：从缓存重建完整内容后全量拆分（缓存的 mermaid block 不含 fence，需还原） */
+  const fullCached = cachedBlocks.map(b =>
+    b.type === "mermaid" ? "```mermaid\n" + b.content + "\n```" : b.content,
+  ).join("");
+  const tail = newContent.slice(cachedContent.length);
+  return splitMermaidBlocks(fullCached + tail);
 }
 
 function sanitizeHtml(html: string): string {
