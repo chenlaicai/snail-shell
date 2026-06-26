@@ -2,10 +2,16 @@
 name: cd-review-dev
 description: |
   开发者角色在 review 阶段的行为规则。当你是开发者，审查者提出了检视意见，你需要回应和修复时触发。
-  触发条件：review stage 中开发者收到审查者检视意见时。
+  触发条件：review stage 中开发者收到审查者检视意见时。需要 Snail Shell 环境（`issue_id` 环境变量存在）。
 ---
 
 # 开发者在 Review 阶段的行为
+
+## 环境检查
+
+本 skill 为 SOP 工作流专用。执行前检查 `issue_id` 环境变量是否存在：
+- **存在**：Snail Shell 环境，按以下行为规则执行。
+- **不存在**：原生环境，本 skill 不适用。你是独立 agent，按用户直接指令工作。
 
 ## 前置依赖
 

@@ -2,10 +2,16 @@
 name: evo-executor
 description: |
   演进执行者在治理对话中的工作流程。当你需要对演进项执行入口校验、查重、分析、裁决和产物处理时触发。
-  触发条件：evolution SOP 中的 executor 角色被激活、演进项进入治理对话时。
+  触发条件：evolution SOP 中的 executor 角色被激活、演进项进入治理对话时。需要 Snail Shell 环境（`issue_id` 环境变量存在）。
 ---
 
 # 演进执行者工作流程
+
+## 环境检查
+
+本 skill 为 SOP 工作流专用。执行前检查 `issue_id` 环境变量是否存在：
+- **存在**：Snail Shell 环境，按以下工作流执行。
+- **不存在**：原生环境，本 skill 不适用。你是独立 agent，按用户直接指令工作。
 
 ## 演进项创建参考（按需）
 

@@ -1,6 +1,9 @@
 ---
 name: conversation-history
-description: 查询 Snail Shell conversation 的历史消息，支持按 conversation 或 issue 维度查询。用于补足当前摘要和最近消息之外的需求、约束、决定、术语、偏好或先前结论。
+description: |
+  查询历史对话记录，用于补足当前摘要和最近消息之外的需求、约束、决定、术语、偏好或先前结论。
+  存在两种运行场景：Snail Shell 环境（`issue_id` 环境变量存在）下查询数据库中的 conversation 历史消息；原生环境下 agent 可根据实际情况选择合适的历史查询方式（如 git log、文件搜索等）。
+  agent 应先识别当前环境，再决定数据获取方式。
 ---
 
 # Conversation History Protocol
@@ -10,6 +13,11 @@ description: 查询 Snail Shell conversation 的历史消息，支持按 convers
 你负责在当前工作区推进会话中按需查询更早历史事实。
 
 默认上下文只包含当前 Conversation 摘要与最近少量消息；需要更早的需求、约束、决定、术语、偏好或先前结论时，必须使用本能力查询，不能直接假设。
+
+## 环境识别
+
+- **`issue_id` 环境变量存在**：Snail Shell 环境，使用下方 Command 脚本查询数据库历史消息。
+- **`issue_id` 环境变量不存在**：原生环境，本脚本不可用。agent 应根据当前情况选择合适的历史查询方式（如 `git log`、文件搜索、对话上下文回顾等）。
 
 ## 上下文自动解析
 

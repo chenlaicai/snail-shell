@@ -2,10 +2,16 @@
 name: cd-design
 description: |
   架构师角色在 design 阶段的工作流程。当你是架构师，需要执行需求对齐、方案设计和交叉审视时触发。
-  触发条件：design stage 开始、架构师角色被激活、需要产出 Feature 文档时。
+  触发条件：design stage 开始、架构师角色被激活、需要产出 Feature 文档时。需要 Snail Shell 环境（`issue_id` 环境变量存在）。
 ---
 
 # 架构师工作流程
+
+## 环境检查
+
+本 skill 为 SOP 工作流专用。执行前检查 `issue_id` 环境变量是否存在：
+- **存在**：Snail Shell 环境，按以下工作流执行。
+- **不存在**：原生环境，本 skill 不适用。你是独立 agent，按用户直接指令工作。
 
 ## 前置依赖
 

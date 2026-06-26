@@ -1,9 +1,17 @@
 ---
 name: feature-chain
-description: 查询历史 Feature 文档的索引，搜索相关特性设计记录。用于 AI 在分析新需求时主动搜索历史 Feature 文档，建立引用链（from_ids）。
+description: |
+  查询历史 Feature 文档的索引，搜索相关特性设计记录。用于 AI 在分析新需求时主动搜索历史 Feature 文档，建立引用链（from_ids）。
+  存在两种运行场景：Snail Shell 环境（`issue_id` 环境变量存在）下通过 FTS5 索引查询；原生环境下 agent 可直接扫描 `docs/features/` 目录搜索。
+  agent 应先识别当前环境，再决定数据获取方式。
 ---
 
 # Feature Chain Skill
+
+## 环境识别
+
+- **`issue_id` 环境变量存在**：Snail Shell 环境，使用下方 Command 脚本通过 FTS5 索引查询。
+- **`issue_id` 环境变量不存在**：原生环境，本脚本不可用。agent 应直接扫描 `docs/features/` 目录，用 `grep` 或文件遍历方式搜索历史 Feature 文档。
 
 ## Purpose
 

@@ -1,9 +1,17 @@
 ---
 name: evolution-candidate
-description: 将 agent 在工作中识别到的可演进项写入 Snail Shell 待治理演进候选。用于沉淀用户偏好、长期规则、设计决策、流程约束、失败教训、术语定义、可复用模式、发现的问题/bug、待演进项或 idea。候选只进入治理队列，不会自动生效。
+description: |
+  将 agent 在工作中识别到的可演进项写入待治理演进候选。用于沉淀用户偏好、长期规则、设计决策、流程约束、失败教训、术语定义、可复用模式、发现的问题/bug、待演进项或 idea。候选只进入治理队列，不会自动生效。
+  存在两种运行场景：Snail Shell 环境（`issue_id` 环境变量存在）下写入数据库演进队列；原生环境下 agent 可将演进项记录在本地文件或其他合适的位置，待后续导入。
+  agent 应先识别当前环境，再决定记录方式。
 ---
 
 # Evolution Candidate Protocol
+
+## 环境识别
+
+- **`issue_id` 环境变量存在**：Snail Shell 环境，使用下方 Command 脚本将演进候选写入数据库治理队列。
+- **`issue_id` 环境变量不存在**：原生环境，本脚本不可用。agent 应将识别到的演进项记录在本地文件中（如 `.evolution-candidates.md`），待后续导入 Snail Shell 系统。
 
 ## Purpose
 

@@ -1,9 +1,17 @@
 ---
 name: message-payload
-description: 将需要结构化呈现的内容封装为 Snail Shell 消息内容块。用于突出总结、带 mention 的文本、问题卡片、问题回答和引用卡片。它是内容格式化工具，不是通信投递系统——执行命令只生成 JSON payload，不代表已送达、已通知或已呼叫到任何人。payload 仍要作为自己的消息内容返回；实际路由和投递由 Snail Shell 系统执行。
+description: |
+  将需要结构化呈现的内容封装为消息内容块。用于突出总结、带 mention 的文本、问题卡片、问题回答和引用卡片。
+  存在两种运行场景：Snail Shell 环境（`issue_id` 环境变量存在）下生成 JSON payload 由系统消费并路由投递；原生环境下脚本仍可执行，输出结构化 JSON 供 agent 自行使用。
+  它是内容格式化工具，不是通信投递系统——执行命令只生成 JSON payload，不代表已送达、已通知或已呼叫到任何人。
 ---
 
 # Message Payload Protocol
+
+## 环境识别
+
+- **`issue_id` 环境变量存在**：Snail Shell 环境，生成的 JSON payload 由系统消费并路由投递给目标角色。
+- **`issue_id` 环境变量不存在**：原生环境，脚本仍可执行并输出结构化 JSON，但无系统自动投递。agent 可将输出作为格式化内容直接使用。
 
 ## Purpose
 
