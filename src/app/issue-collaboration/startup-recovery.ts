@@ -60,7 +60,7 @@ function convergeOrphanMessage(messagePort: MessagePort, message: Message): void
     if (lastTextContext) {
       messagePort.setContext(message.id, "final_text", lastTextContext);
     } else {
-      messagePort.setContext(message.id, "event_summary", "用户中断了本次回复");
+      messagePort.setContext(message.id, "event_summary", "用户中断了本次回复（服务重启）");
     }
   }
   /** signal 携带 restart reason，与正常中断（error message）区分 */
