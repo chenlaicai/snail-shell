@@ -86,6 +86,7 @@ export function IssueConversation() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const wasAtBottomRef = useRef(true);
   const [scrollPosition, setScrollPosition] = useState<'top' | 'middle' | 'bottom'>('bottom');
+  const isSmoothScrollingRef = useRef(false);
 
   const virtualizer = useVirtualizer({
     count: sorted.length,
@@ -141,6 +142,9 @@ export function IssueConversation() {
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
     wasAtBottomRef.current = atBottom;
 
+    // smooth scroll 动画期间忽略中间位置，避免按钮闪烁
+    if (isSmoothScrollingRef.current) return;
+
     // 更新滚动位置状态
     if (el.scrollTop < threshold) {
       setScrollPosition('top');
@@ -159,17 +163,23 @@ export function IssueConversation() {
   /** 一键到顶：滚动到第一条消息，禁用粘性底部 */
   const scrollToTop = useCallback(() => {
     if (sorted.length === 0) return;
+    isSmoothScrollingRef.current = true;
     virtualizer.scrollToIndex(0, { align: 'start', behavior: 'smooth' });
     wasAtBottomRef.current = false;
     setScrollPosition('top');
+    // 动画结束后恢复滚动事件处理
+    setTimeout(() => { isSmoothScrollingRef.current = false; }, 500);
   }, [sorted.length, virtualizer]);
 
   /** 一键到底：滚动到最后一条消息，恢复粘性底部 */
   const scrollToBottom = useCallback(() => {
     if (sorted.length === 0) return;
+    isSmoothScrollingRef.current = true;
     virtualizer.scrollToIndex(sorted.length - 1, { align: 'end', behavior: 'smooth' });
     wasAtBottomRef.current = true;
     setScrollPosition('bottom');
+    // 动画结束后恢复滚动事件处理
+    setTimeout(() => { isSmoothScrollingRef.current = false; }, 500);
   }, [sorted.length, virtualizer]);
 
   const sendMutation = useSendMessage(stageId ?? "");
