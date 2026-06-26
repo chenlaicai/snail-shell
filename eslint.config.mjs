@@ -47,7 +47,12 @@ export default tseslint.config(
       "complexity": ["error", 20],
       "max-lines-per-function": ["error", { max: 220, skipBlankLines: true, skipComments: true }],
       "max-statements": ["error", 140],
-      "@typescript-eslint/no-explicit-any": "off"
+      "@typescript-eslint/no-explicit-any": "off",
+      "no-restricted-syntax": ["error",
+        { selector: "CallExpression[callee.property.name='toHaveBeenCalledWith']", message: "禁止断言调用参数——绑定实现细节。使用返回值/状态/副作用断言替代。" },
+        { selector: "CallExpression[callee.property.name='toBeCalledTimes']", message: "禁止断言调用次数——绑定实现细节。使用返回值/状态/副作用断言替代。" },
+        { selector: "CallExpression[callee.property.name='toHaveBeenCalledTimes']", message: "禁止断言调用次数——绑定实现细节。使用返回值/状态/副作用断言替代。" }
+      ]
     }
   },
   {

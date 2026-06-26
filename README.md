@@ -105,11 +105,14 @@ Web 默认启动在 `http://127.0.0.1:5173/`。开发时访问这个 Web 地址�
 npm run lint
 npm run lint:fix
 
-# 运行所有检查（lint + build + test）
+# 运行所有检查（lint + tsc + vite build）
 npm run check
 
 # 运行测试
 npm run test
+
+# 更新 golden-file 快照
+UPDATE_GOLDEN=1 npm run test
 ```
 
 ## 配置
