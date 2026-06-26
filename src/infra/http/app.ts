@@ -58,7 +58,9 @@ export function createApp(deps: AppDeps) {
     await next();
     const duration = Date.now() - start;
     const status = c.res.status;
-    if (status >= 400) {
+    if (duration > 5000) {
+      log.warn({ method, path, status, duration }, "http.request.slow");
+    } else if (status >= 400) {
       log.error({ method, path, status, duration }, "http.request.error");
     } else {
       log.info({ method, path, status, duration }, "http.request.completed");

@@ -88,36 +88,44 @@ export class IssueCollaboration implements CollaborationInput {
   async sendMessage(stageId: string, text: string, fromSpeaker = "user", toSpeakers?: string[]): Promise<void> {
     const stage = this.mustGetStage(stageId);
     this.assertIssueOpen(stage.issue_id);
-    /** 前端传入 to_speakers 时直接使用（UI 驱动的精确路由），否则走服务端 fallback 解析 */
-    const targets: SpeakerTarget[] = toSpeakers && toSpeakers.length > 0
-      ? toSpeakers.map(speaker => ({ speaker, source: "mention" as const }))
-      : await this.resolveToSpeakers(stage, text, fromSpeaker);
-    log.info({ stageId, fromSpeaker, targets: targets.map(t => `${t.speaker}(${t.source})`) }, "sendMessage");
 
+    // 同步操作：创建消息 + 持久化 context，立即返回。
+    // to_speakers 初始为空，后续异步解析后更新。
+    // 前端已通过乐观更新显示用户消息，不需要等待任何外部调用。
     const message = this.deps.messagePort.createMessage({
       stage_id: stageId,
       from_speaker: fromSpeaker,
-      to_speakers: targets.map(target => target.speaker),
+      to_speakers: [],
       status: "completed",
     });
-
     this.deps.messagePort.setContext(message.id, "final_text", text);
+
+    // ── 以下全部 fire-and-forget ──
+    // resolveToSpeakers 调用 LiteAI HTTP（外部 API，可能超时/重试），
+    // notifyConsumers 调用飞书/企微 IM HTTP（外部 API，无超时限制），
+    // route → dispatch → invokeAgent 链路可能阻塞数分钟。
+    // 任何一步 await 都会占住 HTTP 连接，浏览器 6 连接限制下 UI 完全卡死。
+    void this.sendMessageAsync(stageId, stage, message, text, fromSpeaker, toSpeakers).catch((error) => {
+      log.error({ stageId, messageId: message.id, err: error }, "sendMessage: async chain failed");
+    });
+  }
+
+  /** sendMessage 的异步链路：解析 targets → 通知消费者 → 路由。全部 fire-and-forget。 */
+  private async sendMessageAsync(stageId: string, stage: Stage, message: Message, text: string, fromSpeaker: string, toSpeakers?: string[]): Promise<void> {
+    const targets: SpeakerTarget[] = toSpeakers && toSpeakers.length > 0
+      ? toSpeakers.map(speaker => ({ speaker, source: "mention" as const }))
+      : await this.resolveToSpeakers(stage, text, fromSpeaker);
+    log.info({ stageId, fromSpeaker, targets: targets.map(t => `${t.speaker}(${t.source})`) }, "sendMessage.resolved");
+
+    if (targets.length > 0) {
+      this.deps.messagePort.updateMessageTargets(message.id, targets.map(t => t.speaker));
+    }
+
     // 用户消息是即时完成的，不需要 onMessageStarted（前端已通过乐观更新显示）
     await this.notifyConsumers(stageId, "onMessageCompleted", message, this.deps.messagePort.getContext(message.id));
 
     // Router: 根据 to_speakers 触发下一步
-    // fire-and-forget：route → dispatch → invokeAgent 链路可能阻塞数分钟（agent 运行 + 信号量排队），
-    // 如果 await 会导致 HTTP 响应被阻塞，浏览器连接池耗尽后 UI 完全卡死。
-    //
-    // 错误处理：route() 可能因 dispatch 内 getUnreadMessages/advanceCursor 等 DB 操作失败而 reject，
-    // 也可能因 invokeAgent 失败而传播异常（dispatch 内的 try-catch 仅覆盖 invokeAgent 调用）。
-    // 这里用 .catch() 记录日志而非向上传播，因为：
-    //   1. 消息已持久化 + WebSocket 已通知，用户已看到自己的消息
-    //   2. agent 路由失败是后台操作，不应阻塞 HTTP 响应
-    //   3. 与 resumeRoute() 的 try-catch 模式本质相同，区别仅在于 sendMessage 必须 fire-and-forget
-    void this.route(stageId, message).catch((error) => {
-      log.error({ stageId, messageId: message.id, err: error }, "sendMessage: route failed");
-    });
+    await this.route(stageId, message);
   }
 
   registerIssueConsumer(issueId: string, consumer: CollaborationConsumer): void {
@@ -401,7 +409,9 @@ export class IssueCollaboration implements CollaborationInput {
   private handleAgentEvent(stageId: string, messageId: number, event: AgentEvent): void {
     const payload = this.mapAgentEvent(event);
     const appended = this.deps.messagePort.appendEvent(messageId, payload);
-    void this.notifyConsumers(stageId, "onEvent", appended);
+    void this.notifyConsumers(stageId, "onEvent", appended).catch((err) => {
+      log.warn({ stageId, messageId, err }, "handleAgentEvent notifyConsumers failed — consumer may miss subsequent events");
+    });
   }
 
   // ── Reply Resolution ────────────────────────────────────────────────

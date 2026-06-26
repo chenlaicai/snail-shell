@@ -109,5 +109,9 @@ function toSuggestionPayload(suggestion: StageTransitionSuggestion) {
 }
 
 function send(socket: IssueSocket, payload: unknown): void {
-  socket.send(JSON.stringify(payload));
+  try {
+    socket.send(JSON.stringify(payload));
+  } catch (error) {
+    log.warn({ err: error, event: (payload as { type?: string })?.type }, "ws.send failed — socket likely closed");
+  }
 }

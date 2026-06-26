@@ -143,7 +143,7 @@ class EventBatcher {
       changed = true;
     }
 
-    // 2. 批量追加 events
+    // 2. 批量追加 events + 记录 _lastEventAt 用于 stuck-streaming 检测
     if (batch.messageEventAppended.length > 0) {
       const eventsByMessage = new Map<number, typeof batch.messageEventAppended>();
       for (const event of batch.messageEventAppended) {
@@ -151,11 +151,12 @@ class EventBatcher {
         arr.push(event);
         eventsByMessage.set(event.message_id, arr);
       }
+      const now = Date.now();
       result = result.map((m) => {
         const newEvents = eventsByMessage.get(m.id);
         if (!newEvents) return m;
         changed = true;
-        return { ...m, events: [...(m.events ?? []), ...newEvents.map((e) => e.event)] };
+        return { ...m, events: [...(m.events ?? []), ...newEvents.map((e) => e.event)], _lastEventAt: now };
       });
     }
 
