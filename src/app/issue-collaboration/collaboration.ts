@@ -102,7 +102,12 @@ export class IssueCollaboration implements CollaborationInput {
     await this.notifyConsumers(stageId, "onMessageCompleted", message, this.deps.messagePort.getContext(message.id));
 
     // Router: 根据 to_speakers 触发下一步
-    await this.route(stageId, message);
+    // fire-and-forget：route → dispatch → invokeAgent 链路可能阻塞数分钟（agent 运行 + 信号量排队），
+    // 如果 await 会导致 HTTP 响应被阻塞，浏览器连接池耗尽后 UI 完全卡死。
+    // route 内部 dispatch 已有独立 try-catch，错误不会丢失。
+    void this.route(stageId, message).catch((error) => {
+      log.error({ stageId, messageId: message.id, err: error }, "sendMessage: route failed");
+    });
   }
 
   registerIssueConsumer(issueId: string, consumer: CollaborationConsumer): void {
