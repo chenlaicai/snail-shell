@@ -65,7 +65,7 @@ export class IssueCollaboration implements CollaborationInput {
       /** 兜底收敛：无活跃 AbortController 但消息仍为 streaming 的孤儿消息 */
       const message = this.deps.messagePort.getMessage(messageId);
       if (!message || message.status !== "streaming") return false;
-      const context = this.extractTerminalContext(messageId, "interrupted");
+      const context = this.extractTerminalContext(messageId, "interrupted", "进程已退出");
       this.deps.messagePort.setContext(messageId, context.kind, context.context);
       this.deps.messagePort.completeMessage(messageId, "interrupted");
       try {
@@ -312,10 +312,11 @@ export class IssueCollaboration implements CollaborationInput {
         err: error,
       }, "invokeAgent failed");
       const status = abortController.signal.aborted ? "interrupted" : "failed";
-      const context = this.extractTerminalContext(agentMessage.id, status);
+      const errorReason = error instanceof Error ? error.message : String(error);
+      const context = this.extractTerminalContext(agentMessage.id, status, errorReason);
       /** interrupted 时无 text event 则 context.kind 为 "event_summary"，context 内容为固定中断文案 */
       this.deps.messagePort.setContext(agentMessage.id, context.kind, context.context);
-      this.deps.messagePort.completeMessage(agentMessage.id, status, { error: error instanceof Error ? error.message : String(error) });
+      this.deps.messagePort.completeMessage(agentMessage.id, status, { error: errorReason });
       await this.notifyConsumers(stageId, "onMessageCompleted", this.mustGetMessage(agentMessage.id), this.deps.messagePort.getContext(agentMessage.id));
       throw error;
     } finally {
@@ -508,7 +509,7 @@ export class IssueCollaboration implements CollaborationInput {
 
   // ── Context & System Reminder ───────────────────────────────────────
 
-  private extractTerminalContext(messageId: number, status: "completed" | "interrupted" | "failed"): MessageContext {
+  private extractTerminalContext(messageId: number, status: "completed" | "interrupted" | "failed", reason?: string): MessageContext {
     const existing = this.deps.messagePort.getContext(messageId);
     if (existing?.kind === "mcp_final_body") return existing;
 
@@ -521,7 +522,11 @@ export class IssueCollaboration implements CollaborationInput {
     }
 
     /** 无 text event 也无 mcp_final_body 时返回状态对应的兜底文案，不 dump 原始 event 给用户 */
-    const fallback = status === "interrupted" ? "用户中断了本次回复" : status === "failed" ? "任务执行失败" : "（无文本输出）";
+    const fallback = status === "interrupted"
+      ? (reason ? `用户中断了本次回复（${reason}）` : "用户中断了本次回复")
+      : status === "failed"
+        ? (reason ? `任务执行失败（${reason}）` : "任务执行失败")
+        : "（无文本输出）";
     return { message_id: messageId, kind: "event_summary", context: fallback, created_at: new Date().toISOString() };
   }
 
