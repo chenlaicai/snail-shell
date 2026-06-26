@@ -1,6 +1,6 @@
 import { useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { api } from "@/services/api-client";
 import { queryKeys } from "@/queries/keys";
@@ -13,7 +13,7 @@ import { StageActionBar } from "@/components/StageActionBar";
 import { StageSuggestionCard } from "@/components/StageSuggestionCard";
 import { useIssueRealtime } from "@/hooks/useWebSocket";
 import { useSendMessage } from "@/mutations/conversation.mutations";
-import type { IssueDetailDto, StageDetailDto } from "@/types";
+import type { IssueDetailDto, StageDetailDto, MessageDto } from "@/types";
 
 export function IssueConversation() {
   const { workspaceId, issueId } = useParams();
@@ -57,10 +57,31 @@ export function IssueConversation() {
     enabled: !!stageId,
   });
 
-  const sorted = useMemo(() =>
-    [...messages].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()),
-    [messages],
-  );
+  // 上拉加载更早的历史消息
+  const [olderHistory, setOlderHistory] = useState<MessageDto[]>([]);
+  const isLoadingHistoryRef = useRef(false);
+  const allHistoryLoadedRef = useRef(false);
+  const prevStageIdRef = useRef<string | null>(null);
+
+  /** 当 stageId 切换时，清空已加载的历史并滚动到底部 */
+  useEffect(() => {
+    if (prevStageIdRef.current !== stageId) {
+      prevStageIdRef.current = stageId;
+      setOlderHistory([]);
+      allHistoryLoadedRef.current = false;
+      wasAtBottomRef.current = true;
+    }
+  }, [stageId]);
+
+  // 后端返回 DESC（最新在前），前端反转为正序（最早在前）显示
+  const sorted = useMemo(() => {
+    const latestAsc = [...messages].reverse();
+    if (olderHistory.length === 0) return latestAsc;
+    // 去重：olderHistory 中可能包含与 latestAsc 重叠的消息
+    const latestIds = new Set(latestAsc.map(m => m.id));
+    const uniqueOlder = olderHistory.filter(m => !latestIds.has(m.id));
+    return [...uniqueOlder, ...latestAsc];
+  }, [messages, olderHistory]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const wasAtBottomRef = useRef(true);
@@ -81,12 +102,47 @@ export function IssueConversation() {
     }
   }, [sorted]);
 
+  /** 加载更早的历史消息：cursor-based 翻页，加载后保持滚动位置不变 */
+  const loadMoreHistory = useCallback(async () => {
+    if (isLoadingHistoryRef.current || allHistoryLoadedRef.current || !stageId || sorted.length === 0) return;
+    isLoadingHistoryRef.current = true;
+    try {
+      const earliestId = sorted[0].id;
+      const older = await api("GET /api/stages/:stageId/messages", {
+        params: { stageId },
+        query: { before_id: earliestId },
+      }) as MessageDto[];
+      if (older.length === 0) {
+        allHistoryLoadedRef.current = true;
+        return;
+      }
+      // 记录当前滚动位置，加载后恢复
+      const el = scrollRef.current;
+      const prevScrollHeight = el?.scrollHeight ?? 0;
+      const prevScrollTop = el?.scrollTop ?? 0;
+      setOlderHistory(prev => [...older.reverse(), ...prev]);
+      // DOM 更新后恢复滚动位置，避免列表跳动
+      requestAnimationFrame(() => {
+        if (!el) return;
+        const newScrollHeight = el.scrollHeight;
+        el.scrollTop = prevScrollTop + (newScrollHeight - prevScrollHeight);
+      });
+    } finally {
+      isLoadingHistoryRef.current = false;
+    }
+  }, [stageId, sorted]);
+
+  /** 更新滚动状态 + 滚动到顶部时触发加载更早消息 */
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
     const threshold = 80;
     wasAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
-  }, []);
+    // 滚动到顶部时自动加载更早的历史消息
+    if (el.scrollTop < threshold) {
+      loadMoreHistory();
+    }
+  }, [loadMoreHistory]);
 
   const sendMutation = useSendMessage(stageId ?? "");
 

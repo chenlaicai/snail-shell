@@ -71,7 +71,8 @@ type MessageContextRow = MessageContext;
 
 export interface MessageRepository {
   findById(id: number): Message | undefined;
-  listByStage(stageId: string, limit?: number, offset?: number): Message[];
+  /** 查询 stage 中消息，默认按 id DESC 返回最新消息；beforeId 用于 cursor-based 翻页加载更早消息 */
+  listByStage(stageId: string, limit?: number, beforeId?: number): Message[];
   listByStatus(status: Message["status"], limit?: number): Message[];
   /** 查询 stageId 中 id > afterId 的所有消息（按 id ASC），用于 cursor-based 读取 */
   listByStageAfterId(stageId: string, afterId: number): Message[];
@@ -94,10 +95,17 @@ export class SQLiteMessageRepository implements MessageRepository {
     return row ? mapMessage(row) : undefined;
   }
 
-  listByStage(stageId: string, limit = 50, offset = 0): Message[] {
+  /** 默认返回最新 limit 条（DESC）；传入 beforeId 时返回 id < beforeId 的更早消息 */
+  listByStage(stageId: string, limit = 50, beforeId?: number): Message[] {
+    if (beforeId !== undefined) {
+      return this.db.all<MessageRow>(
+        `SELECT * FROM message WHERE stage_id = ? AND id < ? ORDER BY id DESC LIMIT ?`,
+        [stageId, beforeId, limit],
+      ).map(mapMessage);
+    }
     return this.db.all<MessageRow>(
-      `SELECT * FROM message WHERE stage_id = ? ORDER BY id ASC LIMIT ? OFFSET ?`,
-      [stageId, limit, offset],
+      `SELECT * FROM message WHERE stage_id = ? ORDER BY id DESC LIMIT ?`,
+      [stageId, limit],
     ).map(mapMessage);
   }
 
