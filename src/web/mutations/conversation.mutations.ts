@@ -13,7 +13,8 @@ export function useSendMessage(stageId: string) {
     onMutate: async (body) => {
       await qc.cancelQueries({ queryKey: queryKeys.stages.messages(stageId) });
       const previous = qc.getQueryData<MessageDto[]>(queryKeys.stages.messages(stageId));
-      const optimisticId = Date.now();
+      // 避免同毫秒内多条消息 ID 冲突：毫秒时间戳 × 1000 + 随机 0-999
+      const optimisticId = Date.now() * 1000 + Math.floor(Math.random() * 1000);
       qc.setQueryData(queryKeys.stages.messages(stageId), (old: MessageDto[] | undefined) => [
         createPlaceholderMessage(stageId, { id: optimisticId, role: "user", status: "completed", content: body.text }),
         ...(old ?? []),
