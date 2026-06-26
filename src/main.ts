@@ -25,6 +25,7 @@ import { init as initIssueCollaboration } from "@app/issue-collaboration/initor"
 import { init as initIMHub } from "@app/im-hub/initor";
 import { createMcpHandler } from "@infra/mcp-server/handler";
 import { createIssueWebSocketBridge } from "@infra/http/stage-websocket";
+import { createWorkspaceWebSocketBridge } from "@infra/http/workspace-websocket";
 
 const log = getLogger();
 
@@ -124,9 +125,12 @@ function startHttpServer(modules: Awaited<ReturnType<typeof initModules>>["modul
   });
   app.route("/im", modules.im.app);
   const port = serverSettings.port;
-  const websocketBridge = createIssueWebSocketBridge(modules.collaboration.adapter);
-  app.get("/issue-events", websocketBridge.route);
-  serve({ fetch: app.fetch, port, websocket: { server: websocketBridge.server } }, (info) => {
+  const issueWebSocketBridge = createIssueWebSocketBridge(modules.collaboration.adapter);
+  const workspaceWebSocketBridge = createWorkspaceWebSocketBridge(modules.collaboration.adapter);
+  app.get("/issue-events", issueWebSocketBridge.route);
+  app.get("/workspace-events", workspaceWebSocketBridge.route);
+  // serve 只接受单个 server；两个 noServer WSS 都通过 hono upgradeWebSocket 路由，主 server 仅做 TCP upgrade 分发
+  serve({ fetch: app.fetch, port, websocket: { server: issueWebSocketBridge.server } }, (info) => {
     log.info({ port: info.port }, "HTTP server listening");
   });
 }

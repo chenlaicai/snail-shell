@@ -23,6 +23,8 @@ export interface CollaborationInput {
   interruptMessage(messageId: number): Promise<boolean>;
   registerIssueConsumer(issueId: string, consumer: CollaborationConsumer): void;
   unregisterIssueConsumer(issueId: string, consumer: CollaborationConsumer): void;
+  registerWorkspaceConsumer(workspaceId: string, consumer: WorkspaceConsumer): void;
+  unregisterWorkspaceConsumer(workspaceId: string, consumer: WorkspaceConsumer): void;
   listStageTransitionSuggestions(stageId: string): StageTransitionSuggestion[];
   advanceStage(stageId: string, targetKey: string): Promise<Stage>;
   closeIssue(issueId: string): Issue;
@@ -40,4 +42,8 @@ export interface CollaborationConsumer {
   onMessageCompleted(stageId: string, message: Message, context: MessageContext | null): void | Promise<void>;
   onUserCalled(stageId: string, message: Message): void | Promise<void>;
   onStageTransitionSuggested?(stageId: string, suggestion: StageTransitionSuggestion): void | Promise<void>;
+}
+
+export interface WorkspaceConsumer {
+  onActivityStatusChanged(issueId: string, activityStatus: "ai_running" | "needs_human" | "completed", previousStatus: "ai_running" | "needs_human" | "completed"): void;
 }
