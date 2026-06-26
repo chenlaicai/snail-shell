@@ -8,6 +8,7 @@ import type { SnailFirstCallRequest, SnailResumeRequest } from "@domain/snail/mo
 import type { LiteAIPort } from "@domain/lite-ai/port";
 import type { AgentEvent, Message as AgentMessage, InvokeOptions } from "@infra/acs/model";
 import type { CollaborationConsumer, CollaborationInput, CreateIssueResult, StageTransitionSuggestion } from "@app/issue-collaboration/port";
+import { mcpToSpeakersStore } from "@domain/snail-mcp-server/_internal/servers/snail-final-response";
 import { getLogger } from "@infra/logger";
 
 const log = getLogger({ module: "collaboration" });
@@ -288,8 +289,7 @@ export class IssueCollaboration implements CollaborationInput {
         this.deps.stagePort.setSnailInstanceId(stageId, roleInstance, result.snail_instance_id);
       }
 
-      // 解析 @mentions 填入 to_speakers
-      const targets = this.resolveReplies(stage, roleInstance, agentMessage.id);
+      const targets = this.resolveMergedTargets(stage, roleInstance, agentMessage.id);
       this.deps.messagePort.updateMessageTargets(agentMessage.id, targets);
 
       const context = this.extractTerminalContext(agentMessage.id, "completed");
@@ -381,6 +381,17 @@ export class IssueCollaboration implements CollaborationInput {
 
   // ── Reply Resolution ────────────────────────────────────────────────
 
+  /**
+   * 合并 MCP set_final_body 声明的 to_speakers 与文本 @mentions。
+   * MCP to_speakers 从 in-memory store 读取（读后即删），与文本提取结果去重合并。
+   */
+  private resolveMergedTargets(stage: Stage, roleInstance: string, messageId: number): string[] {
+    const mcpToSpeakers = mcpToSpeakersStore.get(messageId);
+    mcpToSpeakersStore.delete(messageId);
+    const textMentions = this.resolveReplies(stage, roleInstance, messageId);
+    return [...new Set([...(mcpToSpeakers ?? []), ...textMentions])];
+  }
+
   private resolveReplies(stage: Stage, roleInstance: string, messageId: number): string[] {
     const mentions = new Set<string>();
     for (const event of this.deps.messagePort.getMessageEvents(messageId)) {
@@ -455,6 +466,20 @@ export class IssueCollaboration implements CollaborationInput {
     };
   }
 
+  /**
+   * 识别 message-payload JSON 格式并提取 fallback_text。
+   * 仅识别 format === "blocks" 且有 fallback_text 字段的 JSON，避免误解析其他 JSON 内容。
+   */
+  private tryExtractJsonPayloadFallback(text: string): string | null {
+    try {
+      const obj = JSON.parse(text) as Record<string, unknown>;
+      if (obj.format === "blocks" && typeof obj.fallback_text === "string" && obj.fallback_text.trim()) {
+        return obj.fallback_text;
+      }
+    } catch { /* not JSON, ignore */ }
+    return null;
+  }
+
   private tryParseStageTransition(text: string): { target_key?: string; reason?: string; guard?: string | null } | null {
     try {
       const parsed = JSON.parse(text) as { stage_transition?: { target_key?: string; reason?: string; guard?: string | null } };
@@ -520,6 +545,9 @@ export class IssueCollaboration implements CollaborationInput {
     for (let index = events.length - 1; index >= 0; index--) {
       const event = events[index];
       if (event.payload.type === "text" && event.payload.text.trim()) {
+        /** 尝试从 message-payload JSON 中提取 fallback_text（P2 降级） */
+        const jsonFallback = this.tryExtractJsonPayloadFallback(event.payload.text);
+        if (jsonFallback) return { message_id: messageId, kind: "final_text", context: jsonFallback, created_at: new Date().toISOString() };
         return { message_id: messageId, kind: "final_text", context: event.payload.text, created_at: new Date().toISOString() };
       }
     }

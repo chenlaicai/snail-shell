@@ -6,7 +6,7 @@ import { createRednoteResearchServer } from "@domain/snail-mcp-server/_internal/
 import { createSnailIssueContextServer } from "@domain/snail-mcp-server/_internal/servers/snail-issue-context";
 import type { KnowledgePort } from "@domain/knowledge/port";
 import type { MessagePort } from "@domain/message/port";
-import type { IssuePort } from "@domain/issue/port";
+import type { IssuePort, StagePort } from "@domain/issue/port";
 
 /** Snail MCP Server 模块依赖 */
 export interface SnailMCPServerDeps {
@@ -18,6 +18,8 @@ export interface SnailMCPServerDeps {
   message: MessagePort;
   /** issue adapter */
   issue: IssuePort;
+  /** stage adapter */
+  stage: StagePort;
 }
 
 /**
@@ -28,7 +30,7 @@ export function init(deps: SnailMCPServerDeps) {
   const adapter = new SnailMCPServerAdapter();
 
   // 注册所有 MCP Server
-  adapter.registerServer(createFinalResponseServer(deps.message));
+  adapter.registerServer(createFinalResponseServer(deps.message, deps.stage));
   adapter.registerServer(createEvolutionServer(deps.updateEvolution));
   adapter.registerServer(createKnowledgeServer(deps.knowledge));
   adapter.registerServer(createRednoteResearchServer());
