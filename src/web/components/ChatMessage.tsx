@@ -1,8 +1,11 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatDateTime } from "@/lib/utils";
 import { RichTextRenderer } from "@/components/RichTextRenderer";
 import { showToast } from "@/components/Toast";
 import type { MessageDto, MessageEvent } from "@/types";
+
+/** streaming 超时阈值：超过此时间无新事件视为 stuck（ms） */
+const STUCK_THRESHOLD_MS = 90_000;
 
 function extractContextUsage(events: MessageEvent[]): { label: string; percent: number } | null {
   for (const event of events) {
@@ -70,6 +73,29 @@ function ChatMessageInner({ message, onInterrupt }: { message: MessageDto; onInt
   const isStreaming = message.status === "streaming";
   const hasContext = !!message.context?.context;
   const hasEvents = message.events.length > 0;
+
+  // ── Stuck-streaming 检测 ──
+  const [isStuck, setIsStuck] = useState(false);
+  const stuckCheckRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!isStreaming) { setIsStuck(false); return; }
+    const check = () => {
+      const lastActivity = message._lastEventAt ?? new Date(message.created_at).getTime();
+      const elapsed = Date.now() - lastActivity;
+      if (elapsed >= STUCK_THRESHOLD_MS) {
+        setIsStuck(true);
+        console.warn(`[StuckDetector] message #${message.id} stuck in streaming for ${Math.round(elapsed / 1000)}s`, {
+          messageId: message.id, status: message.status, eventCount: message.events.length,
+          lastEventAt: message._lastEventAt, createdAt: message.created_at,
+        });
+      } else {
+        setIsStuck(false);
+        stuckCheckRef.current = setTimeout(check, STUCK_THRESHOLD_MS - elapsed + 1000);
+      }
+    };
+    check();
+    return () => { if (stuckCheckRef.current) clearTimeout(stuckCheckRef.current); };
+  }, [isStreaming, message]);
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
@@ -144,7 +170,7 @@ function ChatMessageInner({ message, onInterrupt }: { message: MessageDto; onInt
             {isStreaming && <span className="inline-block w-[2px] h-[14px] bg-shell-400 ml-0.5 align-text-bottom animate-blink" />}
           </div>
 
-          {isStreaming && (
+          {isStreaming && !isStuck && (
             <div className="flex items-center gap-1.5 mt-1.5 px-1">
               <div className="flex gap-0.5">
                 <div className="w-1.5 h-1.5 rounded-full bg-shell-400 animate-bounce" />
@@ -167,6 +193,44 @@ function ChatMessageInner({ message, onInterrupt }: { message: MessageDto; onInt
               )}
             </div>
           )}
+
+          {isStreaming && isStuck && (
+            <div className="mt-2 px-3 py-2 rounded-lg bg-status-amber/10 border border-status-amber/20">
+              <div className="flex items-center gap-2 mb-1">
+                <svg className="w-3.5 h-3.5 text-status-amber shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+                <span className="text-[11px] font-medium text-status-amber">响应可能已中断</span>
+              </div>
+              <p className="text-[10px] text-text-muted leading-relaxed">
+                AI 已长时间无新事件，可能是 WebSocket 断连或后端异常。事件数: {message.events.length}，消息 ID: #{message.id}
+              </p>
+              <div className="flex items-center gap-2 mt-1.5">
+                {onInterrupt && (
+                  <button
+                    onClick={handleStop}
+                    disabled={interrupting}
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors ${interrupting
+                      ? "bg-status-red/10 text-status-red/60 border border-status-red/20 cursor-not-allowed"
+                      : "bg-status-red/15 text-status-red border border-status-red/30 hover:bg-status-red/25"
+                    }`}
+                  >
+                    <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
+                    {interrupting ? "Stopping..." : "Stop"}
+                  </button>
+                )}
+                <button
+                  onClick={() => window.location.reload()}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-surface-3 text-text-secondary border border-white/10 hover:bg-white/10 transition-colors"
+                >
+                  <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M1 4v6h6M23 20v-6h-6" /><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15" />
+                  </svg>
+                  Refresh
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -179,6 +243,8 @@ export const ChatMessage = React.memo(ChatMessageInner, (prev, next) => {
   if (prev.message.content !== next.message.content) return false;
   if (prev.message.context !== next.message.context) return false;
   if (prev.onInterrupt !== next.onInterrupt) return false;
+  /** _lastEventAt 变化时需重渲染以更新 stuck-streaming 检测 */
+  if (prev.message._lastEventAt !== next.message._lastEventAt) return false;
   /** 轻量事件比较：length + 最后事件 ID，避免引用比较在结构共享失败时误判 */
   const prevEvents = prev.message.events;
   const nextEvents = next.message.events;

@@ -13,6 +13,7 @@ import { StageActionBar } from "@/components/StageActionBar";
 import { StageSuggestionCard } from "@/components/StageSuggestionCard";
 import { useIssueRealtime } from "@/hooks/useWebSocket";
 import { useSendMessage } from "@/mutations/conversation.mutations";
+import { useConversationStore } from "@/stores/conversationStore";
 import type { IssueDetailDto, StageDetailDto, MessageDto } from "@/types";
 
 const SCROLL_THRESHOLD = 80;
@@ -189,6 +190,8 @@ export function IssueConversation() {
     setTimeout(() => { isSmoothScrollingRef.current = false; }, 500);
   }, [sorted.length, virtualizer]);
 
+  const wsStatus = useConversationStore((state) => state.wsStatus);
+
   const sendMutation = useSendMessage(stageId ?? "");
 
   const handleSend = useCallback((content: string, toSpeakers: string[]) => {
@@ -294,6 +297,17 @@ export function IssueConversation() {
 
               <StageSuggestionCard stageId={stageId} onAccepted={handleStageChanged} />
               <StageActionBar issue={issue} currentStage={stage} onStageChanged={handleStageChanged} />
+
+              {wsStatus !== "connected" && (
+                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] ${
+                  wsStatus === "reconnecting"
+                    ? "bg-status-amber/10 border border-status-amber/20 text-status-amber"
+                    : "bg-status-red/10 border border-status-red/20 text-status-red"
+                }`}>
+                  <div className={`w-1.5 h-1.5 rounded-full ${wsStatus === "reconnecting" ? "bg-status-amber animate-pulse" : "bg-status-red"}`} />
+                  {wsStatus === "reconnecting" ? "WebSocket 重连中..." : "WebSocket 已断开，实时更新暂停"}
+                </div>
+              )}
 
               <div className="h-px bg-white/6" />
 

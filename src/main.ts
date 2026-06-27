@@ -106,7 +106,22 @@ function registerShutdownHooks(modules: Awaited<ReturnType<typeof initModules>>[
   process.on("SIGTERM", () => { shutdown(); process.exit(0); });
 }
 
+/** 事件循环延迟监控：每 10s 检测一次，超过 200ms 告警 */
+function startEventLoopMonitor(): void {
+  let lastCheck = process.hrtime.bigint();
+  setInterval(() => {
+    const now = process.hrtime.bigint();
+    const elapsedMs = Number(now - lastCheck) / 1e6;
+    const delayMs = Math.max(0, elapsedMs - 10_000);
+    lastCheck = now;
+    if (delayMs > 200) {
+      log.warn({ delayMs: Math.round(delayMs) }, "event_loop.blocked");
+    }
+  }, 10_000).unref();
+}
+
 function startHttpServer(modules: Awaited<ReturnType<typeof initModules>>["modules"], serverSettings: ServerSettings): void {
+  startEventLoopMonitor();
   const mcpHandler = createMcpHandler(modules.snailMCPServer.adapter);
   const app = createApp({
     workspaceAdapter: modules.workspace.adapter,

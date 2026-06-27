@@ -88,36 +88,28 @@ export class IssueCollaboration implements CollaborationInput {
   async sendMessage(stageId: string, text: string, fromSpeaker = "user", toSpeakers?: string[]): Promise<void> {
     const stage = this.mustGetStage(stageId);
     this.assertIssueOpen(stage.issue_id);
-    /** 前端传入 to_speakers 时直接使用（UI 驱动的精确路由），否则走服务端 fallback 解析 */
+    // 同步操作：创建消息 + 持久化 context，立即返回。to_speakers 初始为空，后续异步解析后更新。
+    const message = this.deps.messagePort.createMessage({ stage_id: stageId, from_speaker: fromSpeaker, to_speakers: [], status: "completed" });
+    this.deps.messagePort.setContext(message.id, "final_text", text);
+    // fire-and-forget：resolveToSpeakers/notifyConsumers/route 均为外部 HTTP 调用，await 会阻塞 HTTP 连接
+    void this.sendMessageAsync(stageId, stage, message, text, fromSpeaker, toSpeakers).catch((error) => {
+      log.error({ stageId, messageId: message.id, err: error }, "sendMessage: async chain failed");
+    });
+  }
+
+  private async sendMessageAsync(stageId: string, stage: Stage, message: Message, text: string, fromSpeaker: string, toSpeakers?: string[]): Promise<void> {
     const targets: SpeakerTarget[] = toSpeakers && toSpeakers.length > 0
       ? toSpeakers.map(speaker => ({ speaker, source: "mention" as const }))
       : await this.resolveToSpeakers(stage, text, fromSpeaker);
-    log.info({ stageId, fromSpeaker, targets: targets.map(t => `${t.speaker}(${t.source})`) }, "sendMessage");
-
-    const message = this.deps.messagePort.createMessage({
-      stage_id: stageId,
-      from_speaker: fromSpeaker,
-      to_speakers: targets.map(target => target.speaker),
-      status: "completed",
-    });
-
-    this.deps.messagePort.setContext(message.id, "final_text", text);
-    // 用户消息是即时完成的，不需要 onMessageStarted（前端已通过乐观更新显示）
-    await this.notifyConsumers(stageId, "onMessageCompleted", message, this.deps.messagePort.getContext(message.id));
-
-    // Router: 根据 to_speakers 触发下一步
-    // fire-and-forget：route → dispatch → invokeAgent 链路可能阻塞数分钟（agent 运行 + 信号量排队），
-    // 如果 await 会导致 HTTP 响应被阻塞，浏览器连接池耗尽后 UI 完全卡死。
-    //
-    // 错误处理：route() 可能因 dispatch 内 getUnreadMessages/advanceCursor 等 DB 操作失败而 reject，
-    // 也可能因 invokeAgent 失败而传播异常（dispatch 内的 try-catch 仅覆盖 invokeAgent 调用）。
-    // 这里用 .catch() 记录日志而非向上传播，因为：
-    //   1. 消息已持久化 + WebSocket 已通知，用户已看到自己的消息
-    //   2. agent 路由失败是后台操作，不应阻塞 HTTP 响应
-    //   3. 与 resumeRoute() 的 try-catch 模式本质相同，区别仅在于 sendMessage 必须 fire-and-forget
-    void this.route(stageId, message).catch((error) => {
-      log.error({ stageId, messageId: message.id, err: error }, "sendMessage: route failed");
-    });
+    log.info({ stageId, fromSpeaker, targets: targets.map(t => `${t.speaker}(${t.source})`) }, "sendMessage.targets");
+    if (targets.length > 0) this.deps.messagePort.updateMessageTargets(message.id, targets.map(t => t.speaker));
+    // notifyConsumers 可能因 IM API 超时而失败，但不应阻止 route（agent 触发）
+    try {
+      await this.notifyConsumers(stageId, "onMessageCompleted", message, this.deps.messagePort.getContext(message.id));
+    } catch (err) {
+      log.warn({ stageId, messageId: message.id, err }, "sendMessage: notifyConsumers failed, continuing to route");
+    }
+    await this.route(stageId, message);
   }
 
   registerIssueConsumer(issueId: string, consumer: CollaborationConsumer): void {
@@ -401,7 +393,9 @@ export class IssueCollaboration implements CollaborationInput {
   private handleAgentEvent(stageId: string, messageId: number, event: AgentEvent): void {
     const payload = this.mapAgentEvent(event);
     const appended = this.deps.messagePort.appendEvent(messageId, payload);
-    void this.notifyConsumers(stageId, "onEvent", appended);
+    void this.notifyConsumers(stageId, "onEvent", appended).catch((err) => {
+      log.warn({ stageId, messageId, err }, "handleAgentEvent notifyConsumers failed — consumer may miss subsequent events");
+    });
   }
 
   // ── Reply Resolution ────────────────────────────────────────────────
