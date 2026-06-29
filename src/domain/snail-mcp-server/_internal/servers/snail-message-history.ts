@@ -6,9 +6,6 @@ import type { Message, MessageContext } from "@domain/message/model";
 /**
  * snail-message-history MCP Server。
  * 替代旧 conversation-history skill，提供跨 stage 的消息查询能力。
- *
- * @param stagePort Stage adapter
- * @param messagePort Message adapter
  */
 export function createMessageHistoryServer(
   stagePort: StagePort,
@@ -24,20 +21,6 @@ export function createMessageHistoryServer(
       createGetMessageWindowTool(stagePort, messagePort),
     ],
   };
-}
-
-/** 分页获取某个 stage 的全部消息（绕过 listMessages 的默认 limit） */
-function fetchAllStageMessages(messagePort: MessagePort, stageId: string, batchSize = 100): Message[] {
-  const all: Message[] = [];
-  let beforeId: number | undefined;
-  while (true) {
-    const batch = messagePort.listMessages(stageId, batchSize, beforeId);
-    if (batch.length === 0) break;
-    all.push(...batch);
-    beforeId = batch[batch.length - 1].id;
-    if (batch.length < batchSize) break;
-  }
-  return all;
 }
 
 /** 跨 stage 关键词搜索 */
@@ -57,20 +40,14 @@ function createSearchMessagesTool(stagePort: StagePort, messagePort: MessagePort
     handler: async (params) => {
       const { issue_id, query, limit = 10 } = params as { issue_id: string; query: string; limit?: number };
       const stages = stagePort.listStages(issue_id);
-      const results: Array<{ message: Message; context: MessageContext | null; stage_id: string }> = [];
+      const results: Array<{ message: Message; context: MessageContext; stage_id: string }> = [];
 
       for (const stage of stages) {
         if (results.length >= limit) break;
-
-        const messages = fetchAllStageMessages(messagePort, stage.id);
-        for (const msg of messages) {
-          if (results.length >= limit) break;
-
-          // 获取消息内容进行关键词匹配
-          const context = messagePort.getContext(msg.id);
-          if (context && context.context.toLowerCase().includes(query.toLowerCase())) {
-            results.push({ message: msg, context, stage_id: stage.id });
-          }
+        const remaining = limit - results.length;
+        const matches = messagePort.searchContext(stage.id, query, remaining);
+        for (const m of matches) {
+          results.push({ ...m, stage_id: stage.id });
         }
       }
 
@@ -79,30 +56,13 @@ function createSearchMessagesTool(stagePort: StagePort, messagePort: MessagePort
           message_id: r.message.id,
           stage_id: r.stage_id,
           from_speaker: r.message.from_speaker,
-          content: r.context?.context ?? null,
+          content: r.context.context,
           created_at: r.message.created_at,
         })),
         total: results.length,
       };
     },
   };
-}
-
-type StageMessage = { message: Message; context: MessageContext | null; stage_id: string };
-
-function collectWithFetch(messagePort: MessagePort, stages: Array<{ id: string }>, fetch: (port: MessagePort, id: string) => Message[]): StageMessage[] {
-  const all: StageMessage[] = [];
-  for (const stage of stages) {
-    for (const msg of fetch(messagePort, stage.id)) {
-      all.push({ message: msg, context: messagePort.getContext(msg.id), stage_id: stage.id });
-    }
-  }
-  all.sort((a, b) => b.message.id - a.message.id);
-  return all;
-}
-
-function formatMessage(m: StageMessage) {
-  return { message_id: m.message.id, stage_id: m.stage_id, from_speaker: m.message.from_speaker, content: m.context?.context ?? null, created_at: m.message.created_at };
 }
 
 /** 跨 stage 消息列表 */
@@ -128,21 +88,60 @@ function createListMessagesTool(stagePort: StagePort, messagePort: MessagePort):
 
       if (mode === "recent") {
         // 每个 stage 最近的消息，跨 stage 聚合后按 limit 裁剪
-        const fetch = (port: MessagePort, id: string) => port.listMessages(id, limit);
-        const trimmed = collectWithFetch(messagePort, stages, fetch).slice(0, limit);
-        const byStage = new Map<string, StageMessage[]>();
+        const all: Array<{ message: Message; context: MessageContext | null; stage_id: string }> = [];
+        for (const stage of stages) {
+          for (const msg of messagePort.listMessages(stage.id, limit)) {
+            all.push({ message: msg, context: messagePort.getContext(msg.id), stage_id: stage.id });
+          }
+        }
+        all.sort((a, b) => b.message.id - a.message.id);
+        const trimmed = all.slice(0, limit);
+
+        // 按 stage 分组返回
+        const byStage = new Map<string, typeof trimmed>();
         for (const item of trimmed) {
           let arr = byStage.get(item.stage_id);
           if (!arr) { arr = []; byStage.set(item.stage_id, arr); }
           arr.push(item);
         }
-        return { results: [...byStage.entries()].map(([stage_id, items]) => ({ stage_id, messages: items.map(formatMessage) })) };
+        return {
+          results: [...byStage.entries()].map(([stage_id, items]) => ({
+            stage_id,
+            messages: items.map((m) => ({
+              message_id: m.message.id,
+              from_speaker: m.message.from_speaker,
+              content: m.context?.context ?? null,
+              created_at: m.message.created_at,
+            })),
+          })),
+        };
       }
 
-      // page 模式：全量聚合分页
-      const allMessages = collectWithFetch(messagePort, stages, fetchAllStageMessages);
-      const filtered = before_id !== undefined ? allMessages.filter((m) => m.message.id < before_id) : allMessages;
-      return { results: filtered.slice(0, limit).map(formatMessage), has_more: filtered.length > limit };
+      // page 模式：每个 stage 取 limit 条，跨 stage 合并分页
+      const all: Array<{ message: Message; context: MessageContext | null; stage_id: string }> = [];
+      let anyStageHasMore = false;
+
+      for (const stage of stages) {
+        const batch = messagePort.listMessages(stage.id, limit, before_id);
+        for (const msg of batch) {
+          all.push({ message: msg, context: messagePort.getContext(msg.id), stage_id: stage.id });
+        }
+        if (batch.length >= limit) anyStageHasMore = true;
+      }
+
+      all.sort((a, b) => b.message.id - a.message.id);
+      const page = all.slice(0, limit);
+
+      return {
+        results: page.map((m) => ({
+          message_id: m.message.id,
+          stage_id: m.stage_id,
+          from_speaker: m.message.from_speaker,
+          content: m.context?.context ?? null,
+          created_at: m.message.created_at,
+        })),
+        has_more: anyStageHasMore || all.length > limit,
+      };
     },
   };
 }
@@ -201,39 +200,23 @@ function createGetMessageWindowTool(stagePort: StagePort, messagePort: MessagePo
         after?: number;
       };
 
-      // 获取锚点消息
       const anchor = messagePort.getMessage(message_id);
       if (!anchor) {
         return { error: "Anchor message not found" };
       }
 
-      // 获取锚点所在 stage 的所有消息
-      const stageMessages = fetchAllStageMessages(messagePort, anchor.stage_id);
-
-      // 找到锚点在列表中的位置
-      const anchorIndex = stageMessages.findIndex((m) => m.id === message_id);
-      if (anchorIndex === -1) {
-        return { error: "Anchor message not found in stage" };
-      }
-
-      // 取窗口范围
-      const start = Math.max(0, anchorIndex - before);
-      const end = Math.min(stageMessages.length, anchorIndex + after + 1);
-      const windowMessages = stageMessages.slice(start, end);
+      const windowMessages = messagePort.listMessagesWindow(anchor.stage_id, message_id, before, after);
 
       return {
         stage_id: anchor.stage_id,
         anchor_message_id: message_id,
-        messages: windowMessages.map((msg) => {
-          const context = messagePort.getContext(msg.id);
-          return {
-            message_id: msg.id,
-            from_speaker: msg.from_speaker,
-            content: context?.context ?? null,
-            created_at: msg.created_at,
-            is_anchor: msg.id === message_id,
-          };
-        }),
+        messages: windowMessages.map((msg) => ({
+          message_id: msg.id,
+          from_speaker: msg.from_speaker,
+          content: messagePort.getContext(msg.id)?.context ?? null,
+          created_at: msg.created_at,
+          is_anchor: msg.id === message_id,
+        })),
       };
     },
   };
