@@ -23,6 +23,7 @@ export function MentionDropdown({ suggestions, selectedIndex, onSelect }: Mentio
 
   /** 基于触发器位置决定 flip 和 constrained，不依赖下拉框自身位置 */
   useLayoutEffect(() => {
+    if (suggestions.length === 0) return;
     if (!dropdownRef.current) return;
     const parent = dropdownRef.current.parentElement;
     if (!parent) return;

@@ -172,7 +172,7 @@ function ChatMessageInner({ message, onInterrupt }: { message: MessageDto; onInt
                     () => showToast("复制失败", true),
                   );
                 }}
-                className="absolute top-2 right-10 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-white/10 text-text-muted hover:text-text-secondary"
+                className={`absolute top-2 ${hasContext ? "right-24" : "right-10"} opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-white/10 text-text-muted hover:text-text-secondary`}
                 aria-label="Copy message"
               >
                 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
