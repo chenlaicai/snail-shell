@@ -12,6 +12,7 @@ import { AutoAdvanceEngine } from "@app/issue-collaboration/auto-advance";
 import { ConsumerNotifier } from "@app/issue-collaboration/consumer-notifier";
 import { MessageHandler } from "@app/issue-collaboration/message-handler";
 import { CollaborationHelpers } from "@app/issue-collaboration/helpers";
+import { buildIdentityBlock } from "@app/issue-collaboration/_internal/identity-block";
 import { getLogger } from "@infra/logger";
 const log = getLogger({ module: "collaboration" });
 const truncateForUI = (text: string, maxLen = 200) => text.length > maxLen ? text.slice(0, maxLen) + "..." : text;
@@ -290,13 +291,13 @@ export class IssueCollaboration implements CollaborationInput {
     unreadMessages: Message[]; agentMessage: Message; signal?: AbortSignal;
   }) {
     const { stageId, roleInstance, issue, stage, assignment, unreadMessages, agentMessage, signal } = input;
-    const systemReminder = this.buildSystemReminder({ issue, stage, roleInstance, roleKey: assignment.role_key });
+    const systemReminder = this.buildSystemReminder({ issue, stage, roleInstance, roleKey: assignment.role_key, snailKey: assignment.snail_key });
     const invokeOptions: InvokeOptions = { signal };
     const agentMessages = unreadMessages.map(message => this.messageHandler.toAgentMessage(message));
     /** 唯一的上下文数据源：snail adapter 从这里构建 env vars，buildContextBlock 从 issue.context 渲染 system reminder */
     const firstCallRequest = {
       workspace_path: issue.workspace_path, messages: agentMessages, systemReminder: systemReminder || undefined,
-      context: { issue_id: issue.id, stage_id: stage.id, message_id: String(agentMessage.id), stage_key: stage.key, role_instance: roleInstance, ...issue.context },
+      context: { issue_id: issue.id, stage_id: stage.id, message_id: String(agentMessage.id), stage_key: stage.key, role_instance: roleInstance, ...issue.context, snail_key: assignment.snail_key },
     };
     const resumeRequest = { workspace_path: issue.workspace_path, messages: agentMessages, system_reminder: systemReminder, messageId: String(agentMessage.id), stageId: stage.id };
     const onEvent = (event: AgentEvent) => this.handleAgentEvent(stageId, agentMessage.id, event);
@@ -535,24 +536,11 @@ export class IssueCollaboration implements CollaborationInput {
         : "（无文本输出）";
     return { message_id: messageId, kind: "event_summary", context: fallback, created_at: new Date().toISOString() };
   }
-  private buildSystemReminder(input: { issue: Issue; stage: Stage; roleInstance: string; roleKey: string }): string {
-    const { issue, stage, roleInstance, roleKey } = input;
-    const stageDefinition = issue.sop_snapshot.stage_definitions.find(definition => definition.key === stage.key);
-    const roleDef = stageDefinition?.roles.find(role => role.key === roleKey);
-    const roleName = roleDef?.name ?? roleInstance;
-    return [
-      this.buildIdentityBlock(roleName, roleInstance, roleDef),
-      this.buildContextBlock(issue, stage, roleDef),
-    ].join("\n\n");
-  }
-  private buildIdentityBlock(roleName: string, roleInstance: string, roleDef: RoleDefinition | undefined): string {
-    return `<identity>
-# 你是${roleName}
-**角色实例**：${roleInstance}
-**职责**：${roleDef?.description ?? "请参考 skill 中的工作流程"}
-**禁止**：${roleDef?.prohibition ?? "请参考 skill 中的禁止项"}
-**自检**：${roleDef?.self_check ?? "请参考 skill 中的自检规则"}
-</identity>`;
+  private buildSystemReminder(input: { issue: Issue; stage: Stage; roleInstance: string; roleKey: string; snailKey: string }): string {
+    const { issue, stage, roleInstance, roleKey, snailKey } = input;
+    const stageDef = issue.sop_snapshot.stage_definitions.find(d => d.key === stage.key);
+    const roleDef = stageDef?.roles.find(r => r.key === roleKey);
+    return [buildIdentityBlock(roleDef?.name ?? roleInstance, roleInstance, roleDef, this.deps.snailPort.findByKey(snailKey)), this.buildContextBlock(issue, stage, roleDef)].join("\n\n");
   }
   private buildContextBlock(issue: Issue, stage: Stage, roleDef: RoleDefinition | undefined): string {
     const transitions = stage.available_transitions.map(transition => `- ${transition.to}${transition.guard ? `: ${transition.guard}` : ""}`).join("\n");

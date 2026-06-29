@@ -3,6 +3,7 @@ import { randomBytes } from "crypto";
 import type { AgentEvent, InvokeOptions, CapabilitiesSpec } from "@infra/acs/model";
 import type { AgentRegistryPort } from "@infra/acs/port";
 import { buildContextEnv } from "@infra/acs/_internal/utils/context-env";
+import { CONTEXT_KEYS } from "@infra/acs/context-keys";
 import type { TenetPromptPort } from "@domain/tenet-prompt/port";
 import type { SkillPort } from "@domain/skill/port";
 import type { MCPPort } from "@domain/mcp-config/port";
@@ -119,8 +120,7 @@ export class SnailAdapter implements SnailPort {
     // 组装调用参数
     const workspace = { path: request.workspace_path, summary: null };
     assert(!snail.name.includes('」'), `snail.name 包含非法字符「」」，请检查 snails.json 配置`);
-    const systemPrompt = this.buildSystemPrompt(request.tags)
-      + `\n\n## 当前 Snail 名称\n\n你的 Snail 名称是「${snail.name}」。PR 评论签名时使用此值，不得自行猜测或构造。`;
+    const systemPrompt = this.buildSystemPrompt(request.tags);
     const capabilities = this.buildCapabilities(workspace);
     const guardProfile = this.buildGuardProfile(workspace);
     const systemReminder = this.buildSystemReminder(request.systemReminder);
@@ -182,8 +182,7 @@ export class SnailAdapter implements SnailPort {
       sessionId, messageCount: request.messages.length,
     }, "invokeResume");
 
-    /** resume 路径注入 contextEnv，保证子进程有 message_id 和 stage_id 环境变量 */
-    const contextEnv: Record<string, string> = {};
+    const contextEnv: Record<string, string> = { [CONTEXT_KEYS.WORKSPACE_PATH]: request.workspace_path, snail_key: instance.snail_key };
     if (request.messageId != null) contextEnv.message_id = request.messageId;
     if (request.stageId != null) contextEnv.stage_id = request.stageId;
     const invokeOptions = this.buildOptions(snail, options, contextEnv);
