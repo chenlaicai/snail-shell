@@ -26,6 +26,20 @@ export function createMessageHistoryServer(
   };
 }
 
+/** 分页获取某个 stage 的全部消息（绕过 listMessages 的默认 limit） */
+function fetchAllStageMessages(messagePort: MessagePort, stageId: string, batchSize = 100): Message[] {
+  const all: Message[] = [];
+  let beforeId: number | undefined;
+  while (true) {
+    const batch = messagePort.listMessages(stageId, batchSize, beforeId);
+    if (batch.length === 0) break;
+    all.push(...batch);
+    beforeId = batch[batch.length - 1].id;
+    if (batch.length < batchSize) break;
+  }
+  return all;
+}
+
 /** 跨 stage 关键词搜索 */
 function createSearchMessagesTool(stagePort: StagePort, messagePort: MessagePort): MCPTool {
   return {
@@ -48,8 +62,7 @@ function createSearchMessagesTool(stagePort: StagePort, messagePort: MessagePort
       for (const stage of stages) {
         if (results.length >= limit) break;
 
-        // 获取该 stage 的所有消息
-        const messages = messagePort.listMessages(stage.id, 100);
+        const messages = fetchAllStageMessages(messagePort, stage.id);
         for (const msg of messages) {
           if (results.length >= limit) break;
 
@@ -75,6 +88,23 @@ function createSearchMessagesTool(stagePort: StagePort, messagePort: MessagePort
   };
 }
 
+type StageMessage = { message: Message; context: MessageContext | null; stage_id: string };
+
+function collectWithFetch(messagePort: MessagePort, stages: Array<{ id: string }>, fetch: (port: MessagePort, id: string) => Message[]): StageMessage[] {
+  const all: StageMessage[] = [];
+  for (const stage of stages) {
+    for (const msg of fetch(messagePort, stage.id)) {
+      all.push({ message: msg, context: messagePort.getContext(msg.id), stage_id: stage.id });
+    }
+  }
+  all.sort((a, b) => b.message.id - a.message.id);
+  return all;
+}
+
+function formatMessage(m: StageMessage) {
+  return { message_id: m.message.id, stage_id: m.stage_id, from_speaker: m.message.from_speaker, content: m.context?.context ?? null, created_at: m.message.created_at };
+}
+
 /** 跨 stage 消息列表 */
 function createListMessagesTool(stagePort: StagePort, messagePort: MessagePort): MCPTool {
   return {
@@ -92,77 +122,27 @@ function createListMessagesTool(stagePort: StagePort, messagePort: MessagePort):
     },
     handler: async (params) => {
       const { issue_id, mode, limit = 10, before_id } = params as {
-        issue_id: string;
-        mode: "recent" | "page";
-        limit?: number;
-        before_id?: number;
+        issue_id: string; mode: "recent" | "page"; limit?: number; before_id?: number;
       };
-
       const stages = stagePort.listStages(issue_id);
 
       if (mode === "recent") {
-        // recent 模式：每个 stage 最近的用户消息及其后续
-        const results: Array<{ stage_id: string; messages: Array<{ message: Message; context: MessageContext | null }> }> = [];
-
-        for (const stage of stages) {
-          const messages = messagePort.listMessages(stage.id, limit);
-          const messagesWithContext = messages.map((msg) => ({
-            message: msg,
-            context: messagePort.getContext(msg.id),
-          }));
-          results.push({ stage_id: stage.id, messages: messagesWithContext });
+        // 每个 stage 最近的消息，跨 stage 聚合后按 limit 裁剪
+        const fetch = (port: MessagePort, id: string) => port.listMessages(id, limit);
+        const trimmed = collectWithFetch(messagePort, stages, fetch).slice(0, limit);
+        const byStage = new Map<string, StageMessage[]>();
+        for (const item of trimmed) {
+          let arr = byStage.get(item.stage_id);
+          if (!arr) { arr = []; byStage.set(item.stage_id, arr); }
+          arr.push(item);
         }
-
-        return {
-          results: results.map((r) => ({
-            stage_id: r.stage_id,
-            messages: r.messages.map((m) => ({
-              message_id: m.message.id,
-              from_speaker: m.message.from_speaker,
-              content: m.context?.context ?? null,
-              created_at: m.message.created_at,
-            })),
-          })),
-        };
+        return { results: [...byStage.entries()].map(([stage_id, items]) => ({ stage_id, messages: items.map(formatMessage) })) };
       }
 
-      // page 模式：按时间顺序分页（跨 stage 聚合）
-      // 收集所有 stage 的消息，按 id 降序排列
-      const allMessages: Array<{ message: Message; context: MessageContext | null; stage_id: string }> = [];
-
-      for (const stage of stages) {
-        const messages = messagePort.listMessages(stage.id, 100);
-        for (const msg of messages) {
-          allMessages.push({
-            message: msg,
-            context: messagePort.getContext(msg.id),
-            stage_id: stage.id,
-          });
-        }
-      }
-
-      // 按 id 降序排列（id 越大越新）
-      allMessages.sort((a, b) => b.message.id - a.message.id);
-
-      // 过滤 before_id
-      let filtered = allMessages;
-      if (before_id !== undefined) {
-        filtered = allMessages.filter((m) => m.message.id < before_id);
-      }
-
-      // 取 limit 条
-      const page = filtered.slice(0, limit);
-
-      return {
-        results: page.map((m) => ({
-          message_id: m.message.id,
-          stage_id: m.stage_id,
-          from_speaker: m.message.from_speaker,
-          content: m.context?.context ?? null,
-          created_at: m.message.created_at,
-        })),
-        has_more: filtered.length > limit,
-      };
+      // page 模式：全量聚合分页
+      const allMessages = collectWithFetch(messagePort, stages, fetchAllStageMessages);
+      const filtered = before_id !== undefined ? allMessages.filter((m) => m.message.id < before_id) : allMessages;
+      return { results: filtered.slice(0, limit).map(formatMessage), has_more: filtered.length > limit };
     },
   };
 }
