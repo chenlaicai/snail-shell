@@ -75,18 +75,19 @@ describe("set_final_body handler", () => {
       .rejects.toThrow("message_id 999 not found");
   });
 
-  it("skips ownership check when stage_id is not provided", async () => {
-    let writtenId: number | undefined;
+  it("rejects when stage_id is not provided", async () => {
+    const messages = new Map<number, Message>();
+    messages.set(100, { id: 100, stage_id: "stage-a", from_speaker: "dev", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
+
     const port = createMockMessagePort({
-      setContext: (id) => { writtenId = id; },
+      getMessage: (id) => messages.get(id),
     });
 
     const server = createFinalResponseServer(port);
     const handler = server.tools[0].handler;
 
-    const result = await handler({ text: "hello", message_id: "100" });
-    expect(result).toEqual({ ok: true });
-    expect(writtenId).toBe(100);
+    await expect(handler({ text: "hello", message_id: "100" }))
+      .rejects.toThrow("does not belong to stage");
   });
 
   it("rejects empty text", async () => {
