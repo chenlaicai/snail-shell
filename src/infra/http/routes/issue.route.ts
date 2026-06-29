@@ -211,11 +211,11 @@ function numberQuery(value: string | undefined): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function closeIssue(c: Context, deps: IssueRoutesDeps) {
+async function closeIssue(c: Context, deps: IssueRoutesDeps) {
   const issueId = requiredParam(c, "issueId");
   try {
-    const closed = deps.collaboration.closeIssue(issueId);
-    return c.json(toIssueDetail(deps, closed));
+    const { issue, cleanup } = await deps.collaboration.closeIssue(issueId);
+    return c.json({ issue: toIssueDetail(deps, issue), cleanup });
   } catch (error) {
     if (error instanceof Error && error.message === `Issue not found: ${issueId}`) {
       return c.json({ error: "Issue not found" }, 404);

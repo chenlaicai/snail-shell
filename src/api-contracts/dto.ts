@@ -149,6 +149,16 @@ export type ConversationDto = {
   updated_at: string;
 };
 
+export type ResourceStatus = "success" | "failed" | "skipped";
+export type ResourceResultDto = { status: ResourceStatus; error?: string };
+export type CleanupResultDto = {
+  pr: ResourceResultDto;
+  worktree: ResourceResultDto;
+  localBranch: ResourceResultDto;
+  remoteBranch: ResourceResultDto;
+};
+export type CloseIssueResultDto = { issue: IssueDetailDto; cleanup: CleanupResultDto };
+
 export type EvolutionItemDto = { id: string; workspace_id: string; status: string; issue_id: string | null; title: string; content: string; tags: string[]; result: string | null; metadata: unknown; created_at: string; updated_at: string };
 export type EvolutionItemWithConversationDto = EvolutionItemDto;
 export type EvolutionItemSearchResultDto = EvolutionItemDto;

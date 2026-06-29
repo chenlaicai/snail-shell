@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../services/api-client";
 import { queryKeys } from "../queries/keys";
+import type { CloseIssueResultDto } from "@/types";
 
 export function useCreateIssue(workspaceId: string) {
   const qc = useQueryClient();
@@ -14,9 +15,9 @@ export function useCreateIssue(workspaceId: string) {
 export function useCloseIssue(workspaceId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (issueId: string) =>
+    mutationFn: (issueId: string): Promise<CloseIssueResultDto> =>
       api("POST /api/issues/:issueId/close", { params: { issueId } }),
-    onSuccess: (_data, issueId) => {
+    onSuccess: (data, issueId) => {
       qc.invalidateQueries({ queryKey: queryKeys.workspaces.issues(workspaceId) });
       qc.invalidateQueries({ queryKey: queryKeys.issues.detail(issueId) });
     },
