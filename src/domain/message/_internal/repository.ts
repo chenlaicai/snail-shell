@@ -141,14 +141,16 @@ export class SQLiteMessageRepository implements MessageRepository {
 
   searchContext(stageId: string, query: string, limit: number): Array<{ message: Message; context: MessageContext }> {
     type SearchRow = MessageRow & { ctx_message_id: number; ctx_kind: string; ctx_context: string; ctx_created_at: string };
+    // 转义 SQL LIKE 通配符：% → \%, _ → \_, \ → \\
+    const escaped = query.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
     const rows = this.db.all<SearchRow>(
       `SELECT m.*, mc.message_id AS ctx_message_id, mc.kind AS ctx_kind, mc.context AS ctx_context, mc.created_at AS ctx_created_at
        FROM message m
        INNER JOIN message_context mc ON mc.message_id = m.id
-       WHERE m.stage_id = ? AND mc.context LIKE '%' || ? || '%'
+       WHERE m.stage_id = ? AND mc.context LIKE '%' || ? || '%' ESCAPE '\\'
        ORDER BY m.id DESC
        LIMIT ?`,
-      [stageId, query, limit],
+      [stageId, escaped, limit],
     );
     return rows.map((row) => ({
       message: mapMessage(row),
