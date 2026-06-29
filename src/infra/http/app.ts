@@ -5,6 +5,7 @@ import { createIssueRoutes } from "@infra/http/routes/issue.route";
 import { createMetaRoutes } from "@infra/http/routes/meta.route";
 import { createKnowledgeRoutes } from "@infra/http/routes/knowledge.route";
 import { createEvolutionRoutes } from "@infra/http/routes/evolution.route";
+import { createFrontendLogRoutes } from "@infra/http/routes/frontend-log.route";
 import { getLogger } from "@infra/logger";
 import type { WorkspaceAdapter } from "@domain/workspace/_internal/adapter";
 import type { IssuePort, StagePort } from "@domain/issue/port";
@@ -72,6 +73,7 @@ export function createApp(deps: AppDeps) {
   app.route("/", createMetaRoutes(deps));
   app.route("/", createKnowledgeRoutes(deps));
   app.route("/", createEvolutionRoutes(deps));
+  app.route("/", createFrontendLogRoutes());
 
   if (deps.mcpHandler) {
     app.route("/mcp-server", deps.mcpHandler);

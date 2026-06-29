@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useConversationStore } from "../stores/conversationStore";
 import { queryKeys } from "../queries/keys";
 import { removePendingMessage } from "../lib/pending-messages";
+import { recordWsReconnect, recordWsDisconnect } from "../lib/perf-logger";
 import type { IssueRealtimeMessage, IssueDetailDto, MessageDto, WsServerMessage } from "../types";
 
 /** 创建占位 MessageDto——用于 WebSocket message_started 和乐观发送 */
@@ -312,17 +313,9 @@ function createWsConnection(url: string, handlers: WsHandlers): WebSocket {
   return ws;
 }
 
-function clearTimer(timer: React.MutableRefObject<ReturnType<typeof setTimeout> | null>): void {
-  if (timer.current) {
-    clearTimeout(timer.current);
-    timer.current = null;
-  }
-}
-
 export function useIssueRealtime(issueId: string | null, currentStageId: string | null) {
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const reconnectDelay = useRef(1000);
+  const timerRef = useRef<{ timer: ReturnType<typeof setTimeout> | null; delay: number; start: number; count: number }>({ timer: null, delay: 1000, start: 0, count: 0 });
   const queryClient = useQueryClient();
   const batcherRef = useRef(new EventBatcher(queryClient));
   const setWsStatus = useConversationStore((state) => state.setWsStatus);
@@ -333,32 +326,34 @@ export function useIssueRealtime(issueId: string | null, currentStageId: string 
     if (!issueId) { setWsStatus("disconnected"); return; }
     let mounted = true;
     let activeWs: WebSocket | null = null;
+    const t = timerRef.current;
 
     function connect() {
       if (!mounted) return;
       const proto = location.protocol === "https:" ? "wss:" : "ws:";
       setWsStatus("reconnecting");
+      t.start = performance.now();
       const ws = createWsConnection(
         `${proto}//${location.host}/issue-events?issue_id=${encodeURIComponent(issueId)}`,
         {
           mounted: () => mounted && activeWs === ws && wsRef.current === ws,
           onOpen: () => {
-            clearTimer(reconnectTimer);
+            if (t.timer) { clearTimeout(t.timer); t.timer = null; }
+            if (t.count > 0) recordWsReconnect(performance.now() - t.start, t.count);
+            t.count = 0; t.delay = 1000;
             queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(issueId) });
-            const currentStageId = currentStageIdRef.current;
-            if (currentStageId) queryClient.invalidateQueries({ queryKey: queryKeys.stages.messages(currentStageId) });
+            const sid = currentStageIdRef.current;
+            if (sid) queryClient.invalidateQueries({ queryKey: queryKeys.stages.messages(sid) });
             setWsStatus("connected");
-            reconnectDelay.current = 1000;
           },
           onMessage: (msg) => batcherRef.current!.add(msg),
           onClose: () => {
             if (!mounted || activeWs !== ws || wsRef.current !== ws) return;
+            t.count++;
+            recordWsDisconnect(`reconnect in ${t.delay}ms`);
             setWsStatus("disconnected");
-            console.log(`[WebSocket] 连接关闭，${reconnectDelay.current}ms 后重连`);
-            reconnectTimer.current = setTimeout(() => {
-              reconnectDelay.current = Math.min(reconnectDelay.current * 2, 30000);
-              connect();
-            }, reconnectDelay.current);
+            console.log(`[WebSocket] 连接关闭，${t.delay}ms 后重连`);
+            t.timer = setTimeout(() => { t.delay = Math.min(t.delay * 2, 30000); connect(); }, t.delay);
           },
         },
       );
@@ -370,10 +365,9 @@ export function useIssueRealtime(issueId: string | null, currentStageId: string 
     return () => {
       mounted = false;
       batcherRef.current.dispose();
-      clearTimer(reconnectTimer);
+      if (t.timer) { clearTimeout(t.timer); t.timer = null; }
       if (activeWs) {
-        const ws = activeWs;
-        activeWs = null;
+        const ws = activeWs; activeWs = null;
         if (wsRef.current === ws) wsRef.current = null;
         ws.close();
       }
