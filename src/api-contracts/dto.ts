@@ -98,7 +98,7 @@ export type IssueRealtimeMessage = {
     | { type: "message_started"; stage_id: string; message_id: number; role: MessageRole; role_name: string | null; client_id: string | null; status: MessageStatus }
     | { type: "message_event_appended"; stage_id: string; message_id: number; event: MessageEvent }
     | { type: "message_status_changed"; stage_id: string; message_id: number; status: MessageStatus; context: MessageContext | null }
-    | { type: "user_called"; stage_id: string; message_id: number; role: MessageRole; role_name: string | null; client_id: string | null; status: MessageStatus }
+    | { type: "user_called"; stage_id: string; message_id: number; role: MessageRole; role_name: string | null; client_id: string | null; status: MessageStatus; content?: string }
     | { type: "stage_transition_suggested"; stage_id: string; suggestion: StageSuggestion };
 };
 
@@ -109,7 +109,8 @@ export type WorkspaceWsMessage =
   | { type: "activity_status_changed"; issue_id: string; activity_status: ActivityStatus; previous_status: ActivityStatus }
   | { type: "heartbeat"; ts: number };
 
-type MessageStatus = "streaming" | "completed" | "failed" | "interrupted" | "cancelled";
+/** frontend-only: "sending" 是纯前端状态，后端永远不会产生 */
+type MessageStatus = "sending" | "streaming" | "completed" | "failed" | "interrupted" | "cancelled";
 type MessageRole = "user" | "assistant" | "system";
 
 export type MessageEvent = { id: number; message_id: number; seq: number; payload: Record<string, unknown> & { type: string }; created_at: string };
