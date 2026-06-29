@@ -14,7 +14,7 @@ import { StageSuggestionCard } from "@/components/StageSuggestionCard";
 import { useIssueRealtime, createPlaceholderMessage } from "@/hooks/useWebSocket";
 import { useSendMessage } from "@/mutations/conversation.mutations";
 import { useConversationStore } from "@/stores/conversationStore";
-import { getPendingMessages } from "@/lib/pending-messages";
+import { getPendingMessages, clearPendingMessages } from "@/lib/pending-messages";
 import type { IssueDetailDto, StageDetailDto, MessageDto } from "@/types";
 
 const SCROLL_THRESHOLD = 80;
@@ -59,7 +59,7 @@ export function IssueConversation() {
     queryKey: queryKeys.stages.messages(stageId ?? ""),
     queryFn: () => api("GET /api/stages/:stageId/messages", { params: { stageId: stageId! } }) as Promise<MessageDto[]>,
     enabled: !!stageId,
-    /** 页面加载时恢复 pending 消息，并去重 */
+    /** 页面加载时恢复 pending 消息，去重后按 createdAt 降序合并 */
     select: (serverData) => {
       if (!stageId) return serverData;
       const pending = getPendingMessages(stageId);
@@ -76,9 +76,23 @@ export function IssueConversation() {
             status: p.status, // "sending" or "failed"
             content: p.content,
           }),
-        );
+        )
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-      return [...uniquePending, ...serverData];
+      /** 按 created_at 降序合并（serverData 已是降序） */
+      const merged: MessageDto[] = [];
+      let pi = 0;
+      let si = 0;
+      while (pi < uniquePending.length && si < serverData.length) {
+        if (new Date(uniquePending[pi].created_at).getTime() >= new Date(serverData[si].created_at).getTime()) {
+          merged.push(uniquePending[pi++]);
+        } else {
+          merged.push(serverData[si++]);
+        }
+      }
+      while (pi < uniquePending.length) merged.push(uniquePending[pi++]);
+      while (si < serverData.length) merged.push(serverData[si++]);
+      return merged;
     },
   });
 
@@ -88,9 +102,10 @@ export function IssueConversation() {
   const allHistoryLoadedRef = useRef(false);
   const prevStageIdRef = useRef<string | null>(null);
 
-  /** 当 stageId 切换时，清空已加载的历史并滚动到底部 */
+  /** 当 stageId 切换时，清空旧 stage 的 pending 消息、已加载的历史并滚动到底部 */
   useEffect(() => {
     if (prevStageIdRef.current !== stageId) {
+      if (prevStageIdRef.current) clearPendingMessages(prevStageIdRef.current);
       prevStageIdRef.current = stageId;
       setOlderHistory([]);
       allHistoryLoadedRef.current = false;

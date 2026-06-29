@@ -9,7 +9,7 @@
 const STORAGE_KEY = "snail:pending_messages";
 
 export interface PendingMessage {
-  /** 乐观 ID（Date.now() * 1000 + random） */
+  /** 乐观 ID（负数，避免与服务端正整数 ID 冲突） */
   id: number;
   stageId: string;
   content: string;
@@ -31,9 +31,12 @@ function writeAll(data: Record<string, PendingMessage>): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 
-/** 生成乐观 ID：毫秒时间戳 × 1000 + 随机 0-999 */
+/**
+ * 生成乐观 ID：负数，确保不与服务端自增正整数 ID 冲突。
+ * 取值范围 ≈ -2^53 ~ -1，在 JS 安全整数范围内。
+ */
 export function generateOptimisticId(): number {
-  return Date.now() * 1000 + Math.floor(Math.random() * 1000);
+  return -(Date.now() * 1000 + Math.floor(Math.random() * 1000));
 }
 
 /** 保存 pending 消息到 localStorage */

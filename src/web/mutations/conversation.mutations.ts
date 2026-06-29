@@ -15,8 +15,9 @@ import type { MessageDto } from "../types";
  *
  * 设计要点：
  * 1. onMutate: 乐观更新 status="sending" + 写入 localStorage
- * 2. onSuccess: 更新 status="completed" + 删除 localStorage
+ * 2. onSuccess: 删除 localStorage（不更新缓存 status，让 WebSocket 事件完成替换）
  * 3. onError: 标记 status="failed" + 更新 localStorage（不回滚缓存）
+ * 4. onSettled: invalidateQueries 兜底，确保最终一致
  */
 export function useSendMessage(stageId: string) {
   const qc = useQueryClient();
@@ -49,12 +50,12 @@ export function useSendMessage(stageId: string) {
     },
 
     onSuccess: (_data, _body, context) => {
-      /** 发送成功：删除 localStorage 条目 */
+      /** 发送成功：删除 localStorage 条目。
+       *  不在这里更新缓存 status —— 保留 "sending" 让 WebSocket user_called
+       *  事件能通过 replaceOptimisticMessage 匹配并替换为服务端真实消息。
+       *  onSettled 的 invalidateQueries 作为兜底，确保最终一致。
+       */
       removePendingMessage(stageId, context.optimisticId);
-      /** 更新缓存：status "sending" → "completed" */
-      qc.setQueryData(queryKeys.stages.messages(stageId), (old: MessageDto[] | undefined) =>
-        old?.map((m) => (m.id === context.optimisticId ? { ...m, status: "completed" } : m)),
-      );
     },
 
     onError: (_err, _body, context) => {

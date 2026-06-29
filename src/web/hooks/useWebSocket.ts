@@ -226,13 +226,16 @@ class EventBatcher {
     return { messages: result, changed };
   }
 
-  /** 内容匹配替换：检查是否有 role="user" + status="sending" + content 相同的乐观消息 */
+  /**
+   * 内容匹配替换：检查是否有 role="user" + status="sending" + content 相同的乐观消息。
+   * 使用 findLastIndex 匹配最新的乐观消息，避免用户快速发送相同内容时只替换第一条。
+   */
   private replaceOptimisticMessage(
     messages: MessageDto[],
     stageId: string,
     event: Extract<IssueRealtimeMessage["event"], { type: "user_called" }>,
   ): MessageDto[] | null {
-    const optimisticIndex = messages.findIndex(
+    const optimisticIndex = messages.findLastIndex(
       (m) => m.role === "user" && m.status === "sending" && m.content?.trim() === event.content?.trim(),
     );
     if (optimisticIndex === -1) return null;
