@@ -21,25 +21,17 @@ export function MentionDropdown({ suggestions, selectedIndex, onSelect }: Mentio
   /** true = 视口上下空间都不够，限制 max-h */
   const [constrained, setConstrained] = useState(false);
 
-  /** 渲染后检测下拉框位置，决定是否 flip */
+  /** 基于触发器位置决定 flip 和 constrained，不依赖下拉框自身位置 */
   useLayoutEffect(() => {
     if (!dropdownRef.current) return;
-    const rect = dropdownRef.current.getBoundingClientRect();
+    const parent = dropdownRef.current.parentElement;
+    if (!parent) return;
+    const parentRect = parent.getBoundingClientRect();
     const viewportHeight = window.innerHeight;
-
-    if (rect.bottom > viewportHeight) {
-      setFlip(true);
-      /** flip 后再检测顶部空间 */
-      const flippedRect = dropdownRef.current.getBoundingClientRect();
-      if (flippedRect.top < 0) {
-        setConstrained(true);
-      } else {
-        setConstrained(false);
-      }
-    } else {
-      setFlip(false);
-      setConstrained(false);
-    }
+    const spaceBelow = viewportHeight - parentRect.bottom;
+    const spaceAbove = parentRect.top;
+    setFlip(spaceBelow < 200 && spaceAbove > spaceBelow);
+    setConstrained(Math.max(spaceBelow, spaceAbove) < 300);
   }, [suggestions]);
 
   if (suggestions.length === 0) return null;
