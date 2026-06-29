@@ -182,7 +182,11 @@ export class SnailAdapter implements SnailPort {
       sessionId, messageCount: request.messages.length,
     }, "invokeResume");
 
-    const invokeOptions = this.buildOptions(snail, options);
+    /** resume 路径注入 contextEnv，保证子进程有 message_id 和 stage_id 环境变量 */
+    const contextEnv: Record<string, string> = {};
+    if (request.messageId != null) contextEnv.message_id = request.messageId;
+    if (request.stageId != null) contextEnv.stage_id = request.stageId;
+    const invokeOptions = this.buildOptions(snail, options, contextEnv);
 
     const result = await agent.invokeResume(
       { sessionId, systemReminder: request.system_reminder ?? "", messages: request.messages, workspacePath: request.workspace_path, snailKey: instance.snail_key, messageId: request.messageId },
