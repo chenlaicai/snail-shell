@@ -107,14 +107,15 @@ doc_kind: spec
 
 **1a. 修正 buildContextEnv 函数**
 
-将 context 中的 key 统一添加 `SNAIL_CTX_` 前缀：
+将 context 中的 key 统一添加 `SNAIL_CTX_` 前缀（已带前缀的 key 不重复添加）：
 
 ```
 // 修正前
 env[key] = String(value);
 
 // 修正后
-env[`SNAIL_CTX_${key}`] = String(value);
+const envKey = key.startsWith("SNAIL_CTX_") ? key : `SNAIL_CTX_${key}`;
+env[envKey] = String(value);
 ```
 
 **1b. 修正 CONTEXT_KEYS**
