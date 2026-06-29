@@ -69,10 +69,11 @@ function getMissingFieldsFromSpy(deps: AutoAdvanceDeps): string[] | undefined {
   return undefined;
 }
 
-/** 断言 notifyConsumers 被以 onContextMissing 事件调用，且 missing_fields 包含预期字段 */
+/** 断言 notifyConsumers 被以 onContextMissing 事件调用，且 missing_fields 精确匹配预期字段集合 */
 function assertContextMissing(deps: AutoAdvanceDeps, expectedFields: string[]): void {
   const missing = getMissingFieldsFromSpy(deps);
   expect(missing).toBeDefined();
+  expect(missing).toHaveLength(expectedFields.length);
   for (const field of expectedFields) {
     expect(missing).toContain(field);
   }
