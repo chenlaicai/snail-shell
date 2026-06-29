@@ -51,6 +51,12 @@ export class AutoAdvanceEngine {
   }
 
   private async evaluateDevelopmentAutoAdvance(stage: Stage, suggestions: StageTransitionSuggestion[]): Promise<void> {
+    /** 前置条件：校验 Issue.context 必要字段存在性，缺失时阻断自动推进 */
+    const missingContext = this.getMissingContextFields(stage);
+    if (missingContext.length > 0) {
+      await this.notifyMissingContext(stage.id, missingContext);
+      return;
+    }
     const gateComplete = suggestions.find(s => s.consensus === undefined && s.gate_evidence);
     if (!gateComplete || !this.allGatesPassed(stage, gateComplete)) return;
     await this.executeAutoAdvance(stage, gateComplete);
@@ -60,6 +66,13 @@ export class AutoAdvanceEngine {
     const consensusSignals = suggestions.filter(s => s.consensus === true);
     const uniqueSpeakers = new Set(consensusSignals.map(s => s.from_speaker));
     if (uniqueSpeakers.size < 2) return;
+
+    /** 前置条件：校验 Issue.context 必要字段存在性，缺失时阻断自动推进 */
+    const missingContext = this.getMissingContextFields(stage);
+    if (missingContext.length > 0) {
+      await this.notifyMissingContext(stage.id, missingContext);
+      return;
+    }
 
     // [Incompatible] 检查
     if (this.isIncompatibleBlocked(stage)) return;
@@ -73,6 +86,27 @@ export class AutoAdvanceEngine {
 
     const latest = consensusSignals[consensusSignals.length - 1];
     await this.executeAutoAdvance(stage, latest);
+  }
+
+  /** 各 stage 推进所需的 Issue.context 必要字段 */
+  private static readonly REQUIRED_CONTEXT_FIELDS: Record<string, string[]> = {
+    design: ["worktree_path", "branch_name"],
+    development: ["worktree_path", "branch_name", "pr_url"],
+    review: ["pr_url"],
+  };
+
+  /** 校验 Issue.context 中必要字段是否存在，返回缺失字段列表 */
+  private getMissingContextFields(stage: Stage): string[] {
+    const requiredFields = AutoAdvanceEngine.REQUIRED_CONTEXT_FIELDS[stage.key];
+    if (!requiredFields) return [];
+    const issue = this.deps.mustGetIssue(stage.issue_id);
+    return requiredFields.filter(field => !issue.context[field]?.trim());
+  }
+
+  /** 通知消费者 context 字段缺失，阻断自动推进 */
+  private async notifyMissingContext(stageId: string, missingFields: string[]): Promise<void> {
+    log.warn({ stageId, missingFields }, "auto-advance blocked: missing context fields");
+    await this.deps.notifyConsumers(stageId, "onContextMissing", { missing_fields: missingFields });
   }
 
   private isIncompatibleBlocked(stage: Stage): boolean {

@@ -48,6 +48,7 @@ description: |
 | rev-01 | 所有检视意见已逐条处理 | ✅ |
 | rev-02 | 根据变更类型独立执行验证命令，实际输出作为检视证据 | ✅ |
 | rev-03 | PR 评论已按签名模板收尾 | ✅ |
+| rev-ctx | pr_url 已通过 set_context 写入 Issue.context（reviewer 需据此定位 PR） | ✅ |
 
 ### 执行步骤
 
@@ -61,6 +62,7 @@ description: |
 - rev-01 ✅ [证据：所有评论处置状态]
 - rev-02 ✅ [证据：验证命令+实际输出]
 - rev-03 ✅ [证据：签名评论链接]
+- rev-ctx ✅ [证据：set_context 调用记录]
 
 所有 required 项通过，可以提议推进。
 ```
@@ -84,7 +86,8 @@ description: |
     "gate_evidence": {
       "rev-01": "所有评论处置状态: 已修复",
       "rev-02": "npm run check 通过",
-      "rev-03": "PR #123 评论已签名"
+      "rev-03": "PR #123 评论已签名",
+      "rev-ctx": "pr_url=https://github.com/..."
     }
   }
 }

@@ -59,6 +59,7 @@ export interface CollaborationConsumer {
   onMergeReady?(stageId: string, data: { suggestions: StageTransitionSuggestion[] }): void | Promise<void>;
   onDisagreement?(stageId: string, suggestion: StageTransitionSuggestion): void | Promise<void>;
   onAutoAdvanced?(stageId: string, data: { from: string; to: string; reason: string }): void | Promise<void>;
+  onContextMissing?(stageId: string, data: { missing_fields: string[] }): void | Promise<void>;
 }
 
 export interface WorkspaceConsumer {
