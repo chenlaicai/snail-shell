@@ -69,6 +69,15 @@ function getMissingFieldsFromSpy(deps: AutoAdvanceDeps): string[] | undefined {
   return undefined;
 }
 
+/** 断言 notifyConsumers 被以 onContextMissing 事件调用，且 missing_fields 包含预期字段 */
+function assertContextMissing(deps: AutoAdvanceDeps, expectedFields: string[]): void {
+  const missing = getMissingFieldsFromSpy(deps);
+  expect(missing).toBeDefined();
+  for (const field of expectedFields) {
+    expect(missing).toContain(field);
+  }
+}
+
 describe("AutoAdvanceEngine context validation", () => {
   describe("development stage", () => {
     it("blocks auto-advance when worktree_path is missing", async () => {
@@ -81,7 +90,7 @@ describe("AutoAdvanceEngine context validation", () => {
       await engine.evaluate(createStage({ key: "development" }), [createSuggestion()]);
 
       expect(deps.advanceStage).not.toHaveBeenCalled();
-      expect(getMissingFieldsFromSpy(deps)).toContain("worktree_path");
+      assertContextMissing(deps, ["worktree_path"]);
     });
 
     it("blocks auto-advance when branch_name is missing", async () => {
@@ -94,7 +103,7 @@ describe("AutoAdvanceEngine context validation", () => {
       await engine.evaluate(createStage({ key: "development" }), [createSuggestion()]);
 
       expect(deps.advanceStage).not.toHaveBeenCalled();
-      expect(getMissingFieldsFromSpy(deps)).toContain("branch_name");
+      assertContextMissing(deps, ["branch_name"]);
     });
 
     it("blocks auto-advance when pr_url is missing", async () => {
@@ -107,7 +116,7 @@ describe("AutoAdvanceEngine context validation", () => {
       await engine.evaluate(createStage({ key: "development" }), [createSuggestion()]);
 
       expect(deps.advanceStage).not.toHaveBeenCalled();
-      expect(getMissingFieldsFromSpy(deps)).toContain("pr_url");
+      assertContextMissing(deps, ["pr_url"]);
     });
 
     it("blocks auto-advance when all context fields are missing", async () => {
@@ -118,10 +127,7 @@ describe("AutoAdvanceEngine context validation", () => {
       await engine.evaluate(createStage({ key: "development" }), [createSuggestion()]);
 
       expect(deps.advanceStage).not.toHaveBeenCalled();
-      const missing = getMissingFieldsFromSpy(deps);
-      expect(missing).toContain("worktree_path");
-      expect(missing).toContain("branch_name");
-      expect(missing).toContain("pr_url");
+      assertContextMissing(deps, ["worktree_path", "branch_name", "pr_url"]);
     });
 
     it("blocks auto-advance when context field is empty string", async () => {
@@ -134,7 +140,7 @@ describe("AutoAdvanceEngine context validation", () => {
       await engine.evaluate(createStage({ key: "development" }), [createSuggestion()]);
 
       expect(deps.advanceStage).not.toHaveBeenCalled();
-      expect(getMissingFieldsFromSpy(deps)).toContain("worktree_path");
+      assertContextMissing(deps, ["worktree_path"]);
     });
 
     it("allows auto-advance when all context fields are present", async () => {
@@ -162,9 +168,7 @@ describe("AutoAdvanceEngine context validation", () => {
       await engine.evaluate(createStage({ key: "design" }), [suggestion, suggestion2]);
 
       expect(deps.advanceStage).not.toHaveBeenCalled();
-      const missing = getMissingFieldsFromSpy(deps);
-      expect(missing).toContain("worktree_path");
-      expect(missing).toContain("branch_name");
+      assertContextMissing(deps, ["worktree_path", "branch_name"]);
     });
 
     it("allows auto-advance when context fields are present", async () => {
@@ -201,7 +205,22 @@ describe("AutoAdvanceEngine context validation", () => {
       await engine.evaluate(createStage({ key: "review" }), [suggestion, suggestion2]);
 
       expect(deps.advanceStage).not.toHaveBeenCalled();
-      expect(getMissingFieldsFromSpy(deps)).toContain("pr_url");
+      assertContextMissing(deps, ["pr_url"]);
+    });
+
+    it("allows auto-advance when all context fields are present", async () => {
+      const deps = createDeps();
+      const engine = new AutoAdvanceEngine(deps);
+      const suggestion = createSuggestion({
+        consensus: true,
+        from_speaker: "reviewer-1",
+        target_key: "merge",
+        gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed" },
+      });
+      const suggestion2 = { ...suggestion, from_speaker: "reviewer-2", message_id: 2 };
+      await engine.evaluate(createStage({ key: "review" }), [suggestion, suggestion2]);
+
+      expect(deps.advanceStage).toHaveBeenCalled();
     });
   });
 });
