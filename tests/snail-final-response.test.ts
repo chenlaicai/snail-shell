@@ -1,6 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createFinalResponseServer } from "@domain/snail-mcp-server/_internal/servers/snail-final-response";
 import type { MessagePort } from "@domain/message/port";
+import type { McpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-message-store";
 import type { Message } from "@domain/message/model";
 
 function createMockMessagePort(overrides: Partial<MessagePort> = {}): MessagePort {
@@ -25,7 +26,29 @@ function createMockMessagePort(overrides: Partial<MessagePort> = {}): MessagePor
   };
 }
 
+function createMockMcpMessageStore(): McpMessageStore {
+  return {
+    getMcpRoutingTargets: () => undefined,
+    setMcpRoutingTargets: () => {},
+    deleteMcpRoutingTargets: () => {},
+  };
+}
+
 describe("set_final_body handler", () => {
+  const originalEnv = process.env.SNAIL_CTX_STAGE_ID;
+
+  beforeEach(() => {
+    process.env.SNAIL_CTX_STAGE_ID = "stage-a";
+  });
+
+  afterEach(() => {
+    if (originalEnv === undefined) {
+      delete process.env.SNAIL_CTX_STAGE_ID;
+    } else {
+      process.env.SNAIL_CTX_STAGE_ID = originalEnv;
+    }
+  });
+
   it("writes mcp_final_body when message_id matches stage_id", async () => {
     const messages = new Map<number, Message>();
     messages.set(100, { id: 100, stage_id: "stage-a", from_speaker: "dev", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
@@ -38,10 +61,10 @@ describe("set_final_body handler", () => {
       setContext: (id, kind, ctx) => { writtenId = id; writtenKind = kind; writtenCtx = ctx; },
     });
 
-    const server = createFinalResponseServer(port);
+    const server = createFinalResponseServer(port, createMockMcpMessageStore());
     const handler = server.tools[0].handler;
 
-    const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a" });
+    const result = await handler({ text: "hello", message_id: "100" });
     expect(result).toEqual({ ok: true });
     expect(writtenId).toBe(100);
     expect(writtenKind).toBe("mcp_final_body");
@@ -56,10 +79,11 @@ describe("set_final_body handler", () => {
       getMessage: (id) => messages.get(id),
     });
 
-    const server = createFinalResponseServer(port);
+    process.env.SNAIL_CTX_STAGE_ID = "stage-b";
+    const server = createFinalResponseServer(port, createMockMcpMessageStore());
     const handler = server.tools[0].handler;
 
-    await expect(handler({ text: "hello", message_id: "100", stage_id: "stage-b" }))
+    await expect(handler({ text: "hello", message_id: "100" }))
       .rejects.toThrow("message_id 100 does not belong to stage stage-b (actual: stage-a)");
   });
 
@@ -68,40 +92,44 @@ describe("set_final_body handler", () => {
       getMessage: () => undefined,
     });
 
-    const server = createFinalResponseServer(port);
+    const server = createFinalResponseServer(port, createMockMcpMessageStore());
     const handler = server.tools[0].handler;
 
-    await expect(handler({ text: "hello", message_id: "999", stage_id: "stage-a" }))
+    await expect(handler({ text: "hello", message_id: "999" }))
       .rejects.toThrow("message_id 999 not found");
   });
 
-  it("rejects when stage_id is not provided", async () => {
+  it("skips stage validation when SNAIL_CTX_STAGE_ID is not set", async () => {
     const messages = new Map<number, Message>();
     messages.set(100, { id: 100, stage_id: "stage-a", from_speaker: "dev", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
+    let writtenId: number | undefined;
 
     const port = createMockMessagePort({
       getMessage: (id) => messages.get(id),
+      setContext: (id) => { writtenId = id; },
     });
 
-    const server = createFinalResponseServer(port);
+    delete process.env.SNAIL_CTX_STAGE_ID;
+    const server = createFinalResponseServer(port, createMockMcpMessageStore());
     const handler = server.tools[0].handler;
 
-    await expect(handler({ text: "hello", message_id: "100" }))
-      .rejects.toThrow("does not belong to stage");
+    const result = await handler({ text: "hello", message_id: "100" });
+    expect(result).toEqual({ ok: true });
+    expect(writtenId).toBe(100);
   });
 
   it("rejects empty text", async () => {
     const port = createMockMessagePort();
-    const server = createFinalResponseServer(port);
+    const server = createFinalResponseServer(port, createMockMcpMessageStore());
     const handler = server.tools[0].handler;
 
-    await expect(handler({ text: "", message_id: "100" }))
+    await expect(handler({ text: "" }))
       .rejects.toThrow("text is required");
   });
 
   it("rejects non-positive message_id", async () => {
     const port = createMockMessagePort();
-    const server = createFinalResponseServer(port);
+    const server = createFinalResponseServer(port, createMockMcpMessageStore());
     const handler = server.tools[0].handler;
 
     await expect(handler({ text: "hello", message_id: "0" }))
@@ -110,7 +138,7 @@ describe("set_final_body handler", () => {
 
   it("rejects non-integer message_id", async () => {
     const port = createMockMessagePort();
-    const server = createFinalResponseServer(port);
+    const server = createFinalResponseServer(port, createMockMcpMessageStore());
     const handler = server.tools[0].handler;
 
     await expect(handler({ text: "hello", message_id: "abc" }))

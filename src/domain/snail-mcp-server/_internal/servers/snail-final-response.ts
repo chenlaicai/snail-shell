@@ -35,6 +35,15 @@ export function createFinalResponseServer(messagePort: MessagePort, mcpMessageSt
           if (!rawMessageId) throw new Error("message_id is required (pass explicitly or set SNAIL_CTX_MESSAGE_ID)");
           const messageId = Number(rawMessageId);
           if (!Number.isInteger(messageId) || messageId <= 0) throw new Error("message_id must be a positive integer");
+          /** 归属校验：message_id 必须属于当前 stage，防止串台写入 */
+          const stageId = process.env.SNAIL_CTX_STAGE_ID;
+          if (stageId) {
+            const message = messagePort.getMessage(messageId);
+            if (!message) throw new Error(`message_id ${messageId} not found`);
+            if (message.stage_id !== stageId) {
+              throw new Error(`message_id ${messageId} does not belong to stage ${stageId} (actual: ${message.stage_id})`);
+            }
+          }
           messagePort.setContext(messageId, "mcp_final_body", text);
           /** to_speakers 非空数组时写入 store；空数组视为"未指定"，不写入 */
           if (Array.isArray(params.to_speakers) && params.to_speakers.length > 0) {
