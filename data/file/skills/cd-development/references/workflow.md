@@ -17,8 +17,8 @@
 - 确认 Feature 文档属于当前 issue
 - 确认 [design-time] 章节已锁定
 
-### GATE-4: Task Anchor 已设置
-- 使用 `set-task-anchor` skill 写入：本质目标、反目标、语义不变量、成功标准、change_type、verification_commands
+### GATE-4: Issue Context 已设置
+- 通过 `snail-issue-context` MCP tool 设置 `sop.change_type`（和可选的 `sop.verification_commands`）
 
 所有 GATE 通过后方可进入阶段二。
 
@@ -59,7 +59,7 @@
 
 ## 阶段四：验证与 PR 提交
 
-1. 执行 task_anchor 中的 `verification_commands`（或按 change_type 的默认模板）
+1. 执行 issue context 中的 `sop.verification_commands`（或按 `sop.change_type` 的默认模板）
 2. 记录验证输出作为 dev-02 evidence
 3. 通过 stage-gate API 写入 gate_evidence
 4. 创建 PR，标题格式严格按照特性编号规则（见 `cd-shared/references/feature-numbering.md`）

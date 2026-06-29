@@ -22,7 +22,7 @@ description: |
 
 ## 工作流程索引
 
-1. **环境准备** — worktree 创建、origin/main 确认、feature 文档加载、task_anchor 设置。详见 `references/workflow.md`。
+1. **环境准备** — worktree 创建、origin/main 确认、feature 文档加载、issue context `sop.change_type` 设置。详见 `references/workflow.md`。
 2. **设计确认** — 对照 Feature 文档的 [design-time] 章节，确认理解无歧义。
 3. **实现** — 按设计方案编码，遵守代码仓库完美状态原则。
 4. **验证与 PR 提交** — 执行验证命令、生成 gate evidence、创建 PR。详见 `references/workflow.md`。gate evidence 生成规则见 `cd-shared/references/stage-gate.md`。
@@ -47,7 +47,7 @@ description: |
 | dev-03 | Feature 文档已同步更新 | ✅ |
 | dev-04 | PR 已创建且包含完整改动摘要 | ✅ |
 | dev-05 | 不兼容更新已在 PR 中标注 | |
-| dev-06 | 变更完整性已验证：根据 task_anchor 的 change_type 执行对应验证命令，实际输出已写入 gate_evidence | ✅ |
+| dev-06 | 变更完整性已验证：根据 issue context 的 `sop.change_type` 执行对应验证命令，实际输出已写入 gate_evidence | ✅ |
 | dev-ctx | worktree_path、branch_name、pr_url 已通过 set_context 写入 Issue.context | ✅ |
 
 ### 执行步骤

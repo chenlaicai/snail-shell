@@ -24,6 +24,7 @@ import { init as initMCP } from "@domain/mcp-config/_internal/initor";
 import { init as initIssueCollaboration } from "@app/issue-collaboration/initor";
 import { init as initIMHub } from "@app/im-hub/initor";
 import { createMcpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-message-store";
+import type { EvolutionPort } from "@domain/evolution/port";
 import { createMcpHandler } from "@infra/mcp-server/handler";
 import { createUnifiedWebSocketBridge } from "@infra/http/unified-websocket";
 
@@ -53,20 +54,27 @@ async function initModules(repoRoot: string, serverSettings: ServerSettings) {
   const knowledge = initKnowledge(dataStore, workspaces, db);
   const issue = initIssue(sop.adapter, db);
   const message = initMessage(db);
+  const featureChain = initFeatureChain(repoRoot);
   const evolutionRef: { current?: ReturnType<typeof initEvolution> } = {};
+  const lazyEvolution: EvolutionPort = new Proxy({} as EvolutionPort, {
+    get(_target, prop: string) {
+      return (...args: unknown[]) => {
+        if (!evolutionRef.current) throw new Error("Evolution module is not initialized");
+        return (evolutionRef.current.adapter as unknown as Record<string, (...a: unknown[]) => unknown>)[prop](...args);
+      };
+    },
+  });
   const mcpMessageStore = createMcpMessageStore();
   const snailMCPServer = initMCPServer({
-    updateEvolution: (id, updates) => {
-      if (!evolutionRef.current) throw new Error("Evolution module is not initialized");
-      return Promise.resolve(evolutionRef.current.adapter.update(id, updates));
-    },
+    evolution: lazyEvolution,
     knowledge: knowledge.adapter,
     message: message.adapter,
     issue: issue.issueAdapter,
+    stage: issue.stageAdapter,
+    featureChain: featureChain.adapter,
     mcpMessageStore,
   });
   const mcp = initMCP({ dataStore, workspaces, snailMCPServer: snailMCPServer.adapter, serverSettings });
-  const featureChain = initFeatureChain(repoRoot);
   const guardProfile = initGuardProfile(dataStore);
   const liteAI = initLiteAI(dataStore);
   const snail = initSnail(dataStore, db, { registry, tenetPrompt: tenetPrompt.adapter, skill: skill.adapter, mcp: mcp.adapter, guardProfile: guardProfile.adapter }, serverSettings.maxConcurrentAgents);

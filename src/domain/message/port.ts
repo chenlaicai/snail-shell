@@ -15,6 +15,10 @@ export interface MessagePort {
   getMessage(id: number): Message | undefined;
   /** 查询 stage 中消息，默认返回最新 limit 条（DESC）；beforeId 用于加载更早消息 */
   listMessages(stageId: string, limit?: number, beforeId?: number): Message[];
+  /** 窗口查询：返回锚点消息前后各 N 条（按 id ASC） */
+  listMessagesWindow(stageId: string, anchorId: number, before: number, after: number): Message[];
+  /** 跨 stage 关键词搜索 message_context（SQL LIKE），返回匹配的 {message, context} */
+  searchContext(stageId: string, query: string, limit: number): Array<{ message: Message; context: MessageContext }>;
   listMessagesByStatus(status: MessageStatus, limit?: number): Message[];
   updateMessageTargets(messageId: number, toSpeakers: string[]): void;
 

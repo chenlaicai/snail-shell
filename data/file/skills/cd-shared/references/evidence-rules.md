@@ -12,9 +12,9 @@
 
 ## 按变更类型选择验证命令
 
-task_anchor 中的 `change_type` 决定本 feature 应执行哪组验证命令。开发者在提交 PR 前执行并记录输出；审查者在审查时独立执行同一组命令，对比结果。
+issue context 中的 `sop.change_type` 决定本 feature 应执行哪组验证命令。开发者在提交 PR 前执行并记录输出；审查者在审查时独立执行同一组命令，对比结果。
 
-task_anchor 中有 `verification_commands` 时，按其执行。没有时，按以下默认模板执行：
+issue context 中有 `sop.verification_commands` 时，按其执行。没有时，按以下默认模板执行：
 
 | 变更类型 | 默认验证命令 | evidence 要求 |
 |---|---|---|

@@ -76,6 +76,10 @@ export interface MessageRepository {
   listByStatus(status: Message["status"], limit?: number): Message[];
   /** 查询 stageId 中 id > afterId 的所有消息（按 id ASC），用于 cursor-based 读取 */
   listByStageAfterId(stageId: string, afterId: number): Message[];
+  /** 窗口查询：返回锚点消息前后各 N 条（按 id ASC） */
+  listByStageWindow(stageId: string, anchorId: number, before: number, after: number): Message[];
+  /** 跨 stage 关键词搜索 message_context（SQL LIKE），返回匹配的 {message, context} */
+  searchContext(stageId: string, query: string, limit: number): Array<{ message: Message; context: MessageContext }>;
   /** 查询 stageId 中最近一条非 user/system 的已完成消息的 from_speaker */
   findLatestRespondingSpeaker(stageId: string): string | null;
   /** 查询 stageId 中最新一条消息（按 id DESC LIMIT 1） */
@@ -121,6 +125,37 @@ export class SQLiteMessageRepository implements MessageRepository {
       `SELECT * FROM message WHERE stage_id = ? AND id > ? ORDER BY id ASC`,
       [stageId, afterId],
     ).map(mapMessage);
+  }
+
+  listByStageWindow(stageId: string, anchorId: number, before: number, after: number): Message[] {
+    // 锚点之前的 before 条 + 锚点本身 + 锚点之后的 after 条
+    return this.db.all<MessageRow>(
+      `SELECT * FROM message WHERE stage_id = ? AND id IN (
+         SELECT id FROM message WHERE stage_id = ? AND id <= ? ORDER BY id DESC LIMIT ?
+         UNION
+         SELECT id FROM message WHERE stage_id = ? AND id > ? ORDER BY id ASC LIMIT ?
+       ) ORDER BY id ASC`,
+      [stageId, stageId, anchorId, before + 1, stageId, anchorId, after],
+    ).map(mapMessage);
+  }
+
+  searchContext(stageId: string, query: string, limit: number): Array<{ message: Message; context: MessageContext }> {
+    type SearchRow = MessageRow & { ctx_message_id: number; ctx_kind: string; ctx_context: string; ctx_created_at: string };
+    // 转义 SQL LIKE 通配符：% → \%, _ → \_, \ → \\
+    const escaped = query.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+    const rows = this.db.all<SearchRow>(
+      `SELECT m.*, mc.message_id AS ctx_message_id, mc.kind AS ctx_kind, mc.context AS ctx_context, mc.created_at AS ctx_created_at
+       FROM message m
+       INNER JOIN message_context mc ON mc.message_id = m.id
+       WHERE m.stage_id = ? AND mc.context LIKE '%' || ? || '%' ESCAPE '\\'
+       ORDER BY m.id DESC
+       LIMIT ?`,
+      [stageId, escaped, limit],
+    );
+    return rows.map((row) => ({
+      message: mapMessage(row),
+      context: { message_id: row.ctx_message_id, kind: row.ctx_kind as MessageContextKind, context: row.ctx_context, created_at: row.ctx_created_at },
+    }));
   }
 
   findLatestRespondingSpeaker(stageId: string): string | null {
