@@ -277,7 +277,6 @@ export class SQLiteStageRepository implements StageRepository {
       const current = this.findById(currentStageId);
       if (!current) throw new Error(`Stage not found: ${currentStageId}`);
 
-      // 找到前一个 stage（当前 stage 的 from_stage_id）
       if (!current.from_stage_id) {
         throw new Error(`Cannot rollback: stage ${currentStageId} has no previous stage`);
       }
@@ -287,12 +286,13 @@ export class SQLiteStageRepository implements StageRepository {
         throw new Error(`Cannot rollback: previous stage ${current.from_stage_id} not found`);
       }
 
-      // 验证前一个 stage 的 key 是否匹配目标 key
       if (previousStage.key !== targetKey) {
         throw new Error(`Cannot rollback: previous stage key "${previousStage.key}" does not match target "${targetKey}"`);
       }
 
-      // 删除当前 stage
+      // 清理当前 stage 的关联数据
+      this.db.run(`DELETE FROM role_snail_assignment WHERE stage_id = ?`, [currentStageId]);
+      this.db.run(`DELETE FROM stage_audit WHERE stage_id = ?`, [currentStageId]);
       this.db.run(`DELETE FROM stage WHERE id = ?`, [currentStageId]);
 
       // 清除前一个 stage 的 left_at

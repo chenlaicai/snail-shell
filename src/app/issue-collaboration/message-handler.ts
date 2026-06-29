@@ -1,5 +1,5 @@
 import type { Message, MessageContext, MessageEventPayload } from "@domain/message/model";
-import type { AgentEvent } from "@infra/acs/model";
+import type { AgentEvent, Message as AgentMessage } from "@infra/acs/model";
 
 export interface MessageHandlerDeps {
   getContext(messageId: number): MessageContext | null;
@@ -8,7 +8,7 @@ export interface MessageHandlerDeps {
 export class MessageHandler {
   constructor(private readonly deps: MessageHandlerDeps) {}
 
-  toAgentMessage(message: Message): { role: string; speaker: string; content: string } {
+  toAgentMessage(message: Message): AgentMessage {
     const context = this.deps.getContext(message.id);
     const prefix = message.to_speakers.length > 0 ? `${message.to_speakers.map(target => `@${target}`).join(" ")} ` : "";
     return {

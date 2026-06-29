@@ -1,5 +1,6 @@
 import type { Message, MessageContext, MessageEvent } from "@domain/message/model";
 import type { CreateIssueInput, Issue, Stage } from "@domain/issue/model";
+import type { StageAuditRecord } from "@domain/issue/port";
 
 export interface CreateIssueResult {
   issue: Issue;
@@ -11,16 +12,6 @@ export interface Position {
   stance: "for" | "against" | "neutral";
   argument: string;
   evidence?: string;
-}
-
-export interface StageAuditRecord {
-  stage_id: string;
-  from_key: string;
-  to_key: string;
-  trigger: "auto" | "manual";
-  trigger_reason: string;
-  consensus_content: string;
-  timestamp: number;
 }
 
 export interface StageTransitionSuggestion {

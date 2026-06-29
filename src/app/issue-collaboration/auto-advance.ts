@@ -64,10 +64,15 @@ export class AutoAdvanceEngine {
     // [Incompatible] 检查
     if (this.isIncompatibleBlocked(stage)) return;
 
-    const latest = consensusSignals[consensusSignals.length - 1];
-    if (this.allGatesPassed(stage, latest)) {
-      await this.executeAutoAdvance(stage, latest);
+    // 验证每个 speaker 的最新 consensus 信号都包含有效 gate_evidence
+    for (const speaker of uniqueSpeakers) {
+      const speakerSignals = consensusSignals.filter(s => s.from_speaker === speaker);
+      const latest = speakerSignals[speakerSignals.length - 1];
+      if (!this.allGatesPassed(stage, latest)) return;
     }
+
+    const latest = consensusSignals[consensusSignals.length - 1];
+    await this.executeAutoAdvance(stage, latest);
   }
 
   private isIncompatibleBlocked(stage: Stage): boolean {

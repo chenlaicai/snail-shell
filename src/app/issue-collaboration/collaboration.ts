@@ -6,7 +6,7 @@ import type { RoleDefinition } from "@domain/sop/model";
 import type { SnailPort } from "@domain/snail/port";
 import type { SnailFirstCallRequest, SnailResumeRequest } from "@domain/snail/model";
 import type { LiteAIPort } from "@domain/lite-ai/port";
-import type { AgentEvent, Message as AgentMessage, InvokeOptions } from "@infra/acs/model";
+import type { AgentEvent, InvokeOptions } from "@infra/acs/model";
 import type { CollaborationConsumer, CollaborationInput, CreateIssueResult, Position, StageTransitionSuggestion, WorkspaceConsumer } from "@app/issue-collaboration/port";
 import { AutoAdvanceEngine } from "@app/issue-collaboration/auto-advance";
 import { ConsumerNotifier } from "@app/issue-collaboration/consumer-notifier";
@@ -290,7 +290,7 @@ export class IssueCollaboration implements CollaborationInput {
     const { stageId, roleInstance, issue, stage, assignment, unreadMessages, agentMessage, signal } = input;
     const systemReminder = this.buildSystemReminder({ issue, stage, roleInstance, roleKey: assignment.role_key });
     const invokeOptions: InvokeOptions = { signal };
-    const agentMessages = unreadMessages.map(message => this.messageHandler.toAgentMessage(message) as AgentMessage);
+    const agentMessages = unreadMessages.map(message => this.messageHandler.toAgentMessage(message));
     /** 唯一的上下文数据源：snail adapter 从这里构建 env vars，buildContextBlock 从 issue.context 渲染 system reminder */
     const firstCallRequest = {
       workspace_path: issue.workspace_path, messages: agentMessages, systemReminder: systemReminder || undefined,
