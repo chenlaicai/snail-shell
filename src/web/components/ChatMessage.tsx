@@ -164,8 +164,6 @@ function ChatMessageInner({ message, onInterrupt }: { message: MessageDto; onInt
               <RichTextRenderer content={message.context!.context} />
             ) : message.content ? (
               <RichTextRenderer content={message.content} />
-            ) : isStreaming || ["interrupted", "failed", "cancelled"].includes(message.status) ? (
-              <EventTextContent events={message.events} />
             ) : (
               <span className="text-text-muted italic">（无文本输出）</span>
             )}
@@ -256,35 +254,20 @@ export const ChatMessage = React.memo(ChatMessageInner, (prev, next) => {
   return prevEvents[prevEvents.length - 1].id === nextEvents[nextEvents.length - 1].id;
 });
 
-/** 流式过程中从 events 提取 text 事件拼接展示，用于最终答复区在 context 和 content 都为空时的 fallback */
-function EventTextContent({ events }: { events: MessageEvent[] }) {
-  const text = useMemo(() => {
-    return events
-      .filter((e) => e.payload?.type === "text" && e.payload && "text" in e.payload)
-      .map((e) => (e.payload as unknown as { text: string }).text)
-      .join("");
-  }, [events]);
-
-  if (!text) return <span className="text-text-muted italic">（无文本输出）</span>;
-  return <RichTextRenderer content={text} />;
-}
-
-/** 流式过程折叠区：展示除 text 外的事件类型（text 已在最终答复区展示），流式过程和最终答复是两个独立展示区域 */
+/** 流式过程折叠区：展示所有事件（包括 text、tool_call、command 等），流式过程和最终答复是两个独立展示区域 */
 function EventStream({ events, expanded, onToggle }: { events: MessageEvent[]; expanded: boolean; onToggle: () => void }) {
-  /** 过滤 text events（已在最终答复区展示），减少 EventStream 渲染量 */
-  const { filteredEvents, toolCalls, commands } = useMemo(() => {
-    const filtered = events.filter((e) => e.payload?.type !== "text");
+  /** 统计各类型事件数量 */
+  const { toolCalls, commands } = useMemo(() => {
     return {
-      filteredEvents: filtered,
-      toolCalls: filtered.filter((e) => e.payload?.type === "tool_call").length,
-      commands: filtered.filter((e) => e.payload?.type === "command").length,
+      toolCalls: events.filter((e) => e.payload?.type === "tool_call").length,
+      commands: events.filter((e) => e.payload?.type === "command").length,
     };
   }, [events]);
 
   return (
     <div className="mb-2">
-      {/* streaming 期间无非 text events 时不显示摘要行，展开区域留空 */}
-      {filteredEvents.length > 0 && (
+      {/* streaming 期间无 events 时不显示摘要行，展开区域留空 */}
+      {events.length > 0 && (
         <button
           onClick={onToggle}
           aria-label={expanded ? "Collapse event stream" : "Expand event stream"}
@@ -294,16 +277,16 @@ function EventStream({ events, expanded, onToggle }: { events: MessageEvent[]; e
             <path d="m9 18 6-6-6-6"/>
           </svg>
           <span>
-            {filteredEvents.length} event{filteredEvents.length > 1 ? "s" : ""}
+            {events.length} event{events.length > 1 ? "s" : ""}
             {toolCalls > 0 && ` · ${toolCalls} tool call${toolCalls > 1 ? "s" : ""}`}
             {commands > 0 && ` · ${commands} command${commands > 1 ? "s" : ""}`}
           </span>
         </button>
       )}
 
-      {expanded && filteredEvents.length > 0 && (
+      {expanded && events.length > 0 && (
         <div className="space-y-1 pl-3 border-l-2 border-white/6 ml-3 mt-1">
-          {filteredEvents.map((event) => (
+          {events.map((event) => (
             <EventItem key={event.id} event={event} />
           ))}
         </div>
