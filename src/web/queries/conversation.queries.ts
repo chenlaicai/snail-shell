@@ -14,6 +14,6 @@ export const conversationQueries = {
     queryOptions({
       queryKey: queryKeys.stages.messages(stageId),
       queryFn: () => api("GET /api/stages/:stageId/messages", { params: { stageId }, query, schema: MessageDtoSchema.array() }),
-      staleTime: 0,
+      staleTime: 10_000,
     }),
 };
