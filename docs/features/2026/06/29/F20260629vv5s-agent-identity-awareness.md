@@ -98,7 +98,7 @@ PR 评论签名时使用 Snail 名称，不得自行猜测或构造。
 
 **问题**：agent 的脚本和 MCP 工具无法通过 `process.env` 感知当前 snail。
 
-**方案**：在 `executeAgentInvocation` 的 context 对象中追加 `snail_key`，通过 `buildContextEnv` 自动注入为环境变量。同时在 `context-keys.ts` 中新增 `SNAIL_KEY` 常量。
+**方案**：在 `executeAgentInvocation` 的 context 对象中追加 `snail_key`（置于 `...issue.context` 之后，防止被覆盖），通过 `buildContextEnv` 自动注入为环境变量。Resume 路径在 adapter 的 `doInvokeResume` 中直接构造 `contextEnv` 注入 `snail_key`。
 
 ### 5. PR 签名规则：更新指引路径
 
@@ -129,10 +129,10 @@ PR 评论签名时使用 Snail 名称，不得自行猜测或构造。
 | 文件 | 变更类型 | 说明 |
 |---|--------|------|
 | `data/file/prompts/T-01-行为准则.md` | 修改 | 删除 `<identity>` 包装，行为准则归入 `<constraints>` |
-| `src/domain/snail/_internal/adapter.ts` | 修改 | 删除 system prompt 中的 snail name 注入段 |
-| `src/app/issue-collaboration/collaboration.ts` | 修改 | context 追加 `snail_key`；`buildIdentityBlock` 提取到独立模块 |
+| `src/domain/snail/_internal/adapter.ts` | 修改 | 删除 system prompt 中的 snail name 注入段；resume 路径注入 `snail_key` 环境变量 |
+| `src/app/issue-collaboration/collaboration.ts` | 修改 | context 追加 `snail_key`（置于 `...issue.context` 之后）；`buildIdentityBlock` 提取到独立模块 |
 | `src/app/issue-collaboration/_internal/identity-block.ts` | 新增 | `buildIdentityBlock` 纯函数，多行模板，三层子结构 |
-| `src/infra/acs/context-keys.ts` | 修改 | 新增 `SNAIL_KEY` 常量 |
+| `src/infra/acs/context-keys.ts` | 修改 | 移除已废弃的 `SNAIL_KEY`、`SNAIL_INSTANCE_ID` 常量（与现有 CONTEXT_KEYS 保持一致：仅 WORKSPACE_PATH 被引用） |
 | `data/file/skills/cd-shared/references/pr-signature.md` | 修改 | 签名指引更新为 `<identity>` → `## Snail` → `**名称**` |
 
 ## 验证
@@ -161,6 +161,14 @@ grep "identity.*Snail.*名称" data/file/skills/cd-shared/references/pr-signatur
 # V6: 类型检查
 npx tsc --noEmit
 # 预期: 无错误
+
+# V7: ESLint
+npx eslint .
+# 预期: 无错误
+
+# V8: resume 路径注入 snail_key 环境变量
+grep "snail_key" src/domain/snail/_internal/adapter.ts
+# 预期: 命中 doInvokeResume 中的 contextEnv 构建
 ```
 
 ## 关联

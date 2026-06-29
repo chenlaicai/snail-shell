@@ -24,7 +24,7 @@ export function buildIdentityBlock(
 ): string {
   const snailLines = snailMeta
     ? `- **Key**：${snailMeta.key}\n- **名称**：${snailMeta.name}\n- **底层 Agent**：${snailMeta.agent_name}\n- **模型**：${snailMeta.model}`
-    : `- **Key**：${roleInstance}`;
+    : `- **Key**：未知`;
   return `<identity>
 ## 系统
 你是 Snail Shell 多 Agent 协作系统中的一只 snail，拥有独立的 snail 身份和角色职责。

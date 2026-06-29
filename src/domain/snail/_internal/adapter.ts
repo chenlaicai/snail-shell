@@ -3,6 +3,7 @@ import { randomBytes } from "crypto";
 import type { AgentEvent, InvokeOptions, CapabilitiesSpec } from "@infra/acs/model";
 import type { AgentRegistryPort } from "@infra/acs/port";
 import { buildContextEnv } from "@infra/acs/_internal/utils/context-env";
+import { CONTEXT_KEYS } from "@infra/acs/context-keys";
 import type { TenetPromptPort } from "@domain/tenet-prompt/port";
 import type { SkillPort } from "@domain/skill/port";
 import type { MCPPort } from "@domain/mcp-config/port";
@@ -181,8 +182,7 @@ export class SnailAdapter implements SnailPort {
       sessionId, messageCount: request.messages.length,
     }, "invokeResume");
 
-    /** resume 路径注入 contextEnv，保证子进程有 message_id 和 stage_id 环境变量 */
-    const contextEnv: Record<string, string> = {};
+    const contextEnv: Record<string, string> = { [CONTEXT_KEYS.WORKSPACE_PATH]: request.workspace_path, snail_key: instance.snail_key };
     if (request.messageId != null) contextEnv.message_id = request.messageId;
     if (request.stageId != null) contextEnv.stage_id = request.stageId;
     const invokeOptions = this.buildOptions(snail, options, contextEnv);

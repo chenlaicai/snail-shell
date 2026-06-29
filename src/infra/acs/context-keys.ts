@@ -13,7 +13,5 @@ export const CONTEXT_KEYS = {
   CONVERSATION_ID: "SNAIL_CTX_CONVERSATION_ID",
   /** 当前阶段 ID */
   STAGE_ID: "SNAIL_CTX_STAGE_ID",
-  /** 当前 Snail Key（context 短名，与 buildContextEnv 注入的 env var 名一致） */
-  SNAIL_KEY: "snail_key",
 } as const;
 
