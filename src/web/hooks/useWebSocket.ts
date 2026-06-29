@@ -350,7 +350,7 @@ export function useIssueRealtime(issueId: string | null, currentStageId: string 
           onClose: () => {
             if (!mounted || activeWs !== ws || wsRef.current !== ws) return;
             t.count++;
-            recordWsDisconnect(`reconnect in ${t.delay}ms`);
+            recordWsDisconnect(`reconnect in ${t.delay}ms`, t.count);
             setWsStatus("disconnected");
             console.log(`[WebSocket] 连接关闭，${t.delay}ms 后重连`);
             t.timer = setTimeout(() => { t.delay = Math.min(t.delay * 2, 30000); connect(); }, t.delay);

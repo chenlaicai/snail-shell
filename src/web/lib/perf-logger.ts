@@ -18,6 +18,7 @@ interface PerfEntry {
 const API_THRESHOLD = 1_000;
 const PAGE_LOAD_THRESHOLD = 3_000;
 const WS_RECONNECT_THRESHOLD = 5_000;
+const WS_DISCONNECT_THRESHOLD = 2;
 const QUERY_THRESHOLD = 2_000;
 
 /** 待上报队列 + 防抖定时器 */
@@ -78,9 +79,10 @@ export function recordWsReconnect(duration: number, attempt: number): void {
   enqueue({ level: "warn", type: "frontend.perf", metric: "ws_reconnect", duration, reason: `attempt=${attempt}`, ts: Date.now() });
 }
 
-/** 记录 WebSocket 连接失败 */
-export function recordWsDisconnect(reason: string): void {
-  enqueue({ level: "info", type: "frontend.ws", metric: "ws_disconnect", reason, ts: Date.now() });
+/** 记录 WebSocket 连接失败（仅连续断开 >= DISCONNECT_THRESHOLD 时记录） */
+export function recordWsDisconnect(reason: string, consecutiveCount: number): void {
+  if (consecutiveCount < WS_DISCONNECT_THRESHOLD) return;
+  enqueue({ level: "warn", type: "frontend.ws", metric: "ws_disconnect", reason: `count=${consecutiveCount}; ${reason}`, ts: Date.now() });
 }
 
 /** 记录 React Query 耗时 */
