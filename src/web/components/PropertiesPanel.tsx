@@ -110,13 +110,18 @@ export function PropertiesPanel({ issue, stage }: PropertiesPanelProps) {
         <Section title="Activity">
           <div className="space-y-2.5">
             <ActivityItem name="System" action="created issue" time={formatRelativeTime(issue.created_at)} />
-            {currentStage && (
-              <ActivityItem
-                name="System"
-                action={`entered "${currentStage.stage_definition?.title ?? currentStage.type}"`}
-                time={formatRelativeTime(currentStage.entered_at ?? issue.created_at)}
-              />
-            )}
+            {/* 遍历所有 stage 记录，按 entered_at 升序显示 */}
+            {[...issue.stages]
+              .filter((s) => s.entered_at)
+              .sort((a, b) => new Date(a.entered_at!).getTime() - new Date(b.entered_at!).getTime())
+              .map((s) => (
+                <ActivityItem
+                  key={s.id}
+                  name="System"
+                  action={`entered "${s.title || s.key}"`}
+                  time={formatRelativeTime(s.entered_at!)}
+                />
+              ))}
           </div>
         </Section>
       </div>
