@@ -48,6 +48,7 @@ description: |
 | dev-04 | PR 已创建且包含完整改动摘要 | ✅ |
 | dev-05 | 不兼容更新已在 PR 中标注 | |
 | dev-06 | 变更完整性已验证：根据 task_anchor 的 change_type 执行对应验证命令，实际输出已写入 gate_evidence | ✅ |
+| dev-ctx | worktree_path、branch_name、pr_url 已通过 set_context 写入 Issue.context | ✅ |
 
 ### 执行步骤
 
@@ -64,6 +65,7 @@ description: |
 - dev-04 ✅ [证据]
 - dev-05 ⏭️ [跳过原因]
 - dev-06 ✅ [证据]
+- dev-ctx ✅ [证据：set_context 调用记录]
 
 所有 required 项通过，可以提议推进。
 ```
@@ -89,7 +91,8 @@ description: |
       "dev-02": "npm run check 通过",
       "dev-03": "docs/features/2026/06/26/F20260626m4vx.md 已更新",
       "dev-04": "PR #123 已创建",
-      "dev-06": "npm run check 通过"
+      "dev-06": "npm run check 通过",
+      "dev-ctx": "worktree_path=/Users/.../worktrees/xxx, branch_name=feature-xxx, pr_url=https://github.com/..."
     }
   }
 }

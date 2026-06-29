@@ -538,10 +538,10 @@ export class IssueCollaboration implements CollaborationInput {
       sharedSkill ? `- \`${sharedSkill}\` — 共享规则（特性编号、PR签名、证据规则、完成标准）` : null,
       roleDef?.skill ? `- \`${roleDef.skill}\` — ${roleDef.name}工作流程` : null,
     ].filter(Boolean).join("\n");
-    /** Issue 上下文：只读视图，Agent 应使用 MCP 工具读写 */
-    const issueContext = Object.keys(issue.context).length > 0
-      ? Object.entries(issue.context).map(([key, value]) => `- **${key}**: ${value}`).join("\n")
-      : "无";
+    /** Issue 上下文：只读视图，Agent 应使用 MCP 工具读写。基础设施字段缺失时标注警告 */
+    const missingInfra = ["worktree_path", "branch_name"].filter(f => !issue.context[f]?.trim());
+    const ctxLines = Object.entries(issue.context).map(([k, v]) => `- **${k}**: ${v}`).join("\n") || "无";
+    const issueContext = missingInfra.length > 0 ? `${ctxLines}\n> ⚠️ 以下基础设施字段未记录：${missingInfra.join(", ")}` : ctxLines;
     return `<context>
 ## 项目上下文
 **Issue**：${issue.title}
