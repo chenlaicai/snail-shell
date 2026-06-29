@@ -122,7 +122,7 @@ PR 评论签名时使用 Snail 名称，不得自行猜测或构造。
 - **三层子结构**：系统归属（静态文字）→ Snail 元数据（从 findByKey 查询）→ 角色定义（从 SOP 读取）
 - **snail 元数据来源**：`SnailPort.findByKey(snailKey)`，已有接口，无需新增
 - **adapter 职责收窄**：只负责 system prompt（tenet prompts）和 agent 调用，不再注入 snail 身份
-- **context key 命名**：沿用现有短名风格（`snail_key`），CONTEXT_KEYS 常量作为文档/类型安全
+- **context key 命名**：沿用现有短名风格（`snail_key`），`CONTEXT_KEYS.SNAIL_KEY` 常量值与实际 env var 名一致
 
 ## 改动范围
 
@@ -145,8 +145,8 @@ grep "<identity>" data/file/prompts/T-01-行为准则.md
 grep "Snail 名称" src/domain/snail/_internal/adapter.ts
 # 预期: 无输出
 
-# V3: collaboration 的 buildIdentityBlock 包含三层结构
-grep -c "## 系统\|## Snail\|## 角色" src/app/issue-collaboration/collaboration.ts
+# V3: collaboration 的 buildIdentityBlock 包含三层结构（单行模板，grep -o 计匹配数）
+grep -o "## 系统\|## Snail\|## 角色" src/app/issue-collaboration/collaboration.ts | wc -l
 # 预期: 3
 
 # V4: collaboration context 包含 snail_key
