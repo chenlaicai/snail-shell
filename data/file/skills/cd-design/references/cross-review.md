@@ -4,6 +4,15 @@
 
 两位架构师在同一 conversation 中通过 @mention 交互，采用"背靠背独立分析 → 交换对抗 → 合并收敛"三阶段流程。
 
+## 对抗产物协议
+
+设计阶段的 `consensus: true` 信号必须携带 `adversarial_artifact`（通用字段 + Design 特有字段）。详见 `cd-shared/references/adversarial-artifact-protocol.md`。
+
+Design 特有字段：
+- `critique_obligation`：质疑义务量化产出（risk >= 2, gap >= 1, alternative >= 1）
+- `independent_analysis`：独立分析过程（禁止直接同意）
+- `scenario_coverage`：场景覆盖（coverage_ratio = 1.0）
+
 ## 角度分工
 
 两位架构师分析角度不同，保障结构性独立：

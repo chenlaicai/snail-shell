@@ -175,11 +175,28 @@ describe("AutoAdvanceEngine context validation", () => {
     it("allows auto-advance when context fields are present", async () => {
       const deps = createDeps();
       const engine = new AutoAdvanceEngine(deps);
+      const adversarialArtifact = {
+        independent_verification: [{ command: "tsc", actual_output: "no errors found in the codebase", executed_at: new Date().toISOString() }],
+        adversarial_findings: [{ dimension: "completeness", finding: "no issues", disposition: "none" }],
+        audit_trail: { events: [
+          { timestamp: new Date().toISOString(), event_type: 'review_started' as const, detail: "started" },
+          { timestamp: new Date().toISOString(), event_type: 'cross_review_read' as const, detail: "read" },
+        ] },
+        critique_obligation: { items: [
+          { type: 'risk' as const, content: "risk 1" },
+          { type: 'risk' as const, content: "risk 2" },
+          { type: 'gap' as const, content: "gap 1" },
+          { type: 'alternative' as const, content: "alt 1" },
+        ] },
+        independent_analysis: { my_conclusion: "ok", comparison_with_peer: "same", points_of_agreement: ["a"], points_of_disagreement: [] },
+        scenario_coverage: { scenarios_reviewed: 5, scenarios_identified: 5, coverage_ratio: 1.0 },
+      };
       const suggestion = createSuggestion({
         consensus: true,
         from_speaker: "architect-1",
         target_key: "development",
         gate_evidence: { "design-01": "locked", "design-02": "resolved" },
+        adversarial_artifact: adversarialArtifact,
       });
       const suggestion2 = { ...suggestion, from_speaker: "architect-2", message_id: 2 };
       await engine.evaluate(createStage({ key: "design" }), [suggestion, suggestion2]);
@@ -212,11 +229,24 @@ describe("AutoAdvanceEngine context validation", () => {
     it("allows auto-advance when all context fields are present", async () => {
       const deps = createDeps();
       const engine = new AutoAdvanceEngine(deps);
+      const adversarialArtifact = {
+        independent_verification: [{ command: "tsc", actual_output: "no errors found in the codebase", executed_at: new Date().toISOString() }],
+        adversarial_findings: [{ dimension: "completeness", finding: "no issues", disposition: "none" }],
+        audit_trail: { events: [
+          { timestamp: new Date().toISOString(), event_type: 'review_started' as const, detail: "started" },
+          { timestamp: new Date().toISOString(), event_type: 'cross_review_read' as const, detail: "read" },
+        ] },
+        file_dispositions: [{ path: "src/app/issue-collaboration/port.ts", status: 'reviewed' as const, issues_found: 0 }],
+        cross_review: { peer_conclusion_summary: "ok", my_independent_check: "ok", alignment_or_conflict: "aligned" },
+        ci_independence: { source: 'github_api' as const, status: "passed", confirmed_at: new Date().toISOString() },
+        file_coverage: { files_reviewed: 1, files_in_diff: 1, coverage_ratio: 1.0 },
+      };
       const suggestion = createSuggestion({
         consensus: true,
         from_speaker: "reviewer-1",
         target_key: "merge",
         gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed" },
+        adversarial_artifact: adversarialArtifact,
       });
       const suggestion2 = { ...suggestion, from_speaker: "reviewer-2", message_id: 2 };
       await engine.evaluate(createStage({ key: "review" }), [suggestion, suggestion2]);

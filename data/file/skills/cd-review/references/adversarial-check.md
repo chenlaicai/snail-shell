@@ -4,6 +4,10 @@
 
 采取对抗性代码检视心态，主动寻找 bug、回归风险、边界条件、缺失验证、可维护性问题和设计问题。
 
+## 对抗产物要求
+
+审查者的 `consensus: true` 信号必须携带结构化对抗产物（`adversarial_artifact`）。对抗发现必须结构化产出，不能只是"没问题"。详见 `cd-shared/references/adversarial-artifact-protocol.md`。
+
 ## 检查维度
 
 1. **代码结构**：重点关注文件、类、方法过长，职责混杂、重复逻辑、类型边界不清

@@ -1,5 +1,5 @@
 import type { Stage } from "@domain/issue/model";
-import type { StageTransitionSuggestion } from "@app/issue-collaboration/port";
+import type { StageTransitionSuggestion, AdversarialArtifact } from "@app/issue-collaboration/port";
 import { getLogger } from "@infra/logger";
 
 const log = getLogger({ module: "auto-advance" });
@@ -84,6 +84,18 @@ export class AutoAdvanceEngine {
       if (!this.allGatesPassed(stage, latest)) return;
     }
 
+    // 验证对抗产物
+    for (const speaker of uniqueSpeakers) {
+      const speakerSignals = consensusSignals.filter(s => s.from_speaker === speaker);
+      const latest = speakerSignals[speakerSignals.length - 1];
+      const validation = this.validateAdversarialArtifact(stage, latest);
+      if (!validation.valid) {
+        log.warn({ stageId: stage.id, speaker, reason: validation.reason }, "adversarial artifact validation failed");
+        await this.deps.notifyConsumers(stage.id, "onDisagreement", latest);
+        return;
+      }
+    }
+
     const latest = consensusSignals[consensusSignals.length - 1];
     await this.executeAutoAdvance(stage, latest);
   }
@@ -166,5 +178,43 @@ export class AutoAdvanceEngine {
       const value = evidence[gate];
       return typeof value === "string" && value.trim().length > 0;
     });
+  }
+
+  /** 校验对抗产物的语义内容，返回 { valid, reason } */
+  validateAdversarialArtifact(stage: Stage, suggestion: StageTransitionSuggestion): { valid: boolean; reason?: string } {
+    const artifact = suggestion.adversarial_artifact;
+    if (!artifact) {
+      return { valid: false, reason: "missing adversarial_artifact" };
+    }
+
+    // R2: audit_trail 必须包含 cross_review_read 事件
+    const hasCrossReviewRead = artifact.audit_trail.events.some(e => e.event_type === 'cross_review_read');
+    if (!hasCrossReviewRead) {
+      return { valid: false, reason: "audit_trail missing cross_review_read event" };
+    }
+
+    // R3: independent_verification 的 actual_output 长度 >= 20 字符
+    const hasShortOutput = artifact.independent_verification.some(v => v.actual_output.length < 20);
+    if (hasShortOutput) {
+      return { valid: false, reason: "independent_verification actual_output too short (< 20 chars)" };
+    }
+
+    // R4: Design 阶段特有校验
+    if (stage.key === "design") {
+      const designArtifact = artifact as AdversarialArtifact & { critique_obligation?: { items: { type: string; content: string }[] } };
+      if (!designArtifact.critique_obligation?.items || designArtifact.critique_obligation.items.length < 4) {
+        return { valid: false, reason: "design stage requires critique_obligation.items >= 4" };
+      }
+    }
+
+    // R5: Review 阶段特有校验
+    if (stage.key === "review") {
+      const reviewArtifact = artifact as AdversarialArtifact & { file_coverage?: { coverage_ratio: number } };
+      if (reviewArtifact.file_coverage?.coverage_ratio !== 1.0) {
+        return { valid: false, reason: "review stage requires file_coverage.coverage_ratio = 1.0" };
+      }
+    }
+
+    return { valid: true };
   }
 }
