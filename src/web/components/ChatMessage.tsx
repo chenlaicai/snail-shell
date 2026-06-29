@@ -178,7 +178,7 @@ function ChatMessageInner({ message, onInterrupt, onRetry }: { message: MessageD
 
           {/* 最终答复：优先 context，其次 content，否则显示空状态提示 */}
           {/* hasContext 时预留 pr-24 给来源标签，避免长文本与 badge 重叠（最长 kind mcp_final_body ~84px + right-3 12px = 96px） */}
-          <div className={`relative rounded-2xl px-4 py-3 text-[13px] leading-relaxed ${hasContext ? "pr-24" : ""} ${
+          <div className={`group relative rounded-2xl px-4 py-3 text-[13px] leading-relaxed ${hasContext ? "pr-24" : ""} ${
             isUser
               ? isSending
                 ? "rounded-br-md bg-shell-600/10 border border-shell-600/10 opacity-70"
@@ -194,6 +194,27 @@ function ChatMessageInner({ message, onInterrupt, onRetry }: { message: MessageD
               <span className="absolute top-2 right-3 select-none text-[10px] text-text-grey font-mono">
                 {message.context!.kind}
               </span>
+            )}
+            {/* 复制按钮：hover 时显示，streaming 时隐藏 */}
+            {!isStreaming && (
+              <button
+                onClick={() => {
+                  /** 复制内容源：assistant 优先 context.context，fallback content；user 用 content */
+                  const text = hasContext ? message.context!.context : message.content;
+                  if (!text) return;
+                  navigator.clipboard.writeText(text).then(
+                    () => showToast("Copied"),
+                    () => showToast("复制失败", true),
+                  );
+                }}
+                className={`absolute top-2 ${hasContext ? "right-24" : "right-10"} opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-white/10 text-text-muted hover:text-text-secondary`}
+                aria-label="Copy message"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                </svg>
+              </button>
             )}
             {hasContext ? (
               <RichTextRenderer content={message.context!.context} />
