@@ -122,7 +122,7 @@ PR 评论签名要求格式为 `by <role_instance>（<snail_name>）`，其中 `
 
 ```bash
 # V1: adapter.ts 包含 snail name 注入逻辑
-grep -c "snail.name" src/domain/snail/_internal/adapter.ts
+grep -o "snail\.name" src/domain/snail/_internal/adapter.ts | wc -l
 # 预期: ≥1
 
 # V2: pr-signature.md 包含 7 条规则
@@ -173,7 +173,7 @@ grep "审查者-1" data/file/skills/cd-shared/references/pr-signature.md
 ### 验证结果
 
 ```
-V1: grep -c "snail.name" src/domain/snail/_internal/adapter.ts → 1 ✅
+V1: grep -o "snail\.name" src/domain/snail/_internal/adapter.ts | wc -l → 1 ✅
 V2: grep -c "^[0-9]\\." data/file/skills/cd-shared/references/pr-signature.md → 7 ✅
 V3: grep "role_instance" data/file/skills/cd-shared/references/pr-signature.md → 命中 3 行 ✅
 V4: grep "审查者-1" data/file/skills/cd-shared/references/pr-signature.md → 命中 3 行 ✅

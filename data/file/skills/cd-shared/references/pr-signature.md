@@ -12,13 +12,13 @@
 
     <评论正文>
 
-    by <role_instance>（<snail_name>）
+    by <role_instance>（<snail_name>）（以开发者为例）
 
-审查者 PR 普通评论（以审查者-1 为例）：
+审查者 PR 普通评论：
 
     <评论正文>
 
-    by 审查者-1（<snail_name>）
+    by <role_instance>（<snail_name>）（以审查者-1 为例）
 
 ## 规则
 
