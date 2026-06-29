@@ -123,7 +123,7 @@ PR 评论签名要求格式为 `by <role_instance>（<snail_name>）`，其中 `
 ```bash
 # V1: adapter.ts 包含 snail name 注入逻辑
 grep -o "snail\.name" src/domain/snail/_internal/adapter.ts | wc -l
-# 预期: ≥1
+# 预期: ≥2
 
 # V2: pr-signature.md 包含 7 条规则
 grep -c "^[0-9]\." data/file/skills/cd-shared/references/pr-signature.md
@@ -167,16 +167,16 @@ grep "审查者-1" data/file/skills/cd-shared/references/pr-signature.md
 
 | 文件 | 变更说明 |
 |---|--------|
-| `src/domain/snail/_internal/adapter.ts` | `doInvokeFirstCall()` 中内联拼接 snail name 段到系统提示词末尾 |
+| `src/domain/snail/_internal/adapter.ts` | `doInvokeFirstCall()` 中内联拼接 snail name 段到系统提示词末尾 + 注入前校验 snail.name 不含 `」` 字符 |
 | `data/file/skills/cd-shared/references/pr-signature.md` | 模板格式修正（`<role_instance>` + `<snail_name>` 占位符）+ 规则 2/3 调整 + 规则 7 新增 |
 
 ### 验证结果
 
 ```
-V1: grep -o "snail\.name" src/domain/snail/_internal/adapter.ts | wc -l → 1 ✅
+V1: grep -o "snail\.name" src/domain/snail/_internal/adapter.ts | wc -l → 3 ✅
 V2: grep -c "^[0-9]\\." data/file/skills/cd-shared/references/pr-signature.md → 7 ✅
-V3: grep "role_instance" data/file/skills/cd-shared/references/pr-signature.md → 命中 3 行 ✅
-V4: grep "审查者-1" data/file/skills/cd-shared/references/pr-signature.md → 命中 3 行 ✅
+V3: grep "role_instance" data/file/skills/cd-shared/references/pr-signature.md → 命中 4 行 ✅
+V4: grep "审查者-1" data/file/skills/cd-shared/references/pr-signature.md → 命中 2 行 ✅
 ```
 
 - 类型检查：`tsc --noEmit` 无错误
