@@ -208,7 +208,7 @@ function createGetMessageWindowTool(stagePort: StagePort, messagePort: MessagePo
       }
 
       // 获取锚点所在 stage 的所有消息
-      const stageMessages = messagePort.listMessages(anchor.stage_id, 100);
+      const stageMessages = fetchAllStageMessages(messagePort, anchor.stage_id);
 
       // 找到锚点在列表中的位置
       const anchorIndex = stageMessages.findIndex((m) => m.id === message_id);
