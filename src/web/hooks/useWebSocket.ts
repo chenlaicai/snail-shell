@@ -8,7 +8,7 @@ import type { IssueRealtimeMessage, IssueDetailDto, MessageDto, WsServerMessage 
 /** 创建占位 MessageDto——用于 WebSocket message_started 和乐观发送 */
 export function createPlaceholderMessage(
   stageId: string,
-  opts: { id: number; role: MessageDto["role"]; from_role?: string | null; client_id?: string | null; status?: MessageDto["status"]; content?: string }
+  opts: { id: number; role: MessageDto["role"]; from_role?: string | null; client_id?: string | null; status?: MessageDto["status"]; content?: string; createdAt?: string }
 ): MessageDto {
   return {
     id: opts.id,
@@ -24,7 +24,7 @@ export function createPlaceholderMessage(
     context_cutoff_at: "",
     runtime: null,
     status: opts.status ?? "streaming",
-    created_at: new Date().toISOString(),
+    created_at: opts.createdAt ?? new Date().toISOString(),
     ended_at: null,
     updated_at: new Date().toISOString(),
     content: opts.content,
@@ -235,8 +235,10 @@ class EventBatcher {
     stageId: string,
     event: Extract<IssueRealtimeMessage["event"], { type: "user_called" }>,
   ): MessageDto[] | null {
+    const eventContent = event.content?.trim();
+    if (!eventContent) return null;
     const optimisticIndex = messages.findLastIndex(
-      (m) => m.role === "user" && m.status === "sending" && m.content?.trim() === event.content?.trim(),
+      (m) => m.role === "user" && m.status === "sending" && m.content?.trim() === eventContent,
     );
     if (optimisticIndex === -1) return null;
 

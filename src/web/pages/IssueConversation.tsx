@@ -14,7 +14,7 @@ import { StageSuggestionCard } from "@/components/StageSuggestionCard";
 import { useIssueRealtime, createPlaceholderMessage } from "@/hooks/useWebSocket";
 import { useSendMessage } from "@/mutations/conversation.mutations";
 import { useConversationStore } from "@/stores/conversationStore";
-import { getPendingMessages, clearPendingMessages } from "@/lib/pending-messages";
+import { getPendingMessages, clearPendingMessages, removePendingMessage } from "@/lib/pending-messages";
 import type { IssueDetailDto, StageDetailDto, MessageDto } from "@/types";
 
 const SCROLL_THRESHOLD = 80;
@@ -68,13 +68,14 @@ export function IssueConversation() {
       /** 去重：如果 pending 消息的 content 与 server 消息匹配，说明 POST 实际成功了 */
       const serverContents = new Set(serverData.map((m) => m.content?.trim()));
       const uniquePending = pending
-        .filter((p) => !serverContents.has(p.content.trim()))
+        .filter((p) => !serverContents.has(p.content?.trim()))
         .map((p) =>
           createPlaceholderMessage(stageId, {
             id: p.id,
             role: "user",
             status: p.status, // "sending" or "failed"
             content: p.content,
+            createdAt: p.createdAt,
           }),
         )
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -236,11 +237,17 @@ export function IssueConversation() {
     sendMutation.mutate({ text: content, to_speakers: toSpeakers.length > 0 ? toSpeakers : undefined });
   }, [stageId, sendMutation]);
 
-  /** 重试发送失败的消息 */
-  const handleRetry = useCallback((content: string, toSpeakers?: string[]) => {
+  /** 重试发送失败的消息：先删除旧的 failed 条目，再重新发送 */
+  const handleRetry = useCallback((messageId: number, content: string, toSpeakers?: string[]) => {
     if (!stageId) return;
+    /** 从缓存移除旧的 failed 消息 */
+    queryClient.setQueryData(queryKeys.stages.messages(stageId), (old: MessageDto[] | undefined) =>
+      old?.filter((m) => m.id !== messageId),
+    );
+    /** 从 localStorage 移除 */
+    removePendingMessage(stageId, messageId);
     sendMutation.mutate({ text: content, to_speakers: toSpeakers });
-  }, [stageId, sendMutation]);
+  }, [stageId, sendMutation, queryClient]);
 
   const handleInterrupt = useCallback(async (messageId: number) => {
     if (!stageId) return;
@@ -375,7 +382,7 @@ export function IssueConversation() {
                         }}
                         className="px-0 py-1"
                       >
-                        {stageId && <ChatMessage message={msg} onInterrupt={handleInterrupt} onRetry={msg.status === "failed" ? () => handleRetry(msg.content ?? "", msg.to_speakers) : undefined} />}
+                        {stageId && <ChatMessage message={msg} onInterrupt={handleInterrupt} onRetry={msg.status === "failed" ? () => handleRetry(msg.id, msg.content ?? "", msg.to_speakers) : undefined} />}
                       </div>
                     );
                   })}
