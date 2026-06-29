@@ -164,7 +164,7 @@ function ChatMessageInner({ message, onInterrupt }: { message: MessageDto; onInt
               <RichTextRenderer content={message.context!.context} />
             ) : message.content ? (
               <RichTextRenderer content={message.content} />
-            ) : isStreaming ? (
+            ) : isStreaming || ["interrupted", "failed", "cancelled"].includes(message.status) ? (
               <EventTextContent events={message.events} />
             ) : (
               <span className="text-text-muted italic">（无文本输出）</span>
