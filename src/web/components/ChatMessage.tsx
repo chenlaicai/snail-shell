@@ -136,16 +136,20 @@ function ChatMessageInner({ message, onInterrupt, onRetry }: { message: MessageD
                 </div>
               </>
             )}
-            {/* 发送状态指示器：仅用户消息显示 */}
-            {isUser && isSending && (
+          </div>
+          {/* 发送状态指示器：独立行，避免状态变化时头部元素位移 */}
+          {isUser && isSending && (
+            <div className="flex justify-end px-1 mb-1">
               <span className="inline-flex items-center gap-1 text-[10px] text-shell-400">
                 <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M12 2v4m0 12v4m-8-10H2m20 0h-2m-2.93-7.07l-1.41 1.41M7.05 16.95l-1.41 1.41m0-13.41l1.41 1.41m9.9 9.9l1.41 1.41" />
                 </svg>
                 发送中
               </span>
-            )}
-            {isUser && isFailed && (
+            </div>
+          )}
+          {isUser && isFailed && (
+            <div className="flex justify-end px-1 mb-1">
               <span className="inline-flex items-center gap-1 text-[10px] text-status-red">
                 <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
@@ -160,8 +164,8 @@ function ChatMessageInner({ message, onInterrupt, onRetry }: { message: MessageD
                   </button>
                 )}
               </span>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* hasContext 已移除：失败/中断时也需要展示 EventStream 用于诊断（D4） */}
           {hasEvents && (
