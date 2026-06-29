@@ -98,7 +98,7 @@ PR 评论签名时使用 Snail 名称，不得自行猜测或构造。
 
 **问题**：agent 的脚本和 MCP 工具无法通过 `process.env` 感知当前 snail。
 
-**方案**：在 `executeAgentInvocation` 的 context 对象中追加 `snail_key`，通过 `buildContextEnv` 自动注入为环境变量。同时在 `context-keys.ts` 中新增 `SNAIL_KEY` 和 `SNAIL_INSTANCE_ID` 常量。
+**方案**：在 `executeAgentInvocation` 的 context 对象中追加 `snail_key`，通过 `buildContextEnv` 自动注入为环境变量。同时在 `context-keys.ts` 中新增 `SNAIL_KEY` 常量。
 
 ### 5. PR 签名规则：更新指引路径
 
@@ -146,8 +146,8 @@ grep "<identity>" data/file/prompts/T-01-行为准则.md
 grep "Snail 名称" src/domain/snail/_internal/adapter.ts
 # 预期: 无输出
 
-# V3: collaboration 的 buildIdentityBlock 包含三层结构（单行模板，grep -o 计匹配数）
-grep -o "## 系统\|## Snail\|## 角色" src/app/issue-collaboration/collaboration.ts | wc -l
+# V3: buildIdentityBlock 包含三层结构（已提取到 identity-block.ts）
+grep -o "## 系统\|## Snail\|## 角色" src/app/issue-collaboration/_internal/identity-block.ts | wc -l
 # 预期: 3
 
 # V4: collaboration context 包含 snail_key
