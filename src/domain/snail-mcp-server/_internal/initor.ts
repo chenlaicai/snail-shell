@@ -4,6 +4,7 @@ import { createEvolutionServer } from "@domain/snail-mcp-server/_internal/server
 import { createKnowledgeServer } from "@domain/snail-mcp-server/_internal/servers/knowledge";
 import { createRednoteResearchServer } from "@domain/snail-mcp-server/_internal/servers/rednote-research";
 import { createSnailIssueContextServer } from "@domain/snail-mcp-server/_internal/servers/snail-issue-context";
+import type { McpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-message-store";
 import type { KnowledgePort } from "@domain/knowledge/port";
 import type { MessagePort } from "@domain/message/port";
 import type { IssuePort } from "@domain/issue/port";
@@ -18,6 +19,8 @@ export interface SnailMCPServerDeps {
   message: MessagePort;
   /** issue adapter */
   issue: IssuePort;
+  /** MCP 路由目标 store（set_final_body 写入，collaboration resolveReplies 消费） */
+  mcpMessageStore: McpMessageStore;
 }
 
 /**
@@ -28,7 +31,7 @@ export function init(deps: SnailMCPServerDeps) {
   const adapter = new SnailMCPServerAdapter();
 
   // 注册所有 MCP Server
-  adapter.registerServer(createFinalResponseServer(deps.message));
+  adapter.registerServer(createFinalResponseServer(deps.message, deps.mcpMessageStore));
   adapter.registerServer(createEvolutionServer(deps.updateEvolution));
   adapter.registerServer(createKnowledgeServer(deps.knowledge));
   adapter.registerServer(createRednoteResearchServer());

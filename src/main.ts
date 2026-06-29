@@ -23,6 +23,7 @@ import { init as initLiteAI } from "@domain/lite-ai/_internal/initor";
 import { init as initMCP } from "@domain/mcp-config/_internal/initor";
 import { init as initIssueCollaboration } from "@app/issue-collaboration/initor";
 import { init as initIMHub } from "@app/im-hub/initor";
+import { createMcpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-message-store";
 import { createMcpHandler } from "@infra/mcp-server/handler";
 import { createIssueWebSocketBridge } from "@infra/http/stage-websocket";
 import { createWorkspaceWebSocketBridge } from "@infra/http/workspace-websocket";
@@ -54,6 +55,7 @@ async function initModules(repoRoot: string, serverSettings: ServerSettings) {
   const issue = initIssue(sop.adapter, db);
   const message = initMessage(db);
   const evolutionRef: { current?: ReturnType<typeof initEvolution> } = {};
+  const mcpMessageStore = createMcpMessageStore();
   const snailMCPServer = initMCPServer({
     updateEvolution: (id, updates) => {
       if (!evolutionRef.current) throw new Error("Evolution module is not initialized");
@@ -62,13 +64,14 @@ async function initModules(repoRoot: string, serverSettings: ServerSettings) {
     knowledge: knowledge.adapter,
     message: message.adapter,
     issue: issue.issueAdapter,
+    mcpMessageStore,
   });
   const mcp = initMCP({ dataStore, workspaces, snailMCPServer: snailMCPServer.adapter, serverSettings });
   const featureChain = initFeatureChain(repoRoot);
   const guardProfile = initGuardProfile(dataStore);
   const liteAI = initLiteAI(dataStore);
   const snail = initSnail(dataStore, db, { registry, tenetPrompt: tenetPrompt.adapter, skill: skill.adapter, mcp: mcp.adapter, guardProfile: guardProfile.adapter }, serverSettings.maxConcurrentAgents);
-  const collaboration = initIssueCollaboration({ issuePort: issue.issueAdapter, createIssue: (input) => issue.issueAdapter.createIssue(input), stagePort: issue.stageAdapter, messagePort: message.adapter, snailPort: snail.adapter, liteAIPort: liteAI.adapter });
+  const collaboration = initIssueCollaboration({ issuePort: issue.issueAdapter, createIssue: (input) => issue.issueAdapter.createIssue(input), stagePort: issue.stageAdapter, messagePort: message.adapter, snailPort: snail.adapter, liteAIPort: liteAI.adapter, mcpMessageStore });
   const evolution = initEvolution(db, issue.issueAdapter, snail.adapter, collaboration.adapter);
   evolutionRef.current = evolution;
   const im = initIM({ workspacePort: workspace.adapter, issuePort: issue.issueAdapter, stagePort: issue.stageAdapter, configStore, db });

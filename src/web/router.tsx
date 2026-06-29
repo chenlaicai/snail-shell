@@ -5,6 +5,7 @@ import { sopQueries } from "./queries/sop.queries";
 import { evolutionQueries } from "./queries/evolution.queries";
 import { knowledgeQueries } from "./queries/knowledge.queries";
 import { metaQueries } from "./queries/meta.queries";
+import { recordPageLoad } from "./lib/perf-logger";
 import { AppShell } from "./layouts/AppShell";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { HomePage } from "./pages/HomePage";
@@ -34,6 +35,18 @@ function requireParams(loaderArgs: LoaderFunctionArgs, ...keys: string[]): Recor
   return result;
 }
 
+/** 包装路由 loader，记录耗时并超阈值上报 */
+function timedLoader(path: string, fn: (args: LoaderFunctionArgs) => Promise<unknown>) {
+  return async (args: LoaderFunctionArgs) => {
+    const start = performance.now();
+    try {
+      return await fn(args);
+    } finally {
+      recordPageLoad(path, performance.now() - start);
+    }
+  };
+}
+
 export const router = createBrowserRouter([
   {
     path: "/",
@@ -44,10 +57,10 @@ export const router = createBrowserRouter([
       {
         path: "workspaces",
         element: <WorkspaceDirectory />,
-        loader: async () => {
+        loader: timedLoader("/workspaces", async () => {
           await queryClient.ensureQueryData(workspaceQueries.list());
           return null;
-        },
+        }),
       },
       {
         path: "workspaces/new",
@@ -60,83 +73,83 @@ export const router = createBrowserRouter([
       {
         path: "workspaces/:workspaceId/board",
         element: <IssueBoard />,
-        loader: async (args) => {
+        loader: timedLoader("/workspaces/:workspaceId/board", async (args) => {
           const { workspaceId } = requireParams(args, "workspaceId");
           await Promise.all([
             queryClient.ensureQueryData(workspaceQueries.detail(workspaceId)),
             queryClient.ensureQueryData(workspaceQueries.issues(workspaceId)),
           ]);
           return null;
-        },
+        }),
       },
       {
         path: "workspaces/:workspaceId/list",
         element: <IssueList />,
-        loader: async (args) => {
+        loader: timedLoader("/workspaces/:workspaceId/list", async (args) => {
           const { workspaceId } = requireParams(args, "workspaceId");
           await Promise.all([
             queryClient.ensureQueryData(workspaceQueries.detail(workspaceId)),
             queryClient.ensureQueryData(workspaceQueries.issues(workspaceId)),
           ]);
           return null;
-        },
+        }),
       },
       {
         path: "workspaces/:workspaceId/issue/:issueId",
         element: <IssueConversation />,
-        loader: async (args) => {
+        loader: timedLoader("/workspaces/:workspaceId/issue/:issueId", async (args) => {
           const { issueId } = requireParams(args, "issueId");
           await queryClient.ensureQueryData(issueQueries.detail(issueId));
           return null;
-        },
+        }),
       },
       {
         path: "evolution",
         element: <EvolutionCenter />,
-        loader: async () => {
+        loader: timedLoader("/evolution", async () => {
           await queryClient.ensureQueryData(evolutionQueries.list());
           return null;
-        },
+        }),
       },
       {
         path: "knowledge",
         element: <KnowledgeLibrary />,
-        loader: async () => {
+        loader: timedLoader("/knowledge", async () => {
           await queryClient.ensureQueryData(knowledgeQueries.list());
           return null;
-        },
+        }),
       },
       {
         path: "sops",
         element: <SopCenter />,
-        loader: async () => {
+        loader: timedLoader("/sops", async () => {
           await queryClient.ensureQueryData(sopQueries.list());
           return null;
-        },
+        }),
       },
       {
         path: "snail-den",
         element: <SnailDen />,
-        loader: async () => {
+        loader: timedLoader("/snail-den", async () => {
           await queryClient.ensureQueryData(metaQueries.snailDen());
           return null;
-        },
+        }),
       },
       {
         path: "prompts",
         element: <PromptCenter />,
-        loader: async () => {
+        loader: timedLoader("/prompts", async () => {
           await queryClient.ensureQueryData(metaQueries.prompts());
           return null;
-        },
+        }),
       },
       {
         path: "skills",
         element: <SkillCenter />,
-        loader: async () => {
+        loader: timedLoader("/skills", async () => {
           await queryClient.ensureQueryData(metaQueries.skills());
           return null;
-        },
+        }),
       },
       {
         path: "mcps",
@@ -145,18 +158,18 @@ export const router = createBrowserRouter([
       {
         path: "mcp-servers",
         element: <McpServers />,
-        loader: async () => {
+        loader: timedLoader("/mcp-servers", async () => {
           await queryClient.ensureQueryData(metaQueries.mcpServers());
           return null;
-        },
+        }),
       },
       {
         path: "mcp-config",
         element: <McpConfig />,
-        loader: async () => {
+        loader: timedLoader("/mcp-config", async () => {
           await queryClient.ensureQueryData(metaQueries.mcpConfigs());
           return null;
-        },
+        }),
       },
       {
         path: "lobby",

@@ -1,12 +1,13 @@
 import { QueryClient } from "@tanstack/react-query";
 import { showToast } from "../components/Toast";
 import { ApiError } from "../services/api-client";
+import { recordQueryTiming, recordQueryError } from "../lib/perf-logger";
 
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 30_000,
-      refetchOnWindowFocus: true,
+      refetchOnWindowFocus: false,
     },
   },
 });
@@ -34,6 +35,10 @@ if (!g.__snail_error_cleanup) {
         recentErrors.delete(sorted[i][0]);
       }
     }
+    // 清理超时的 query 计时（防止泄漏）
+    for (const [hash, startTime] of queryStartTimes) {
+      if (now - startTime > 60_000) queryStartTimes.delete(hash);
+    }
   }, CLEANUP_INTERVAL);
 }
 
@@ -50,4 +55,33 @@ queryClient.getQueryCache().subscribe((event) => {
   if (lastError === now) return; // 同一次错误，跳过
   recentErrors.set(key, now);
   showToast(`加载失败：${msg}`, true);
+});
+
+// Query 耗时追踪：记录开始时间，完成时计算耗时
+const queryStartTimes = new Map<string, number>();
+
+queryClient.getQueryCache().subscribe((event) => {
+  if (event.type !== "updated") return;
+  const { query } = event;
+  const hash = query.queryHash;
+
+  // 进入 fetching 状态 → 记录开始时间
+  if (query.state.status === "fetching" && !queryStartTimes.has(hash)) {
+    queryStartTimes.set(hash, performance.now());
+    return;
+  }
+
+  // fetching 结束（success 或 error）→ 计算耗时
+  const startTime = queryStartTimes.get(hash);
+  if (startTime == null) return;
+  queryStartTimes.delete(hash);
+  const duration = performance.now() - startTime;
+  const keyStr = JSON.stringify(query.queryKey);
+
+  if (query.state.status === "error") {
+    const errMsg = query.state.error instanceof Error ? query.state.error.message : String(query.state.error);
+    recordQueryError(keyStr, errMsg);
+  } else {
+    recordQueryTiming(keyStr, duration);
+  }
 });

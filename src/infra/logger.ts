@@ -39,6 +39,42 @@ function buildFileTarget(config: Required<LoggingConfig>): pino.TransportTargetO
   };
 }
 
+/** 前端日志专用 logger，写入 logs/web.log（独立于 snail-shell.log） */
+let webLogger: pino.Logger | null = null;
+
+export function getWebLogger(): pino.Logger {
+  if (!webLogger) {
+    const repoRoot = process.cwd();
+    const config = loadConfig(repoRoot);
+    const logFile = path.resolve(config.directory, "web.log");
+
+    const transport = pino.transport({
+      targets: [
+        {
+          target: "pino-roll",
+          options: {
+            file: logFile,
+            size: `${config.max_file_size_mb}m`,
+            frequency: "daily",
+            mkdir: true,
+            limit: { count: config.max_days },
+            dateFormat: "yyyy-MM-dd",
+          },
+          level: "info",
+        },
+        {
+          target: "pino/file",
+          options: { destination: 1 },
+          level: "info",
+        },
+      ],
+    });
+
+    webLogger = pino({ level: "info" }, transport);
+  }
+  return webLogger;
+}
+
 let rootLogger: pino.Logger | null = null;
 
 export function getLogger(context?: Record<string, unknown>): pino.Logger {
