@@ -56,6 +56,10 @@ export default defineConfig(() => {
           target: backendHttpBaseUrl,
           ws: true,
         },
+        "/workspace-events": {
+          target: backendHttpBaseUrl,
+          ws: true,
+        },
       },
     },
   };

@@ -1,3 +1,7 @@
+/**
+ * @deprecated Use unified-websocket.ts instead.
+ * This file is kept for reference only.
+ */
 import type { MiddlewareHandler } from "hono";
 import { upgradeWebSocket } from "@hono/node-server";
 import { WebSocketServer } from "ws";
@@ -17,6 +21,7 @@ interface IssueWebSocketBridge {
   route: MiddlewareHandler;
 }
 
+/** @deprecated Use createUnifiedWebSocketBridge from unified-websocket.ts */
 export function createIssueWebSocketBridge(collaboration: CollaborationInput): IssueWebSocketBridge {
   return {
     server: new WebSocketServer({ noServer: true }),
