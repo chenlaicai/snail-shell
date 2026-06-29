@@ -26,3 +26,20 @@
 - "检视完了" / "没问题了" / "可以合入"
 - "不堵塞" / "可遗留" / "建议合入" / "后续优化"
 - "差不多了" / "问题不大" / "可以先合"
+
+## 自动推进条件表
+
+当 agent 发出信号后，系统会根据以下条件自动判断是否推进：
+
+| 阶段转换 | 自动推进条件 | 升级条件 |
+|----------|-------------|---------|
+| design → development | 收到 `consensus: true` 信号（两个架构师）+ design-01/02 通过 | 收到 `consensus: false` 信号 或 无信号 |
+| development → review | 收到 `consensus: true` + `gate_evidence` 信号 + dev-01~06 通过 | dev-06 evidence 缺失 |
+| review → merge 前置 | 收到 `consensus: true` 信号（两个 reviewer）+ rev-01~03 通过 + review 循环 ≤ 2 轮 | 收到 `consensus: false` 信号 或 review 循环 > 2 轮 |
+| merge 前置 → merge | **不自动推进**。呈现"合入就绪"状态，等待用户显式执行 | — |
+
+### 特殊规则
+
+- **[Incompatible] 标签**：如果 PR 标题包含 `[Incompatible]`，review → merge 前置的自动推进被阻断，必须等待用户确认
+- **手动 advance**：用户手动调用 `advanceStage()` 时，直接绕过自动推进条件
+- **回滚**：用户可以回退到上一个 stage，回滚时会清理所有信号防止重新触发

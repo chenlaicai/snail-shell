@@ -70,3 +70,29 @@ description: |
 
 4. 确认所有标 ✅ 的 required 项均有实质性证据后，才可在消息中包含 stage_transition 建议
 5. 存在未通过项时，不得建议推进，应继续处理未完成的工作
+
+## 信号协议
+
+完成 Gate 自检后，通过结构化信号表达阶段工作结果：
+
+### Gate Complete 信号（单人完成）
+
+```json
+{
+  "stage_transition": {
+    "target_key": "review",
+    "consensus": true,
+    "reason": "代码实现完成，自检通过，PR 已创建",
+    "guard": "dev-01: 代码已实现; dev-02: 自检通过; dev-03: 文档已更新; dev-04: PR 已创建; dev-06: 变更完整性已验证",
+    "gate_evidence": {
+      "dev-01": "src/app/issue-collaboration/collaboration.ts 已修改",
+      "dev-02": "npm run check 通过",
+      "dev-03": "docs/features/2026/06/26/F20260626m4vx.md 已更新",
+      "dev-04": "PR #123 已创建",
+      "dev-06": "npm run check 通过"
+    }
+  }
+}
+```
+
+**注意**：development stage 只有一个开发者，不存在对抗机制，所以 `consensus` 固定为 `true`。

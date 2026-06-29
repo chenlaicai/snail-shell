@@ -11,7 +11,7 @@ import {
   type IssueSnailAssignmentPlan,
   type StageSnailAssignmentPlan,
 } from "@domain/issue/model";
-import type { IssuePort, StagePort } from "@domain/issue/port";
+import type { IssuePort, StagePort, StageAuditRecord } from "@domain/issue/port";
 import type { IssueRepository, StageRepository, RoleSnailAssignmentRepository } from "@domain/issue/_internal/repository";
 import type { SopPort } from "@domain/sop/port";
 import type { Sop, StageDefinition } from "@domain/sop/model";
@@ -223,6 +223,18 @@ export class StageAdapter implements StagePort {
       log.info({ fromStageId: current.id, toStageId: newStage.id, targetKey }, "stage.advanced");
       return newStage;
     });
+  }
+
+  rollbackStage(currentStageId: string, targetKey: string): Stage {
+    return this.stageRepo.rollbackStage(currentStageId, targetKey);
+  }
+
+  recordAudit(audit: StageAuditRecord): void {
+    this.stageRepo.recordAudit(audit);
+  }
+
+  getAuditTrail(stageId: string): StageAuditRecord[] {
+    return this.stageRepo.getAuditTrail(stageId);
   }
 
   switchSnail(stageId: string, roleInstance: string, newSnailId: string): void {

@@ -67,3 +67,51 @@ description: |
 
 4. 确认所有标 ✅ 的 required 项均有实质性证据后，才可在消息中包含 stage_transition 建议
 5. 存在未通过项时，不得建议推进，应继续处理检视意见
+
+## 信号协议
+
+完成 Gate 自检后，通过结构化信号表达阶段工作结果：
+
+### 共识信号（两个 reviewer 都认可）
+
+```json
+{
+  "stage_transition": {
+    "target_key": "merge",
+    "consensus": true,
+    "reason": "所有检视意见已处理，验证通过",
+    "guard": "rev-01: 所有评论已处理; rev-02: 验证通过; rev-03: 已签名",
+    "gate_evidence": {
+      "rev-01": "所有评论处置状态: 已修复",
+      "rev-02": "npm run check 通过",
+      "rev-03": "PR #123 评论已签名"
+    }
+  }
+}
+```
+
+### 分歧信号（存在问题）
+
+```json
+{
+  "stage_transition": {
+    "target_key": "merge",
+    "consensus": false,
+    "reason": "发现未处理的检视意见",
+    "positions": [
+      {
+        "speaker": "reviewer-1",
+        "stance": "against",
+        "argument": "存在未修复的 bug",
+        "evidence": "PR 评论 #456"
+      },
+      {
+        "speaker": "reviewer-2",
+        "stance": "for",
+        "argument": "问题已修复",
+        "evidence": "最新 commit 已修复"
+      }
+    ]
+  }
+}
+```

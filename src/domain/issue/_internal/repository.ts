@@ -1,5 +1,9 @@
 import type { SQLiteDatabase } from "@infra/database";
 import type { Issue, Stage, RoleSnailAssignment } from "@domain/issue/model";
+import type { StageAuditRecord } from "@domain/issue/port";
+import { getLogger } from "@infra/logger";
+
+const log = getLogger({ module: "issue-repository" });
 
 // ── Issue Repository ──────────────────────────────────────────────────
 
@@ -24,6 +28,12 @@ export interface StageRepository {
   listAllOpenStageIds(): string[];
   create(stage: Stage): void;
   update(stageId: string, updates: Partial<Pick<Stage, "left_at" | "output_artifacts">>): void;
+  /** 回退到指定 Stage */
+  rollbackStage(currentStageId: string, targetKey: string): Stage;
+  /** 记录审计轨迹 */
+  recordAudit(audit: StageAuditRecord): void;
+  /** 获取审计轨迹 */
+  getAuditTrail(stageId: string): StageAuditRecord[];
   transaction<T>(fn: () => T): T;
 }
 
@@ -86,6 +96,19 @@ CREATE TABLE IF NOT EXISTS role_snail_assignment (
 );
 
 CREATE INDEX IF NOT EXISTS idx_role_snail_assignment_stage ON role_snail_assignment(stage_id);
+
+CREATE TABLE IF NOT EXISTS stage_audit (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  stage_id TEXT NOT NULL,
+  from_key TEXT NOT NULL,
+  to_key TEXT NOT NULL,
+  trigger TEXT NOT NULL,
+  trigger_reason TEXT NOT NULL,
+  consensus_content TEXT NOT NULL,
+  timestamp INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_stage_audit_stage ON stage_audit(stage_id);
 `;
 
 type IssueRow = {
@@ -247,6 +270,55 @@ export class SQLiteStageRepository implements StageRepository {
     if (sets.length === 0) return;
     params.push(stageId);
     this.db.run(`UPDATE stage SET ${sets.join(", ")} WHERE id = ?`, params);
+  }
+
+  rollbackStage(currentStageId: string, targetKey: string): Stage {
+    return this.transaction(() => {
+      const current = this.findById(currentStageId);
+      if (!current) throw new Error(`Stage not found: ${currentStageId}`);
+
+      if (!current.from_stage_id) {
+        throw new Error(`Cannot rollback: stage ${currentStageId} has no previous stage`);
+      }
+
+      const previousStage = this.findById(current.from_stage_id);
+      if (!previousStage) {
+        throw new Error(`Cannot rollback: previous stage ${current.from_stage_id} not found`);
+      }
+
+      if (previousStage.key !== targetKey) {
+        throw new Error(`Cannot rollback: previous stage key "${previousStage.key}" does not match target "${targetKey}"`);
+      }
+
+      // 清理当前 stage 的关联数据
+      this.db.run(`DELETE FROM role_snail_assignment WHERE stage_id = ?`, [currentStageId]);
+      this.db.run(`DELETE FROM stage_audit WHERE stage_id = ?`, [currentStageId]);
+      this.db.run(`DELETE FROM stage WHERE id = ?`, [currentStageId]);
+
+      // 清除前一个 stage 的 left_at
+      this.db.run(`UPDATE stage SET left_at = NULL WHERE id = ?`, [previousStage.id]);
+
+      const updated = this.findById(previousStage.id);
+      if (!updated) throw new Error(`Stage not found after rollback: ${previousStage.id}`);
+
+      log.info({ fromStageId: currentStageId, toStageId: previousStage.id, targetKey }, "stage.rollback");
+      return updated;
+    });
+  }
+
+  recordAudit(audit: StageAuditRecord): void {
+    this.db.run(
+      `INSERT INTO stage_audit (stage_id, from_key, to_key, trigger, trigger_reason, consensus_content, timestamp)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [audit.stage_id, audit.from_key, audit.to_key, audit.trigger, audit.trigger_reason, audit.consensus_content, audit.timestamp]
+    );
+  }
+
+  getAuditTrail(stageId: string): StageAuditRecord[] {
+    return this.db.all<StageAuditRecord>(
+      `SELECT * FROM stage_audit WHERE stage_id = ? ORDER BY timestamp ASC`,
+      [stageId]
+    );
   }
 
   transaction<T>(fn: () => T): T {

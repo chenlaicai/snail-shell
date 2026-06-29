@@ -1,6 +1,16 @@
 import type { Issue, Stage, CreateStageInput, RoleSnailAssignment, StagePreview, IssueSnailAssignmentPlan, StageSnailAssignmentPlan } from "@domain/issue/model";
 import type { Sop } from "@domain/sop/model";
 
+export interface StageAuditRecord {
+  stage_id: string;
+  from_key: string;
+  to_key: string;
+  trigger: "auto" | "manual";
+  trigger_reason: string;
+  consensus_content: string;
+  timestamp: number;
+}
+
 /** Issue 端口 */
 export interface IssuePort {
   findIssue(id: string): Issue | undefined;
@@ -32,6 +42,15 @@ export interface StagePort {
 
   /** 流转到下一个 Stage：设置当前 left_at + 创建新 Stage */
   advanceStage(currentStageId: string, targetKey: string): Stage;
+
+  /** 回退到指定 Stage */
+  rollbackStage(currentStageId: string, targetKey: string): Stage;
+
+  /** 记录审计轨迹 */
+  recordAudit(audit: StageAuditRecord): void;
+
+  /** 获取审计轨迹 */
+  getAuditTrail(stageId: string): StageAuditRecord[];
 
   /** 切换 snail：追加新 RoleSnailAssignment 记录（seq+1） */
   switchSnail(stageId: string, roleInstance: string, newSnailId: string): void;
