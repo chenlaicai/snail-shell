@@ -164,6 +164,8 @@ function ChatMessageInner({ message, onInterrupt }: { message: MessageDto; onInt
               <RichTextRenderer content={message.context!.context} />
             ) : message.content ? (
               <RichTextRenderer content={message.content} />
+            ) : isStreaming ? (
+              <EventTextContent events={message.events} />
             ) : (
               <span className="text-text-muted italic">（无文本输出）</span>
             )}
@@ -253,6 +255,19 @@ export const ChatMessage = React.memo(ChatMessageInner, (prev, next) => {
   if (prevEvents.length === 0) return true;
   return prevEvents[prevEvents.length - 1].id === nextEvents[nextEvents.length - 1].id;
 });
+
+/** 流式过程中从 events 提取 text 事件拼接展示，用于最终答复区在 context 和 content 都为空时的 fallback */
+function EventTextContent({ events }: { events: MessageEvent[] }) {
+  const text = useMemo(() => {
+    return events
+      .filter((e) => e.payload?.type === "text" && e.payload && "text" in e.payload)
+      .map((e) => (e.payload as unknown as { text: string }).text)
+      .join("");
+  }, [events]);
+
+  if (!text) return <span className="text-text-muted italic">（无文本输出）</span>;
+  return <RichTextRenderer content={text} />;
+}
 
 /** 流式过程折叠区：展示除 text 外的事件类型（text 已在最终答复区展示），流式过程和最终答复是两个独立展示区域 */
 function EventStream({ events, expanded, onToggle }: { events: MessageEvent[]; expanded: boolean; onToggle: () => void }) {
