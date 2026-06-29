@@ -1,12 +1,12 @@
 ---
-id: F20260627pd4n
+id: F20260629jfv5
 title: collaboration-mechanism-fix
 tags: [bugfix, collaboration, mcp, environment-variables]
 modules: [collaboration, mcp, acs]
 doc_kind: spec
 ---
 
-# F20260627pd4n [collaboration] 协作机制全链路修复
+# F20260629jfv5 [collaboration] 协作机制全链路修复
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 
