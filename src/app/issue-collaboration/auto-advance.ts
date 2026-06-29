@@ -85,15 +85,28 @@ export class AutoAdvanceEngine {
     }
 
     // 验证对抗产物
+    const latestBySpeaker = new Map<string, StageTransitionSuggestion>();
     for (const speaker of uniqueSpeakers) {
       const speakerSignals = consensusSignals.filter(s => s.from_speaker === speaker);
       const latest = speakerSignals[speakerSignals.length - 1];
+      latestBySpeaker.set(speaker, latest);
       const validation = this.validateAdversarialArtifact(stage, latest);
       if (!validation.valid) {
         log.warn({ stageId: stage.id, speaker, reason: validation.reason }, "adversarial artifact validation failed");
         await this.deps.notifyConsumers(stage.id, "onDisagreement", latest);
         return;
       }
+      // R7: adversarial_findings 全部为"无问题"时告警（不阻断）
+      if (validation.allClear) {
+        log.warn({ stageId: stage.id, speaker }, "adversarial_findings all clear — no issues found");
+        await this.deps.notifyConsumers(stage.id, "onDisagreement", { ...latest, _warning: "adversarial_findings_all_clear" });
+      }
+    }
+
+    // R6: 跨 speaker independent_verification 输出雷同检测
+    if (this.hasSimilarVerificationOutputs(latestBySpeaker)) {
+      log.warn({ stageId: stage.id }, "R6: cross-speaker verification outputs are suspiciously similar (>80%)");
+      return;
     }
 
     const latest = consensusSignals[consensusSignals.length - 1];
@@ -180,41 +193,117 @@ export class AutoAdvanceEngine {
     });
   }
 
-  /** 校验对抗产物的语义内容，返回 { valid, reason } */
-  validateAdversarialArtifact(stage: Stage, suggestion: StageTransitionSuggestion): { valid: boolean; reason?: string } {
+  /** 校验对抗产物的语义内容，返回 { valid, reason, allClear } */
+  validateAdversarialArtifact(stage: Stage, suggestion: StageTransitionSuggestion): { valid: boolean; reason?: string; allClear?: boolean } {
     const artifact = suggestion.adversarial_artifact;
     if (!artifact) {
       return { valid: false, reason: "missing adversarial_artifact" };
     }
 
-    // R2: audit_trail 必须包含 cross_review_read 事件
-    const hasCrossReviewRead = artifact.audit_trail.events.some(e => e.event_type === 'cross_review_read');
-    if (!hasCrossReviewRead) {
-      return { valid: false, reason: "audit_trail missing cross_review_read event" };
-    }
+    const auditResult = this.validateAuditTrail(artifact);
+    if (auditResult) return auditResult;
 
     // R3: independent_verification 的 actual_output 长度 >= 20 字符
-    const hasShortOutput = artifact.independent_verification.some(v => v.actual_output.length < 20);
-    if (hasShortOutput) {
+    if (artifact.independent_verification.some(v => v.actual_output.length < 20)) {
       return { valid: false, reason: "independent_verification actual_output too short (< 20 chars)" };
     }
 
-    // R4: Design 阶段特有校验
+    const stageResult = this.validateStageSpecificFields(stage, artifact);
+    if (stageResult) return stageResult;
+
+    // R7: adversarial_findings 全部为"无问题"时标记（不阻断）
+    const allClear = artifact.adversarial_findings.length > 0 &&
+      artifact.adversarial_findings.every(f => f.finding === "no issues" || f.disposition === "none");
+
+    return { valid: true, allClear };
+  }
+
+  private validateAuditTrail(artifact: AdversarialArtifact): { valid: false; reason: string } | null {
+    const reviewStarted = artifact.audit_trail.events.find(e => e.event_type === 'review_started');
+    const crossReviewRead = artifact.audit_trail.events.find(e => e.event_type === 'cross_review_read');
+    if (!crossReviewRead) {
+      return { valid: false, reason: "audit_trail missing cross_review_read event" };
+    }
+    if (reviewStarted && crossReviewRead.timestamp <= reviewStarted.timestamp) {
+      return { valid: false, reason: "audit_trail cross_review_read timestamp must be after review_started" };
+    }
+    return null;
+  }
+
+  private validateStageSpecificFields(stage: Stage, artifact: AdversarialArtifact): { valid: false; reason: string } | null {
     if (stage.key === "design") {
-      const designArtifact = artifact as AdversarialArtifact & { critique_obligation?: { items: { type: string; content: string }[] } };
-      if (!designArtifact.critique_obligation?.items || designArtifact.critique_obligation.items.length < 4) {
+      const designArtifact = artifact as unknown as Record<string, unknown>;
+      const co = designArtifact["critique_obligation"] as Record<string, unknown> | undefined;
+      if (!co || !Array.isArray(co["items"]) || (co["items"] as unknown[]).length < 4) {
         return { valid: false, reason: "design stage requires critique_obligation.items >= 4" };
       }
     }
-
-    // R5: Review 阶段特有校验
     if (stage.key === "review") {
-      const reviewArtifact = artifact as AdversarialArtifact & { file_coverage?: { coverage_ratio: number } };
-      if (reviewArtifact.file_coverage?.coverage_ratio !== 1.0) {
+      const reviewArtifact = artifact as unknown as Record<string, unknown>;
+      const fc = reviewArtifact["file_coverage"] as Record<string, unknown> | undefined;
+      if (!fc || typeof fc["coverage_ratio"] !== "number" || fc["coverage_ratio"] !== 1.0) {
         return { valid: false, reason: "review stage requires file_coverage.coverage_ratio = 1.0" };
       }
     }
+    return null;
+  }
 
-    return { valid: true };
+  /** R6: 检测跨 speaker 的 independent_verification 输出是否雷同（相似度 > 80%） */
+  private hasSimilarVerificationOutputs(latestBySpeaker: Map<string, StageTransitionSuggestion>): boolean {
+    const speakers = [...latestBySpeaker.keys()];
+    if (speakers.length < 2) return false;
+
+    const outputs = speakers.map(speaker => {
+      const artifact = latestBySpeaker.get(speaker)!.adversarial_artifact;
+      if (!artifact) return [];
+      return artifact.independent_verification.map(v => v.actual_output);
+    });
+
+    // 两两比较
+    for (let i = 0; i < outputs.length; i++) {
+      for (let j = i + 1; j < outputs.length; j++) {
+        if (this.isSimilar(outputs[i], outputs[j])) return true;
+      }
+    }
+    return false;
+  }
+
+  /** 计算两组输出的相似度，任一对 > 80% 即视为雷同 */
+  private isSimilar(outputsA: string[], outputsB: string[]): boolean {
+    if (outputsA.length === 0 || outputsB.length === 0) return false;
+    for (const a of outputsA) {
+      for (const b of outputsB) {
+        if (this.stringSimilarity(a, b) > 0.8) return true;
+      }
+    }
+    return false;
+  }
+
+  /** 简单字符串相似度：公共字符数 / 较长字符串长度 */
+  private stringSimilarity(a: string, b: string): number {
+    if (a === b) return 1;
+    if (a.length === 0 || b.length === 0) return 0;
+    const longer = a.length > b.length ? a : b;
+    const shorter = a.length > b.length ? b : a;
+    // 使用 LCS 长度 / 较长字符串长度
+    const lcsLength = this.lcsLength(longer, shorter);
+    return lcsLength / longer.length;
+  }
+
+  /** 最长公共子序列长度 */
+  private lcsLength(a: string, b: string): number {
+    const m = a.length;
+    const n = b.length;
+    // 空间优化：只保留两行
+    let prev = new Array<number>(n + 1).fill(0);
+    let curr = new Array<number>(n + 1).fill(0);
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        curr[j] = a[i - 1] === b[j - 1] ? prev[j - 1] + 1 : Math.max(prev[j], curr[j - 1]);
+      }
+      [prev, curr] = [curr, prev];
+      curr.fill(0);
+    }
+    return prev[n];
   }
 }

@@ -175,12 +175,14 @@ describe("AutoAdvanceEngine context validation", () => {
     it("allows auto-advance when context fields are present", async () => {
       const deps = createDeps();
       const engine = new AutoAdvanceEngine(deps);
-      const adversarialArtifact = {
-        independent_verification: [{ command: "tsc", actual_output: "no errors found in the codebase", executed_at: new Date().toISOString() }],
-        adversarial_findings: [{ dimension: "completeness", finding: "no issues", disposition: "none" }],
+      const now = new Date().toISOString();
+      const later = new Date(Date.now() + 1000).toISOString();
+      const adversarialArtifact1 = {
+        independent_verification: [{ command: "tsc --noEmit", actual_output: "no errors found after full type check across all modules", executed_at: now }],
+        adversarial_findings: [{ dimension: "completeness", finding: "found gap in error handling", disposition: "added to backlog" }],
         audit_trail: { events: [
-          { timestamp: new Date().toISOString(), event_type: 'review_started' as const, detail: "started" },
-          { timestamp: new Date().toISOString(), event_type: 'cross_review_read' as const, detail: "read" },
+          { timestamp: now, event_type: 'review_started' as const, detail: "started" },
+          { timestamp: later, event_type: 'cross_review_read' as const, detail: "read" },
         ] },
         critique_obligation: { items: [
           { type: 'risk' as const, content: "risk 1" },
@@ -191,66 +193,212 @@ describe("AutoAdvanceEngine context validation", () => {
         independent_analysis: { my_conclusion: "ok", comparison_with_peer: "same", points_of_agreement: ["a"], points_of_disagreement: [] },
         scenario_coverage: { scenarios_reviewed: 5, scenarios_identified: 5, coverage_ratio: 1.0 },
       };
+      const adversarialArtifact2 = {
+        ...adversarialArtifact1,
+        independent_verification: [{ command: "npm run lint", actual_output: "zero warnings and zero errors across all source files", executed_at: now }],
+      };
       const suggestion = createSuggestion({
         consensus: true,
         from_speaker: "architect-1",
         target_key: "development",
         gate_evidence: { "design-01": "locked", "design-02": "resolved" },
-        adversarial_artifact: adversarialArtifact,
+        adversarial_artifact: adversarialArtifact1,
       });
-      const suggestion2 = { ...suggestion, from_speaker: "architect-2", message_id: 2 };
+      const suggestion2 = { ...suggestion, from_speaker: "architect-2", message_id: 2, adversarial_artifact: adversarialArtifact2 };
       await engine.evaluate(createStage({ key: "design" }), [suggestion, suggestion2]);
 
       expect(deps.advanceStage).toHaveBeenCalled();
     });
-  });
 
-  describe("review stage", () => {
-    it("blocks auto-advance when pr_url is missing", async () => {
-      const deps = createDeps({
-        mustGetIssue: vi.fn().mockReturnValue({
-          context: { worktree_path: "/wt", branch_name: "feature-x" },
-        }),
-      });
+    it("blocks auto-advance when critique_obligation is missing (R4 safe check)", async () => {
+      const deps = createDeps();
       const engine = new AutoAdvanceEngine(deps);
+      const now = new Date().toISOString();
+      const later = new Date(Date.now() + 1000).toISOString();
+      const artifact = {
+        independent_verification: [{ command: "tsc", actual_output: "no errors found in the codebase", executed_at: now }],
+        adversarial_findings: [{ dimension: "completeness", finding: "found gap", disposition: "tracked" }],
+        audit_trail: { events: [
+          { timestamp: now, event_type: 'review_started' as const, detail: "started" },
+          { timestamp: later, event_type: 'cross_review_read' as const, detail: "read" },
+        ] },
+        // critique_obligation intentionally missing
+        independent_analysis: { my_conclusion: "ok", comparison_with_peer: "same", points_of_agreement: ["a"], points_of_disagreement: [] },
+        scenario_coverage: { scenarios_reviewed: 5, scenarios_identified: 5, coverage_ratio: 1.0 },
+      };
       const suggestion = createSuggestion({
         consensus: true,
-        from_speaker: "reviewer-1",
-        target_key: "merge",
-        gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed" },
+        from_speaker: "architect-1",
+        target_key: "development",
+        gate_evidence: { "design-01": "locked", "design-02": "resolved" },
+        adversarial_artifact: artifact as any,
       });
-      const suggestion2 = { ...suggestion, from_speaker: "reviewer-2", message_id: 2 };
-      await engine.evaluate(createStage({ key: "review" }), [suggestion, suggestion2]);
+      const suggestion2 = { ...suggestion, from_speaker: "architect-2", message_id: 2 };
+      await engine.evaluate(createStage({ key: "design" }), [suggestion, suggestion2]);
 
+      expect(deps.advanceStage).not.toHaveBeenCalled();
+    });
+
+    it("blocks auto-advance when critique_obligation.items < 4 (R4)", async () => {
+      const deps = createDeps();
+      const engine = new AutoAdvanceEngine(deps);
+      const now = new Date().toISOString();
+      const later = new Date(Date.now() + 1000).toISOString();
+      const artifact = {
+        independent_verification: [{ command: "tsc", actual_output: "no errors found in the codebase", executed_at: now }],
+        adversarial_findings: [{ dimension: "completeness", finding: "found gap", disposition: "tracked" }],
+        audit_trail: { events: [
+          { timestamp: now, event_type: 'review_started' as const, detail: "started" },
+          { timestamp: later, event_type: 'cross_review_read' as const, detail: "read" },
+        ] },
+        critique_obligation: { items: [
+          { type: 'risk' as const, content: "risk 1" },
+          { type: 'gap' as const, content: "gap 1" },
+        ] }, // only 2 items, needs >= 4
+        independent_analysis: { my_conclusion: "ok", comparison_with_peer: "same", points_of_agreement: ["a"], points_of_disagreement: [] },
+        scenario_coverage: { scenarios_reviewed: 5, scenarios_identified: 5, coverage_ratio: 1.0 },
+      };
+      const suggestion = createSuggestion({
+        consensus: true,
+        from_speaker: "architect-1",
+        target_key: "development",
+        gate_evidence: { "design-01": "locked", "design-02": "resolved" },
+        adversarial_artifact: artifact as any,
+      });
+      const suggestion2 = { ...suggestion, from_speaker: "architect-2", message_id: 2 };
+      await engine.evaluate(createStage({ key: "design" }), [suggestion, suggestion2]);
+
+      expect(deps.advanceStage).not.toHaveBeenCalled();
+    });
+  });
+
+});
+
+/** 构造带有效对抗产物的 review 阶段建议 */
+function createReviewArtifact(overrides: Record<string, unknown> = {}) {
+  const now = new Date().toISOString();
+  const later = new Date(Date.now() + 1000).toISOString();
+  return {
+    independent_verification: [{ command: "tsc --noEmit", actual_output: "compiled successfully with zero type errors in the project", executed_at: now }],
+    adversarial_findings: [{ dimension: "completeness", finding: "found a potential issue", disposition: "fixed" }],
+    audit_trail: { events: [
+      { timestamp: now, event_type: 'review_started' as const, detail: "started" },
+      { timestamp: later, event_type: 'cross_review_read' as const, detail: "read" },
+    ] },
+    file_dispositions: [{ path: "src/app/issue-collaboration/port.ts", status: 'reviewed' as const, issues_found: 0 }],
+    cross_review: { peer_conclusion_summary: "ok", my_independent_check: "ok", alignment_or_conflict: "aligned" },
+    ci_independence: { source: 'github_api' as const, status: "passed", confirmed_at: now },
+    file_coverage: { files_reviewed: 1, files_in_diff: 1, coverage_ratio: 1.0 },
+    ...overrides,
+  };
+}
+
+describe("adversarial artifact validation", () => {
+  describe("review stage context", () => {
+    it("blocks when pr_url is missing", async () => {
+      const deps = createDeps({
+        mustGetIssue: vi.fn().mockReturnValue({ context: { worktree_path: "/wt", branch_name: "feature-x" } }),
+      });
+      const engine = new AutoAdvanceEngine(deps);
+      const s1 = createSuggestion({ consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed" } });
+      const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2 };
+      await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
       expect(deps.advanceStage).not.toHaveBeenCalled();
       assertContextMissing(deps, ["pr_url"]);
     });
 
-    it("allows auto-advance when all context fields are present", async () => {
+    it("allows when all fields present", async () => {
       const deps = createDeps();
       const engine = new AutoAdvanceEngine(deps);
-      const adversarialArtifact = {
-        independent_verification: [{ command: "tsc", actual_output: "no errors found in the codebase", executed_at: new Date().toISOString() }],
-        adversarial_findings: [{ dimension: "completeness", finding: "no issues", disposition: "none" }],
-        audit_trail: { events: [
-          { timestamp: new Date().toISOString(), event_type: 'review_started' as const, detail: "started" },
-          { timestamp: new Date().toISOString(), event_type: 'cross_review_read' as const, detail: "read" },
-        ] },
-        file_dispositions: [{ path: "src/app/issue-collaboration/port.ts", status: 'reviewed' as const, issues_found: 0 }],
-        cross_review: { peer_conclusion_summary: "ok", my_independent_check: "ok", alignment_or_conflict: "aligned" },
-        ci_independence: { source: 'github_api' as const, status: "passed", confirmed_at: new Date().toISOString() },
-        file_coverage: { files_reviewed: 1, files_in_diff: 1, coverage_ratio: 1.0 },
-      };
-      const suggestion = createSuggestion({
-        consensus: true,
-        from_speaker: "reviewer-1",
-        target_key: "merge",
-        gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed" },
-        adversarial_artifact: adversarialArtifact,
-      });
-      const suggestion2 = { ...suggestion, from_speaker: "reviewer-2", message_id: 2 };
-      await engine.evaluate(createStage({ key: "review" }), [suggestion, suggestion2]);
+      const a2 = { ...createReviewArtifact(), independent_verification: [{ command: "npm test", actual_output: "all seventeen tests passed with no failures or skips", executed_at: new Date().toISOString() }] };
+      const s1 = createSuggestion({ consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed" }, adversarial_artifact: createReviewArtifact() });
+      const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2, adversarial_artifact: a2 };
+      await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
+      expect(deps.advanceStage).toHaveBeenCalled();
+    });
+  });
 
+  describe("R1-R3 rejection", () => {
+    it("blocks when adversarial_artifact is missing", async () => {
+      const deps = createDeps();
+      const engine = new AutoAdvanceEngine(deps);
+      const s1 = createSuggestion({ consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed" } });
+      const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2 };
+      await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
+      expect(deps.advanceStage).not.toHaveBeenCalled();
+    });
+
+    it("blocks when cross_review_read event is missing", async () => {
+      const deps = createDeps();
+      const engine = new AutoAdvanceEngine(deps);
+      const artifact = createReviewArtifact({ audit_trail: { events: [{ timestamp: new Date().toISOString(), event_type: 'review_started' as const, detail: "started" }] } });
+      const s1 = createSuggestion({ consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed" }, adversarial_artifact: artifact as any });
+      const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2 };
+      await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
+      expect(deps.advanceStage).not.toHaveBeenCalled();
+    });
+
+    it("blocks when actual_output < 20 chars", async () => {
+      const deps = createDeps();
+      const engine = new AutoAdvanceEngine(deps);
+      const artifact = createReviewArtifact({ independent_verification: [{ command: "tsc", actual_output: "ok", executed_at: new Date().toISOString() }] });
+      const s1 = createSuggestion({ consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed" }, adversarial_artifact: artifact as any });
+      const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2 };
+      await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
+      expect(deps.advanceStage).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("R4-R5 safe field checks", () => {
+    it("blocks when file_coverage is missing (R5)", async () => {
+      const deps = createDeps();
+      const engine = new AutoAdvanceEngine(deps);
+      const artifact = { ...createReviewArtifact(), file_coverage: undefined } as any;
+      const s1 = createSuggestion({ consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed" }, adversarial_artifact: artifact as any });
+      const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2 };
+      await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
+      expect(deps.advanceStage).not.toHaveBeenCalled();
+    });
+
+    it("blocks when cross_review_read timestamp <= review_started", async () => {
+      const deps = createDeps();
+      const engine = new AutoAdvanceEngine(deps);
+      const later = new Date(Date.now() + 1000).toISOString();
+      const now = new Date().toISOString();
+      const artifact = createReviewArtifact({ audit_trail: { events: [
+        { timestamp: later, event_type: 'review_started' as const, detail: "started" },
+        { timestamp: now, event_type: 'cross_review_read' as const, detail: "read" },
+      ] } });
+      const s1 = createSuggestion({ consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed" }, adversarial_artifact: artifact as any });
+      const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2 };
+      await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
+      expect(deps.advanceStage).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("R6 cross-speaker similarity", () => {
+    it("blocks when verification outputs are identical", async () => {
+      const deps = createDeps();
+      const engine = new AutoAdvanceEngine(deps);
+      const sameOutput = "no errors found in the codebase after running tsc";
+      const artifact = createReviewArtifact({ independent_verification: [{ command: "tsc", actual_output: sameOutput, executed_at: new Date().toISOString() }] });
+      const s1 = createSuggestion({ consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed" }, adversarial_artifact: artifact as any });
+      const s2 = createSuggestion({ consensus: true, from_speaker: "reviewer-2", message_id: 2, target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed" }, adversarial_artifact: artifact as any });
+      await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
+      expect(deps.advanceStage).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("R7 all-clear warning", () => {
+    it("allows but warns when all findings are 'no issues'", async () => {
+      const deps = createDeps();
+      const engine = new AutoAdvanceEngine(deps);
+      const now = new Date().toISOString();
+      const a1 = createReviewArtifact({ adversarial_findings: [{ dimension: "completeness", finding: "no issues", disposition: "none" }] });
+      const a2 = { ...a1, independent_verification: [{ command: "npm test", actual_output: "all seventeen tests passed with no failures or skips", executed_at: now }] };
+      const s1 = createSuggestion({ consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed" }, adversarial_artifact: a1 as any });
+      const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2, adversarial_artifact: a2 as any };
+      await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
       expect(deps.advanceStage).toHaveBeenCalled();
     });
   });
