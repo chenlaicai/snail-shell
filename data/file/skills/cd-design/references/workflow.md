@@ -58,6 +58,6 @@
 
 ### 变更影响面分析（产出锁定前必须完成）
 
-- **变更类型标签**：确定主变更类型，写入 task_anchor 的 `change_type`
+- **变更类型标签**：确定主变更类型，写入 issue context `sop.change_type`
 - **受影响范围清单**：列出涉及的文件、模块、配置文件、提示词和文档
-- **验证命令预定义**（建议）：根据变更类型，在 task_anchor 的 `verification_commands` 字段中定义验证命令
+- **验证命令预定义**（建议）：根据变更类型，在 issue context `sop.verification_commands` 中定义验证命令

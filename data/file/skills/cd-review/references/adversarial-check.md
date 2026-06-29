@@ -67,7 +67,7 @@
 
 ## 变更完整性证据验证（rev-02 核心动作）
 
-从 task_anchor 读取 `change_type`（和可选的 `verification_commands`），**独立执行**同一组验证命令。将实际输出写入 rev-02 的 gate_evidence；如果输出与开发者的不一致，必须作为问题提出。
+从 issue context 读取 `sop.change_type`（和可选的 `sop.verification_commands`），**独立执行**同一组验证命令。将实际输出写入 rev-02 的 gate_evidence；如果输出与开发者的不一致，必须作为问题提出。
 
 禁止以"看了 diff，都改了""开发者说验证过了"作为 rev-02 的 evidence。必须是自己执行命令的输出。
 

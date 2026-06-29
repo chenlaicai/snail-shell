@@ -53,6 +53,7 @@ async function initModules(repoRoot: string, serverSettings: ServerSettings) {
   const knowledge = initKnowledge(dataStore, workspaces, db);
   const issue = initIssue(sop.adapter, db);
   const message = initMessage(db);
+  const featureChain = initFeatureChain(repoRoot);
   const evolutionRef: { current?: ReturnType<typeof initEvolution> } = {};
   const mcpMessageStore = createMcpMessageStore();
   const snailMCPServer = initMCPServer({
@@ -63,10 +64,11 @@ async function initModules(repoRoot: string, serverSettings: ServerSettings) {
     knowledge: knowledge.adapter,
     message: message.adapter,
     issue: issue.issueAdapter,
+    stage: issue.stageAdapter,
+    featureChain: featureChain.adapter,
     mcpMessageStore,
   });
   const mcp = initMCP({ dataStore, workspaces, snailMCPServer: snailMCPServer.adapter, serverSettings });
-  const featureChain = initFeatureChain(repoRoot);
   const guardProfile = initGuardProfile(dataStore);
   const liteAI = initLiteAI(dataStore);
   const snail = initSnail(dataStore, db, { registry, tenetPrompt: tenetPrompt.adapter, skill: skill.adapter, mcp: mcp.adapter, guardProfile: guardProfile.adapter }, serverSettings.maxConcurrentAgents);

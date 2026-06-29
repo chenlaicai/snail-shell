@@ -4,10 +4,13 @@ import { createEvolutionServer } from "@domain/snail-mcp-server/_internal/server
 import { createKnowledgeServer } from "@domain/snail-mcp-server/_internal/servers/knowledge";
 import { createRednoteResearchServer } from "@domain/snail-mcp-server/_internal/servers/rednote-research";
 import { createSnailIssueContextServer } from "@domain/snail-mcp-server/_internal/servers/snail-issue-context";
+import { createMessageHistoryServer } from "@domain/snail-mcp-server/_internal/servers/snail-message-history";
+import { createFeatureChainServer } from "@domain/snail-mcp-server/_internal/servers/snail-feature-chain";
 import type { McpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-message-store";
 import type { KnowledgePort } from "@domain/knowledge/port";
 import type { MessagePort } from "@domain/message/port";
-import type { IssuePort } from "@domain/issue/port";
+import type { IssuePort, StagePort } from "@domain/issue/port";
+import type { FeatureChainPort } from "@domain/feature-chain/port";
 
 /** Snail MCP Server 模块依赖 */
 export interface SnailMCPServerDeps {
@@ -19,6 +22,10 @@ export interface SnailMCPServerDeps {
   message: MessagePort;
   /** issue adapter */
   issue: IssuePort;
+  /** stage adapter */
+  stage: StagePort;
+  /** feature-chain adapter */
+  featureChain: FeatureChainPort;
   /** MCP 路由目标 store（set_final_body 写入，collaboration resolveReplies 消费） */
   mcpMessageStore: McpMessageStore;
 }
@@ -36,6 +43,8 @@ export function init(deps: SnailMCPServerDeps) {
   adapter.registerServer(createKnowledgeServer(deps.knowledge));
   adapter.registerServer(createRednoteResearchServer());
   adapter.registerServer(createSnailIssueContextServer(deps.issue));
+  adapter.registerServer(createMessageHistoryServer(deps.stage, deps.message));
+  adapter.registerServer(createFeatureChainServer(deps.featureChain));
 
   return { adapter };
 }

@@ -35,7 +35,7 @@ description: |
 
 - 修改系统功能语义的 PR 必须有"核心业务行为"列表（"当 X 时，应该 Y"形式）
 - 特性拆分优先"特性内分 Part"，避免拆分为多个独立特性
-- 变更类型标签（rename/migration/config-sync/refactor/feature/bugfix）写入 task_anchor
+- 变更类型标签（rename/migration/config-sync/refactor/feature/bugfix）写入 issue context `sop.change_type`
 
 ## Stage Gate 自检（必须）
 
