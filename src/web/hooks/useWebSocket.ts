@@ -2,12 +2,13 @@ import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useConversationStore } from "../stores/conversationStore";
 import { queryKeys } from "../queries/keys";
+import { removePendingMessage } from "../lib/pending-messages";
 import type { IssueRealtimeMessage, IssueDetailDto, MessageDto, WsServerMessage } from "../types";
 
 /** 创建占位 MessageDto——用于 WebSocket message_started 和乐观发送 */
 export function createPlaceholderMessage(
   stageId: string,
-  opts: { id: number; role: MessageDto["role"]; from_role?: string | null; client_id?: string | null; status?: MessageDto["status"]; content?: string }
+  opts: { id: number; role: MessageDto["role"]; from_role?: string | null; client_id?: string | null; status?: MessageDto["status"]; content?: string; createdAt?: string }
 ): MessageDto {
   return {
     id: opts.id,
@@ -23,7 +24,7 @@ export function createPlaceholderMessage(
     context_cutoff_at: "",
     runtime: null,
     status: opts.status ?? "streaming",
-    created_at: new Date().toISOString(),
+    created_at: opts.createdAt ?? new Date().toISOString(),
     ended_at: null,
     updated_at: new Date().toISOString(),
     content: opts.content,
@@ -131,10 +132,8 @@ class EventBatcher {
     let result = old ?? [];
     let changed = false;
 
-    // 1. 添加占位消息（message_started + user_called）
-    //    前置插入以保持 DESC 顺序（后端 listByStage 返回 id DESC）
-    for (const event of [...batch.messageStarted, ...batch.userCalled]) {
-      // 防止重复插入：WebSocket 可能重发相同事件（网络抖动、重连后重放等）
+    /** 处理 message_started 事件（服务端推送的 AI 消息开始） */
+    for (const event of batch.messageStarted) {
       if (result.some((m) => m.id === event.message_id)) continue;
       result = [createPlaceholderMessage(stageId, {
         id: event.message_id, role: event.role, from_role: event.role_name,
@@ -143,48 +142,122 @@ class EventBatcher {
       changed = true;
     }
 
-    // 2. 批量追加 events + 记录 _lastEventAt 用于 stuck-streaming 检测
-    if (batch.messageEventAppended.length > 0) {
-      const eventsByMessage = new Map<number, typeof batch.messageEventAppended>();
-      for (const event of batch.messageEventAppended) {
-        const arr = eventsByMessage.get(event.message_id) ?? [];
-        arr.push(event);
-        eventsByMessage.set(event.message_id, arr);
+    /** 处理 user_called 事件（服务端推送的用户消息确认） */
+    for (const event of batch.userCalled) {
+      if (result.some((m) => m.id === event.message_id)) continue;
+      const replaced = this.replaceOptimisticMessage(result, stageId, event);
+      if (replaced) {
+        result = replaced;
+      } else {
+        result = [createPlaceholderMessage(stageId, {
+          id: event.message_id, role: event.role, from_role: event.role_name,
+          client_id: event.client_id, status: event.status,
+        }), ...result];
       }
-      const now = Date.now();
-      result = result.map((m) => {
-        const newEvents = eventsByMessage.get(m.id);
-        if (!newEvents) return m;
-        changed = true;
-        return { ...m, events: [...(m.events ?? []), ...newEvents.map((e) => e.event)], _lastEventAt: now };
-      });
+      changed = true;
     }
 
-    // 3. 批量更新状态
-    if (batch.messageStatusChanged.length > 0) {
-      const statusByMessage = new Map<number, typeof batch.messageStatusChanged>();
-      for (const event of batch.messageStatusChanged) {
-        const arr = statusByMessage.get(event.message_id) ?? [];
-        arr.push(event);
-        statusByMessage.set(event.message_id, arr);
-      }
-      result = result.map((m) => {
-        const updates = statusByMessage.get(m.id);
-        if (!updates) return m;
-        changed = true;
-        const latest = updates[updates.length - 1];
-        return {
-          ...m,
-          status: latest.status,
-          context: latest.context ?? m.context,
-          content: latest.context?.context ?? m.content,
-          updated_at: new Date().toISOString(),
-        };
-      });
+    /** 批量追加 events + 记录 _lastEventAt 用于 stuck-streaming 检测 */
+    const appendResult = this.appendEvents(result, batch.messageEventAppended);
+    if (appendResult.changed) {
+      result = appendResult.messages;
+      changed = true;
     }
 
-    /** 结构共享：无变化时返回原引用，避免触发 React.memo 失效 */
+    /** 批量更新状态 */
+    const statusResult = this.updateStatuses(result, batch.messageStatusChanged);
+    if (statusResult.changed) {
+      result = statusResult.messages;
+      changed = true;
+    }
+
     return changed ? result : (old ?? []);
+  }
+
+  /** 批量追加 events + 记录 _lastEventAt 用于 stuck-streaming 检测 */
+  private appendEvents(
+    messages: MessageDto[],
+    events: StageBatch["messageEventAppended"],
+  ): { messages: MessageDto[]; changed: boolean } {
+    if (events.length === 0) return { messages, changed: false };
+    const eventsByMessage = new Map<number, typeof events>();
+    for (const event of events) {
+      const arr = eventsByMessage.get(event.message_id) ?? [];
+      arr.push(event);
+      eventsByMessage.set(event.message_id, arr);
+    }
+    const now = Date.now();
+    let changed = false;
+    const result = messages.map((m) => {
+      const newEvents = eventsByMessage.get(m.id);
+      if (!newEvents) return m;
+      changed = true;
+      return { ...m, events: [...(m.events ?? []), ...newEvents.map((e) => e.event)], _lastEventAt: now };
+    });
+    return { messages: result, changed };
+  }
+
+  /** 批量更新状态 */
+  private updateStatuses(
+    messages: MessageDto[],
+    statusChanges: StageBatch["messageStatusChanged"],
+  ): { messages: MessageDto[]; changed: boolean } {
+    if (statusChanges.length === 0) return { messages, changed: false };
+    const statusByMessage = new Map<number, typeof statusChanges>();
+    for (const event of statusChanges) {
+      const arr = statusByMessage.get(event.message_id) ?? [];
+      arr.push(event);
+      statusByMessage.set(event.message_id, arr);
+    }
+    let changed = false;
+    const result = messages.map((m) => {
+      const updates = statusByMessage.get(m.id);
+      if (!updates) return m;
+      changed = true;
+      const latest = updates[updates.length - 1];
+      return {
+        ...m,
+        status: latest.status,
+        context: latest.context ?? m.context,
+        content: latest.context?.context ?? m.content,
+        updated_at: new Date().toISOString(),
+      };
+    });
+    return { messages: result, changed };
+  }
+
+  /**
+   * 内容匹配替换：检查是否有 role="user" + status="sending" + content 相同的乐观消息。
+   * 使用 findLastIndex 匹配最新的乐观消息，避免用户快速发送相同内容时只替换第一条。
+   */
+  private replaceOptimisticMessage(
+    messages: MessageDto[],
+    stageId: string,
+    event: Extract<IssueRealtimeMessage["event"], { type: "user_called" }>,
+  ): MessageDto[] | null {
+    const eventContent = event.content?.trim();
+    if (!eventContent) return null;
+    const optimisticIndex = messages.findLastIndex(
+      (m) => m.role === "user" && m.status === "sending" && m.content?.trim() === eventContent,
+    );
+    if (optimisticIndex === -1) return null;
+
+    /** 替换乐观消息为服务端消息 */
+    const result = messages.map((m, i) =>
+      i === optimisticIndex
+        ? createPlaceholderMessage(stageId, {
+            id: event.message_id,
+            role: event.role,
+            from_role: event.role_name,
+            client_id: event.client_id,
+            status: event.status,
+            content: event.content,
+          })
+        : m,
+    );
+    /** 清除 localStorage 中对应的 pending 消息 */
+    removePendingMessage(stageId, messages[optimisticIndex].id);
+    return result;
   }
 
   private flush(): void {

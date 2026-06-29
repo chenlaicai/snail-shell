@@ -27,12 +27,14 @@ function extractContextUsage(events: MessageEvent[]): { label: string; percent: 
   return null;
 }
 
-function ChatMessageInner({ message, onInterrupt }: { message: MessageDto; onInterrupt?: (messageId: number) => Promise<void> }) {
+function ChatMessageInner({ message, onInterrupt, onRetry }: { message: MessageDto; onInterrupt?: (messageId: number) => Promise<void>; onRetry?: () => void }) {
   const isUser = message.role === "user";
   const isSystem = message.role === "system";
   const [expandedByUser, setExpandedByUser] = useState<boolean | null>(null);
   const [interrupting, setInterrupting] = useState(false);
   const interruptingRef = useRef(false);
+  const isSending = message.status === "sending";
+  const isFailed = message.status === "failed";
 
   const handleStop = useCallback(async () => {
     if (interruptingRef.current || !onInterrupt) return;
@@ -135,6 +137,35 @@ function ChatMessageInner({ message, onInterrupt }: { message: MessageDto; onInt
               </>
             )}
           </div>
+          {/* 发送状态指示器：独立行，避免状态变化时头部元素位移 */}
+          {isUser && isSending && (
+            <div className="flex justify-end px-1 mb-1">
+              <span className="inline-flex items-center gap-1 text-[10px] text-shell-400">
+                <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 2v4m0 12v4m-8-10H2m20 0h-2m-2.93-7.07l-1.41 1.41M7.05 16.95l-1.41 1.41m0-13.41l1.41 1.41m9.9 9.9l1.41 1.41" />
+                </svg>
+                发送中
+              </span>
+            </div>
+          )}
+          {isUser && isFailed && (
+            <div className="flex justify-end px-1 mb-1">
+              <span className="inline-flex items-center gap-1 text-[10px] text-status-red">
+                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                </svg>
+                发送失败
+                {onRetry && (
+                  <button
+                    onClick={onRetry}
+                    className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-status-red/15 text-status-red border border-status-red/30 hover:bg-status-red/25 transition-colors"
+                  >
+                    重试
+                  </button>
+                )}
+              </span>
+            </div>
+          )}
 
           {/* hasContext 已移除：失败/中断时也需要展示 EventStream 用于诊断（D4） */}
           {hasEvents && (
@@ -149,7 +180,11 @@ function ChatMessageInner({ message, onInterrupt }: { message: MessageDto; onInt
           {/* hasContext 时预留 pr-24 给来源标签，避免长文本与 badge 重叠（最长 kind mcp_final_body ~84px + right-3 12px = 96px） */}
           <div className={`relative rounded-2xl px-4 py-3 text-[13px] leading-relaxed ${hasContext ? "pr-24" : ""} ${
             isUser
-              ? "rounded-br-md bg-shell-600/20 border border-shell-600/20"
+              ? isSending
+                ? "rounded-br-md bg-shell-600/10 border border-shell-600/10 opacity-70"
+                : isFailed
+                  ? "rounded-br-md bg-status-red/10 border border-status-red/20"
+                  : "rounded-br-md bg-shell-600/20 border border-shell-600/20"
               : isStreaming
                 ? "rounded-bl-md bg-surface-2 border border-shell-500/50 shadow-[0_0_12px_rgba(214,138,62,0.15)]"
                 : "rounded-bl-md bg-surface-2 border border-white/6"
@@ -243,6 +278,7 @@ export const ChatMessage = React.memo(ChatMessageInner, (prev, next) => {
   if (prev.message.content !== next.message.content) return false;
   if (prev.message.context !== next.message.context) return false;
   if (prev.onInterrupt !== next.onInterrupt) return false;
+  if (prev.onRetry !== next.onRetry) return false;
   /** _lastEventAt 变化时需重渲染以更新 stuck-streaming 检测 */
   if (prev.message._lastEventAt !== next.message._lastEventAt) return false;
   /** 轻量事件比较：length + 最后事件 ID，避免引用比较在结构共享失败时误判 */

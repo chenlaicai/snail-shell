@@ -11,9 +11,10 @@ import { ChatInput } from "@/components/ChatInput";
 import { PropertiesPanel } from "@/components/PropertiesPanel";
 import { StageActionBar } from "@/components/StageActionBar";
 import { StageSuggestionCard } from "@/components/StageSuggestionCard";
-import { useIssueRealtime } from "@/hooks/useWebSocket";
+import { useIssueRealtime, createPlaceholderMessage } from "@/hooks/useWebSocket";
 import { useSendMessage } from "@/mutations/conversation.mutations";
 import { useConversationStore } from "@/stores/conversationStore";
+import { getPendingMessages, clearPendingMessages, removePendingMessage } from "@/lib/pending-messages";
 import type { IssueDetailDto, StageDetailDto, MessageDto } from "@/types";
 
 const SCROLL_THRESHOLD = 80;
@@ -58,6 +59,42 @@ export function IssueConversation() {
     queryKey: queryKeys.stages.messages(stageId ?? ""),
     queryFn: () => api("GET /api/stages/:stageId/messages", { params: { stageId: stageId! } }) as Promise<MessageDto[]>,
     enabled: !!stageId,
+    /** 页面加载时恢复 pending 消息，去重后按 createdAt 降序合并 */
+    select: (serverData) => {
+      if (!stageId) return serverData;
+      const pending = getPendingMessages(stageId);
+      if (pending.length === 0) return serverData;
+
+      /** 去重：如果 pending 消息的 content 与 server 消息匹配，说明 POST 实际成功了 */
+      const serverContents = new Set(serverData.map((m) => m.content?.trim()));
+      const uniquePending = pending
+        .filter((p) => !serverContents.has(p.content?.trim()))
+        .map((p) =>
+          createPlaceholderMessage(stageId, {
+            id: p.id,
+            role: "user",
+            status: p.status, // "sending" or "failed"
+            content: p.content,
+            createdAt: p.createdAt,
+          }),
+        )
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      /** 按 created_at 降序合并（serverData 已是降序） */
+      const merged: MessageDto[] = [];
+      let pi = 0;
+      let si = 0;
+      while (pi < uniquePending.length && si < serverData.length) {
+        if (new Date(uniquePending[pi].created_at).getTime() >= new Date(serverData[si].created_at).getTime()) {
+          merged.push(uniquePending[pi++]);
+        } else {
+          merged.push(serverData[si++]);
+        }
+      }
+      while (pi < uniquePending.length) merged.push(uniquePending[pi++]);
+      while (si < serverData.length) merged.push(serverData[si++]);
+      return merged;
+    },
   });
 
   // 上拉加载更早的历史消息
@@ -66,9 +103,10 @@ export function IssueConversation() {
   const allHistoryLoadedRef = useRef(false);
   const prevStageIdRef = useRef<string | null>(null);
 
-  /** 当 stageId 切换时，清空已加载的历史并滚动到底部 */
+  /** 当 stageId 切换时，清空旧 stage 的 pending 消息、已加载的历史并滚动到底部 */
   useEffect(() => {
     if (prevStageIdRef.current !== stageId) {
+      if (prevStageIdRef.current) clearPendingMessages(prevStageIdRef.current);
       prevStageIdRef.current = stageId;
       setOlderHistory([]);
       allHistoryLoadedRef.current = false;
@@ -198,6 +236,18 @@ export function IssueConversation() {
     if (!stageId) return;
     sendMutation.mutate({ text: content, to_speakers: toSpeakers.length > 0 ? toSpeakers : undefined });
   }, [stageId, sendMutation]);
+
+  /** 重试发送失败的消息：先删除旧的 failed 条目，再重新发送 */
+  const handleRetry = useCallback((messageId: number, content: string, toSpeakers?: string[]) => {
+    if (!stageId) return;
+    /** 从缓存移除旧的 failed 消息 */
+    queryClient.setQueryData(queryKeys.stages.messages(stageId), (old: MessageDto[] | undefined) =>
+      old?.filter((m) => m.id !== messageId),
+    );
+    /** 从 localStorage 移除 */
+    removePendingMessage(stageId, messageId);
+    sendMutation.mutate({ text: content, to_speakers: toSpeakers });
+  }, [stageId, sendMutation, queryClient]);
 
   const handleInterrupt = useCallback(async (messageId: number) => {
     if (!stageId) return;
@@ -332,7 +382,7 @@ export function IssueConversation() {
                         }}
                         className="px-0 py-1"
                       >
-                        {stageId && <ChatMessage message={msg} onInterrupt={handleInterrupt} />}
+                        {stageId && <ChatMessage message={msg} onInterrupt={handleInterrupt} onRetry={msg.status === "failed" ? () => handleRetry(msg.id, msg.content ?? "", msg.to_speakers) : undefined} />}
                       </div>
                     );
                   })}
