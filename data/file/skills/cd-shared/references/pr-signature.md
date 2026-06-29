@@ -8,17 +8,21 @@
 
 ## 模板
 
+以下为格式示例，签名行无需缩进。
+
 开发者 PR 普通评论：
 
     <评论正文>
 
-    by <role_instance>（<snail_name>）（以开发者为例）
+    by <role_instance>（<snail_name>）
 
 审查者 PR 普通评论：
 
     <评论正文>
 
-    by <role_instance>（<snail_name>）（以审查者-1 为例）
+    by <role_instance>（<snail_name>）
+
+> 示例：`by 开发者（claude-code-stateful）`、`by 审查者-1（claude-code-stateful）`
 
 ## 规则
 

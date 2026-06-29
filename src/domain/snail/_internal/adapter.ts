@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import { randomBytes } from "crypto";
 import type { AgentEvent, InvokeOptions, CapabilitiesSpec } from "@infra/acs/model";
 import type { AgentRegistryPort } from "@infra/acs/port";
@@ -117,6 +118,7 @@ export class SnailAdapter implements SnailPort {
 
     // 组装调用参数
     const workspace = { path: request.workspace_path, summary: null };
+    assert(!snail.name.includes('」'), `snail.name 包含非法字符「」」，请检查 snails.json 配置`);
     const systemPrompt = this.buildSystemPrompt(request.tags)
       + `\n\n## 当前 Snail 名称\n\n你的 Snail 名称是「${snail.name}」。PR 评论签名时使用此值，不得自行猜测或构造。`;
     const capabilities = this.buildCapabilities(workspace);
