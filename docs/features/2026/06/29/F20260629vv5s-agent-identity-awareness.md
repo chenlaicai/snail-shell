@@ -130,8 +130,9 @@ PR 评论签名时使用 Snail 名称，不得自行猜测或构造。
 |---|--------|------|
 | `data/file/prompts/T-01-行为准则.md` | 修改 | 删除 `<identity>` 包装，行为准则归入 `<constraints>` |
 | `src/domain/snail/_internal/adapter.ts` | 修改 | 删除 system prompt 中的 snail name 注入段 |
-| `src/app/issue-collaboration/collaboration.ts` | 修改 | `buildIdentityBlock` 扩展为三层结构；context 追加 `snail_key` |
-| `src/infra/acs/context-keys.ts` | 修改 | 新增 `SNAIL_KEY`、`SNAIL_INSTANCE_ID` 常量 |
+| `src/app/issue-collaboration/collaboration.ts` | 修改 | context 追加 `snail_key`；`buildIdentityBlock` 提取到独立模块 |
+| `src/app/issue-collaboration/_internal/identity-block.ts` | 新增 | `buildIdentityBlock` 纯函数，多行模板，三层子结构 |
+| `src/infra/acs/context-keys.ts` | 修改 | 新增 `SNAIL_KEY` 常量 |
 | `data/file/skills/cd-shared/references/pr-signature.md` | 修改 | 签名指引更新为 `<identity>` → `## Snail` → `**名称**` |
 
 ## 验证

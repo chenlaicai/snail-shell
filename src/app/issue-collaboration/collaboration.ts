@@ -12,6 +12,7 @@ import { AutoAdvanceEngine } from "@app/issue-collaboration/auto-advance";
 import { ConsumerNotifier } from "@app/issue-collaboration/consumer-notifier";
 import { MessageHandler } from "@app/issue-collaboration/message-handler";
 import { CollaborationHelpers } from "@app/issue-collaboration/helpers";
+import { buildIdentityBlock } from "@app/issue-collaboration/_internal/identity-block";
 import { getLogger } from "@infra/logger";
 const log = getLogger({ module: "collaboration" });
 const truncateForUI = (text: string, maxLen = 200) => text.length > maxLen ? text.slice(0, maxLen) + "..." : text;
@@ -539,14 +540,7 @@ export class IssueCollaboration implements CollaborationInput {
     const { issue, stage, roleInstance, roleKey, snailKey } = input;
     const stageDef = issue.sop_snapshot.stage_definitions.find(d => d.key === stage.key);
     const roleDef = stageDef?.roles.find(r => r.key === roleKey);
-    return [this.buildIdentityBlock(roleDef?.name ?? roleInstance, roleInstance, roleDef, this.deps.snailPort.findByKey(snailKey)), this.buildContextBlock(issue, stage, roleDef)].join("\n\n");
-  }
-  private buildIdentityBlock(roleName: string, roleInstance: string, roleDef: RoleDefinition | undefined, snailMeta: { key: string; name: string; agent_name: string; model: string } | undefined): string {
-    const s = snailMeta;
-    const snailLines = s
-      ? `- **Key**：${s.key}\n- **名称**：${s.name}\n- **底层 Agent**：${s.agent_name}\n- **模型**：${s.model}`
-      : `- **Key**：${roleInstance}`;
-    return `<identity>\n## 系统\n你是 Snail Shell 多 Agent 协作系统中的一只 snail，拥有独立的 snail 身份和角色职责。\nPR 评论签名时使用 Snail 名称，不得自行猜测或构造。\n\n## Snail\n${snailLines}\n\n## 角色\n# 你是${roleName}\n**角色实例**：${roleInstance}\n**职责**：${roleDef?.description ?? "请参考 skill 中的工作流程"}\n**禁止**：${roleDef?.prohibition ?? "请参考 skill 中的禁止项"}\n**自检**：${roleDef?.self_check ?? "请参考 skill 中的自检规则"}\n</identity>`;
+    return [buildIdentityBlock(roleDef?.name ?? roleInstance, roleInstance, roleDef, this.deps.snailPort.findByKey(snailKey)), this.buildContextBlock(issue, stage, roleDef)].join("\n\n");
   }
   private buildContextBlock(issue: Issue, stage: Stage, roleDef: RoleDefinition | undefined): string {
     const transitions = stage.available_transitions.map(transition => `- ${transition.to}${transition.guard ? `: ${transition.guard}` : ""}`).join("\n");
