@@ -7,7 +7,6 @@ import type { SnailPort } from "@domain/snail/port";
 import type { SnailFirstCallRequest, SnailResumeRequest } from "@domain/snail/model";
 import type { LiteAIPort } from "@domain/lite-ai/port";
 import type { AgentEvent, InvokeOptions } from "@infra/acs/model";
-import type { McpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-message-store";
 import type { CollaborationConsumer, CollaborationInput, CreateIssueResult, Position, StageTransitionSuggestion, WorkspaceConsumer } from "@app/issue-collaboration/port";
 import { AutoAdvanceEngine } from "@app/issue-collaboration/auto-advance";
 import { ConsumerNotifier } from "@app/issue-collaboration/consumer-notifier";
@@ -16,14 +15,6 @@ import { CollaborationHelpers } from "@app/issue-collaboration/helpers";
 import { getLogger } from "@infra/logger";
 const log = getLogger({ module: "collaboration" });
 const truncateForUI = (text: string, maxLen = 200) => text.length > maxLen ? text.slice(0, maxLen) + "..." : text;
-/** 检测 format=blocks JSON payload，提取 fallback_text；非 blocks 格式返回 null */
-function extractBlocksFallback(text: string): string | null {
-  try {
-    const parsed = JSON.parse(text) as { format?: unknown; fallback_text?: unknown };
-    if (parsed?.format === "blocks" && typeof parsed.fallback_text === "string" && parsed.fallback_text.trim()) return parsed.fallback_text;
-  } catch { /* 非 JSON，正常回退 */ }
-  return null;
-}
 interface CollaborationDeps {
   issuePort: IssuePort;
   createIssue: (input: CreateIssueInput) => Issue;
@@ -31,7 +22,6 @@ interface CollaborationDeps {
   messagePort: MessagePort;
   snailPort: SnailPort;
   liteAIPort: LiteAIPort;
-  mcpMessageStore: McpMessageStore;
   maxCollaborationRounds?: number;
 }
 type SpeakerTarget = {
@@ -277,8 +267,6 @@ export class IssueCollaboration implements CollaborationInput {
         log.error({ stageId, roleInstance, err: routeError }, "route after invokeAgent failed");
       }
     } catch (error) {
-      /** 丢弃未消费的路由目标，防止 MCP store 孤儿 entry 泄漏 */
-      this.deps.mcpMessageStore.deleteMcpRoutingTargets(agentMessage.id);
       log.error({
         stageId, roleInstance, issueId: issue.id, snailKey: assignment.snail_key,
         snailInstanceId: assignment.snail_instance_id,
@@ -347,14 +335,6 @@ export class IssueCollaboration implements CollaborationInput {
     });
   }
   private resolveReplies(stage: Stage, roleInstance: string, messageId: number): string[] {
-    /** 优先级 1: MCP to_speakers（agent 通过 set_final_body 显式声明） */
-    const mcpTargets = this.deps.mcpMessageStore.getMcpRoutingTargets(messageId);
-    if (mcpTargets && mcpTargets.length > 0) {
-      /** 消费后清理，防止泄漏 */
-      this.deps.mcpMessageStore.deleteMcpRoutingTargets(messageId);
-      return mcpTargets.filter(mention => this.isValidReplyMention(stage, roleInstance, mention));
-    }
-    /** 优先级 2: 现有逻辑（signal mentions + text @mentions） */
     const mentions = new Set<string>();
     for (const event of this.deps.messagePort.getMessageEvents(messageId)) {
       for (const mention of this.getEventMentions(event)) {
@@ -419,8 +399,16 @@ export class IssueCollaboration implements CollaborationInput {
   private extractStageTransitionSuggestion(stage: Stage, roleInstance: string, messageId: number): StageTransitionSuggestion | null {
     for (const event of this.deps.messagePort.getMessageEvents(messageId)) {
       const payload = this.extractSignalPayload(event, stage);
-      if (payload) return this.makeStageTransitionSuggestion({ stage, roleInstance, messageId, targetKey: payload.targetKey,
-        reason: payload.reason, guard: payload.guard, consensus: payload.consensus, positions: payload.positions, gate_evidence: payload.gate_evidence });
+      if (payload) {
+        return this.makeStageTransitionSuggestion({
+          stage, roleInstance, messageId, targetKey: payload.targetKey,
+          reason: payload.reason,
+          guard: payload.guard,
+          consensus: payload.consensus,
+          positions: payload.positions,
+          gate_evidence: payload.gate_evidence
+        });
+      }
     }
     return null;
   }
@@ -436,28 +424,53 @@ export class IssueCollaboration implements CollaborationInput {
   private extractFromSignalPayload(payload: Record<string, unknown>, stage: Stage): { targetKey: string; reason: unknown; guard: unknown; consensus?: boolean; positions?: Position[]; gate_evidence?: Record<string, unknown> } | null {
     const targetKey = String(payload.target_key ?? payload.to ?? "");
     if (!targetKey || !stage.available_transitions.some(transition => transition.to === targetKey)) return null;
-    return { targetKey, reason: payload.reason, guard: payload.guard,
+    return {
+      targetKey,
+      reason: payload.reason,
+      guard: payload.guard,
       consensus: typeof payload.consensus === "boolean" ? payload.consensus : undefined,
       positions: Array.isArray(payload.positions) ? payload.positions as Position[] : undefined,
-      gate_evidence: typeof payload.gate_evidence === "object" ? payload.gate_evidence as Record<string, unknown> : undefined };
+      gate_evidence: typeof payload.gate_evidence === "object" ? payload.gate_evidence as Record<string, unknown> : undefined
+    };
   }
   private extractFromTextPayload(text: string, stage: Stage): { targetKey: string; reason: unknown; guard: unknown; consensus?: boolean; positions?: Position[]; gate_evidence?: Record<string, unknown> } | null {
     const parsed = this.tryParseStageTransition(text);
     if (!parsed?.target_key || !stage.available_transitions.some(transition => transition.to === parsed.target_key)) return null;
-    return { targetKey: parsed.target_key, reason: parsed.reason, guard: parsed.guard,
+    return {
+      targetKey: parsed.target_key,
+      reason: parsed.reason,
+      guard: parsed.guard,
       consensus: typeof parsed.consensus === "boolean" ? parsed.consensus : undefined,
       positions: Array.isArray(parsed.positions) ? parsed.positions as Position[] : undefined,
-      gate_evidence: typeof parsed.gate_evidence === "object" ? parsed.gate_evidence as Record<string, unknown> : undefined };
+      gate_evidence: typeof parsed.gate_evidence === "object" ? parsed.gate_evidence as Record<string, unknown> : undefined
+    };
   }
   private makeStageTransitionSuggestion(input: {
-    stage: Stage; roleInstance: string; messageId: number; targetKey: string;
-    reason: unknown; guard: unknown; consensus?: boolean; positions?: Position[]; gate_evidence?: Record<string, unknown>;
+    stage: Stage;
+    roleInstance: string;
+    messageId: number;
+    targetKey: string;
+    reason: unknown;
+    guard: unknown;
+    consensus?: boolean;
+    positions?: Position[];
+    gate_evidence?: Record<string, unknown>;
   }): StageTransitionSuggestion {
     const { stage, roleInstance, messageId, targetKey, reason, guard, consensus, positions, gate_evidence } = input;
     const transition = stage.available_transitions.find(item => item.to === targetKey);
-    return { stage_id: stage.id, message_id: messageId, from_speaker: roleInstance, target_key: targetKey,
-      reason: typeof reason === "string" ? reason : "", guard: typeof guard === "string" ? guard : transition?.guard ?? null,
-      artifacts: { ...stage.output_artifacts }, created_at: new Date().toISOString(), consensus, positions, gate_evidence };
+    return {
+      stage_id: stage.id,
+      message_id: messageId,
+      from_speaker: roleInstance,
+      target_key: targetKey,
+      reason: typeof reason === "string" ? reason : "",
+      guard: typeof guard === "string" ? guard : transition?.guard ?? null,
+      artifacts: { ...stage.output_artifacts },
+      created_at: new Date().toISOString(),
+      consensus,
+      positions,
+      gate_evidence
+    };
   }
   private tryParseStageTransition(text: string): { target_key?: string; reason?: string; guard?: string | null; consensus?: boolean; positions?: Position[]; gate_evidence?: Record<string, unknown> } | null {
     try {
@@ -511,9 +524,7 @@ export class IssueCollaboration implements CollaborationInput {
     for (let index = events.length - 1; index >= 0; index--) {
       const event = events[index];
       if (event.payload.type === "text" && event.payload.text.trim()) {
-        /** 检测 format=blocks JSON payload，提取 fallback_text 避免原文泄露 */
-        const blocksText = extractBlocksFallback(event.payload.text);
-        return { message_id: messageId, kind: "final_text", context: blocksText ?? event.payload.text, created_at: new Date().toISOString() };
+        return { message_id: messageId, kind: "final_text", context: event.payload.text, created_at: new Date().toISOString() };
       }
     }
     /** 无 text event 也无 mcp_final_body 时返回状态对应的兜底文案，不 dump 原始 event 给用户 */
@@ -562,7 +573,8 @@ export class IssueCollaboration implements CollaborationInput {
 **Issue 摘要**：${issue.summary ?? "无"}
 ## Issue 上下文（只读视图）
 ${issueContext}
-> **注意**：这是只读视图。Agent 应使用 MCP 工具 \`set_context\` 和 \`get_context\` 读写 Issue 上下文。Issue 上下文也会通过环境变量 \`SNAIL_CTX_*\` 注入，可通过 \`process.env\` 读取。
+> **注意**：这是只读视图。Agent 应使用 MCP 工具 \`set_context\` 和 \`get_context\` 读写 Issue 上下文。
+> Issue 上下文也会通过环境变量 \`SNAIL_CTX_*\` 注入，可通过 \`process.env\` 读取。
 ## 当前阶段
 **阶段**：${stage.title} (${stage.key})
 **阶段描述**：${stage.description}
@@ -575,10 +587,6 @@ ${transitions || "无"}
 - 你可以通过 @角色实例 请求其他角色回应
 - 你是当前阶段的守门人，不是推进者。建议 stage_transition 前，必须先完成所在 SKILL.md 中的 Stage Gate 自检并呈现完整证据。
 - 通过信号表达阶段工作结果：consensus: true（共识）、consensus: false（分歧）、consensus: true + gate_evidence（单人完成）
-## 最终答复规则
-**必须使用 \`set_final_body\` MCP 设置最终答复**。每次发言结束前必须调用此工具，传入你希望展示给用户的完整 Markdown 内容。
-**路由目标声明**：如果需要其他角色继续处理，必须在 \`set_final_body\` 的 \`to_speakers\` 参数中声明目标角色。
-**message_id 获取**：从环境变量 \`SNAIL_CTX_MESSAGE_ID\` 获取当前消息 ID。如果未传入 message_id 参数，\`set_final_body\` 会自动从环境变量获取。
 </context>`;
   }
 

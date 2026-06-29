@@ -40,7 +40,7 @@ doc_kind: spec
 
 **代码证据**：
 - `src/domain/snail-mcp-server/_internal/servers/snail-final-response.ts:27`：`message_id` 是 required 参数
-- `src/domain/snail-mcp-server/_internal/servers/snail-final-response.ts:31-33`：handler 中直接使用 `params.message_id`，没有 fallback 到环境变量
+- `src/domain/snail-mcp-server/_internal/servers/snail-final-response.ts:31-33`：handler 中直接使用 `params.message_id`（required）
 
 ### 问题 3：mention 路由无优先级
 
@@ -73,7 +73,7 @@ doc_kind: spec
 ## 目标
 
 1. 统一环境变量 key，消除两套 key 的混乱
-2. `set_final_body` 在 agent 未显式传入 message_id 时自动从环境变量获取
+2. `set_final_body` 的 `message_id` 和 `stage_id` 由 agent 从环境变量读取后显式传入
 3. mention 路由严格优先级：MCP `to_speakers` > 现有 event mentions
 4. extractTerminalContext 识别 JSON payload 并提取 fallback_text
 5. system-reminder 中明确最终答复来源优先级
@@ -89,7 +89,7 @@ doc_kind: spec
 
 | # | 场景 | 预期行为 | 测试覆盖 |
 |---|------|----------|----------|
-| B1 | agent 未传 message_id，环境变量有值 | set_final_body 从环境变量获取 message_id，写入成功 | 未实现 |
+| B1 | agent 从环境变量读取 message_id 后显式传入 | set_final_body 写入成功 | 未实现 |
 | B2 | agent 传入错误 message_id | set_final_body 报错（message 不存在） | 未实现 |
 | B3 | agent 传入正确 message_id | 行为不变，写入成功 | 未实现 |
 | B4 | set_final_body 传入 to_speakers | to_speakers 存入 MCP store，resolveReplies 返回该值 | 未实现 |
@@ -136,17 +136,18 @@ export const CONTEXT_KEYS = {
 
 统一使用 `SNAIL_CTX_*` 格式读取环境变量。
 
-### 变更 2：set_final_body message_id 可选 + 环境变量 fallback
+### 变更 2：set_final_body 参数说明
 
-将 `message_id` 从 required 改为 optional。handler 中：若 agent 传入则使用；否则从 `process.env.SNAIL_CTX_MESSAGE_ID` 获取。两者均无则报错。
+`message_id` 和 `stage_id` 保持 required。MCP Server 运行在主进程，无法访问 agent 子进程的 `process.env`，因此不存在环境变量 fallback。
+
+Agent 从自己的环境变量 `SNAIL_CTX_MESSAGE_ID` 和 `SNAIL_CTX_STAGE_ID` 读取后显式传入。
 
 ```
-inputSchema.required: ["text", "message_id"]  →  ["text"]
+inputSchema.required: ["text", "message_id", "stage_id"]
 
 handler:
-  messageId = params.message_id ?? process.env.SNAIL_CTX_MESSAGE_ID
-  if (!messageId) throw Error("message_id is required (pass explicitly or set SNAIL_CTX_MESSAGE_ID)")
-  // 后续验证逻辑不变
+  // message_id 和 stage_id 由 agent 从环境变量读取后显式传入
+  // 归属校验：message_id 必须属于 stage_id，防止串台写入
 ```
 
 ### 变更 3：MCP to_speakers + 严格优先级路由
@@ -233,7 +234,7 @@ if (event.payload.type === "text" && event.payload.text.trim()):
 
 **路由目标声明**：如果需要其他角色继续处理，必须在 `set_final_body` 的 `to_speakers` 参数中声明目标角色。
 
-**message_id 获取**：从环境变量 `SNAIL_CTX_MESSAGE_ID` 获取当前消息 ID。如果未传入 message_id 参数，`set_final_body` 会自动从环境变量获取。
+**必选参数**：调用 `set_final_body` 时必须传入 `message_id` 和 `stage_id`，从环境变量 `SNAIL_CTX_MESSAGE_ID` 和 `SNAIL_CTX_STAGE_ID` 获取。
 ```
 
 ### 变更 6：完整链路说明
@@ -289,11 +290,9 @@ agent 进程
   process.env.SNAIL_CTX_MESSAGE_ID = "123"
 ```
 
-**6c. agent 获取 message_id 的三种方式**
+**6c. agent 获取 message_id 的方式**
 
-1. **从环境变量直接读取**：`process.env.SNAIL_CTX_MESSAGE_ID`
-2. **从 system-reminder 中获取**：system-reminder 中会明确告知环境变量名
-3. **set_final_body 自动 fallback**：即使 agent 未传入 message_id，也能从环境变量自动获取
+Agent 从环境变量 `SNAIL_CTX_MESSAGE_ID` 读取当前消息 ID，在调用 `set_final_body` 时显式传入 `message_id` 和 `stage_id` 参数。
 
 ## 生效路径
 
@@ -335,7 +334,7 @@ main.ts
 | # | 决策点 | 正方论点 | 反方论点 | 最终决策 | 决策依据 | 参与者 | 日期 |
 |---|--------|----------|----------|----------|----------|--------|------|
 | D1 | 环境变量统一策略 | 统一使用 SNAIL_CTX_ 前缀，消除两套 key 混乱 | 需要修改多处代码 | 统一前缀 | 用户明确要求"不要有两套key" | 用户, 架构师-1 | 2026-06-27 |
-| D2 | get_current_message_id 独立工具 vs set_final_body 内 fallback | 独立工具：agent 可预先验证 | 多一个工具增加认知负担；agent 仍需显式调用 | fallback | 环境变量可靠，无需额外工具；agent 无感知即可获得正确 message_id | 架构师-1 | 2026-06-27 |
+| D2 | get_current_message_id 独立工具 vs agent 直接读 env var | 独立工具：agent 可预先验证 | 多一个工具增加认知负担 | env var 直读 | agent 从 process.env.SNAIL_CTX_MESSAGE_ID 读取后显式传入，MCP Server 无进程内 env var 访问能力 | 架构师-1 | 2026-06-27 |
 | D3 | MCP store vs MessageContext 扩展 vs JSON 序列化 | store：零模型变更，层间解耦 | 共享状态在进程内存，重启丢失 | store | routing targets 是瞬态数据，无需持久化；层间解耦优先 | 架构师-1 | 2026-06-27 |
 | D4 | JSON 检测范围 | `format=blocks` 精确匹配 message-payload 输出 | 极低概率误判（agent 恰好输出同结构 JSON） | 精确匹配 | set_final_body 已调用时走 mcp_final_body 分支，不进入此逻辑；误判场景不存在 | 架构师-1 | 2026-06-27 |
 | D5 | error path MCP store 清理策略 | catch 块中 delete：一行代码消除泄漏根因 | 低频场景，entry 体积极小，重启即清空 | catch 块清理 | 零副作用，防御性编程 | 架构师-1 | 2026-06-27 |
@@ -358,7 +357,7 @@ main.ts
 ## 验证
 
 - [ ] agent 能从 `process.env.SNAIL_CTX_MESSAGE_ID` 获取 message_id
-- [ ] set_final_body 未传 message_id 时自动从环境变量获取
+- [ ] set_final_body 必须传入 message_id 和 stage_id（required）
 - [ ] set_final_body 传入 to_speakers 时，resolveReplies 返回该值
 - [ ] message-payload 生成 JSON payload 时，extractTerminalContext 提取 fallback_text
 - [ ] system-reminder 中包含最终答复来源优先级说明
