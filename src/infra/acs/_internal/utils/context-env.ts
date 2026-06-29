@@ -13,11 +13,11 @@ export function buildContextEnv(input: {
   const env: Record<string, string> = {};
   if (input.workspacePath) env[CONTEXT_KEYS.WORKSPACE_PATH] = input.workspacePath;
 
-  // context 的 key 从源头统一为 SNAIL_CTX_* 格式，直接展开
+  // context 的 key 统一添加 SNAIL_CTX_ 前缀，消除两套 key 混乱
   if (input.context) {
     for (const [key, value] of Object.entries(input.context)) {
       if (value != null) {
-        env[key] = String(value);
+        env[`SNAIL_CTX_${key}`] = String(value);
       }
     }
   }

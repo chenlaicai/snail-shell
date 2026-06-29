@@ -1,12 +1,12 @@
 import type { MCPServerConfig } from "@domain/snail-mcp-server/model";
-
+import type { McpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-message-store";
 import type { MessagePort } from "@domain/message/port";
 
 /**
  * snail-final-response MCP Server。
- * 用于 agent 提交消息的最终展示正文。
+ * 用于 agent 提交消息的最终展示正文和路由目标声明。
  */
-export function createFinalResponseServer(messagePort: MessagePort): MCPServerConfig {
+export function createFinalResponseServer(messagePort: MessagePort, mcpMessageStore: McpMessageStore): MCPServerConfig {
   return {
     name: "snail-final-response",
     version: "1.0.0",
@@ -21,24 +21,28 @@ export function createFinalResponseServer(messagePort: MessagePort): MCPServerCo
           type: "object",
           properties: {
             text: { type: "string", description: "最终答复的 Markdown 正文" },
-            stage_id: { type: "string", description: "当前 stage 的 ID，通过环境变量 stage_id 注入" },
-            message_id: { type: "string", description: "当前消息的 ID，通过环境变量 message_id 注入" },
+            conversation_id: { type: "string" },
+            message_id: { type: "string", description: "当前消息的 ID，通过环境变量 SNAIL_CTX_MESSAGE_ID 注入" },
+            to_speakers: { type: "array", items: { type: "string" }, description: "路由目标（严格优先级最高）" },
           },
-          required: ["text", "message_id", "stage_id"],
+          required: ["text"],
         },
         handler: async (params) => {
           const text = typeof params.text === "string" ? params.text : "";
-          const messageId = Number(params.message_id);
+          /** agent 未传入 message_id 时从环境变量 fallback */
+          const rawMessageId = params.message_id ?? process.env.SNAIL_CTX_MESSAGE_ID;
           if (!text) throw new Error("text is required");
+          if (!rawMessageId) throw new Error("message_id is required (pass explicitly or set SNAIL_CTX_MESSAGE_ID)");
+          const messageId = Number(rawMessageId);
           if (!Number.isInteger(messageId) || messageId <= 0) throw new Error("message_id must be a positive integer");
-          /** 归属校验：message_id 必须属于当前 stage，防止串台写入 */
-          const stageId = params.stage_id as string;
-          const message = messagePort.getMessage(messageId);
-          if (!message) throw new Error(`message_id ${messageId} not found`);
-          if (message.stage_id !== stageId) {
-            throw new Error(`message_id ${messageId} does not belong to stage ${stageId} (actual: ${message.stage_id})`);
-          }
           messagePort.setContext(messageId, "mcp_final_body", text);
+          /** to_speakers 非空数组时写入 store；空数组视为"未指定"，不写入 */
+          if (Array.isArray(params.to_speakers) && params.to_speakers.length > 0) {
+            const targets = (params.to_speakers as unknown[]).filter((t): t is string => typeof t === "string");
+            if (targets.length > 0) {
+              mcpMessageStore.setMcpRoutingTargets(messageId, targets);
+            }
+          }
           return { ok: true };
         },
       },
