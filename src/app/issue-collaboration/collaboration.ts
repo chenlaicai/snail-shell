@@ -103,12 +103,13 @@ export class IssueCollaboration implements CollaborationInput {
       : await this.resolveToSpeakers(stage, text, fromSpeaker);
     log.info({ stageId, fromSpeaker, targets: targets.map(t => `${t.speaker}(${t.source})`) }, "sendMessage.targets");
     if (targets.length > 0) this.deps.messagePort.updateMessageTargets(message.id, targets.map(t => t.speaker));
+    const updatedMessage = this.helpers.mustGetMessage(message.id);
     try {
-      await this.notifyConsumers(stageId, "onMessageCompleted", message, this.deps.messagePort.getContext(message.id));
+      await this.notifyConsumers(stageId, "onMessageCompleted", updatedMessage, this.deps.messagePort.getContext(message.id));
     } catch (err) {
       log.warn({ stageId, messageId: message.id, err }, "sendMessage: notifyConsumers failed, continuing to route");
     }
-    await this.route(stageId, message);
+    await this.route(stageId, updatedMessage);
   }
   registerIssueConsumer(issueId: string, consumer: CollaborationConsumer): void {
     const consumers = this.issueConsumers.get(issueId) ?? new Set<CollaborationConsumer>();
@@ -208,16 +209,17 @@ export class IssueCollaboration implements CollaborationInput {
       state.pending = false;
       const unread = this.deps.messagePort.getUnreadMessages(stageId, speaker);
       if (unread.length === 0) {
-        log.debug({ stageId, speaker }, "dispatch: no unread messages");
         this.dispatchStates.set(key, { status: "idle", pending: false });
         return;
       }
-      log.debug({ stageId, speaker, unreadCount: unread.length }, "dispatch: invoking agent");
       try {
         await this.invokeAgent(stageId, speaker, unread);
         this.deps.messagePort.advanceCursor(stageId, speaker, unread[unread.length - 1].id);
-      } catch (error) {
-        log.error({ stageId, speaker, err: error }, "dispatch: agent invocation failed");
+      } catch {
+        // 不推进 cursor，保留 unread 消息供下次 dispatch 重试。
+        // 立即退出循环，避免在同一组失败消息上烧尽 maxCollaborationRounds。
+        this.dispatchStates.set(key, { status: "idle", pending: false });
+        return;
       }
       const current = this.dispatchStates.get(key);
       if (!current) return;
