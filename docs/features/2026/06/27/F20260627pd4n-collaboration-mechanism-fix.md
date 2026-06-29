@@ -89,16 +89,16 @@ doc_kind: spec
 
 | # | 场景 | 预期行为 | 测试覆盖 |
 |---|------|----------|----------|
-| B1 | agent 未传 message_id，环境变量有值 | set_final_body 从环境变量获取 message_id，写入成功 | unit test |
-| B2 | agent 传入错误 message_id | set_final_body 报错（message 不存在） | unit test |
-| B3 | agent 传入正确 message_id | 行为不变，写入成功 | unit test |
-| B4 | set_final_body 传入 to_speakers | to_speakers 存入 MCP store，resolveReplies 返回该值 | unit test |
-| B5 | set_final_body 未传 to_speakers | MCP store 无数据，resolveReplies 回退到现有逻辑 | unit test |
-| B6 | message-payload 生成 JSON payload，未调用 set_final_body | extractTerminalContext 提取 fallback_text | unit test |
-| B7 | 纯文本输出 | 行为不变 | unit test |
-| B8 | set_final_body 传入 to_speakers=[] | 空数组 = "未指定"，不写入 store，resolveReplies 回退现有逻辑 | unit test |
-| B9 | agent 失败/中断，已调用 set_final_body 写入 to_speakers | invokeAgent catch 块清理 MCP store entry，不泄漏 | unit test |
-| B10 | agent 读取 message_id 环境变量 | 从 process.env.SNAIL_CTX_MESSAGE_ID 获取 | unit test |
+| B1 | agent 未传 message_id，环境变量有值 | set_final_body 从环境变量获取 message_id，写入成功 | 未实现 |
+| B2 | agent 传入错误 message_id | set_final_body 报错（message 不存在） | 未实现 |
+| B3 | agent 传入正确 message_id | 行为不变，写入成功 | 未实现 |
+| B4 | set_final_body 传入 to_speakers | to_speakers 存入 MCP store，resolveReplies 返回该值 | 未实现 |
+| B5 | set_final_body 未传 to_speakers | MCP store 无数据，resolveReplies 回退到现有逻辑 | 未实现 |
+| B6 | message-payload 生成 JSON payload，未调用 set_final_body | extractTerminalContext 提取 fallback_text | 未实现 |
+| B7 | 纯文本输出 | 行为不变 | 未实现 |
+| B8 | set_final_body 传入 to_speakers=[] | 空数组 = "未指定"，不写入 store，resolveReplies 回退现有逻辑 | 未实现 |
+| B9 | agent 失败/中断，已调用 set_final_body 写入 to_speakers | invokeAgent catch 块清理 MCP store entry，不泄漏 | 未实现 |
+| B10 | agent 读取 message_id 环境变量 | 从 process.env.SNAIL_CTX_MESSAGE_ID 获取 | 未实现 |
 | B11 | system-reminder 中包含最终答复来源优先级 | agent 知道必须优先使用 MCP | 人工验证 |
 
 ## 设计
@@ -316,8 +316,7 @@ main.ts
 | `src/domain/snail-mcp-server/_internal/mcp-message-store.ts` | 新增 | McpMessageStore 接口 + createMcpMessageStore 实现 |
 | `src/domain/snail-mcp-server/_internal/servers/snail-final-response.ts` | 修改 | 变更 2（message_id 可选）+ 变更 3b（to_speakers 参数） |
 | `src/domain/snail-mcp-server/_internal/initor.ts` | 修改 | init deps 增加 mcpMessageStore，传递给 createFinalResponseServer |
-| `src/app/issue-collaboration/collaboration.ts` | 修改 | 变更 3c（resolveReplies 优先级）+ 变更 3d（error path 清理）+ 变更 4（JSON payload）+ 变更 5（system-reminder） |
-| `src/app/issue-collaboration/port.ts` | 修改 | CollaborationDeps 增加 mcpMessageStore 字段 |
+| `src/app/issue-collaboration/collaboration.ts` | 修改 | 变更 3c（resolveReplies 优先级）+ 变更 3d（error path 清理）+ 变更 4（JSON payload）+ 变更 5（system-reminder）+ CollaborationDeps 增加 mcpMessageStore 字段 |
 | `src/main.ts` | 修改 | 创建 mcpMessageStore 实例，传入 initMCPServer 和 initIssueCollaboration |
 
 ## 设计约束摘要
@@ -352,8 +351,7 @@ main.ts
 | `src/domain/snail-mcp-server/_internal/mcp-message-store.ts` | 新增 | McpMessageStore 接口 + createMcpMessageStore 实现 |
 | `src/domain/snail-mcp-server/_internal/servers/snail-final-response.ts` | 修改 | message_id 可选 + to_speakers 参数 |
 | `src/domain/snail-mcp-server/_internal/initor.ts` | 修改 | init deps 增加 mcpMessageStore |
-| `src/app/issue-collaboration/collaboration.ts` | 修改 | resolveReplies 优先级 + error path 清理 + JSON payload + system-reminder |
-| `src/app/issue-collaboration/port.ts` | 修改 | CollaborationDeps 增加 mcpMessageStore 字段 |
+| `src/app/issue-collaboration/collaboration.ts` | 修改 | resolveReplies 优先级 + error path 清理 + JSON payload + system-reminder + CollaborationDeps 增加 mcpMessageStore 字段 |
 | `src/main.ts` | 修改 | 创建 mcpMessageStore 实例 |
 
 ## 验证
