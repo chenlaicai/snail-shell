@@ -117,16 +117,16 @@ function createListMessagesTool(stagePort: StagePort, messagePort: MessagePort):
         };
       }
 
-      // page 模式：每个 stage 取 limit 条，跨 stage 合并分页
+      // page 模式：每个 stage 取 limit+1 条用于判断 has_more，跨 stage 合并分页
       const all: Array<{ message: Message; context: MessageContext | null; stage_id: string }> = [];
       let anyStageHasMore = false;
 
       for (const stage of stages) {
-        const batch = messagePort.listMessages(stage.id, limit, before_id);
+        const batch = messagePort.listMessages(stage.id, limit + 1, before_id);
         for (const msg of batch) {
           all.push({ message: msg, context: messagePort.getContext(msg.id), stage_id: stage.id });
         }
-        if (batch.length >= limit) anyStageHasMore = true;
+        if (batch.length > limit) anyStageHasMore = true;
       }
 
       all.sort((a, b) => b.message.id - a.message.id);
