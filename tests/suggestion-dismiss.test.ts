@@ -48,6 +48,7 @@ function createMockIssuePort(): IssuePort {
     validateSnailAssignmentPlan: vi.fn(),
     updateContext: vi.fn(),
     closeIssue: vi.fn(),
+    updateCloseSummary: vi.fn(),
   };
 }
 
