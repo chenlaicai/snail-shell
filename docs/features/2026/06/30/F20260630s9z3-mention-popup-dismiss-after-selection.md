@@ -40,9 +40,9 @@ BugFix
 ## 修改文件
 
 - `src/web/hooks/useMention.ts` — `extractMentionQuery` 函数
-- `tests/extract-mention-query.test.ts` — 新增单元测试（14 个用例）
+- `tests/extract-mention-query.test.ts` — 新增单元测试（16 个用例）
 
 ## 验证
 
 - `npm run check` 通过（lint + tsc + build）
-- `npx vitest run tests/extract-mention-query.test.ts` 14/14 通过
+- `npx vitest run tests/extract-mention-query.test.ts` 16/16 通过
