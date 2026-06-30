@@ -179,7 +179,10 @@ export class IssueCollaboration implements CollaborationInput {
           consumer.onActivityStatusChanged(issueId, "completed", prevStatus);
         }
       }
-      return { issue: existingIssue, cleanup: existingIssue.close_summary ?? { pr: { status: "skipped" }, worktree: { status: "skipped" }, localBranch: { status: "skipped" }, remoteBranch: { status: "skipped" } } };
+      // domain CloseSummary 与 app CleanupResult 结构相同，此处显式转换标记层边界
+      // close_summary 为 null 表示中断场景（cleanup 未执行），UI 通过 issue.close_summary 显示"清理结果未记录"
+      const cleanup: CleanupResult = existingIssue.close_summary as CleanupResult ?? { pr: { status: "skipped" }, worktree: { status: "skipped" }, localBranch: { status: "skipped" }, remoteBranch: { status: "skipped" } };
+      return { issue: existingIssue, cleanup };
     }
 
     const issue = this.deps.issuePort.closeIssue(issueId);
