@@ -64,7 +64,9 @@ export type SopDto = {
 };
 export type SopDetailDto = SopDto;
 
-export type CloseSummaryDto = {
+export type ResourceStatus = "success" | "failed" | "skipped";
+export type ResourceResultDto = { status: ResourceStatus; error?: string };
+export type CleanupResultDto = {
   pr: ResourceResultDto;
   worktree: ResourceResultDto;
   localBranch: ResourceResultDto;
@@ -82,7 +84,7 @@ export type IssueDto = {
   context: Record<string, string>;
   created_at: string;
   closed_at: string | null;
-  close_summary: CloseSummaryDto | null;
+  close_summary: CleanupResultDto | null;
 };
 export type IssueDetailDto = IssueDto & { stages: StageDetailDto[]; current_stage: StageDetailDto; activity_status: ActivityStatus };
 export type CreateIssueResult = { issue: IssueDetailDto; stage: StageDetailDto };
@@ -157,14 +159,6 @@ export type ConversationDto = {
   updated_at: string;
 };
 
-export type ResourceStatus = "success" | "failed" | "skipped";
-export type ResourceResultDto = { status: ResourceStatus; error?: string };
-export type CleanupResultDto = {
-  pr: ResourceResultDto;
-  worktree: ResourceResultDto;
-  localBranch: ResourceResultDto;
-  remoteBranch: ResourceResultDto;
-};
 export type CloseIssueResultDto = { issue: IssueDetailDto; cleanup: CleanupResultDto };
 
 export type EvolutionItemDto = { id: string; workspace_id: string; status: string; issue_id: string | null; title: string; content: string; tags: string[]; result: string | null; metadata: unknown; created_at: string; updated_at: string };

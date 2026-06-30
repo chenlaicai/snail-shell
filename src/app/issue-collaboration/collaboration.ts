@@ -167,6 +167,21 @@ export class IssueCollaboration implements CollaborationInput {
     return stage;
   }
   async closeIssue(issueId: string): Promise<{ issue: Issue; cleanup: CleanupResult }> {
+    // 检查是否已关闭（幂等处理）
+    const existingIssue = this.deps.issuePort.findIssue(issueId);
+    if (existingIssue?.closed_at) {
+      // 已关闭的 Issue 直接返回，不执行 cleanup，不覆盖 close_summary
+      const prevStatus = this.lastActivityStatus.get(issueId) ?? "needs_human";
+      this.lastActivityStatus.delete(issueId);
+      const consumers = this.workspaceConsumers.get(existingIssue.workspace_path);
+      if (consumers) {
+        for (const consumer of consumers) {
+          consumer.onActivityStatusChanged(issueId, "completed", prevStatus);
+        }
+      }
+      return { issue: existingIssue, cleanup: existingIssue.close_summary ?? { pr: { status: "skipped" }, worktree: { status: "skipped" }, localBranch: { status: "skipped" }, remoteBranch: { status: "skipped" } } };
+    }
+
     const issue = this.deps.issuePort.closeIssue(issueId);
     const prevStatus = this.lastActivityStatus.get(issueId) ?? "needs_human";
     this.lastActivityStatus.delete(issueId);

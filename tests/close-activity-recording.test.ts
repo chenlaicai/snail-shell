@@ -149,6 +149,40 @@ describe("closeIssue activity recording", () => {
     expect(summary).toEqual(cleanupResult);
   });
 
+  /** B2: 幂等处理，重复关闭不覆盖 close_summary */
+  it("B2: 已关闭的 Issue 重复关闭时不覆盖 close_summary", async () => {
+    const existingSummary = {
+      pr: { status: "success" as const },
+      worktree: { status: "success" as const },
+      localBranch: { status: "success" as const },
+      remoteBranch: { status: "success" as const },
+    };
+    const issue = createIssue({
+      closed_at: "2026-01-02T00:00:00.000Z",
+      close_summary: existingSummary,
+    });
+    const issuePort = createMockIssuePort(issue);
+    // closeIssue 在幂等分支直接返回已关闭的 issue
+    issuePort.closeIssue.mockReturnValue(issue);
+
+    const collaboration = new IssueCollaboration({
+      issuePort,
+      createIssue: vi.fn(),
+      stagePort: createMockStagePort(),
+      messagePort: createMockMessagePort(),
+      snailPort: createMockSnailPort(),
+      liteAIPort: createMockLiteAIPort(),
+      mcpMessageStore: createMockMcpMessageStore(),
+    });
+
+    const result = await collaboration.closeIssue("issue-1");
+
+    // 幂等分支不执行 cleanup，因此 updateCloseSummary 不应被调用
+    expect(issuePort.updateCloseSummary).not.toHaveBeenCalled();
+    // 返回的 issue 保留原有 close_summary
+    expect(result.issue.close_summary).toEqual(existingSummary);
+  });
+
   /** B3: 全部成功时 close_summary 包含每个资源的 success 状态 */
   it("B3: 资源清理全部成功时 close_summary 记录 success", async () => {
     const issue = createIssue({ context: { pr_url: "https://github.com/x/y/pull/1", worktree_path: "/workspace/.snail/worktrees/wt", branch_name: "feature-x" } });

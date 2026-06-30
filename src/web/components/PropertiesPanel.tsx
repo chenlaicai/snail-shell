@@ -1,5 +1,5 @@
 import { formatDate, formatRelativeTime } from "@/lib/utils";
-import type { IssueDetailDto, StageDetailDto, CloseSummaryDto } from "@/types";
+import type { IssueDetailDto, StageDetailDto, CleanupResultDto } from "@/types";
 
 interface PropertiesPanelProps {
   issue: IssueDetailDto;
@@ -182,7 +182,7 @@ const RESOURCE_LABELS: Record<string, string> = {
   remoteBranch: "Remote",
 };
 
-function CloseSummaryDetail({ summary }: { summary: CloseSummaryDto }) {
+function CloseSummaryDetail({ summary }: { summary: CleanupResultDto }) {
   const entries = (["pr", "worktree", "localBranch", "remoteBranch"] as const).map((key) => {
     const item = summary[key];
     const label = RESOURCE_LABELS[key];
