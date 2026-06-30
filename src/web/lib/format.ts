@@ -21,3 +21,13 @@ export function formatDateTime(iso: string): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
+
+/** 将毫秒格式化为人类可读的耗时：<60s → Xs，<1h → Xm Ys，≥1h → Xh Ym */
+export function formatDuration(ms: number): string {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  if (totalSec < 60) return `${totalSec}s`;
+  const min = Math.floor(totalSec / 60);
+  if (min < 60) return `${min}m ${totalSec % 60}s`;
+  const hours = Math.floor(min / 60);
+  return `${hours}h ${min % 60}m`;
+}
