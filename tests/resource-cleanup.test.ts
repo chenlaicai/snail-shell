@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { validateBranchName, validateWorktreePath, cleanupResources } from "@app/issue-collaboration/resource-cleanup";
+import { validateBranchName, validateWorktreePath, cleanupResources, resolveContextValue } from "@app/issue-collaboration/resource-cleanup";
 
 // ── Mock child_process ────────────────────────────────────────────────
 
@@ -123,6 +123,34 @@ describe("validateWorktreePath", () => {
   });
 });
 
+// ── resolveContextValue ──────────────────────────────────────────────
+
+describe("resolveContextValue", () => {
+  it("精确匹配无前缀 key", () => {
+    expect(resolveContextValue({ worktree_path: "/path" }, "worktree_path")).toBe("/path");
+  });
+
+  it("精确匹配 stage-prefixed key", () => {
+    expect(resolveContextValue({ "design.worktree_path": "/path" }, "worktree_path")).toBe("/path");
+  });
+
+  it("无前缀 key 优先于 prefixed key", () => {
+    expect(resolveContextValue({ worktree_path: "/a", "design.worktree_path": "/b" }, "worktree_path")).toBe("/a");
+  });
+
+  it("key 不存在时返回 undefined", () => {
+    expect(resolveContextValue({}, "worktree_path")).toBeUndefined();
+  });
+
+  it("值为空白时返回 undefined", () => {
+    expect(resolveContextValue({ worktree_path: "  " }, "worktree_path")).toBeUndefined();
+  });
+
+  it("匹配 development.pr_url", () => {
+    expect(resolveContextValue({ "development.pr_url": "https://github.com/x/y/pull/1" }, "pr_url")).toBe("https://github.com/x/y/pull/1");
+  });
+});
+
 // ── cleanupResources ──────────────────────────────────────────────────
 
 describe("cleanupResources", () => {
@@ -240,6 +268,19 @@ describe("cleanupResources", () => {
       pr_url: "https://github.com/owner/repo/pull/42",
       worktree_path: "/workspace/.snail/worktrees/feature-x",
       branch_name: "feature/x",
+    }, "/workspace");
+    expect(result.pr.status).toBe("success");
+    expect(result.worktree.status).toBe("success");
+    expect(result.localBranch.status).toBe("success");
+    expect(result.remoteBranch.status).toBe("success");
+  });
+
+  it("stage-prefixed key 能正确解析（agent 通过 set_context 写入的格式）", async () => {
+    mockExecSuccess();
+    const result = await cleanupResources({
+      "design.worktree_path": "/workspace/.snail/worktrees/feature-x",
+      "design.branch_name": "feature-x",
+      "development.pr_url": "https://github.com/owner/repo/pull/42",
     }, "/workspace");
     expect(result.pr.status).toBe("success");
     expect(result.worktree.status).toBe("success");
