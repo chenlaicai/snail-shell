@@ -149,9 +149,22 @@ export class IssueCollaboration implements CollaborationInput {
   listStageTransitionSuggestions(stageId: string): StageTransitionSuggestion[] {
     return [...(this.suggestions.get(stageId) ?? [])];
   }
+  dismissSuggestion(stageId: string, targetKey: string): boolean {
+    const suggestions = this.suggestions.get(stageId);
+    if (!suggestions) return false;
+    const remaining = suggestions.filter(s => s.target_key !== targetKey);
+    if (remaining.length === suggestions.length) return false;
+    if (remaining.length === 0) {
+      this.suggestions.delete(stageId);
+    } else {
+      this.suggestions.set(stageId, remaining);
+    }
+    return true;
+  }
   async advanceStage(stageId: string, targetKey: string): Promise<Stage> {
     const stage = this.deps.stagePort.advanceStage(stageId, targetKey);
     this.cleanupDispatchStates(stageId);
+    this.suggestions.delete(stageId);
     this.helpers.initStageCursors(stage);
     return stage;
   }

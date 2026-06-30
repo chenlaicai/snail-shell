@@ -123,6 +123,7 @@ export interface CollaborationInput {
   registerWorkspaceConsumer(workspaceId: string, consumer: WorkspaceConsumer): void;
   unregisterWorkspaceConsumer(workspaceId: string, consumer: WorkspaceConsumer): void;
   listStageTransitionSuggestions(stageId: string): StageTransitionSuggestion[];
+  dismissSuggestion(stageId: string, targetKey: string): boolean;
   advanceStage(stageId: string, targetKey: string): Promise<Stage>;
   rollbackStage(stageId: string, targetKey: string): Promise<Stage>;
   getStageAuditTrail(stageId: string): StageAuditRecord[];

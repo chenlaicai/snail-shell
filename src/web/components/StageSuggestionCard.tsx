@@ -11,15 +11,15 @@ export function StageSuggestionCard({
   stageId: string | null;
   onAccepted: (stage: StageDetailDto) => void;
 }) {
-  const [dismissedKey, setDismissedKey] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [dismissing, setDismissing] = useState(false);
   const { data: suggestions = [], refetch } = useQuery({
     queryKey: ["stages", stageId, "transition-suggestions"],
     queryFn: () => api("GET /api/stages/:stageId/transition-suggestions", { params: { stageId: stageId! } }),
     enabled: !!stageId,
   });
 
-  const suggestion = (suggestions as StageSuggestion[]).find((item) => `${item.stage_id}:${item.target_key}:${item.created_at}` !== dismissedKey) ?? null;
+  const suggestion = (suggestions as StageSuggestion[])[0] ?? null;
   if (!stageId || !suggestion) return null;
 
   async function handleConfirm() {
@@ -40,6 +40,21 @@ export function StageSuggestionCard({
     }
   }
 
+  async function handleDismiss() {
+    if (dismissing) return;
+    setDismissing(true);
+    try {
+      await api("DELETE /api/stages/:stageId/transition-suggestions/:targetKey", {
+        params: { stageId, targetKey: suggestion.target_key },
+      });
+      refetch();
+    } catch (err: unknown) {
+      showToast(`忽略失败：${err instanceof Error ? err.message : String(err)}`, true);
+    } finally {
+      setDismissing(false);
+    }
+  }
+
   return (
     <div className="rounded-lg border border-shell-600/30 bg-shell-600/10 p-4">
       <div className="flex items-start justify-between gap-4">
@@ -53,10 +68,11 @@ export function StageSuggestionCard({
         <div className="flex shrink-0 gap-2">
           <button onClick={handleConfirm} disabled={submitting} className="rounded-md bg-shell-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-shell-500 disabled:opacity-50">{submitting ? "Advancing..." : "Confirm"}</button>
           <button
-            onClick={() => setDismissedKey(`${suggestion.stage_id}:${suggestion.target_key}:${suggestion.created_at}`)}
-            className="rounded-md border border-white/6 px-3 py-1.5 text-xs text-text-secondary transition-colors hover:bg-white/5 hover:text-text-primary"
+            onClick={handleDismiss}
+            disabled={dismissing}
+            className="rounded-md border border-white/6 px-3 py-1.5 text-xs text-text-secondary transition-colors hover:bg-white/5 hover:text-text-primary disabled:opacity-50"
           >
-            Ignore
+            {dismissing ? "Ignoring..." : "Ignore"}
           </button>
         </div>
       </div>
