@@ -23,17 +23,26 @@ const INITIAL_STATE: MentionState = {
 };
 
 /** 从输入值中提取光标前最近的 @mention 查询 */
-function extractMentionQuery(value: string, caret: number): { start: number; query: string } | null {
+export function extractMentionQuery(value: string, caret: number): { start: number; query: string } | null {
   const mentionStart = value.lastIndexOf("@", caret - 1);
   if (mentionStart === -1) return null;
   /** @ 前必须是行首或空白字符，避免匹配 email 等场景 */
   const prefix = value.slice(0, mentionStart);
   if (prefix && !/[\s\n]$/.test(prefix)) return null;
-  const tail = value.slice(mentionStart + 1);
+  const tail = value.slice(mentionStart + 1, caret);
   /** @ 后紧跟空白字符时，视为 mention 已结束（用户已完成输入） */
   if (/^\s/.test(tail)) return null;
-  const queryMatch = tail.match(/^(\S*)/);
-  return { start: mentionStart, query: queryMatch ? queryMatch[1] : "" };
+  const queryMatch = tail.match(/^[\p{L}\p{N}_][\p{L}\p{N}_-]*/u);
+  if (!queryMatch) return null;
+  const query = queryMatch[0];
+  /** query 后面的字符决定 mention 是否活跃：
+   *  - 单词字符（字母/数字/_）→ 光标在单词中间，不属于活跃查询
+   *  - 空白 → mention 已完成（如 @alice 后跟空格），不属于活跃查询
+   *  - 标点/行尾 → 用户仍在输入，属于活跃查询 */
+  const afterQuery = value.charAt(mentionStart + 1 + query.length);
+  if (/[\p{L}\p{N}_]/u.test(afterQuery)) return null;
+  if (/\s/.test(afterQuery)) return null;
+  return { start: mentionStart, query };
 }
 
 interface UseMentionOptions {
