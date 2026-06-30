@@ -63,7 +63,6 @@ PR #502（F20260630m8ia）修复了信号提取链路：`set_final_body` → sig
   "stage_transition": {
     "signal_type": "adversarial_consensus",
     "target_key": "development",
-    "consensus": true,
     "reason": "设计文档已锁定，无未解决争议",
     "gate_evidence": {
       "design-01": "Feature 文档已锁定",
@@ -80,7 +79,6 @@ PR #502（F20260630m8ia）修复了信号提取链路：`set_final_body` → sig
   "stage_transition": {
     "signal_type": "disagreement",
     "target_key": "development",
-    "consensus": false,
     "reason": "关于自动推进条件存在分歧",
     "positions": [
       { "speaker": "architect-1", "stance": "for", "argument": "..." },

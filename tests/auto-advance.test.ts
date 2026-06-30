@@ -492,6 +492,9 @@ describe("adversarial artifact validation", () => {
       const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
       expect(deps.advanceStage).toHaveBeenCalled();
       expect(result.action).toBe("auto_advanced");
+      const r7Reasons = result.reasons.filter(r => r.code === "R7_ALL_CLEAR_WARNING");
+      expect(r7Reasons.length).toBe(2);
+      expect(r7Reasons[0].severity).toBe("warning");
     });
   });
 

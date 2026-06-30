@@ -114,7 +114,7 @@ export class AutoAdvanceEngine {
 
     const latestBySpeaker = this.getLatestBySpeaker(consensusSignals, uniqueSpeakers);
     const speakerValidation = this.validateAllSpeakers(stage, latestBySpeaker);
-    if (speakerValidation) return speakerValidation;
+    if (speakerValidation.result) return speakerValidation.result;
 
     const r6Warning = this.checkR6Similarity(latestBySpeaker);
     if (r6Warning) {
@@ -126,6 +126,9 @@ export class AutoAdvanceEngine {
     const reasons: EvaluationReason[] = [{ code: "AUTO_ADVANCED", severity: "info", message: "自动推进成功" }];
     if (r6Warning) {
       reasons.push({ code: "R6_SIMILARITY_DETECTED", severity: "warning", message: "两位 agent 的独立验证输出高度相似（>80%），可能存在抄袭" });
+    }
+    for (const speaker of speakerValidation.r7Warnings) {
+      reasons.push({ code: "R7_ALL_CLEAR_WARNING", severity: "warning", message: `${speaker} 的 adversarial_findings 全部为"无问题"` });
     }
     return { action: "auto_advanced", target_key: latest.target_key, reasons };
   }
@@ -139,24 +142,26 @@ export class AutoAdvanceEngine {
     return latestBySpeaker;
   }
 
-  /** 验证所有 speaker 的 gate 和对抗产物，返回 null 表示全部通过 */
-  private validateAllSpeakers(stage: Stage, latestBySpeaker: Map<string, StageTransitionSuggestion>): EvaluationResult | null {
+  /** 验证所有 speaker 的 gate 和对抗产物，result 为 null 表示全部通过，r7Warnings 收集 allClear 的 speaker */
+  private validateAllSpeakers(stage: Stage, latestBySpeaker: Map<string, StageTransitionSuggestion>): { result: EvaluationResult | null; r7Warnings: string[] } {
+    const r7Warnings: string[] = [];
     for (const [speaker, latest] of latestBySpeaker) {
       const failedGates = this.getFailedGates(stage, latest);
       if (failedGates.length > 0) {
-        return { action: "blocked", reasons: [{ code: "GATE_FAILED", severity: "error", message: `Gate 自检未通过（${speaker}）：${failedGates.join(", ")}`, details: { failed_gates: failedGates, speaker } }] };
+        return { result: { action: "blocked", reasons: [{ code: "GATE_FAILED", severity: "error", message: `Gate 自检未通过（${speaker}）：${failedGates.join(", ")}`, details: { failed_gates: failedGates, speaker } }] }, r7Warnings };
       }
       const validation = this.validateAdversarialArtifact(stage, latest);
       if (!validation.valid) {
         log.warn({ stageId: stage.id, speaker, reason: validation.reason }, "adversarial artifact validation failed");
         const errorCode = validation.rule === "R1_ARTIFACT_MISSING" ? "ADVERSARIAL_ARTIFACT_MISSING" : "ADVERSARIAL_VALIDATION_FAILED";
-        return { action: "blocked", reasons: [{ code: errorCode, severity: "error", message: `对抗产物校验失败（${speaker}）：${validation.reason}`, details: { speaker, rule: validation.rule } }] };
+        return { result: { action: "blocked", reasons: [{ code: errorCode, severity: "error", message: `对抗产物校验失败（${speaker}）：${validation.reason}`, details: { speaker, rule: validation.rule } }] }, r7Warnings };
       }
       if (validation.allClear) {
         log.warn({ stageId: stage.id, speaker }, "adversarial_findings all clear — no issues found");
+        r7Warnings.push(speaker);
       }
     }
-    return null;
+    return { result: null, r7Warnings };
   }
 
   /** 各 stage 推进所需的 Issue.context 必要字段 */
