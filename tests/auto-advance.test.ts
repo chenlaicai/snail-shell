@@ -387,6 +387,34 @@ describe("adversarial artifact validation", () => {
       await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
       expect(deps.advanceStage).not.toHaveBeenCalled();
     });
+
+    it("blocks when outputs are similar but not identical (>80% LCS)", async () => {
+      const deps = createDeps();
+      const engine = new AutoAdvanceEngine(deps);
+      // LCS("...all source files", "...all modified files") = "...all " + " files" = 67/75 ≈ 0.89
+      const outputA = "typescript compilation completed with zero errors across all source files";
+      const outputB = "typescript compilation completed with zero errors across all modified files";
+      const a1 = createReviewArtifact({ independent_verification: [{ command: "tsc", actual_output: outputA, executed_at: new Date().toISOString() }] });
+      const a2 = createReviewArtifact({ independent_verification: [{ command: "tsc", actual_output: outputB, executed_at: new Date().toISOString() }] });
+      const s1 = createSuggestion({ consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed" }, adversarial_artifact: a1 as any });
+      const s2 = createSuggestion({ consensus: true, from_speaker: "reviewer-2", message_id: 2, target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed" }, adversarial_artifact: a2 as any });
+      await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
+      expect(deps.advanceStage).not.toHaveBeenCalled();
+    });
+
+    it("allows when outputs are sufficiently different (<80% LCS)", async () => {
+      const deps = createDeps();
+      const engine = new AutoAdvanceEngine(deps);
+      // These strings share very few characters in sequence
+      const outputA = "tsc type check passed with no errors in the project";
+      const outputB = "all unit tests succeeded with zero failures or skips";
+      const a1 = createReviewArtifact({ independent_verification: [{ command: "tsc --noEmit", actual_output: outputA, executed_at: new Date().toISOString() }] });
+      const a2 = createReviewArtifact({ independent_verification: [{ command: "npm test", actual_output: outputB, executed_at: new Date().toISOString() }] });
+      const s1 = createSuggestion({ consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed" }, adversarial_artifact: a1 as any });
+      const s2 = createSuggestion({ consensus: true, from_speaker: "reviewer-2", message_id: 2, target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed" }, adversarial_artifact: a2 as any });
+      await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
+      expect(deps.advanceStage).toHaveBeenCalled();
+    });
   });
 
   describe("R7 all-clear warning", () => {

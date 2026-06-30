@@ -1,5 +1,5 @@
 import type { Stage } from "@domain/issue/model";
-import type { StageTransitionSuggestion, AdversarialArtifact } from "@app/issue-collaboration/port";
+import type { StageTransitionSuggestion, AdversarialArtifact, DesignAdversarialArtifact, ReviewAdversarialArtifact } from "@app/issue-collaboration/port";
 import { getLogger } from "@infra/logger";
 
 const log = getLogger({ module: "auto-advance" });
@@ -230,22 +230,31 @@ export class AutoAdvanceEngine {
     return null;
   }
 
-  private validateStageSpecificFields(stage: Stage, artifact: AdversarialArtifact): { valid: false; reason: string } | null {
-    if (stage.key === "design") {
-      const designArtifact = artifact as unknown as Record<string, unknown>;
-      const co = designArtifact["critique_obligation"] as Record<string, unknown> | undefined;
-      if (!co || !Array.isArray(co["items"]) || (co["items"] as unknown[]).length < 4) {
-        return { valid: false, reason: "design stage requires critique_obligation.items >= 4" };
-      }
+  private validateStageSpecificFields(
+    stage: Stage,
+    artifact: AdversarialArtifact | DesignAdversarialArtifact | ReviewAdversarialArtifact,
+  ): { valid: false; reason: string } | null {
+    if (stage.key === "design" && !this.hasDesignFields(artifact)) {
+      return { valid: false, reason: "design stage requires critique_obligation.items >= 4" };
     }
-    if (stage.key === "review") {
-      const reviewArtifact = artifact as unknown as Record<string, unknown>;
-      const fc = reviewArtifact["file_coverage"] as Record<string, unknown> | undefined;
-      if (!fc || typeof fc["coverage_ratio"] !== "number" || fc["coverage_ratio"] !== 1.0) {
-        return { valid: false, reason: "review stage requires file_coverage.coverage_ratio = 1.0" };
-      }
+    if (stage.key === "review" && !this.hasReviewFields(artifact)) {
+      return { valid: false, reason: "review stage requires file_coverage.coverage_ratio = 1.0" };
     }
     return null;
+  }
+
+  private hasDesignFields(artifact: AdversarialArtifact | DesignAdversarialArtifact): artifact is DesignAdversarialArtifact {
+    return "critique_obligation" in artifact &&
+      !!artifact.critique_obligation &&
+      Array.isArray(artifact.critique_obligation.items) &&
+      artifact.critique_obligation.items.length >= 4;
+  }
+
+  private hasReviewFields(artifact: AdversarialArtifact | ReviewAdversarialArtifact): artifact is ReviewAdversarialArtifact {
+    return "file_coverage" in artifact &&
+      !!artifact.file_coverage &&
+      typeof artifact.file_coverage.coverage_ratio === "number" &&
+      artifact.file_coverage.coverage_ratio === 1.0;
   }
 
   /** R6: 检测跨 speaker 的 independent_verification 输出是否雷同（相似度 > 80%） */
