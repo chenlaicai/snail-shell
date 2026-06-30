@@ -46,6 +46,11 @@ decom-02: 依赖关系已定义，DAG 无环
 decom-03: 每个子 issue 已指派 SOP
 ```
 
+**重要**：在 `set_final_body` 的 `gate_evidence` 参数中包含 gate 完成状态，格式：
+```json
+{"gate_evidence": {"decom-01": "所有模块已拆分为子 issue", "decom-02": "DAG 无环", "decom-03": "SOP 已指派"}}
+```
+
 ## 输出
 
 - Issue context 中的 `decomposition.children` 字段

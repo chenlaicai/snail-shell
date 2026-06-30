@@ -41,6 +41,11 @@ Monitor 阶段由 `MonitorScheduler` 组件自动驱动，**不经过 AutoAdvanc
 monitor-01: 子 issue 聚合状态已确认，失败场景已处理
 ```
 
+**重要**：在 `set_final_body` 的 `gate_evidence` 参数中包含 gate 完成状态，格式：
+```json
+{"gate_evidence": {"monitor-01": "子 issue 聚合状态已确认，失败场景已处理"}}
+```
+
 ## 输出
 
 - Gate evidence `monitor-01`

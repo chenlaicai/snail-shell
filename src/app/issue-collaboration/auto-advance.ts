@@ -38,9 +38,9 @@ export class AutoAdvanceEngine {
       return await this.handleDisagreement(stage.id, disagreements[disagreements.length - 1]);
     }
 
-    // gate_complete 路由（单人阶段）
+    // gate_complete 路由（单人阶段：development、intake、decomposition、delivery 等）
     const gateCompletes = typedSuggestions.filter(s => s.signal_type === "gate_complete");
-    if (gateCompletes.length > 0 && stage.key === "development") {
+    if (gateCompletes.length > 0) {
       return await this.evaluateGateComplete(stage, gateCompletes);
     }
 

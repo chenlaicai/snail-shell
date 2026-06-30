@@ -35,6 +35,11 @@ description: |
 analysis-01: 技术分析报告已产出，包含可行性评估、模块划分、风险识别
 ```
 
+**重要**：在 `set_final_body` 的 `gate_evidence` 参数中包含 gate 完成状态，格式：
+```json
+{"gate_evidence": {"analysis-01": "技术分析报告已产出，包含可行性评估、模块划分、风险识别"}}
+```
+
 ## 输出
 
 - Issue context 中的 `analysis.report` 字段

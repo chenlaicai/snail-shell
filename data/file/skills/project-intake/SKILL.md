@@ -33,6 +33,11 @@ description: |
 intake-01: 需求摘要已产出并写入 context，包含标题、背景、目标、验收标准
 ```
 
+**重要**：在 `set_final_body` 的 `gate_evidence` 参数中包含 gate 完成状态，格式：
+```json
+{"gate_evidence": {"intake-01": "需求摘要已产出，包含标题、背景、目标、验收标准"}}
+```
+
 ## 输出
 
 - Issue context 中的 `intake.summary` 字段
