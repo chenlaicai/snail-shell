@@ -211,9 +211,15 @@ export class AutoAdvanceEngine {
     const stageResult = this.validateStageSpecificFields(stage, artifact);
     if (stageResult) return stageResult;
 
+    // adversarial_findings 不得为空数组
+    if (artifact.adversarial_findings.length === 0) {
+      return { valid: false, reason: "adversarial_findings must not be empty" };
+    }
+
     // R7: adversarial_findings 全部为"无问题"时标记（不阻断）
-    const allClear = artifact.adversarial_findings.length > 0 &&
-      artifact.adversarial_findings.every(f => f.finding === "no issues" || f.disposition === "none");
+    const allClear = artifact.adversarial_findings.every(
+      f => f.finding === "no issues" || f.disposition === "none",
+    );
 
     return { valid: true, allClear };
   }

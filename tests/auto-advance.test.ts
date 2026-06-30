@@ -338,6 +338,16 @@ describe("adversarial artifact validation", () => {
       expect(deps.advanceStage).not.toHaveBeenCalled();
     });
 
+    it("blocks when adversarial_findings is empty array", async () => {
+      const deps = createDeps();
+      const engine = new AutoAdvanceEngine(deps);
+      const artifact = createReviewArtifact({ adversarial_findings: [] });
+      const s1 = createSuggestion({ consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed" }, adversarial_artifact: artifact as any });
+      const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2 };
+      await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
+      expect(deps.advanceStage).not.toHaveBeenCalled();
+    });
+
     it("blocks when actual_output < 20 chars", async () => {
       const deps = createDeps();
       const engine = new AutoAdvanceEngine(deps);
