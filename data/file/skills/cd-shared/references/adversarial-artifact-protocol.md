@@ -124,6 +124,19 @@ interface ReviewAdversarialArtifact extends AdversarialArtifact {
 | R5 | 阻断 | Review 阶段：`file_coverage.coverage_ratio` = 1.0 |
 | R6 | 阻断 | 两位审查者的 `independent_verification` 输出雷同（相似度 > 80%） |
 | R7 | 告警 | `adversarial_findings` 全部为"无问题"（不阻断，但标记） |
+| R8 | 阻断 | Review 阶段：`finding !== "no issues"` 且 `disposition` 为 `"none"` 或空字符串 |
+
+## `disposition` 取值约定（R8）
+
+| 值 | 含义 | R8 行为 |
+|----|------|---------|
+| `"在当前 PR 修复"` | 开发者已修复，审查者已确认 | 通过 |
+| `"withdrawn"` | 审查者确认为误报，主动撤回 | 通过 |
+| `"none"` | 未处理 | **阻断** |
+| `""` (空字符串) | 未填写 | **阻断** |
+| 其他非空字符串 | 自定义处置（向前兼容） | 通过 |
+
+采用黑名单（只阻断 `"none"` 和空）而非白名单：向后兼容现有产物，语义清晰。
 
 ## 审查者×开发者关系
 

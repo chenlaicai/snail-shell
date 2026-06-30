@@ -479,7 +479,9 @@ describe("adversarial artifact validation", () => {
       expect(result.reasons.some(r => r.code === "R6_SIMILARITY_DETECTED")).toBe(false);
     });
   });
+});
 
+describe("R7/R8 adversarial findings validation", () => {
   describe("R7 all-clear warning", () => {
     it("allows but warns when all findings are 'no issues'", async () => {
       const deps = createDeps();
@@ -495,6 +497,164 @@ describe("adversarial artifact validation", () => {
       const r7Reasons = result.reasons.filter(r => r.code === "R7_ALL_CLEAR_WARNING");
       expect(r7Reasons.length).toBe(2);
       expect(r7Reasons[0].severity).toBe("warning");
+    });
+
+    it("does not trigger allClear when findings have real issues with resolved disposition", async () => {
+      const deps = createDeps();
+      const engine = new AutoAdvanceEngine(deps);
+      const a1 = createReviewArtifact({ adversarial_findings: [
+        { dimension: "completeness", finding: "no issues", disposition: "none" },
+        { dimension: "correctness", finding: "found bug", disposition: "fixed" },
+      ] });
+      const a2 = { ...a1, independent_verification: [{ command: "npm test", actual_output: "all seventeen tests passed with no failures or skips", executed_at: new Date().toISOString() }] };
+      const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed" }, adversarial_artifact: a1 as any });
+      const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2, adversarial_artifact: a2 as any };
+      const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
+      expect(deps.advanceStage).toHaveBeenCalled();
+      expect(result.action).toBe("auto_advanced");
+      const r7Reasons = result.reasons.filter(r => r.code === "R7_ALL_CLEAR_WARNING");
+      expect(r7Reasons.length).toBe(0);
+    });
+  });
+
+  describe("R8 unresolved disposition blocking", () => {
+    it("blocks when finding has disposition 'none' (B1)", async () => {
+      const deps = createDeps();
+      const engine = new AutoAdvanceEngine(deps);
+      const a1 = createReviewArtifact({ adversarial_findings: [
+        { dimension: "completeness", finding: "found bug", disposition: "none" },
+      ] });
+      const a2 = { ...a1, independent_verification: [{ command: "npm test", actual_output: "all seventeen tests passed with no failures or skips", executed_at: new Date().toISOString() }] };
+      const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed" }, adversarial_artifact: a1 as any });
+      const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2, adversarial_artifact: a2 as any };
+      const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
+      expect(deps.advanceStage).not.toHaveBeenCalled();
+      expect(result.action).toBe("blocked");
+      expect(result.reasons[0].code).toBe("ADVERSARIAL_VALIDATION_FAILED");
+      expect(result.reasons[0].details?.rule).toBe("R8");
+    });
+
+    it("blocks when finding has empty string disposition (B2)", async () => {
+      const deps = createDeps();
+      const engine = new AutoAdvanceEngine(deps);
+      const a1 = createReviewArtifact({ adversarial_findings: [
+        { dimension: "completeness", finding: "found bug", disposition: "" },
+      ] });
+      const a2 = { ...a1, independent_verification: [{ command: "npm test", actual_output: "all seventeen tests passed with no failures or skips", executed_at: new Date().toISOString() }] };
+      const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed" }, adversarial_artifact: a1 as any });
+      const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2, adversarial_artifact: a2 as any };
+      const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
+      expect(deps.advanceStage).not.toHaveBeenCalled();
+      expect(result.action).toBe("blocked");
+      expect(result.reasons[0].code).toBe("ADVERSARIAL_VALIDATION_FAILED");
+      expect(result.reasons[0].details?.rule).toBe("R8");
+    });
+
+    it("allows when all dispositions are resolved (B3)", async () => {
+      const deps = createDeps();
+      const engine = new AutoAdvanceEngine(deps);
+      const a1 = createReviewArtifact({ adversarial_findings: [
+        { dimension: "completeness", finding: "found bug", disposition: "在当前 PR 修复" },
+      ] });
+      const a2 = { ...a1, independent_verification: [{ command: "npm test", actual_output: "all seventeen tests passed with no failures or skips", executed_at: new Date().toISOString() }] };
+      const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed" }, adversarial_artifact: a1 as any });
+      const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2, adversarial_artifact: a2 as any };
+      const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
+      expect(deps.advanceStage).toHaveBeenCalled();
+      expect(result.action).toBe("auto_advanced");
+    });
+
+    it("skips R8 when finding is 'no issues' even with disposition 'none' (B4)", async () => {
+      const deps = createDeps();
+      const engine = new AutoAdvanceEngine(deps);
+      const a1 = createReviewArtifact({ adversarial_findings: [
+        { dimension: "completeness", finding: "no issues", disposition: "none" },
+      ] });
+      const a2 = { ...a1, independent_verification: [{ command: "npm test", actual_output: "all seventeen tests passed with no failures or skips", executed_at: new Date().toISOString() }] };
+      const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed" }, adversarial_artifact: a1 as any });
+      const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2, adversarial_artifact: a2 as any };
+      const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
+      expect(deps.advanceStage).toHaveBeenCalled();
+      expect(result.action).toBe("auto_advanced");
+    });
+
+    it("allows when disposition is 'withdrawn' (B5)", async () => {
+      const deps = createDeps();
+      const engine = new AutoAdvanceEngine(deps);
+      const a1 = createReviewArtifact({ adversarial_findings: [
+        { dimension: "completeness", finding: "found bug", disposition: "withdrawn" },
+      ] });
+      const a2 = { ...a1, independent_verification: [{ command: "npm test", actual_output: "all seventeen tests passed with no failures or skips", executed_at: new Date().toISOString() }] };
+      const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed" }, adversarial_artifact: a1 as any });
+      const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2, adversarial_artifact: a2 as any };
+      const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
+      expect(deps.advanceStage).toHaveBeenCalled();
+      expect(result.action).toBe("auto_advanced");
+    });
+
+    it("R8 blocks when all findings have disposition 'none' and finding !== 'no issues' (B8)", async () => {
+      const deps = createDeps();
+      const engine = new AutoAdvanceEngine(deps);
+      const a1 = createReviewArtifact({ adversarial_findings: [
+        { dimension: "completeness", finding: "found bug A", disposition: "none" },
+        { dimension: "correctness", finding: "found bug B", disposition: "none" },
+      ] });
+      const a2 = { ...a1, independent_verification: [{ command: "npm test", actual_output: "all seventeen tests passed with no failures or skips", executed_at: new Date().toISOString() }] };
+      const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed" }, adversarial_artifact: a1 as any });
+      const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2, adversarial_artifact: a2 as any };
+      const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
+      expect(deps.advanceStage).not.toHaveBeenCalled();
+      expect(result.action).toBe("blocked");
+      expect(result.reasons[0].code).toBe("ADVERSARIAL_VALIDATION_FAILED");
+      expect(result.reasons[0].details?.rule).toBe("R8");
+    });
+
+    it("R8 does not apply to design stage", async () => {
+      const deps = createDeps();
+      const engine = new AutoAdvanceEngine(deps);
+      const now = new Date().toISOString();
+      const later = new Date(Date.now() + 1000).toISOString();
+      const a1 = {
+        independent_verification: [{ command: "tsc --noEmit", actual_output: "no errors found after full type check across all modules", executed_at: now }],
+        adversarial_findings: [{ dimension: "completeness", finding: "found gap", disposition: "none" }],
+        audit_trail: { events: [
+          { timestamp: now, event_type: 'review_started' as const, detail: "started" },
+          { timestamp: later, event_type: 'cross_review_read' as const, detail: "read" },
+        ] },
+        critique_obligation: { items: [
+          { type: 'risk' as const, content: "risk 1" },
+          { type: 'risk' as const, content: "risk 2" },
+          { type: 'gap' as const, content: "gap 1" },
+          { type: 'alternative' as const, content: "alt 1" },
+        ] },
+        independent_analysis: { my_conclusion: "ok", comparison_with_peer: "same", points_of_agreement: ["a"], points_of_disagreement: [] },
+        scenario_coverage: { scenarios_reviewed: 5, scenarios_identified: 5, coverage_ratio: 1.0 },
+      };
+      const a2 = { ...a1, independent_verification: [{ command: "npm run lint", actual_output: "zero warnings and zero errors across all source files", executed_at: now }] };
+      const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "architect-1", target_key: "development", gate_evidence: { "design-01": "locked", "design-02": "resolved" }, adversarial_artifact: a1 as any });
+      const s2 = { ...s1, from_speaker: "architect-2", message_id: 2, adversarial_artifact: a2 as any };
+      const result = await engine.evaluate(createStage({ key: "design" }), [s1, s2]);
+      expect(deps.advanceStage).toHaveBeenCalled();
+      expect(result.action).toBe("auto_advanced");
+    });
+
+    it("reports correct count of unresolved findings in R8 message", async () => {
+      const deps = createDeps();
+      const engine = new AutoAdvanceEngine(deps);
+      const a1 = createReviewArtifact({ adversarial_findings: [
+        { dimension: "completeness", finding: "bug A", disposition: "none" },
+        { dimension: "correctness", finding: "bug B", disposition: "" },
+        { dimension: "security", finding: "bug C", disposition: "fixed" },
+      ] });
+      const a2 = { ...a1, independent_verification: [{ command: "npm test", actual_output: "all seventeen tests passed with no failures or skips", executed_at: new Date().toISOString() }] };
+      const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed" }, adversarial_artifact: a1 as any });
+      const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2, adversarial_artifact: a2 as any };
+      const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
+      expect(deps.advanceStage).not.toHaveBeenCalled();
+      expect(result.action).toBe("blocked");
+      expect(result.reasons[0].code).toBe("ADVERSARIAL_VALIDATION_FAILED");
+      expect(result.reasons[0].details?.rule).toBe("R8");
+      expect(result.reasons[0].message).toContain("2 finding(s)");
     });
   });
 

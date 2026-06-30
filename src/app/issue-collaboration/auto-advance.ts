@@ -274,9 +274,22 @@ export class AutoAdvanceEngine {
       return { valid: false, reason: "adversarial_findings must not be empty", rule: "R1" };
     }
 
+    /**
+     * R8: review 阶段防御性校验 — finding 非"no issues"且 disposition 未解决时阻断推进。
+     * 保护场景：防止审查者遗漏处理 findings 就直接推进到 merge。
+     */
+    if (stage.key === "review") {
+      const unresolvedFindings = artifact.adversarial_findings.filter(
+        f => f.finding !== "no issues" && (f.disposition === "none" || (f.disposition ?? "").trim() === ""),
+      );
+      if (unresolvedFindings.length > 0) {
+        return { valid: false, reason: `${unresolvedFindings.length} finding(s) with unresolved disposition`, rule: "R8" };
+      }
+    }
+
     // R7: adversarial_findings 全部为"无问题"时标记（不阻断）
     const allClear = artifact.adversarial_findings.every(
-      f => f.finding === "no issues" || f.disposition === "none",
+      f => f.finding === "no issues",
     );
 
     return { valid: true, allClear };
