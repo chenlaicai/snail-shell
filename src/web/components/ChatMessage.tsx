@@ -1,11 +1,39 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { formatDateTime } from "@/lib/utils";
+import { formatDateTime, formatDuration } from "@/lib/utils";
 import { RichTextRenderer } from "@/components/RichTextRenderer";
 import { showToast } from "@/components/Toast";
 import type { MessageDto, MessageEvent } from "@/types";
 
 /** streaming 超时阈值：超过此时间无新事件视为 stuck（ms） */
 const STUCK_THRESHOLD_MS = 90_000;
+
+/**
+ * 实时计时器 hook：streaming 期间每秒更新 elapsedMs，完成后冻结最终值。
+ * 返回当前耗时（ms）。
+ */
+function useLiveTimer(message: MessageDto, isStreaming: boolean): number {
+  // streaming 期间用 interval 驱动更新
+  const [liveMs, setLiveMs] = useState(() =>
+    isStreaming ? Date.now() - new Date(message.created_at).getTime() : 0,
+  );
+
+  useEffect(() => {
+    if (!isStreaming) return;
+    const id = setInterval(() => {
+      setLiveMs(Date.now() - new Date(message.created_at).getTime());
+    }, 1000);
+    return () => clearInterval(id);
+  }, [isStreaming, message.created_at]);
+
+  // 非 streaming：直接从消息数据计算（ended_at ?? updated_at - created_at）
+  // streaming 结束瞬间：用 memo 冻结最终值，避免依赖 updated_at 的时序抖动
+  const finalMs = useMemo(
+    () => new Date(message.ended_at ?? message.updated_at).getTime() - new Date(message.created_at).getTime(),
+    [message.ended_at, message.updated_at, message.created_at],
+  );
+
+  return isStreaming ? liveMs : finalMs;
+}
 
 function extractContextUsage(events: MessageEvent[]): { label: string; percent: number } | null {
   for (const event of events) {
@@ -73,6 +101,7 @@ function ChatMessageInner({ message, onInterrupt, onRetry }: { message: MessageD
 
   const contextUsage = useMemo(() => extractContextUsage(message.events), [message.events]);
   const isStreaming = message.status === "streaming";
+  const elapsedMs = useLiveTimer(message, isStreaming);
   const hasContext = !!message.context?.context;
   const hasEvents = message.events.length > 0;
 
@@ -119,6 +148,11 @@ function ChatMessageInner({ message, onInterrupt, onRetry }: { message: MessageD
               </>
             )}
             <span className="text-[11px] text-text-muted">{formatDateTime(message.created_at)}</span>
+            {!isUser && elapsedMs > 0 && (
+              <span className={`text-[11px] ${isStreaming ? "text-shell-400" : "text-text-muted"}`}>
+                {formatDuration(elapsedMs)}
+              </span>
+            )}
             {contextUsage && (
               <span className="inline-flex items-center gap-1 text-[10px] text-text-grey font-mono">
                 <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
