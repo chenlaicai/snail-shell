@@ -1,5 +1,6 @@
 import type { Stage } from "@domain/issue/model";
 import type { StageTransitionSuggestion, AdversarialArtifact, DesignAdversarialArtifact, ReviewAdversarialArtifact, SignalType, EvaluationResult, EvaluationReason } from "@app/issue-collaboration/port";
+import { resolveContextValue } from "@app/issue-collaboration/resource-cleanup";
 import { getLogger } from "@infra/logger";
 
 const log = getLogger({ module: "auto-advance" });
@@ -175,7 +176,7 @@ export class AutoAdvanceEngine {
     const requiredFields = AutoAdvanceEngine.REQUIRED_CONTEXT_FIELDS[stage.key];
     if (!requiredFields) return [];
     const issue = this.deps.mustGetIssue(stage.issue_id);
-    return requiredFields.filter(field => !issue.context[field]?.trim());
+    return requiredFields.filter(field => !resolveContextValue(issue.context, field));
   }
 
   private async notifyMissingContext(stageId: string, missingFields: string[]): Promise<void> {
@@ -186,7 +187,7 @@ export class AutoAdvanceEngine {
   private isIncompatibleBlocked(stage: Stage): boolean {
     if (stage.key !== "review") return false;
     const issue = this.deps.mustGetIssue(stage.issue_id);
-    const prTitle = issue.context["pr_title"] ?? "";
+    const prTitle = resolveContextValue(issue.context, "pr_title") ?? "";
     if (prTitle.includes("[Incompatible]")) {
       log.info({ stageId: stage.id }, "[Incompatible] tag blocks auto-advance");
       return true;
