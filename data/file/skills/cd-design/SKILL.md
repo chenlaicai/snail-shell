@@ -79,8 +79,8 @@ description: |
 ```json
 {
   "stage_transition": {
+    "signal_type": "adversarial_consensus",
     "target_key": "development",
-    "consensus": true,
     "reason": "设计文档已锁定，无未解决争议",
     "guard": "design-01: Feature 文档已锁定; design-02: 无未解决争议",
     "gate_evidence": {
@@ -89,26 +89,59 @@ description: |
       "design-ctx": "worktree_path=/Users/.../worktrees/xxx, branch_name=feature-xxx"
     },
     "adversarial_artifact": {
-      "independent_verification": [...],
-      "adversarial_findings": [...],
-      "audit_trail": { "events": [...] },
-      "critique_obligation": { "items": [...] },
-      "independent_analysis": {...},
-      "scenario_coverage": { "scenarios_reviewed": 5, "scenarios_identified": 5, "coverage_ratio": 1.0 }
+      "independent_verification": [
+        {
+          "command": "{{实际执行的命令，如 git diff --stat origin/main}}",
+          "actual_output": "{{命令的实际输出，至少 20 字符}}",
+          "executed_at": "{{ISO 时间戳}}"
+        }
+      ],
+      "adversarial_findings": [
+        {
+          "dimension": "{{检查维度，如 completeness / consistency / security}}",
+          "finding": "{{发现内容，可以是 'no issues' 但必须说明检查了什么}}",
+          "disposition": "{{处置方式}}"
+        }
+      ],
+      "audit_trail": {
+        "events": [
+          { "timestamp": "{{ISO}}", "event_type": "review_started", "detail": "开始审视" },
+          { "timestamp": "{{ISO}}", "event_type": "cross_review_read", "detail": "阅读对方结论" }
+        ]
+      },
+      "critique_obligation": {
+        "items": [
+          { "type": "risk", "content": "{{风险 1}}" },
+          { "type": "risk", "content": "{{风险 2}}" },
+          { "type": "gap", "content": "{{缺口 1}}" },
+          { "type": "alternative", "content": "{{替代方案 1}}" }
+        ]
+      },
+      "independent_analysis": {
+        "my_conclusion": "{{你的独立结论}}",
+        "comparison_with_peer": "{{与对方结论的对比}}",
+        "points_of_agreement": ["{{同意的点}}"],
+        "points_of_disagreement": ["{{不同意的点}}"]
+      },
+      "scenario_coverage": {
+        "scenarios_reviewed": 5,
+        "scenarios_identified": 5,
+        "coverage_ratio": 1.0
+      }
     }
   }
 }
 ```
 
-**注意**：`consensus: true` 必须携带 `adversarial_artifact`，否则引擎会拒绝信号。详见 `cd-shared/references/adversarial-artifact-protocol.md`。
+**注意**：`signal_type: "adversarial_consensus"` 必须携带 `adversarial_artifact`，否则引擎会拒绝信号。详见 `cd-shared/references/adversarial-artifact-protocol.md`。
 
 ### 分歧信号（存在争议）
 
 ```json
 {
   "stage_transition": {
+    "signal_type": "disagreement",
     "target_key": "development",
-    "consensus": false,
     "reason": "关于自动推进条件存在分歧",
     "positions": [
       {

@@ -37,9 +37,9 @@ Agent 通过 `set_final_body` MCP 工具提交最终答复时，如果 text 中�
 
 | 阶段转换 | 自动推进条件 | 升级条件 |
 |----------|-------------|---------|
-| design → development | 收到 `consensus: true` 信号（两个架构师）+ design-01/02 通过 | 收到 `consensus: false` 信号 或 无信号 |
-| development → review | 收到 `consensus: true` + `gate_evidence` 信号 + dev-01~06 通过 | dev-06 evidence 缺失 |
-| review → merge 前置 | 收到 `consensus: true` 信号（两个 reviewer）+ rev-01~03 通过 + review 循环 ≤ 2 轮 | 收到 `consensus: false` 信号 或 review 循环 > 2 轮 |
+| design → development | 收到 `signal_type: "adversarial_consensus"` 信号（两个架构师）+ design-01/02 通过 + 对抗产物 R1-R5 通过 | `signal_type: "disagreement"` 信号 或 R1-R5 校验失败 |
+| development → review | 收到 `signal_type: "gate_complete"` + dev-01~06 通过 | gate_evidence 缺失 |
+| review → merge 前置 | 收到 `signal_type: "adversarial_consensus"` 信号（两个 reviewer）+ rev-01~03 通过 + 对抗产物 R1-R5 通过 | `signal_type: "disagreement"` 信号 或 R1-R5 校验失败 |
 | merge 前置 → merge | **不自动推进**。呈现"合入就绪"状态，等待用户显式执行 | — |
 
 ### 特殊规则
@@ -47,3 +47,22 @@ Agent 通过 `set_final_body` MCP 工具提交最终答复时，如果 text 中�
 - **[Incompatible] 标签**：如果 PR 标题包含 `[Incompatible]`，review → merge 前置的自动推进被阻断，必须等待用户确认
 - **手动 advance**：用户手动调用 `advanceStage()` 时，直接绕过自动推进条件
 - **回滚**：用户可以回退到上一个 stage，回滚时会清理所有信号防止重新触发
+- **R6 雷同检测**：两位 agent 的 `independent_verification` 输出相似度 > 80% 时发出 warning，不阻断自动推进
+- **R7 全空告警**：`adversarial_findings` 全部为"无问题"时发出 warning，不阻断自动推进
+
+## 失败反馈
+
+自动推进引擎每次评估都返回结构化 `EvaluationResult`，包含 `action`（auto_advanced / blocked / escalated）和 `reasons` 列表。每个 reason 包含 `code`、`severity`、`message` 和可选的 `details`。
+
+常见错误码：
+
+| code | 含义 |
+|------|------|
+| `CONTEXT_MISSING` | Issue 上下文缺少必要字段（worktree_path / branch_name / pr_url） |
+| `SPEAKERS_INSUFFICIENT` | 共识信号的 speaker 不足 2 个 |
+| `GATE_FAILED` | gate_evidence 中 required 项缺失或为空 |
+| `INCOMPATIBLE_BLOCKED` | PR 标题含 [Incompatible] |
+| `ADVERSARIAL_VALIDATION_FAILED` | 对抗产物校验失败（附具体规则 R1-R7） |
+| `R6_SIMILARITY_DETECTED` | 跨 speaker 输出雷同（warning，不阻断） |
+
+当自动推进被阻断时，系统会通过 `onEvaluationResult` 通知消费者，前端可展示阻断原因。

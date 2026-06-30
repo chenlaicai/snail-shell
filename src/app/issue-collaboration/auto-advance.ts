@@ -1,5 +1,5 @@
 import type { Stage } from "@domain/issue/model";
-import type { StageTransitionSuggestion, AdversarialArtifact, DesignAdversarialArtifact, ReviewAdversarialArtifact } from "@app/issue-collaboration/port";
+import type { StageTransitionSuggestion, AdversarialArtifact, DesignAdversarialArtifact, ReviewAdversarialArtifact, SignalType, EvaluationResult, EvaluationReason } from "@app/issue-collaboration/port";
 import { getLogger } from "@infra/logger";
 
 const log = getLogger({ module: "auto-advance" });
@@ -15,102 +15,148 @@ export interface AutoAdvanceDeps {
 export class AutoAdvanceEngine {
   constructor(private readonly deps: AutoAdvanceDeps) {}
 
-  async evaluate(stage: Stage, suggestions: StageTransitionSuggestion[]): Promise<void> {
-    if (suggestions.length === 0) return;
+  async evaluate(stage: Stage, suggestions: StageTransitionSuggestion[]): Promise<EvaluationResult> {
+    if (suggestions.length === 0) {
+      return { action: "blocked", reasons: [{ code: "NO_SIGNALS", severity: "info", message: "无信号" }] };
+    }
 
     // merge 阶段不自动推进
     if (stage.available_transitions.some(t => t.to === "merge")) {
       await this.deps.notifyConsumers(stage.id, "onMergeReady", { suggestions });
-      return;
+      return { action: "escalated", reasons: [{ code: "MERGE_REQUIRES_HUMAN", severity: "info", message: "merge 阶段需人工执行" }] };
     }
 
-    // 检查是否有分歧信号
-    const disagreement = suggestions.find(s => s.consensus === false);
-    if (disagreement) {
-      await this.handleDisagreement(stage.id, disagreement);
-      return;
+    // 按 signal_type 路由（向后兼容：推断 signal_type）
+    const typedSuggestions = suggestions.map(s => ({
+      ...s,
+      signal_type: s.signal_type ?? this.inferSignalType(s, stage.key),
+    }));
+
+    // 分歧信号优先处理
+    const disagreements = typedSuggestions.filter(s => s.signal_type === "disagreement");
+    if (disagreements.length > 0) {
+      return await this.handleDisagreement(stage.id, disagreements[disagreements.length - 1]);
     }
 
-    // development stage：单人完成，只需 gate_complete 信号
-    if (stage.key === "development") {
-      await this.evaluateDevelopmentAutoAdvance(stage, suggestions);
-      return;
+    // gate_complete 路由（单人阶段）
+    const gateCompletes = typedSuggestions.filter(s => s.signal_type === "gate_complete");
+    if (gateCompletes.length > 0 && stage.key === "development") {
+      return await this.evaluateGateComplete(stage, gateCompletes);
     }
 
-    // design/review stage：对抗机制，需要两个不同 agent 的共识
-    await this.evaluateAdversarialAutoAdvance(stage, suggestions);
+    // adversarial_consensus 路由（多人阶段）
+    const consensusSignals = typedSuggestions.filter(s => s.signal_type === "adversarial_consensus");
+    if (consensusSignals.length > 0) {
+      return await this.evaluateAdversarialConsensus(stage, consensusSignals);
+    }
+
+    return { action: "blocked", reasons: [{ code: "NO_VALID_SIGNALS", severity: "info", message: "无有效信号" }] };
   }
 
-  private async handleDisagreement(stageId: string, disagreement: StageTransitionSuggestion): Promise<void> {
+  /** 向后兼容：根据字段推断 signal_type。结合 stage.key 防止误路由 */
+  private inferSignalType(suggestion: StageTransitionSuggestion, stageKey: string): SignalType {
+    if (suggestion.consensus === false || (suggestion.positions && suggestion.positions.length > 0)) {
+      return "disagreement";
+    }
+    // design/review 阶段 + consensus: true → adversarial_consensus（无论 adversarial_artifact 是否存在，让 R1 正确拦截）
+    if ((stageKey === "design" || stageKey === "review") && suggestion.consensus === true) {
+      return "adversarial_consensus";
+    }
+    if (suggestion.adversarial_artifact) {
+      return "adversarial_consensus";
+    }
+    return "gate_complete";
+  }
+
+  private async handleDisagreement(stageId: string, disagreement: StageTransitionSuggestion): Promise<EvaluationResult> {
     const reviewRound = (disagreement.review_round ?? 0) + 1;
     disagreement.review_round = reviewRound;
     await this.deps.generateDisagreementCard(stageId, disagreement);
     if (reviewRound > 1) {
       log.warn({ stageId, reviewRound }, "review round exceeds threshold");
     }
+    return {
+      action: "escalated",
+      reasons: [{ code: "DISAGREEMENT", severity: "warning", message: "存在分歧，需人工决策", details: { review_round: reviewRound } }],
+    };
   }
 
-  private async evaluateDevelopmentAutoAdvance(stage: Stage, suggestions: StageTransitionSuggestion[]): Promise<void> {
-    /** 前置条件：校验 Issue.context 必要字段存在性，缺失时阻断自动推进 */
+  private async evaluateGateComplete(stage: Stage, suggestions: StageTransitionSuggestion[]): Promise<EvaluationResult> {
     const missingContext = this.getMissingContextFields(stage);
     if (missingContext.length > 0) {
       await this.notifyMissingContext(stage.id, missingContext);
-      return;
+      return { action: "blocked", reasons: [{ code: "CONTEXT_MISSING", severity: "error", message: "Issue 上下文缺少必要字段", details: { missing_fields: missingContext } }] };
     }
-    const gateComplete = suggestions.find(s => s.consensus === undefined && s.gate_evidence);
-    if (!gateComplete || !this.allGatesPassed(stage, gateComplete)) return;
-    await this.executeAutoAdvance(stage, gateComplete);
+    const latest = suggestions[suggestions.length - 1];
+    const failedGates = this.getFailedGates(stage, latest);
+    if (failedGates.length > 0) {
+      return { action: "blocked", reasons: [{ code: "GATE_FAILED", severity: "error", message: `Gate 自检未通过：${failedGates.join(", ")}`, details: { failed_gates: failedGates } }] };
+    }
+    await this.executeAutoAdvance(stage, latest);
+    return { action: "auto_advanced", target_key: latest.target_key, reasons: [{ code: "AUTO_ADVANCED", severity: "info", message: "自动推进成功" }] };
   }
 
-  private async evaluateAdversarialAutoAdvance(stage: Stage, suggestions: StageTransitionSuggestion[]): Promise<void> {
-    const consensusSignals = suggestions.filter(s => s.consensus === true);
+  private async evaluateAdversarialConsensus(stage: Stage, consensusSignals: StageTransitionSuggestion[]): Promise<EvaluationResult> {
     const uniqueSpeakers = new Set(consensusSignals.map(s => s.from_speaker));
-    if (uniqueSpeakers.size < 2) return;
+    if (uniqueSpeakers.size < 2) {
+      return { action: "blocked", reasons: [{ code: "SPEAKERS_INSUFFICIENT", severity: "warning", message: `需要 2 个不同 speaker 的共识信号，当前 ${uniqueSpeakers.size} 个`, details: { current_speakers: [...uniqueSpeakers] } }] };
+    }
 
-    /** 前置条件：校验 Issue.context 必要字段存在性，缺失时阻断自动推进 */
     const missingContext = this.getMissingContextFields(stage);
     if (missingContext.length > 0) {
       await this.notifyMissingContext(stage.id, missingContext);
-      return;
+      return { action: "blocked", reasons: [{ code: "CONTEXT_MISSING", severity: "error", message: "Issue 上下文缺少必要字段", details: { missing_fields: missingContext } }] };
     }
 
-    // [Incompatible] 检查
-    if (this.isIncompatibleBlocked(stage)) return;
-
-    // 验证每个 speaker 的最新 consensus 信号都包含有效 gate_evidence
-    for (const speaker of uniqueSpeakers) {
-      const speakerSignals = consensusSignals.filter(s => s.from_speaker === speaker);
-      const latest = speakerSignals[speakerSignals.length - 1];
-      if (!this.allGatesPassed(stage, latest)) return;
+    if (this.isIncompatibleBlocked(stage)) {
+      return { action: "blocked", reasons: [{ code: "INCOMPATIBLE_BLOCKED", severity: "warning", message: "PR 标题含 [Incompatible]，阻断自动推进" }] };
     }
 
-    // 验证对抗产物
-    const latestBySpeaker = new Map<string, StageTransitionSuggestion>();
-    for (const speaker of uniqueSpeakers) {
-      const speakerSignals = consensusSignals.filter(s => s.from_speaker === speaker);
-      const latest = speakerSignals[speakerSignals.length - 1];
-      latestBySpeaker.set(speaker, latest);
-      const validation = this.validateAdversarialArtifact(stage, latest);
-      if (!validation.valid) {
-        log.warn({ stageId: stage.id, speaker, reason: validation.reason }, "adversarial artifact validation failed");
-        await this.deps.notifyConsumers(stage.id, "onDisagreement", latest);
-        return;
-      }
-      // R7: adversarial_findings 全部为"无问题"时告警（不阻断）
-      if (validation.allClear) {
-        log.warn({ stageId: stage.id, speaker }, "adversarial_findings all clear — no issues found");
-        await this.deps.notifyConsumers(stage.id, "onDisagreement", { ...latest, _warning: "adversarial_findings_all_clear" });
-      }
-    }
+    const latestBySpeaker = this.getLatestBySpeaker(consensusSignals, uniqueSpeakers);
+    const speakerValidation = this.validateAllSpeakers(stage, latestBySpeaker);
+    if (speakerValidation) return speakerValidation;
 
-    // R6: 跨 speaker independent_verification 输出雷同检测
-    if (this.hasSimilarVerificationOutputs(latestBySpeaker)) {
+    const r6Warning = this.checkR6Similarity(latestBySpeaker);
+    if (r6Warning) {
       log.warn({ stageId: stage.id }, "R6: cross-speaker verification outputs are suspiciously similar (>80%)");
-      return;
     }
 
     const latest = consensusSignals[consensusSignals.length - 1];
     await this.executeAutoAdvance(stage, latest);
+    const reasons: EvaluationReason[] = [{ code: "AUTO_ADVANCED", severity: "info", message: "自动推进成功" }];
+    if (r6Warning) {
+      reasons.push({ code: "R6_SIMILARITY_DETECTED", severity: "warning", message: "两位 agent 的独立验证输出高度相似（>80%），可能存在抄袭" });
+    }
+    return { action: "auto_advanced", target_key: latest.target_key, reasons };
+  }
+
+  private getLatestBySpeaker(consensusSignals: StageTransitionSuggestion[], uniqueSpeakers: Set<string>): Map<string, StageTransitionSuggestion> {
+    const latestBySpeaker = new Map<string, StageTransitionSuggestion>();
+    for (const speaker of uniqueSpeakers) {
+      const speakerSignals = consensusSignals.filter(s => s.from_speaker === speaker);
+      latestBySpeaker.set(speaker, speakerSignals[speakerSignals.length - 1]);
+    }
+    return latestBySpeaker;
+  }
+
+  /** 验证所有 speaker 的 gate 和对抗产物，返回 null 表示全部通过 */
+  private validateAllSpeakers(stage: Stage, latestBySpeaker: Map<string, StageTransitionSuggestion>): EvaluationResult | null {
+    for (const [speaker, latest] of latestBySpeaker) {
+      const failedGates = this.getFailedGates(stage, latest);
+      if (failedGates.length > 0) {
+        return { action: "blocked", reasons: [{ code: "GATE_FAILED", severity: "error", message: `Gate 自检未通过（${speaker}）：${failedGates.join(", ")}`, details: { failed_gates: failedGates, speaker } }] };
+      }
+      const validation = this.validateAdversarialArtifact(stage, latest);
+      if (!validation.valid) {
+        log.warn({ stageId: stage.id, speaker, reason: validation.reason }, "adversarial artifact validation failed");
+        const errorCode = validation.rule === "R1_ARTIFACT_MISSING" ? "ADVERSARIAL_ARTIFACT_MISSING" : "ADVERSARIAL_VALIDATION_FAILED";
+        return { action: "blocked", reasons: [{ code: errorCode, severity: "error", message: `对抗产物校验失败（${speaker}）：${validation.reason}`, details: { speaker, rule: validation.rule } }] };
+      }
+      if (validation.allClear) {
+        log.warn({ stageId: stage.id, speaker }, "adversarial_findings all clear — no issues found");
+      }
+    }
+    return null;
   }
 
   /** 各 stage 推进所需的 Issue.context 必要字段 */
@@ -120,7 +166,6 @@ export class AutoAdvanceEngine {
     review: ["pr_url"],
   };
 
-  /** 校验 Issue.context 中必要字段是否存在，返回缺失字段列表 */
   private getMissingContextFields(stage: Stage): string[] {
     const requiredFields = AutoAdvanceEngine.REQUIRED_CONTEXT_FIELDS[stage.key];
     if (!requiredFields) return [];
@@ -128,7 +173,6 @@ export class AutoAdvanceEngine {
     return requiredFields.filter(field => !issue.context[field]?.trim());
   }
 
-  /** 通知消费者 context 字段缺失，阻断自动推进 */
   private async notifyMissingContext(stageId: string, missingFields: string[]): Promise<void> {
     log.warn({ stageId, missingFields }, "auto-advance blocked: missing context fields");
     await this.deps.notifyConsumers(stageId, "onContextMissing", { missing_fields: missingFields });
@@ -154,66 +198,74 @@ export class AutoAdvanceEngine {
     });
   }
 
-  allGatesPassed(stage: Stage, suggestion: StageTransitionSuggestion): boolean {
+  /** 返回未通过的 gate ID 列表（空数组表示全部通过） */
+  private getFailedGates(stage: Stage, suggestion: StageTransitionSuggestion): string[] {
     const stageKey = stage.key;
     const gateEvidence = suggestion.gate_evidence ?? {};
-
     switch (stageKey) {
-      case "design":
-        return this.checkDesignGates(gateEvidence);
-      case "development":
-        return this.checkDevGates(gateEvidence);
-      case "review":
-        return this.checkReviewGates(gateEvidence);
-      default:
-        return false;
+      case "design": return this.getFailedDesignGates(gateEvidence);
+      case "development": return this.getFailedDevGates(gateEvidence);
+      case "review": return this.getFailedReviewGates(gateEvidence);
+      default: return ["unknown_stage"];
     }
   }
 
-  private checkDesignGates(evidence: Record<string, unknown>): boolean {
-    const design01 = evidence["design-01"];
-    const design02 = evidence["design-02"];
-    return typeof design01 === "string" && design01.trim().length > 0 &&
-           typeof design02 === "string" && design02.trim().length > 0;
-  }
-
-  private checkDevGates(evidence: Record<string, unknown>): boolean {
-    const requiredGates = ["dev-01", "dev-02", "dev-03", "dev-04", "dev-06"];
-    return requiredGates.every(gate => {
+  private getFailedDesignGates(evidence: Record<string, unknown>): string[] {
+    const failed: string[] = [];
+    for (const gate of ["design-01", "design-02"]) {
       const value = evidence[gate];
-      return typeof value === "string" && value.trim().length > 0;
-    });
+      if (typeof value !== "string" || !value.trim()) failed.push(gate);
+    }
+    return failed;
   }
 
-  private checkReviewGates(evidence: Record<string, unknown>): boolean {
-    const requiredGates = ["rev-01", "rev-02", "rev-03"];
-    return requiredGates.every(gate => {
+  private getFailedDevGates(evidence: Record<string, unknown>): string[] {
+    const failed: string[] = [];
+    for (const gate of ["dev-01", "dev-02", "dev-03", "dev-04", "dev-06"]) {
       const value = evidence[gate];
-      return typeof value === "string" && value.trim().length > 0;
-    });
+      if (typeof value !== "string" || !value.trim()) failed.push(gate);
+    }
+    return failed;
   }
 
-  /** 校验对抗产物的语义内容，返回 { valid, reason, allClear } */
-  validateAdversarialArtifact(stage: Stage, suggestion: StageTransitionSuggestion): { valid: boolean; reason?: string; allClear?: boolean } {
+  private getFailedReviewGates(evidence: Record<string, unknown>): string[] {
+    const failed: string[] = [];
+    for (const gate of ["rev-01", "rev-02", "rev-03"]) {
+      const value = evidence[gate];
+      if (typeof value !== "string" || !value.trim()) failed.push(gate);
+    }
+    return failed;
+  }
+
+  /** 保留 allGatesPassed 供外部调用（如测试） */
+  allGatesPassed(stage: Stage, suggestion: StageTransitionSuggestion): boolean {
+    return this.getFailedGates(stage, suggestion).length === 0;
+  }
+
+  /** 校验对抗产物的语义内容，返回 { valid, reason, rule, allClear } */
+  validateAdversarialArtifact(stage: Stage, suggestion: StageTransitionSuggestion): { valid: boolean; reason?: string; rule?: string; allClear?: boolean } {
+    // R1: adversarial_artifact 必须存在
     const artifact = suggestion.adversarial_artifact;
     if (!artifact) {
-      return { valid: false, reason: "missing adversarial_artifact" };
+      return { valid: false, reason: "missing adversarial_artifact", rule: "R1_ARTIFACT_MISSING" };
     }
 
+    // R2: audit_trail 校验
     const auditResult = this.validateAuditTrail(artifact);
-    if (auditResult) return auditResult;
+    if (auditResult) return { ...auditResult, rule: "R2" };
 
     // R3: independent_verification 的 actual_output 长度 >= 20 字符
     if (artifact.independent_verification.some(v => v.actual_output.length < 20)) {
-      return { valid: false, reason: "independent_verification actual_output too short (< 20 chars)" };
+      return { valid: false, reason: "independent_verification actual_output too short (< 20 chars)", rule: "R3" };
     }
 
+    // R4/R5: 阶段特有字段
     const stageResult = this.validateStageSpecificFields(stage, artifact);
-    if (stageResult) return stageResult;
+    if (stageResult) return { ...stageResult, rule: stage.key === "design" ? "R4" : "R5" };
 
     // adversarial_findings 不得为空数组
     if (artifact.adversarial_findings.length === 0) {
-      return { valid: false, reason: "adversarial_findings must not be empty" };
+      return { valid: false, reason: "adversarial_findings must not be empty", rule: "R1" };
     }
 
     // R7: adversarial_findings 全部为"无问题"时标记（不阻断）
@@ -263,8 +315,8 @@ export class AutoAdvanceEngine {
       artifact.file_coverage.coverage_ratio === 1.0;
   }
 
-  /** R6: 检测跨 speaker 的 independent_verification 输出是否雷同（相似度 > 80%） */
-  private hasSimilarVerificationOutputs(latestBySpeaker: Map<string, StageTransitionSuggestion>): boolean {
+  /** R6: 检测跨 speaker 的 independent_verification 输出是否雷同（相似度 > 80%）。返回 true 表示检测到雷同 */
+  private checkR6Similarity(latestBySpeaker: Map<string, StageTransitionSuggestion>): boolean {
     const speakers = [...latestBySpeaker.keys()];
     if (speakers.length < 2) return false;
 
@@ -274,7 +326,6 @@ export class AutoAdvanceEngine {
       return artifact.independent_verification.map(v => v.actual_output);
     });
 
-    // 两两比较
     for (let i = 0; i < outputs.length; i++) {
       for (let j = i + 1; j < outputs.length; j++) {
         if (this.isSimilar(outputs[i], outputs[j])) return true;
@@ -283,7 +334,6 @@ export class AutoAdvanceEngine {
     return false;
   }
 
-  /** 计算两组输出的相似度，任一对 > 80% 即视为雷同 */
   private isSimilar(outputsA: string[], outputsB: string[]): boolean {
     if (outputsA.length === 0 || outputsB.length === 0) return false;
     for (const a of outputsA) {
@@ -294,22 +344,18 @@ export class AutoAdvanceEngine {
     return false;
   }
 
-  /** 简单字符串相似度：公共字符数 / 较长字符串长度 */
   private stringSimilarity(a: string, b: string): number {
     if (a === b) return 1;
     if (a.length === 0 || b.length === 0) return 0;
     const longer = a.length > b.length ? a : b;
     const shorter = a.length > b.length ? b : a;
-    // 使用 LCS 长度 / 较长字符串长度
     const lcsLength = this.lcsLength(longer, shorter);
     return lcsLength / longer.length;
   }
 
-  /** 最长公共子序列长度 */
   private lcsLength(a: string, b: string): number {
     const m = a.length;
     const n = b.length;
-    // 空间优化：只保留两行
     let prev = new Array<number>(n + 1).fill(0);
     let curr = new Array<number>(n + 1).fill(0);
     for (let i = 1; i <= m; i++) {
