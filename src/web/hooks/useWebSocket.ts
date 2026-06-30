@@ -216,13 +216,14 @@ class EventBatcher {
       if (!updates) return m;
       changed = true;
       const latest = updates[updates.length - 1];
+      const endedAt = latest.ended_at ?? m.ended_at;
       return {
         ...m,
         status: latest.status,
         context: latest.context ?? m.context,
         content: latest.context?.context ?? m.content,
-        updated_at: new Date().toISOString(),
-        ended_at: latest.ended_at ?? m.ended_at,
+        ended_at: endedAt,
+        updated_at: endedAt ?? new Date().toISOString(),
       };
     });
     return { messages: result, changed };
