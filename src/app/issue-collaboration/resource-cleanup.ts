@@ -22,12 +22,13 @@ const RESERVED_BRANCHES = new Set(["main", "master"]);
 
 /**
  * 校验分支名安全性。
- * 拒绝保留分支、origin/ 前缀、含 .. 或空格的名称、git check-ref-format 不通过的名称。
+ * 拒绝保留分支、origin/ 前缀；使用 git check-ref-format --branch 验证格式。
  */
-export function validateBranchName(name: string): { valid: boolean; error?: string } {
+export async function validateBranchName(name: string): Promise<{ valid: boolean; error?: string }> {
   if (RESERVED_BRANCHES.has(name)) return { valid: false, error: `拒绝删除保留分支: ${name}` };
   if (name.startsWith("origin/")) return { valid: false, error: `拒绝删除远端引用: ${name}` };
-  if (name.includes("..") || name.includes(" ")) return { valid: false, error: `分支名含非法字符: ${name}` };
+  const { exitCode } = await execCommand("git", ["check-ref-format", "--branch", name]);
+  if (exitCode !== 0) return { valid: false, error: `分支名格式非法: ${name}` };
   return { valid: true };
 }
 
@@ -83,7 +84,7 @@ export async function cleanupResources(
 
   // 3. 删除本地分支（需要先校验分支名）
   if (branchName) {
-    const validation = validateBranchName(branchName);
+    const validation = await validateBranchName(branchName);
     if (!validation.valid) {
       result.localBranch = { status: "failed", error: validation.error };
       result.remoteBranch = { status: "failed", error: validation.error };
@@ -172,7 +173,7 @@ async function deleteLocalBranch(branchName: string): Promise<ResourceResult> {
       return { status: "success" };
     }
     // 分支不存在
-    if (stderr.includes("not found") || stderr.includes("A branch named")) {
+    if (stderr.includes("not found") || stderr.includes("No such branch")) {
       log.info({ branchName }, "cleanup.local_branch.not_found");
       return { status: "skipped", error: "本地分支不存在" };
     }
@@ -197,7 +198,7 @@ async function deleteRemoteBranch(branchName: string): Promise<ResourceResult> {
       return { status: "success" };
     }
     // 远端分支不存在
-    if (stderr.includes("remote ref does not exist") || stderr.includes("Could not find ref")) {
+    if (stderr.includes("remote ref does not exist") || stderr.includes("Could not find ref") || stderr.includes("error: unable to delete")) {
       log.info({ branchName }, "cleanup.remote_branch.not_found");
       return { status: "skipped", error: "远端分支不存在" };
     }

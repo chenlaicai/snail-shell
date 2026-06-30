@@ -36,32 +36,41 @@ function mockExecFail(exitCode: number, stderr: string) {
 // ── validateBranchName ────────────────────────────────────────────────
 
 describe("validateBranchName", () => {
-  it("拒绝 main 分支", () => {
-    expect(validateBranchName("main")).toEqual({ valid: false, error: "拒绝删除保留分支: main" });
+  it("拒绝 main 分支", async () => {
+    expect(await validateBranchName("main")).toEqual({ valid: false, error: "拒绝删除保留分支: main" });
   });
 
-  it("拒绝 master 分支", () => {
-    expect(validateBranchName("master")).toEqual({ valid: false, error: "拒绝删除保留分支: master" });
+  it("拒绝 master 分支", async () => {
+    expect(await validateBranchName("master")).toEqual({ valid: false, error: "拒绝删除保留分支: master" });
   });
 
-  it("拒绝 origin/ 前缀", () => {
-    expect(validateBranchName("origin/feature-x")).toEqual({ valid: false, error: "拒绝删除远端引用: origin/feature-x" });
+  it("拒绝 origin/ 前缀", async () => {
+    expect(await validateBranchName("origin/feature-x")).toEqual({ valid: false, error: "拒绝删除远端引用: origin/feature-x" });
   });
 
-  it("拒绝含 .. 的分支名", () => {
-    expect(validateBranchName("feature..x")).toEqual({ valid: false, error: "分支名含非法字符: feature..x" });
+  it("拒绝含 .. 的分支名（git check-ref-format）", async () => {
+    mockExecFail(1, "");
+    expect(await validateBranchName("feature..x")).toEqual({ valid: false, error: "分支名格式非法: feature..x" });
   });
 
-  it("拒绝含空格的分支名", () => {
-    expect(validateBranchName("feature x")).toEqual({ valid: false, error: "分支名含非法字符: feature x" });
+  it("拒绝含空格的分支名（git check-ref-format）", async () => {
+    mockExecFail(1, "");
+    expect(await validateBranchName("feature x")).toEqual({ valid: false, error: "分支名格式非法: feature x" });
   });
 
-  it("接受合法分支名", () => {
-    expect(validateBranchName("feature-close-auto-cleanup")).toEqual({ valid: true });
+  it("拒绝以 - 开头的分支名（git check-ref-format）", async () => {
+    mockExecFail(1, "");
+    expect(await validateBranchName("-feature")).toEqual({ valid: false, error: "分支名格式非法: -feature" });
   });
 
-  it("接受含斜杠的分支名（非 origin/ 前缀）", () => {
-    expect(validateBranchName("feature/close-auto-cleanup")).toEqual({ valid: true });
+  it("接受合法分支名", async () => {
+    mockExecSuccess();
+    expect(await validateBranchName("feature-close-auto-cleanup")).toEqual({ valid: true });
+  });
+
+  it("接受含斜杠的分支名（非 origin/ 前缀）", async () => {
+    mockExecSuccess();
+    expect(await validateBranchName("feature/close-auto-cleanup")).toEqual({ valid: true });
   });
 });
 
@@ -171,13 +180,18 @@ describe("cleanupResources", () => {
   });
 
   it("分支未合入时 localBranch failed，远端不受阻断", async () => {
-    // 第一次调用（local branch -d）失败
+    // 第一次调用（check-ref-format）成功
+    mockExecFile.mockImplementationOnce((_cmd, _args, _opts, cb) => {
+      cb?.(null, "", "");
+      return {} as any;
+    });
+    // 第二次调用（local branch -d）失败
     mockExecFile.mockImplementationOnce((_cmd, _args, _opts, cb) => {
       const err = Object.assign(new Error("not fully merged"), { code: 1 });
       cb?.(err, "", "error: The branch 'feature-x' is not fully merged.");
       return {} as any;
     });
-    // 第二次调用（push origin --delete）成功
+    // 第三次调用（push origin --delete）成功
     mockExecFile.mockImplementationOnce((_cmd, _args, _opts, cb) => {
       cb?.(null, "", "");
       return {} as any;
@@ -199,6 +213,11 @@ describe("cleanupResources", () => {
   });
 
   it("远端分支不存在时 skipped", async () => {
+    // check-ref-format 成功
+    mockExecFile.mockImplementationOnce((_cmd, _args, _opts, cb) => {
+      cb?.(null, "", "");
+      return {} as any;
+    });
     // local branch 成功
     mockExecFile.mockImplementationOnce((_cmd, _args, _opts, cb) => {
       cb?.(null, "", "");

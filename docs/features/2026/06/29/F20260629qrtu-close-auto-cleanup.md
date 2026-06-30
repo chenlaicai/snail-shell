@@ -1,7 +1,7 @@
 ---
 id: F20260629qrtu
 title: Close Issue 自动清理关联资源
-status: implemented
+status: in_review
 created_at: 2026-06-29
 ---
 
