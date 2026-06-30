@@ -192,7 +192,7 @@ describe("set_final_body to_speakers validation", () => {
     const handler = server.tools[0].handler;
 
     const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a", to_speakers: ["架构师-2"] });
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, proceed: "end_turn" });
     expect(capturedTargets).toEqual(["架构师-2"]);
   });
 
@@ -210,7 +210,7 @@ describe("set_final_body to_speakers validation", () => {
     const handler = server.tools[0].handler;
 
     const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a", to_speakers: ["user"] });
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, proceed: "end_turn" });
     expect(capturedTargets).toEqual(["user"]);
   });
 
@@ -244,7 +244,7 @@ describe("set_final_body to_speakers validation", () => {
     const handler = server.tools[0].handler;
 
     const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a", to_speakers: [] });
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, proceed: "end_turn" });
   });
 
   it("rejects self-routing (to_speakers contains current speaker)", async () => {
@@ -266,7 +266,7 @@ describe("set_final_body to_speakers validation", () => {
     const handler = server.tools[0].handler;
 
     const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a" });
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, proceed: "end_turn" });
   });
 
   it("skips validation when stage is not found (defensive fallback)", async () => {
@@ -284,7 +284,7 @@ describe("set_final_body to_speakers validation", () => {
     const handler = server.tools[0].handler;
 
     const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a", to_speakers: ["anyone"] });
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, proceed: "end_turn" });
     expect(capturedTargets).toEqual(["anyone"]);
   });
 
@@ -302,7 +302,7 @@ describe("set_final_body to_speakers validation", () => {
     const handler = server.tools[0].handler;
 
     const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a", to_speakers: ["架构师-2", "审查者-1", "user"] });
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, proceed: "end_turn" });
     expect(capturedTargets).toEqual(["架构师-2", "审查者-1", "user"]);
   });
 });
