@@ -1,6 +1,8 @@
 import type { MCPServerConfig } from "@domain/snail-mcp-server/model";
 import type { McpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-message-store";
 import type { MessagePort } from "@domain/message/port";
+import { getLogger } from "@infra/logger";
+const log = getLogger({ module: "snail-final-response" });
 
 /**
  * snail-final-response MCP Server。
@@ -44,6 +46,15 @@ export function createFinalResponseServer(messagePort: MessagePort, mcpMessageSt
             }
           }
           messagePort.setContext(messageId, "mcp_final_body", text);
+          /** 自动从 text 中提取 stage_transition 信号，注入为 signal 事件 */
+          const stageTransition = extractStageTransition(text);
+          if (stageTransition) {
+            messagePort.appendEvent(messageId, {
+              type: "signal",
+              signal: "stage_transition",
+              stage_transition: stageTransition,
+            });
+          }
           /** to_speakers 非空数组时写入 store；空数组视为"未指定"，不写入 */
           if (Array.isArray(params.to_speakers) && params.to_speakers.length > 0) {
             const targets = (params.to_speakers as unknown[]).filter((t): t is string => typeof t === "string");
@@ -56,4 +67,42 @@ export function createFinalResponseServer(messagePort: MessagePort, mcpMessageSt
       },
     ],
   };
+}
+
+/**
+ * 从 agent 输出文本中提取 stage_transition JSON。
+ * agent 可能输出纯 JSON，也可能在 Markdown 中嵌入 JSON 块。
+ * 解析失败时静默返回 null（agent 可能没有输出信号，这是正常情况）。
+ */
+function extractStageTransition(text: string): Record<string, unknown> | null {
+  const direct = tryParseStageTransition(text);
+  if (direct) return direct;
+  const marker = '"stage_transition"';
+  const markerIdx = text.indexOf(marker);
+  if (markerIdx < 0) return null;
+  const startIdx = text.lastIndexOf("{", markerIdx);
+  if (startIdx < 0) return null;
+  const endIdx = findMatchingBrace(text, startIdx);
+  if (endIdx < 0) return null;
+  return tryParseStageTransition(text.slice(startIdx, endIdx + 1));
+}
+
+function tryParseStageTransition(text: string): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(text) as { stage_transition?: unknown };
+    if (parsed?.stage_transition && typeof parsed.stage_transition === "object") return parsed.stage_transition as Record<string, unknown>;
+  } catch {
+    log.debug({ textLength: text.length }, "stage_transition.parse.skipped");
+  }
+  return null;
+}
+
+/** 从 startIdx 处的 { 开始，计数花括号找到匹配的 } 位置 */
+function findMatchingBrace(text: string, startIdx: number): number {
+  let depth = 0;
+  for (let i = startIdx; i < text.length; i++) {
+    if (text[i] === "{") depth++;
+    else if (text[i] === "}") { depth--; if (depth === 0) return i; }
+  }
+  return -1;
 }
