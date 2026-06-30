@@ -15,5 +15,7 @@ export const CONTEXT_KEYS = {
   STAGE_ID: "SNAIL_CTX_STAGE_ID",
   /** 当前消息 ID */
   MESSAGE_ID: "SNAIL_CTX_MESSAGE_ID",
+  /** 当前 Snail Key */
+  SNAIL_KEY: "SNAIL_CTX_SNAIL_KEY",
 } as const;
 
