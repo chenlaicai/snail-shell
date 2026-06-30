@@ -1,4 +1,4 @@
-import type { Issue, Stage, CreateStageInput, RoleSnailAssignment, StagePreview, IssueSnailAssignmentPlan, StageSnailAssignmentPlan } from "@domain/issue/model";
+import type { Issue, Stage, CreateStageInput, RoleSnailAssignment, StagePreview, IssueSnailAssignmentPlan, StageSnailAssignmentPlan, CreateChildIssueInput, IssueAggregateStatus, AggregatedProgress } from "@domain/issue/model";
 import type { Sop } from "@domain/sop/model";
 
 export interface StageAuditRecord {
@@ -21,6 +21,16 @@ export interface IssuePort {
   updateContext(issueId: string, context: Record<string, string>): void;
   /** 关闭 issue（用户主动终止，任意阶段可调用，幂等） */
   closeIssue(id: string): Issue;
+  /** 创建子 issue */
+  createChildIssue(input: CreateChildIssueInput): Issue;
+  /** 查找所有直接子 issue */
+  listChildren(parentIssueId: string): Issue[];
+  /** 更新聚合状态和进度 */
+  updateAggregatedStatus(issueId: string, status: IssueAggregateStatus, progress: AggregatedProgress): void;
+  /** 获取 issue 的依赖关系 */
+  getDependencies(issueId: string): { issue_id: string; depends_on: string }[];
+  /** 检查子 issue 是否就绪（所有依赖已完成） */
+  isChildIssueReady(issueId: string): boolean;
 }
 
 /** Stage 端口 */

@@ -3,6 +3,20 @@ import type { Sop, RoleDefinition } from "@domain/sop/model";
 export type StageSnailAssignmentPlan = Record<string, string>;
 export type IssueSnailAssignmentPlan = Record<string, StageSnailAssignmentPlan>;
 
+// ── Issue 聚合状态 ──────────────────────────────────────────────────
+
+/** 子 issue 聚合状态 */
+export type IssueAggregateStatus = "pending" | "in_progress" | "blocked" | "completed" | "failed";
+
+/** 聚合进度信息 */
+export interface AggregatedProgress {
+  total: number;
+  completed: number;
+  in_progress: number;
+  failed: number;
+  blocked: number;
+}
+
 // ── Issue ─────────────────────────────────────────────────────────────
 
 export interface Issue {
@@ -16,6 +30,16 @@ export interface Issue {
   context: Record<string, string>;
   created_at: string;
   closed_at: string | null;
+  /** 父 issue ID，顶层项目 issue 为 null */
+  parent_issue_id: string | null;
+  /** 直接子 issue ID 列表 */
+  child_issue_ids: string[];
+  /** project=有子 issue 的项目级，task=叶子节点 */
+  issue_type: "project" | "task";
+  /** 子 issue 聚合状态（仅 project 类型有意义） */
+  aggregated_status: IssueAggregateStatus;
+  /** 聚合进度信息 */
+  aggregated_progress: AggregatedProgress;
 }
 
 export interface CreateIssueInput {
@@ -25,6 +49,31 @@ export interface CreateIssueInput {
   adopted_sop_key: string;
   snail_assignment_plan: IssueSnailAssignmentPlan;
   /** 创建时注入的初始上下文（可选），后续由 Agent 通过 MCP 工具追加 */
+  context?: Record<string, string>;
+  /** 父 issue ID（创建子 issue 时传入） */
+  parent_issue_id?: string | null;
+  /** issue 类型 */
+  issue_type?: "project" | "task";
+}
+
+// ── Issue 依赖 ──────────────────────────────────────────────────────
+
+/** 子 issue 依赖关系 */
+export interface IssueDependency {
+  issue_id: string;
+  depends_on: string;
+  created_at: string;
+}
+
+// ── create_child_issue 输入 ─────────────────────────────────────────
+
+export interface CreateChildIssueInput {
+  parent_issue_id: string;
+  title: string;
+  scope: string;
+  sop_key: string;
+  depends_on?: string[];
+  snail_assignment_plan?: IssueSnailAssignmentPlan;
   context?: Record<string, string>;
 }
 

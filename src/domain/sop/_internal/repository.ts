@@ -5,6 +5,77 @@ import type { Sop, StageDefinition, RoleDefinition, Transition } from "@domain/s
 import type { FileDataStore } from "@infra/file-data-store";
 import { getLogger } from "@infra/logger";
 
+export interface SopValidationError {
+  rule: string;
+  level: "block" | "warn";
+  message: string;
+}
+
+/**
+ * SOP 校验规则 S1-S6
+ * S1: 至少 1 个 stage（阻断）
+ * S2: 每个 stage 至少 1 个 role（阻断）
+ * S3: transitions 引用的 stage key 必须在 stages 中定义（阻断）
+ * S4: 涉及代码变更的 SOP 必须有 review stage（阻断）
+ * S5: SOP 必须有且仅有一个入口 stage（阻断）
+ * S6: gate 覆盖度不足（警告）
+ */
+export function validateSop(sop: Sop): SopValidationError[] {
+  const errors: SopValidationError[] = [];
+  const stageKeys = new Set(sop.stage_definitions.map(sd => sd.key));
+
+  if (sop.stage_definitions.length === 0) {
+    errors.push({ rule: "S1", level: "block", message: "SOP must have at least 1 stage" });
+  }
+
+  validateStageRoles(sop, errors);
+  validateTransitionKeys(sop, stageKeys, errors);
+  validateCodeReviewRequirement(sop, errors);
+  validateEntryStage(sop, errors);
+  validateGateCoverage(sop, errors);
+
+  return errors;
+}
+
+function validateStageRoles(sop: Sop, errors: SopValidationError[]): void {
+  for (const sd of sop.stage_definitions) {
+    if (sd.roles.length === 0) {
+      errors.push({ rule: "S2", level: "block", message: `Stage "${sd.key}" must have at least 1 role` });
+    }
+  }
+}
+
+function validateTransitionKeys(sop: Sop, stageKeys: Set<string>, errors: SopValidationError[]): void {
+  for (const t of sop.transitions) {
+    if (!stageKeys.has(t.from)) errors.push({ rule: "S3", level: "block", message: `Transition references unknown stage: "${t.from}"` });
+    if (!stageKeys.has(t.to)) errors.push({ rule: "S3", level: "block", message: `Transition references unknown stage: "${t.to}"` });
+  }
+}
+
+function validateCodeReviewRequirement(sop: Sop, errors: SopValidationError[]): void {
+  const hasCodeStage = sop.stage_definitions.some(sd => sd.key === "development" || sd.key === "prototype");
+  if (hasCodeStage && !sop.stage_definitions.some(sd => sd.key === "review")) {
+    errors.push({ rule: "S4", level: "block", message: "SOP with code stages must have a review stage" });
+  }
+}
+
+function validateEntryStage(sop: Sop, errors: SopValidationError[]): void {
+  const incomingTargets = new Set(sop.transitions.map(t => t.to));
+  const entryCount = sop.stage_definitions.filter(sd => !incomingTargets.has(sd.key)).length;
+  if (entryCount !== 1) {
+    errors.push({ rule: "S5", level: "block", message: `SOP must have exactly 1 entry stage, found ${entryCount}` });
+  }
+}
+
+function validateGateCoverage(sop: Sop, errors: SopValidationError[]): void {
+  for (const sd of sop.stage_definitions) {
+    const gateCount = sd.gate_ids?.length ?? 0;
+    if (gateCount > 0 && gateCount < 2) {
+      errors.push({ rule: "S6", level: "warn", message: `Stage "${sd.key}" has only ${gateCount} gate(s), recommend at least 2` });
+    }
+  }
+}
+
 const log = getLogger({ module: "sop" });
 
 /** SOP 持久层接口 */
@@ -185,11 +256,14 @@ export class FileSopRepository implements SopRepository {
       this.parseRoleDefinition(r, sopDir)
     ) ?? [];
 
+    const gateIds = Array.isArray(data.gate_ids) ? (data.gate_ids as string[]) : null;
+
     return {
       key: data.key as string,
       title: data.title as string,
       description: (data.description as string) ?? "",
       roles,
+      gate_ids: gateIds,
     };
   }
 
@@ -230,6 +304,7 @@ export class FileSopRepository implements SopRepository {
     data.stage_definitions = sop.stage_definitions.map(sd => {
       const stage: Record<string, unknown> = { key: sd.key, title: sd.title };
       if (sd.description != null) stage.description = sd.description;
+      if (sd.gate_ids != null) stage.gate_ids = sd.gate_ids;
       stage.roles = sd.roles.map(r => {
         const role: Record<string, unknown> = { key: r.key, name: r.name };
         if (r.description != null) role.description = r.description;

@@ -73,6 +73,8 @@ async function initModules(repoRoot: string, serverSettings: ServerSettings) {
     stage: issue.stageAdapter,
     featureChain: featureChain.adapter,
     mcpMessageStore,
+    sop: sop.adapter,
+    workspaces,
   });
   const mcp = initMCP({ dataStore, workspaces, snailMCPServer: snailMCPServer.adapter, serverSettings });
   const guardProfile = initGuardProfile(dataStore);

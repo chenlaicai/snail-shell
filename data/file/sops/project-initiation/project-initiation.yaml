@@ -1,0 +1,105 @@
+# SOP: 项目级需求分解与子 issue 自治推进
+# 来源: platform
+# 文件名即 key: project-initiation
+
+name: 项目级需求分解
+description: 接收用户需求，经过分析和分解，创建子 issue 并行推进，监控聚合状态，最终集成交付。
+
+stage_definitions:
+  - key: intake
+    title: 需求接收
+    description: PM 接收用户需求，理解并记录需求摘要。
+    gate_ids:
+      - intake-01
+    roles:
+      - key: pm
+        name: PM
+        description: 负责接收和理解用户需求，产出需求摘要。
+        is_primary: true
+        skill: project-intake
+
+  - key: analysis
+    title: 技术分析
+    description: 架构师和 PM 协作进行技术可行性分析，产出粗粒度模块划分。
+    gate_ids:
+      - analysis-01
+    roles:
+      - key: architect
+        name: 架构师
+        description: 负责技术可行性分析和模块划分。
+        is_primary: true
+        skill: project-analysis
+      - key: pm
+        name: PM
+        description: 负责需求澄清和优先级判断。
+
+  - key: decomposition
+    title: 需求分解
+    description: 架构师将需求拆分为子 issue，定义依赖关系和 SOP 指派。
+    gate_ids:
+      - decom-01
+      - decom-02
+      - decom-03
+    roles:
+      - key: architect
+        name: 架构师
+        description: 负责将需求拆分为子 issue，定义依赖关系和 SOP 指派。通过 create_child_issue MCP 工具逐步创建子 issue。
+        is_primary: true
+        skill: project-decomposition
+
+  - key: monitor
+    title: 进度监控
+    description: 系统自动驱动的调度器，监控子 issue 聚合状态，自动调度就绪的子 issue，处理失败场景。Monitor stage 绕过 AutoAdvanceEngine，由 MonitorScheduler 组件执行。
+    gate_ids:
+      - monitor-01
+    roles:
+      - key: pm
+        name: PM
+        description: 监控角色，接收系统通知，处理失败场景。
+        is_primary: true
+        skill: project-monitor
+
+  - key: integration
+    title: 集成验证
+    description: 架构师和审查者验证交付物完整性，所有子 issue PR 已合入且集成验证通过。
+    gate_ids:
+      - integ-01
+      - integ-02
+    roles:
+      - key: architect
+        name: 架构师
+        description: 负责集成验证。
+        is_primary: true
+      - key: reviewer
+        name: 审查者
+        description: 负责集成验证的审查。
+
+  - key: delivery
+    title: 项目交付
+    description: PM 产出项目交付报告。
+    gate_ids:
+      - delivery-01
+    roles:
+      - key: pm
+        name: PM
+        description: 负责产出项目交付报告。
+        is_primary: true
+
+transitions:
+  # 线性前进路径
+  - from: intake
+    to: analysis
+  - from: analysis
+    to: decomposition
+  - from: decomposition
+    to: monitor
+  - from: monitor
+    to: integration
+  - from: integration
+    to: delivery
+
+  # 打回路径
+  - from: decomposition
+    to: analysis
+  - from: integration
+    to: decomposition

@@ -1,5 +1,5 @@
 import type { SQLiteDatabase } from "@infra/database";
-import type { Issue, Stage, RoleSnailAssignment } from "@domain/issue/model";
+import type { Issue, Stage, RoleSnailAssignment, IssueAggregateStatus, AggregatedProgress } from "@domain/issue/model";
 import type { StageAuditRecord } from "@domain/issue/port";
 import { getLogger } from "@infra/logger";
 
@@ -14,7 +14,14 @@ export interface IssueRepository {
   /** 更新 Issue 上下文（merge 语义） */
   updateContext(issueId: string, context: Record<string, string>): void;
   updateClosedAt(id: string, closedAt: string): void;
+  /** 查找所有直接子 issue */
+  listChildren(parentIssueId: string): Issue[];
+  /** 添加子 issue ID 到父 issue */
+  addChildIssue(parentIssueId: string, childIssueId: string): void;
+  /** 更新聚合状态和进度 */
+  updateAggregatedStatus(issueId: string, status: IssueAggregateStatus, progress: AggregatedProgress): void;
 }
+
 
 // ── Stage Repository ──────────────────────────────────────────────────
 
@@ -60,10 +67,16 @@ CREATE TABLE IF NOT EXISTS issue (
   snail_assignment_plan TEXT NOT NULL,
   context TEXT NOT NULL DEFAULT '{}',
   created_at TEXT NOT NULL,
-  closed_at TEXT
+  closed_at TEXT,
+  parent_issue_id TEXT,
+  child_issue_ids TEXT NOT NULL DEFAULT '[]',
+  issue_type TEXT NOT NULL DEFAULT 'task',
+  aggregated_status TEXT NOT NULL DEFAULT 'pending',
+  aggregated_progress TEXT NOT NULL DEFAULT '{"total":0,"completed":0,"in_progress":0,"failed":0,"blocked":0}'
 );
 
 CREATE INDEX IF NOT EXISTS idx_issue_workspace_created ON issue(workspace_path, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_issue_parent ON issue(parent_issue_id);
 
 CREATE TABLE IF NOT EXISTS stage (
   id TEXT PRIMARY KEY,
@@ -121,6 +134,11 @@ type IssueRow = {
   context: string;
   created_at: string;
   closed_at: string | null;
+  parent_issue_id: string | null;
+  child_issue_ids: string;
+  issue_type: string;
+  aggregated_status: string;
+  aggregated_progress: string;
 };
 
 type StageRow = {
@@ -160,8 +178,8 @@ export class SQLiteIssueRepository implements IssueRepository {
 
   create(issue: Issue): void {
     this.db.run(
-      `INSERT INTO issue (id, workspace_path, title, summary, sop_snapshot, snail_assignment_plan, context, created_at, closed_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO issue (id, workspace_path, title, summary, sop_snapshot, snail_assignment_plan, context, created_at, closed_at, parent_issue_id, child_issue_ids, issue_type, aggregated_status, aggregated_progress)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         issue.id,
         issue.workspace_path,
@@ -172,6 +190,11 @@ export class SQLiteIssueRepository implements IssueRepository {
         JSON.stringify(issue.context),
         issue.created_at,
         issue.closed_at,
+        issue.parent_issue_id,
+        JSON.stringify(issue.child_issue_ids),
+        issue.issue_type,
+        issue.aggregated_status,
+        JSON.stringify(issue.aggregated_progress),
       ],
     );
   }
@@ -185,6 +208,30 @@ export class SQLiteIssueRepository implements IssueRepository {
 
   updateClosedAt(id: string, closedAt: string): void {
     this.db.run(`UPDATE issue SET closed_at = ? WHERE id = ?`, [closedAt, id]);
+  }
+
+  listChildren(parentIssueId: string): Issue[] {
+    return this.db.all<IssueRow>(
+      `SELECT * FROM issue WHERE parent_issue_id = ? ORDER BY created_at ASC`,
+      [parentIssueId],
+    ).map(mapIssue);
+  }
+
+  addChildIssue(parentIssueId: string, childIssueId: string): void {
+    const issue = this.findById(parentIssueId);
+    if (!issue) throw new Error(`Issue not found: ${parentIssueId}`);
+    const childIds = [...issue.child_issue_ids, childIssueId];
+    this.db.run(
+      `UPDATE issue SET child_issue_ids = ? WHERE id = ?`,
+      [JSON.stringify(childIds), parentIssueId],
+    );
+  }
+
+  updateAggregatedStatus(issueId: string, status: IssueAggregateStatus, progress: AggregatedProgress): void {
+    this.db.run(
+      `UPDATE issue SET aggregated_status = ?, aggregated_progress = ? WHERE id = ?`,
+      [status, JSON.stringify(progress), issueId],
+    );
   }
 }
 
@@ -397,6 +444,11 @@ function mapIssue(row: IssueRow): Issue {
     context: JSON.parse(row.context),
     created_at: row.created_at,
     closed_at: row.closed_at,
+    parent_issue_id: row.parent_issue_id,
+    child_issue_ids: JSON.parse(row.child_issue_ids),
+    issue_type: row.issue_type as "project" | "task",
+    aggregated_status: row.aggregated_status as IssueAggregateStatus,
+    aggregated_progress: JSON.parse(row.aggregated_progress),
   };
 }
 

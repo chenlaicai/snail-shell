@@ -104,6 +104,7 @@ const StageDefinitionSchema = z.object({
   key: z.string().min(1),
   title: z.string().min(1),
   description: z.string().optional().default(""),
+  gate_ids: z.array(z.string()).nullable().optional().default(null),
   roles: z.array(RoleDefinitionSchema).optional().default([]),
 });
 

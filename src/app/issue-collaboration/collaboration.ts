@@ -69,7 +69,7 @@ export class IssueCollaboration implements CollaborationInput {
       recordAuditTrail: (fromStage, toStage, suggestion) => this.recordAuditTrail(fromStage, toStage, suggestion),
       notifyConsumers: (stageId, method, ...args) => this.notifyConsumers(stageId, method as keyof CollaborationConsumer, ...args),
       generateDisagreementCard: (stageId, suggestion) => this.generateDisagreementCard(stageId, suggestion),
-      mustGetIssue: (issueId) => this.helpers.mustGetIssue(issueId)
+      mustGetIssue: (issueId) => this.helpers.mustGetIssue(issueId),
     });
   }
   async createIssue(input: CreateIssueInput): Promise<CreateIssueResult> {

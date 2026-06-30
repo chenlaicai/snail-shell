@@ -6,12 +6,16 @@ import { createRednoteResearchServer } from "@domain/snail-mcp-server/_internal/
 import { createSnailIssueContextServer } from "@domain/snail-mcp-server/_internal/servers/snail-issue-context";
 import { createMessageHistoryServer } from "@domain/snail-mcp-server/_internal/servers/snail-message-history";
 import { createFeatureChainServer } from "@domain/snail-mcp-server/_internal/servers/snail-feature-chain";
+import { createIssueHierarchyServer } from "@domain/snail-mcp-server/_internal/servers/snail-issue-hierarchy";
+import { createSopCreatorServer } from "@domain/snail-mcp-server/_internal/servers/snail-sop-creator";
 import type { McpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-message-store";
 import type { KnowledgePort } from "@domain/knowledge/port";
 import type { MessagePort } from "@domain/message/port";
 import type { IssuePort, StagePort } from "@domain/issue/port";
 import type { EvolutionPort } from "@domain/evolution/port";
 import type { FeatureChainPort } from "@domain/feature-chain/port";
+import type { SopPort } from "@domain/sop/port";
+import type { Workspace } from "@domain/workspace/model";
 
 /** Snail MCP Server 模块依赖 */
 export interface SnailMCPServerDeps {
@@ -29,6 +33,10 @@ export interface SnailMCPServerDeps {
   featureChain: FeatureChainPort;
   /** MCP 路由目标 store（set_final_body 写入，collaboration resolveReplies 消费） */
   mcpMessageStore: McpMessageStore;
+  /** SOP adapter */
+  sop: SopPort;
+  /** 工作区列表 */
+  workspaces: Workspace[];
 }
 
 /**
@@ -46,6 +54,8 @@ export function init(deps: SnailMCPServerDeps) {
   adapter.registerServer(createSnailIssueContextServer(deps.issue));
   adapter.registerServer(createMessageHistoryServer(deps.stage, deps.message));
   adapter.registerServer(createFeatureChainServer(deps.featureChain));
+  adapter.registerServer(createIssueHierarchyServer(deps.issue));
+  adapter.registerServer(createSopCreatorServer(deps.sop, deps.workspaces));
 
   return { adapter };
 }

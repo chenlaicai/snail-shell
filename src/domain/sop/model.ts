@@ -30,6 +30,8 @@ export interface StageDefinition {
   description: string;
   /** 角色定义 */
   roles: RoleDefinition[];
+  /** Gate 校验 ID 列表（动态读取，取代硬编码）。为 null 时回退到 AutoAdvanceEngine 内置映射 */
+  gate_ids: string[] | null;
 }
 
 /** 角色定义 */
