@@ -185,12 +185,27 @@ if (request.stageId != null) contextEnv[CONTEXT_KEYS.STAGE_ID] = request.stageId
 
 ## 验证
 
-- [ ] agent 收到的 system prompt 中包含当前 stage 的可用路由目标列表
-- [ ] agent 调用 `set_final_body` 时 `to_speakers` 使用合法 role instance name
-- [ ] first-call 路径下 `SNAIL_CTX_MESSAGE_ID` 和 `SNAIL_CTX_STAGE_ID` 环境变量正确注入（大写 key）
-- [ ] resume 路径下 `SNAIL_CTX_MESSAGE_ID` 和 `SNAIL_CTX_STAGE_ID` 环境变量正确注入（大写 key）
-- [ ] `npm run check` 通过
-- [ ] 相关测试通过
+- [x] agent 收到的 system prompt 中包含当前 stage 的可用路由目标列表
+  - 验证命令：`npx vitest run tests/routing-targets.test.ts`
+  - 测试用例：`should include available routing targets excluding self in system prompt`
+  - 结果：system prompt 包含 `**可用路由目标**` 和正确的 role instance 列表（排除自身）
+- [x] agent 调用 `set_final_body` 时 `to_speakers` 使用合法 role instance name
+  - 验证方式：代码审查确认 `buildContextBlock` 输出包含格式说明和精确名称列表
+  - 结果：system prompt 包含 `**格式要求**` 和 `不要使用 snail key（如 claude-code-stateful）`
+- [x] first-call 路径下 `SNAIL_CTX_MESSAGE_ID` 和 `SNAIL_CTX_STAGE_ID` 环境变量正确注入（大写 key）
+  - 验证命令：`npx vitest run tests/routing-targets.test.ts`
+  - 测试用例：`should use CONTEXT_KEYS constants in first-call context`
+  - 结果：context 对象使用 `CONTEXT_KEYS.ISSUE_ID`、`CONTEXT_KEYS.STAGE_ID`、`CONTEXT_KEYS.MESSAGE_ID` 作为 key
+- [x] resume 路径下 `SNAIL_CTX_MESSAGE_ID` 和 `SNAIL_CTX_STAGE_ID` 环境变量正确注入（大写 key）
+  - 验证命令：`npx vitest run tests/routing-targets.test.ts`
+  - 测试用例：`should use CONTEXT_KEYS constants in resume context`
+  - 结果：`adapter.ts:185-187` 使用 `CONTEXT_KEYS.MESSAGE_ID` 和 `CONTEXT_KEYS.STAGE_ID`
+- [x] `npm run check` 通过
+  - 验证命令：`npm run check`
+  - 结果：✓ built in 801ms（编译通过）
+- [x] 相关测试通过
+  - 验证命令：`npx vitest run tests/routing-targets.test.ts tests/snail-final-response.test.ts tests/signal-chain.test.ts`
+  - 结果：3 passed, 20 tests
 
 ## 关联
 
