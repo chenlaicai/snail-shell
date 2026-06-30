@@ -102,9 +102,11 @@ function createSopTool(sopPort: SopPort, workspaces: Workspace[]): MCPTool {
         return { sop_key: null, validation_errors: blockers.map(e => `${e.rule}: ${e.message}`), validation_warnings: [] };
       }
 
+      const warnings = validationErrors.filter(e => e.level === "warn").map(e => `${e.rule}: ${e.message}`);
+
       try {
         const created = sopPort.create(sop);
-        return { sop_key: created.key, validation_errors: [], validation_warnings: [] };
+        return { sop_key: created.key, validation_errors: [], validation_warnings: warnings };
       } catch (err) {
         return { sop_key: null, validation_errors: [err instanceof Error ? err.message : String(err)], validation_warnings: [] };
       }

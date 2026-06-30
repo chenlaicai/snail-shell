@@ -135,9 +135,12 @@ export class MonitorScheduler {
    * 推进父 issue 从 monitor 到 integration stage。
    */
   private async advanceToIntegration(parentIssueId: string): Promise<void> {
-    const activeStage = this.deps.stagePort.findStage(
-      this.deps.stagePort.listStages(parentIssueId).find(s => !s.left_at)?.id ?? ""
-    );
+    const activeStageId = this.deps.stagePort.listStages(parentIssueId).find(s => !s.left_at)?.id;
+    if (!activeStageId) {
+      log.warn({ parentIssueId }, "no active stage found for parent issue");
+      return;
+    }
+    const activeStage = this.deps.stagePort.findStage(activeStageId);
     if (!activeStage || activeStage.key !== "monitor") {
       log.warn({ parentIssueId, activeStageKey: activeStage?.key }, "parent issue not in monitor stage");
       return;

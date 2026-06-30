@@ -131,9 +131,17 @@ export class IssueAdapter implements IssuePort {
       this.issueRepo.create(issue);
       this.issueRepo.addChildIssue(input.parent_issue_id, issue.id);
 
-      // 创建依赖关系
+      // 创建依赖关系（校验引用有效性 + 环检测）
       if (input.depends_on) {
         for (const depId of input.depends_on) {
+          const depIssue = this.issueRepo.findById(depId);
+          if (!depIssue) throw new Error(`Dependency issue not found: ${depId}`);
+          if (depIssue.parent_issue_id !== input.parent_issue_id) {
+            throw new Error(`Dependency issue ${depId} is not a sibling of ${issue.id}`);
+          }
+          if (this.dependencyRepo.wouldCreateCycle(issue.id, depId)) {
+            throw new Error(`Adding dependency ${issue.id} -> ${depId} would create a cycle`);
+          }
           this.dependencyRepo.create({ issue_id: issue.id, depends_on: depId, created_at: now });
         }
       }
@@ -160,7 +168,7 @@ export class IssueAdapter implements IssuePort {
     if (deps.length === 0) return true;
     return deps.every(dep => {
       const depIssue = this.issueRepo.findById(dep.depends_on);
-      return depIssue?.closed_at != null;
+      return depIssue?.closed_at != null && depIssue.aggregated_status !== "failed";
     });
   }
 

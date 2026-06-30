@@ -1,9 +1,15 @@
-import { describe, it, expect, vi } from "vitest";
-import type { Issue, AggregatedProgress } from "@domain/issue/model";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import fs from "fs";
+import os from "os";
+import path from "path";
+import type { Issue } from "@domain/issue/model";
 import type { Sop } from "@domain/sop/model";
 import { Scope } from "@domain/workspace/model";
 import { validateSop } from "@domain/sop/_internal/repository";
 import { MonitorScheduler } from "@app/issue-collaboration/monitor-scheduler";
+import { IssueAdapter } from "@domain/issue/_internal/adapter";
+import { SQLiteIssueDependencyRepository } from "@domain/issue/_internal/dependency-repository";
+import { SQLiteDatabase } from "@infra/database";
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -24,6 +30,57 @@ function makeSop(overrides: Partial<Sop> = {}): Sop {
     ],
     scope: Scope.Platform,
     ...overrides,
+  };
+}
+
+function makeMockIssueRepo(issues: Map<string, Issue> = new Map()) {
+  return {
+    findById: vi.fn((id: string) => issues.get(id)),
+    listByWorkspace: vi.fn(() => []),
+    create: vi.fn((issue: Issue) => { issues.set(issue.id, issue); }),
+    addChildIssue: vi.fn(),
+    updateContext: vi.fn(),
+    updateClosedAt: vi.fn(),
+    updateAggregatedStatus: vi.fn(),
+    listChildren: vi.fn((parentId: string) => [...issues.values()].filter(i => i.parent_issue_id === parentId)),
+  };
+}
+
+function makeMockStageRepo() {
+  return {
+    findById: vi.fn(),
+    listByIssue: vi.fn(() => []),
+    listOpenStageIds: vi.fn(() => []),
+    listAllOpenStageIds: vi.fn(() => []),
+    findActiveByIssue: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    rollbackStage: vi.fn(),
+    recordAudit: vi.fn(),
+    getAuditTrail: vi.fn(() => []),
+    transaction: vi.fn((fn: () => any) => fn()),
+  };
+}
+
+function makeMockDependencyRepo(deps: Array<{ issue_id: string; depends_on: string }> = []) {
+  return {
+    create: vi.fn((dep: any) => { deps.push(dep); }),
+    listByIssue: vi.fn((issueId: string) => deps.filter(d => d.issue_id === issueId).map(d => ({ ...d, created_at: new Date().toISOString() }))),
+    listDependsOn: vi.fn(() => []),
+    listByParentIssue: vi.fn(() => []),
+    wouldCreateCycle: vi.fn((issueId: string, dependsOn: string) => {
+      // BFS cycle detection on the in-memory deps
+      const visited = new Set<string>();
+      const queue = [dependsOn];
+      while (queue.length > 0) {
+        const current = queue.shift()!;
+        if (current === issueId) return true;
+        if (visited.has(current)) continue;
+        visited.add(current);
+        for (const d of deps.filter(dd => dd.issue_id === current)) queue.push(d.depends_on);
+      }
+      return false;
+    }),
   };
 }
 
@@ -50,12 +107,24 @@ function makeIssue(overrides: Partial<Issue> = {}): Issue {
 // ── B2: 子 issue 创建和校验 ──────────────────────────────────────────
 
 describe("B2: create child issue validation", () => {
-  it("校验列表格式（title、scope、sop_key）", () => {
-    // create_child_issue 工具在缺少必填字段时返回 validation_errors
-    const requiredFields = ["title", "scope", "sop_key"];
-    const providedFields: Record<string, string> = {};
-    const errors = requiredFields.filter(f => !providedFields[f]);
-    expect(errors.length).toBe(requiredFields.length);
+  it("缺少 sop_key 时 createChildIssue 抛出错误", () => {
+    const parentIssue = makeIssue({ id: "parent-1", issue_type: "project" });
+    const issues = new Map<string, Issue>();
+    issues.set(parentIssue.id, parentIssue);
+    const issueRepo = makeMockIssueRepo(issues);
+    const adapter = new IssueAdapter(
+      issueRepo as any,
+      { findByKey: vi.fn(() => null) } as any,
+      makeMockStageRepo() as any,
+      makeMockDependencyRepo() as any,
+    );
+
+    expect(() => adapter.createChildIssue({
+      parent_issue_id: "parent-1",
+      title: "child",
+      scope: "test",
+      sop_key: "nonexistent",
+    })).toThrow("SOP not found: nonexistent");
   });
 });
 
@@ -63,48 +132,68 @@ describe("B2: create child issue validation", () => {
 
 describe("B3: dependency DAG", () => {
   it("依赖全部完成的子 issue 自动进入可执行状态", () => {
-    // 模拟：issue B 依赖 issue A，A 已完成
-    const issueA = makeIssue({ id: "a", closed_at: new Date().toISOString() });
+    const issueA = makeIssue({ id: "a", closed_at: new Date().toISOString(), aggregated_status: "completed" });
     const issueB = makeIssue({ id: "b", closed_at: null });
+    const issues = new Map<string, Issue>([["a", issueA], ["b", issueB]]);
 
-    // isChildIssueReady 检查所有依赖是否已完成
-    const deps = [{ issue_id: "b", depends_on: "a", created_at: new Date().toISOString() }];
-    const allDepsCompleted = deps.every(d => {
-      const dep = d.depends_on === "a" ? issueA : issueB;
-      return dep.closed_at != null;
-    });
-    expect(allDepsCompleted).toBe(true);
+    const adapter = new IssueAdapter(
+      makeMockIssueRepo(issues) as any,
+      {} as any,
+      makeMockStageRepo() as any,
+      makeMockDependencyRepo([{ issue_id: "b", depends_on: "a" }]) as any,
+    );
+
+    expect(adapter.isChildIssueReady("b")).toBe(true);
+  });
+
+  it("依赖 failed 的子 issue 不进入可执行状态", () => {
+    const issueA = makeIssue({ id: "a", closed_at: new Date().toISOString(), aggregated_status: "failed" });
+    const issueB = makeIssue({ id: "b", closed_at: null });
+    const issues = new Map<string, Issue>([["a", issueA], ["b", issueB]]);
+
+    const adapter = new IssueAdapter(
+      makeMockIssueRepo(issues) as any,
+      {} as any,
+      makeMockStageRepo() as any,
+      makeMockDependencyRepo([{ issue_id: "b", depends_on: "a" }]) as any,
+    );
+
+    expect(adapter.isChildIssueReady("b")).toBe(false);
   });
 });
 
 // ── B4: 循环依赖检测 ──────────────────────────────────────────────────
 
 describe("B4: cycle detection", () => {
+  let tmpDir: string;
+  let db: SQLiteDatabase;
+  let depRepo: SQLiteIssueDependencyRepository;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "snail-test-"));
+    db = new SQLiteDatabase(tmpDir);
+    depRepo = new SQLiteIssueDependencyRepository(db);
+    // 预置依赖链：a -> c, b -> a, c -> b
+    const now = new Date().toISOString();
+    depRepo.create({ issue_id: "a", depends_on: "c", created_at: now });
+    depRepo.create({ issue_id: "b", depends_on: "a", created_at: now });
+    depRepo.create({ issue_id: "c", depends_on: "b", created_at: now });
+  });
+
+  afterEach(() => {
+    db.close();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
   it("检测循环依赖并拒绝创建", () => {
-    // 模拟拓扑排序检测：A -> B -> C -> A 形成环
-    const deps = new Map<string, string[]>();
-    deps.set("a", ["c"]); // a depends on c
-    deps.set("b", ["a"]); // b depends on a
-    deps.set("c", ["b"]); // c depends on b
+    // a -> b 会形成环: a -> b -> c -> ... (c depends on b, b depends on a)
+    expect(depRepo.wouldCreateCycle("a", "b")).toBe(true);
+    // a -> d（新节点）不会形成环
+    expect(depRepo.wouldCreateCycle("a", "d")).toBe(false);
+  });
 
-    function wouldCreateCycle(issueId: string, dependsOn: string): boolean {
-      const visited = new Set<string>();
-      const queue = [dependsOn];
-      while (queue.length > 0) {
-        const current = queue.shift()!;
-        if (current === issueId) return true;
-        if (visited.has(current)) continue;
-        visited.add(current);
-        const currentDeps = deps.get(current) ?? [];
-        for (const dep of currentDeps) queue.push(dep);
-      }
-      return false;
-    }
-
-    // 添加 a -> b 会形成环
-    expect(wouldCreateCycle("a", "b")).toBe(true);
-    // 添加 a -> d（新节点）不会形成环
-    expect(wouldCreateCycle("a", "d")).toBe(false);
+  it("自依赖形成环", () => {
+    expect(depRepo.wouldCreateCycle("a", "a")).toBe(true);
   });
 });
 
@@ -112,14 +201,19 @@ describe("B4: cycle detection", () => {
 
 describe("B5: all children completed -> advance to integration", () => {
   it("聚合状态为 completed 时推进", () => {
+    const scheduler = new MonitorScheduler({
+      issuePort: {} as any,
+      stagePort: { listStages: vi.fn().mockReturnValue([]) } as any,
+      notifyParentMonitor: vi.fn(),
+    });
+
     const children = [
       makeIssue({ id: "c1", closed_at: new Date().toISOString() }),
       makeIssue({ id: "c2", closed_at: new Date().toISOString() }),
     ];
 
-    // 计算聚合状态
-    const allCompleted = children.every(c => c.closed_at != null);
-    expect(allCompleted).toBe(true);
+    const { status } = scheduler.computeAggregatedStatus(children);
+    expect(status).toBe("completed");
   });
 });
 
@@ -127,16 +221,26 @@ describe("B5: all children completed -> advance to integration", () => {
 
 describe("B10: aggregated progress visibility", () => {
   it("返回聚合状态和进度，不暴露孙 issue 细节", () => {
-    const progress: AggregatedProgress = {
-      total: 5,
-      completed: 3,
-      in_progress: 1,
-      failed: 0,
-      blocked: 1,
-    };
+    const scheduler = new MonitorScheduler({
+      issuePort: {} as any,
+      stagePort: { listStages: vi.fn().mockReturnValue([]) } as any,
+      notifyParentMonitor: vi.fn(),
+    });
+
+    const children = [
+      makeIssue({ id: "c1", closed_at: new Date().toISOString() }),
+      makeIssue({ id: "c2", closed_at: new Date().toISOString() }),
+      makeIssue({ id: "c3", closed_at: new Date().toISOString(), aggregated_status: "failed" }),
+      makeIssue({ id: "c4", closed_at: null }), // blocked (no active stage)
+      makeIssue({ id: "c5", closed_at: null }), // blocked
+    ];
+
+    const { status, progress } = scheduler.computeAggregatedStatus(children);
     expect(progress.total).toBe(5);
-    expect(progress.completed).toBe(3);
-    // 不包含孙 issue 的详细信息
+    expect(progress.completed).toBe(2);
+    expect(progress.failed).toBe(1);
+    expect(progress.blocked).toBe(2);
+    expect(status).toBe("failed");
   });
 });
 
