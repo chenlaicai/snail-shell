@@ -15,6 +15,7 @@ import { MessageHandler } from "@app/issue-collaboration/message-handler";
 import { CollaborationHelpers } from "@app/issue-collaboration/helpers";
 import { cleanupResources, type CleanupResult } from "@app/issue-collaboration/resource-cleanup";
 import { buildIdentityBlock } from "@app/issue-collaboration/_internal/identity-block";
+import { CONTEXT_KEYS } from "@infra/acs/context-keys";
 import { getLogger } from "@infra/logger";
 const log = getLogger({ module: "collaboration" });
 const truncateForUI = (text: string, maxLen = 200) => text.length > maxLen ? text.slice(0, maxLen) + "..." : text;
@@ -311,7 +312,7 @@ export class IssueCollaboration implements CollaborationInput {
     /** 唯一的上下文数据源：snail adapter 从这里构建 env vars，buildContextBlock 从 issue.context 渲染 system reminder */
     const firstCallRequest = {
       workspace_path: issue.workspace_path, messages: agentMessages, systemReminder: systemReminder || undefined,
-      context: { issue_id: issue.id, stage_id: stage.id, message_id: String(agentMessage.id), stage_key: stage.key, role_instance: roleInstance, ...issue.context, snail_key: assignment.snail_key },
+      context: { [CONTEXT_KEYS.ISSUE_ID]: issue.id, [CONTEXT_KEYS.STAGE_ID]: stage.id, [CONTEXT_KEYS.MESSAGE_ID]: String(agentMessage.id), stage_key: stage.key, role_instance: roleInstance, ...issue.context, snail_key: assignment.snail_key },
     };
     const resumeRequest = { workspace_path: issue.workspace_path, messages: agentMessages, system_reminder: systemReminder, messageId: String(agentMessage.id), stageId: stage.id };
     const onEvent = (event: AgentEvent) => this.handleAgentEvent(stageId, agentMessage.id, event);
@@ -534,9 +535,9 @@ export class IssueCollaboration implements CollaborationInput {
     const { issue, stage, roleInstance, roleKey, snailKey } = input;
     const stageDef = issue.sop_snapshot.stage_definitions.find(d => d.key === stage.key);
     const roleDef = stageDef?.roles.find(r => r.key === roleKey);
-    return [buildIdentityBlock(roleDef?.name ?? roleInstance, roleInstance, roleDef, this.deps.snailPort.findByKey(snailKey)), this.buildContextBlock(issue, stage, roleDef)].join("\n\n");
+    return [buildIdentityBlock(roleDef?.name ?? roleInstance, roleInstance, roleDef, this.deps.snailPort.findByKey(snailKey)), this.buildContextBlock(issue, stage, roleDef, roleInstance)].join("\n\n");
   }
-  private buildContextBlock(issue: Issue, stage: Stage, roleDef: RoleDefinition | undefined): string {
+  private buildContextBlock(issue: Issue, stage: Stage, roleDef: RoleDefinition | undefined, roleInstance: string): string {
     const transitions = stage.available_transitions.map(transition => `- ${transition.to}${transition.guard ? `: ${transition.guard}` : ""}`).join("\n");
     const sharedSkill = issue.sop_snapshot.shared_skill;
     const skillList = [
@@ -571,6 +572,8 @@ ${transitions || "无"}
 ## 最终答复规则
 **必须使用 \`set_final_body\` MCP 设置最终答复**。每次发言结束前必须调用此工具，传入你希望展示给用户的完整 Markdown 内容。
 **路由目标声明**：如果需要其他角色继续处理，必须在 \`set_final_body\` 的 \`to_speakers\` 参数中声明目标角色。
+**可用路由目标**：${["user", ...stage.role_instances.filter(i => i !== roleInstance)].map(t => `\`${t}\``).join("、")}
+**格式要求**：必须使用上述精确名称。不要使用 snail key（如 claude-code-stateful）、role key（如 designer）或英文翻译（如 architect-1）。
 **必选参数**：调用 \`set_final_body\` 时必须传入 \`message_id\` 和 \`stage_id\`，从环境变量 \`SNAIL_CTX_MESSAGE_ID\` 和 \`SNAIL_CTX_STAGE_ID\` 获取。
 </context>`;
   }
