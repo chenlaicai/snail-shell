@@ -51,6 +51,7 @@ function createMockIssuePort(): IssuePort {
     validateSnailAssignmentPlan: vi.fn(),
     updateContext: vi.fn(),
     closeIssue: vi.fn(),
+    updateCloseSummary: vi.fn(),
   };
 }
 
@@ -130,6 +131,7 @@ function createIssue(overrides: Partial<Issue> = {}): Issue {
       scope: Scope.Platform,
     },
     closed_at: null,
+    close_summary: null,
     created_at: new Date().toISOString(),
     ...overrides,
   };

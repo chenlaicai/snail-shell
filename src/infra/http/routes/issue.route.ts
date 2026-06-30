@@ -176,6 +176,7 @@ function toIssueDetail(deps: Pick<IssueRoutesDeps, "stagePort" | "collaboration"
   return {
     ...issue,
     workspace_id: encodeWorkspaceId(issue.workspace_path),
+    close_summary: issue.close_summary,
     stages,
     current_stage: currentStage,
     activity_status: activityStatus,

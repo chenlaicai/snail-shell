@@ -37,12 +37,8 @@ interface CollaborationDeps {
   mcpMessageStore: McpMessageStore;
   maxCollaborationRounds?: number;
 }
-type SpeakerTarget = {
-  speaker: string;
-  source: "mention" | "reply" | "default";
-};
-type DispatchStatus = "idle" | "invoking";
-type DispatchState = { status: DispatchStatus; pending: boolean };
+type SpeakerTarget = { speaker: string; source: "mention" | "reply" | "default" };
+type DispatchState = { status: "idle" | "invoking"; pending: boolean };
 type TransitionPayload = { targetKey: string; reason: unknown; guard: unknown; signal_type?: SignalType; consensus?: boolean; positions?: Position[]; gate_evidence?: Record<string, unknown>; adversarial_artifact?: AdversarialArtifact };
 type ParsedTransition = { target_key?: string; reason?: string; guard?: string | null; signal_type?: string; consensus?: boolean; positions?: Position[]; gate_evidence?: Record<string, unknown>; adversarial_artifact?: AdversarialArtifact };
 export class IssueCollaboration implements CollaborationInput {
@@ -159,11 +155,8 @@ export class IssueCollaboration implements CollaborationInput {
     if (!suggestions) return false;
     const remaining = suggestions.filter(s => !(s.target_key === targetKey && s.created_at === createdAt));
     if (remaining.length === suggestions.length) return false;
-    if (remaining.length === 0) {
-      this.suggestions.delete(stageId);
-    } else {
-      this.suggestions.set(stageId, remaining);
-    }
+    if (remaining.length === 0) this.suggestions.delete(stageId);
+    else this.suggestions.set(stageId, remaining);
     return true;
   }
   async advanceStage(stageId: string, targetKey: string): Promise<Stage> {
@@ -174,6 +167,24 @@ export class IssueCollaboration implements CollaborationInput {
     return stage;
   }
   async closeIssue(issueId: string): Promise<{ issue: Issue; cleanup: CleanupResult }> {
+    // 检查是否已关闭（幂等处理）
+    const existingIssue = this.deps.issuePort.findIssue(issueId);
+    if (existingIssue?.closed_at) {
+      // 已关闭的 Issue 直接返回，不执行 cleanup，不覆盖 close_summary
+      const prevStatus = this.lastActivityStatus.get(issueId) ?? "needs_human";
+      this.lastActivityStatus.delete(issueId);
+      const consumers = this.workspaceConsumers.get(existingIssue.workspace_path);
+      if (consumers) {
+        for (const consumer of consumers) {
+          consumer.onActivityStatusChanged(issueId, "completed", prevStatus);
+        }
+      }
+      // domain CloseSummary 与 app CleanupResult 结构相同，此处显式转换标记层边界
+      // close_summary 为 null 表示中断场景（cleanup 未执行），UI 通过 issue.close_summary 显示"清理结果未记录"
+      const cleanup: CleanupResult = existingIssue.close_summary as CleanupResult ?? { pr: { status: "skipped" }, worktree: { status: "skipped" }, localBranch: { status: "skipped" }, remoteBranch: { status: "skipped" } };
+      return { issue: existingIssue, cleanup };
+    }
+
     const issue = this.deps.issuePort.closeIssue(issueId);
     const prevStatus = this.lastActivityStatus.get(issueId) ?? "needs_human";
     this.lastActivityStatus.delete(issueId);
@@ -184,6 +195,7 @@ export class IssueCollaboration implements CollaborationInput {
       }
     }
     const cleanup = await cleanupResources(issue.context, issue.workspace_path);
+    try { this.deps.issuePort.updateCloseSummary(issueId, cleanup); } catch (err) { log.error({ issueId, err }, "closeIssue: updateCloseSummary failed"); }
     return { issue, cleanup };
   }
   async resumeRoute(stageId: string, message: Message): Promise<void> {
@@ -338,16 +350,7 @@ export class IssueCollaboration implements CollaborationInput {
       ? await this.invokeResumeOrRecover({ stageId, roleInstance, snailInstanceId: assignment.snail_instance_id, snailKey: assignment.snail_key, resumeRequest, firstCallRequest, onEvent, invokeOptions })
       : await this.deps.snailPort.invokeFirstCall(assignment.snail_key, firstCallRequest, onEvent, invokeOptions);
   }
-  private async invokeResumeOrRecover(input: {
-    stageId: string;
-    roleInstance: string;
-    snailInstanceId: string;
-    snailKey: string;
-    resumeRequest: SnailResumeRequest;
-    firstCallRequest: SnailFirstCallRequest;
-    onEvent: (event: AgentEvent) => void;
-    invokeOptions: InvokeOptions;
-  }) {
+  private async invokeResumeOrRecover(input: { stageId: string; roleInstance: string; snailInstanceId: string; snailKey: string; resumeRequest: SnailResumeRequest; firstCallRequest: SnailFirstCallRequest; onEvent: (event: AgentEvent) => void; invokeOptions: InvokeOptions }) {
     try {
       return await this.deps.snailPort.invokeResume(input.snailInstanceId, input.resumeRequest, input.onEvent, input.invokeOptions);
     } catch (error) {
@@ -595,7 +598,6 @@ ${transitions || "无"}
 **必选参数**：调用 \`set_final_body\` 时必须传入 \`message_id\` 和 \`stage_id\`，从环境变量 \`SNAIL_CTX_MESSAGE_ID\` 和 \`SNAIL_CTX_STAGE_ID\` 获取。
 </context>`;
   }
-
   private async notifyConsumers(stageId: string, method: keyof CollaborationConsumer, ...args: unknown[]): Promise<void> {
     const stage = this.helpers.mustGetStage(stageId);
     const consumers = this.issueConsumers.get(stage.issue_id) ?? new Set<CollaborationConsumer>();

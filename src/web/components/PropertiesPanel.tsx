@@ -1,5 +1,5 @@
 import { formatDate, formatRelativeTime } from "@/lib/utils";
-import type { IssueDetailDto, StageDetailDto } from "@/types";
+import type { IssueDetailDto, StageDetailDto, CleanupResultDto } from "@/types";
 
 interface PropertiesPanelProps {
   issue: IssueDetailDto;
@@ -122,6 +122,15 @@ export function PropertiesPanel({ issue, stage }: PropertiesPanelProps) {
                   time={formatRelativeTime(s.entered_at!)}
                 />
               ))}
+            {issue.closed_at && (
+              <div>
+                <ActivityItem name="System" action="closed issue" time={formatRelativeTime(issue.closed_at)} />
+                {issue.close_summary
+                  ? <CloseSummaryDetail summary={issue.close_summary} />
+                  : <span className="text-[11px] text-text-muted ml-7">清理结果未记录</span>
+                }
+              </div>
+            )}
           </div>
         </Section>
       </div>
@@ -161,6 +170,43 @@ function ActivityItem({ name, action, time }: { name: string; action: string; ti
         <span className="text-text-primary">{name}</span> {action}{" "}
         <span className="text-text-muted">{time}</span>
       </div>
+    </div>
+  );
+}
+
+/** 资源状态 → 显示文案 */
+const RESOURCE_LABELS: Record<string, string> = {
+  pr: "PR",
+  worktree: "Worktree",
+  localBranch: "Branch",
+  remoteBranch: "Remote",
+};
+
+function CloseSummaryDetail({ summary }: { summary: CleanupResultDto }) {
+  const entries = (["pr", "worktree", "localBranch", "remoteBranch"] as const).map((key) => {
+    const item = summary[key];
+    const label = RESOURCE_LABELS[key];
+    if (item.status === "skipped") {
+      return <span key={key} className="text-text-muted">{label}: skipped</span>;
+    }
+    if (item.status === "failed") {
+      return (
+        <span key={key} className="text-status-red" title={item.error}>
+          {label}: failed{item.error ? ` (${item.error})` : ""}
+        </span>
+      );
+    }
+    return <span key={key} className="text-status-green">{label}: ok</span>;
+  });
+
+  return (
+    <div className="ml-7 mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px]">
+      {entries.map((entry, i) => (
+        <span key={i} className="flex items-center gap-1">
+          {i > 0 && <span className="text-text-muted">|</span>}
+          {entry}
+        </span>
+      ))}
     </div>
   );
 }
