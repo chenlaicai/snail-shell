@@ -159,10 +159,10 @@ if (问题看起来像代码层面) {
 
 ### P1
 
-- [ ] cd-design SKILL.md 的 Gotchas 第 25 条已被替换为新文本（包含分类标准、实现指引最低标准、纠错机制）
-- [ ] cd-design cross-review.md 中有处置约束和禁用话术清单
-- [ ] 新规则与 cd-review adversarial-check.md 的零漏洞规则语义对齐
-- [ ] Gotchas #25 和 cross-review.md 的规则语义一致，不存在冲突
+- [x] cd-design SKILL.md 的 Gotchas 第 25 条已被替换为新文本（包含分类标准、实现指引最低标准、纠错机制）
+- [x] cd-design cross-review.md 中有处置约束和禁用话术清单
+- [x] 新规则与 cd-review adversarial-check.md 的零漏洞规则语义对齐
+- [x] Gotchas #25 和 cross-review.md 的规则语义一致，不存在冲突
 
 ## 关联
 
