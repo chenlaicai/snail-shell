@@ -38,7 +38,7 @@ SNAIL_CTX_STAGE_ID=UNDEFINED
 | 路径 | contextEnv 构造方式 | message_id key | agent 能否读到 |
 |------|---------------------|----------------|----------------|
 | first call | `buildContextEnv(request)` | `SNAIL_CTX_MESSAGE_ID` | ✅ |
-| resume | 手动构造 | `message_id` | ❌ |
+| resume | 手动构造 + `CONTEXT_KEYS` | `SNAIL_CTX_MESSAGE_ID` | ✅ |
 
 ### 1.3 历史溯源
 
@@ -122,7 +122,7 @@ F20260629q5gz 增加的 stage_id 归属校验（`snail-final-response.ts:39-47`�
 
 当前 resume 路径的 `snail_key` 也是裸名。虽然 agent 通过 system prompt 而非环境变量获取 snail_key，但为一致性应统一。
 
-**决策**：`snail_key` 保持裸名不变。理由：`CONTEXT_KEYS` 中没有 `SNAIL_KEY` 常量（F20260629vv5s 中已删除），且 agent 不通过 `SNAIL_CTX_SNAIL_KEY` 环境变量读取此值。保持现状。
+**决策**：`snail_key` 改为使用 `CONTEXT_KEYS.SNAIL_KEY` 常量。在 `context-keys.ts` 中新增 `SNAIL_KEY: "SNAIL_CTX_SNAIL_KEY"` 常量，resume 路径使用 `[CONTEXT_KEYS.SNAIL_KEY]: instance.snail_key`。
 
 ### 4.3 stageId 为 null 的边界场景
 
@@ -136,7 +136,7 @@ F20260629q5gz 增加的 stage_id 归属校验（`snail-final-response.ts:39-47`�
 |------|------|------|------|------|
 | key 命名方式 | `CONTEXT_KEYS` 常量 | 复用已有常量，轻量 | 需手动拼接 | 采用 |
 | `buildContextEnv` vs 手动构造 | 手动构造 + `CONTEXT_KEYS` | resume 路径输入类型不同，不值得扩展 `buildContextEnv` | 两条路径构造逻辑分叉 | 采用（与 F20260629q5gz 决策一致） |
-| `snail_key` 命名 | 保持裸名 | agent 不通过 `SNAIL_CTX_` 前缀读取 | 不一致 | 保持现状 |
+| `snail_key` 命名 | `CONTEXT_KEYS.SNAIL_KEY` | 全局统一，消除裸名残留 | 无 | 采用 |
 
 ## 6. 验证场景
 
