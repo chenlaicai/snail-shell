@@ -49,6 +49,9 @@ export default defineConfig(() => {
     server: {
       port: webDevSettings.webPort,
       strictPort: true,
+      watch: {
+        cwd: path.resolve(__dirname),
+      },
       proxy: {
         "/api": backendHttpBaseUrl,
         "/mcp-server": backendHttpBaseUrl,
