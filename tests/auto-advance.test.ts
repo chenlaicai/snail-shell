@@ -45,15 +45,45 @@ function createSuggestion(overrides: Partial<StageTransitionSuggestion> = {}): S
   };
 }
 
+function createMockIssue(issueId = "issue-1") {
+  return {
+    id: issueId,
+    workspace_path: "/workspace",
+    title: "Test Issue",
+    summary: null,
+    sop_snapshot: {
+      key: "code-delivery",
+      name: "Code Delivery",
+      description: null,
+      shared_skill: null,
+      stage_definitions: [
+        { key: "design", title: "Design", description: "", roles: [], gate_ids: null },
+        { key: "development", title: "Development", description: "", roles: [], gate_ids: null },
+        { key: "review", title: "Review", description: "", roles: [], gate_ids: null },
+        { key: "merge", title: "Merge", description: "", roles: [], gate_ids: null },
+      ],
+      transitions: [],
+      scope: "platform",
+    },
+    snail_assignment_plan: {},
+    context: { worktree_path: "/wt", branch_name: "feature-x", pr_url: "https://github.com/pr/1" },
+    created_at: new Date().toISOString(),
+    closed_at: null,
+    parent_issue_id: null,
+    child_issue_ids: [],
+    issue_type: "task" as const,
+    aggregated_status: "pending" as const,
+    aggregated_progress: { total: 0, completed: 0, in_progress: 0, failed: 0, blocked: 0 },
+  };
+}
+
 function createDeps(overrides: Partial<AutoAdvanceDeps> = {}): AutoAdvanceDeps {
   return {
     advanceStage: vi.fn().mockResolvedValue(createStage({ key: "review" })),
     recordAuditTrail: vi.fn().mockResolvedValue(undefined),
     notifyConsumers: vi.fn().mockResolvedValue(undefined),
     generateDisagreementCard: vi.fn().mockResolvedValue(undefined),
-    mustGetIssue: vi.fn().mockReturnValue({
-      context: { worktree_path: "/wt", branch_name: "feature-x", pr_url: "https://github.com/pr/1" },
-    }),
+    mustGetIssue: vi.fn().mockReturnValue(createMockIssue()),
     ...overrides,
   };
 }

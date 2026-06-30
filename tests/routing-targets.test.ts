@@ -51,6 +51,11 @@ function createMockIssuePort(): IssuePort {
     validateSnailAssignmentPlan: vi.fn(),
     updateContext: vi.fn(),
     closeIssue: vi.fn(),
+    createChildIssue: vi.fn(),
+    listChildren: vi.fn(),
+    updateAggregatedStatus: vi.fn(),
+    getDependencies: vi.fn(),
+    isChildIssueReady: vi.fn(),
   };
 }
 
@@ -114,23 +119,29 @@ function createIssue(overrides: Partial<Issue> = {}): Issue {
       key: "test-sop",
       name: "Test SOP",
       description: "Test SOP description",
+      shared_skill: "cd-shared",
       stage_definitions: [
         {
           key: "review",
           title: "Review",
           description: "Review stage",
+          gate_ids: null,
           roles: [
             { key: "reviewer", name: "审查者", description: "审查者角色", is_primary: false, count: 2, skill: "cd-review", prohibition: null, self_check: null },
             { key: "developer", name: "开发者", description: "开发者角色", is_primary: false, count: 1, skill: "cd-review-dev", prohibition: null, self_check: null },
           ],
         },
       ],
-      shared_skill: "cd-shared",
       transitions: [{ from: "review", to: "merge", guard: null }],
       scope: Scope.Platform,
     },
     closed_at: null,
     created_at: new Date().toISOString(),
+    parent_issue_id: null,
+    child_issue_ids: [],
+    issue_type: "task",
+    aggregated_status: "pending",
+    aggregated_progress: { total: 0, completed: 0, in_progress: 0, failed: 0, blocked: 0 },
     ...overrides,
   };
 }

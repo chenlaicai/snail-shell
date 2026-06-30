@@ -4,20 +4,27 @@ import {
   resolveDefaultRoleInstance,
   type Issue,
   type CreateIssueInput,
+  type CreateChildIssueInput,
   type Stage,
   type CreateStageInput,
   type RoleSnailAssignment,
   type StagePreview,
   type IssueSnailAssignmentPlan,
   type StageSnailAssignmentPlan,
+  type IssueAggregateStatus,
+  type AggregatedProgress,
 } from "@domain/issue/model";
 import type { IssuePort, StagePort, StageAuditRecord } from "@domain/issue/port";
 import type { IssueRepository, StageRepository, RoleSnailAssignmentRepository } from "@domain/issue/_internal/repository";
+import type { IssueDependencyRepository } from "@domain/issue/_internal/dependency-repository";
 import type { SopPort } from "@domain/sop/port";
 import type { Sop, StageDefinition } from "@domain/sop/model";
 import { getLogger } from "@infra/logger";
 
 const log = getLogger({ module: "issue" });
+
+/** 递归深度限制 */
+const MAX_RECURSION_DEPTH = 4;
 
 // ── Issue Adapter ─────────────────────────────────────────────────────
 
@@ -26,6 +33,7 @@ export class IssueAdapter implements IssuePort {
     private issueRepo: IssueRepository,
     private sopPort: SopPort,
     private stageRepo: StageRepository,
+    private dependencyRepo: IssueDependencyRepository,
   ) {}
 
   findIssue(id: string): Issue | undefined {
@@ -61,6 +69,7 @@ export class IssueAdapter implements IssuePort {
     validateSnailAssignmentPlan(sop, input.snail_assignment_plan);
 
     const now = new Date().toISOString();
+    const issueType = input.issue_type ?? (input.adopted_sop_key === "project-initiation" ? "project" : "task");
     const issue: Issue = {
       id: randomUUID(),
       workspace_path: input.workspace_path,
@@ -71,10 +80,125 @@ export class IssueAdapter implements IssuePort {
       context: input.context ?? {},
       created_at: now,
       closed_at: null,
+      parent_issue_id: input.parent_issue_id ?? null,
+      child_issue_ids: [],
+      issue_type: issueType,
+      aggregated_status: "pending",
+      aggregated_progress: { total: 0, completed: 0, in_progress: 0, failed: 0, blocked: 0 },
     };
     this.issueRepo.create(issue);
     log.info({ issueId: issue.id, title: issue.title, sopKey: input.adopted_sop_key, workspacePath: input.workspace_path }, "issue.created");
     return issue;
+  }
+
+  createChildIssue(input: CreateChildIssueInput): Issue {
+    const parentIssue = this.issueRepo.findById(input.parent_issue_id);
+    if (!parentIssue) throw new Error(`Parent issue not found: ${input.parent_issue_id}`);
+    if (parentIssue.issue_type !== "project") throw new Error(`Parent issue is not a project: ${input.parent_issue_id}`);
+
+    // 校验递归深度
+    const depth = this.getIssueDepth(input.parent_issue_id);
+    if (depth >= MAX_RECURSION_DEPTH) {
+      throw new Error(`Recursion depth limit (${MAX_RECURSION_DEPTH}) exceeded`);
+    }
+
+    const sop = this.sopPort.findByKey(input.sop_key);
+    if (!sop) throw new Error(`SOP not found: ${input.sop_key}`);
+
+    // 使用系统默认 snail 分配计划或 agent 指定的计划
+    const snailPlan = input.snail_assignment_plan ?? this.buildDefaultSnailPlan(sop);
+
+    const now = new Date().toISOString();
+    const issueType = input.sop_key === "project-initiation" ? "project" : "task";
+    const issue: Issue = {
+      id: randomUUID(),
+      workspace_path: parentIssue.workspace_path,
+      title: input.title,
+      summary: input.scope,
+      sop_snapshot: structuredClone(sop),
+      snail_assignment_plan: structuredClone(snailPlan),
+      context: input.context ?? {},
+      created_at: now,
+      closed_at: null,
+      parent_issue_id: input.parent_issue_id,
+      child_issue_ids: [],
+      issue_type: issueType,
+      aggregated_status: "pending",
+      aggregated_progress: { total: 0, completed: 0, in_progress: 0, failed: 0, blocked: 0 },
+    };
+
+    this.stageRepo.transaction(() => {
+      this.issueRepo.create(issue);
+      this.issueRepo.addChildIssue(input.parent_issue_id, issue.id);
+
+      // 创建依赖关系（校验引用有效性 + 环检测）
+      if (input.depends_on) {
+        for (const depId of input.depends_on) {
+          const depIssue = this.issueRepo.findById(depId);
+          if (!depIssue) throw new Error(`Dependency issue not found: ${depId}`);
+          if (depIssue.parent_issue_id !== input.parent_issue_id) {
+            throw new Error(`Dependency issue ${depId} is not a sibling of ${issue.id}`);
+          }
+          if (this.dependencyRepo.wouldCreateCycle(issue.id, depId)) {
+            throw new Error(`Adding dependency ${issue.id} -> ${depId} would create a cycle`);
+          }
+          this.dependencyRepo.create({ issue_id: issue.id, depends_on: depId, created_at: now });
+        }
+      }
+    });
+
+    log.info({ issueId: issue.id, parentIssueId: input.parent_issue_id, title: issue.title }, "child_issue.created");
+    return issue;
+  }
+
+  listChildren(parentIssueId: string): Issue[] {
+    return this.issueRepo.listChildren(parentIssueId);
+  }
+
+  updateAggregatedStatus(issueId: string, status: IssueAggregateStatus, progress: AggregatedProgress): void {
+    this.issueRepo.updateAggregatedStatus(issueId, status, progress);
+  }
+
+  getDependencies(issueId: string): { issue_id: string; depends_on: string }[] {
+    return this.dependencyRepo.listByIssue(issueId);
+  }
+
+  isChildIssueReady(issueId: string): boolean {
+    const deps = this.dependencyRepo.listByIssue(issueId);
+    if (deps.length === 0) return true;
+    return deps.every(dep => {
+      const depIssue = this.issueRepo.findById(dep.depends_on);
+      return depIssue?.closed_at != null && depIssue.aggregated_status !== "failed";
+    });
+  }
+
+  /** 计算 issue 的递归深度（从根 issue 到当前的层数） */
+  private getIssueDepth(issueId: string): number {
+    let depth = 0;
+    let current = this.issueRepo.findById(issueId);
+    while (current?.parent_issue_id) {
+      depth++;
+      current = this.issueRepo.findById(current.parent_issue_id);
+    }
+    return depth;
+  }
+
+  /** 为子 issue 构建默认 snail 分配计划 */
+  private buildDefaultSnailPlan(sop: Sop): IssueSnailAssignmentPlan {
+    const plan: IssueSnailAssignmentPlan = {};
+    for (const stageDef of sop.stage_definitions) {
+      const stagePlan: StageSnailAssignmentPlan = {};
+      for (const role of stageDef.roles) {
+        const instances = role.count <= 1 ? [role.name] : Array.from({ length: role.count }, (_, i) => `${role.name}-${i + 1}`);
+        for (const instance of instances) {
+          // TODO: 使用 role.skill 查找匹配的 snail key（需注入 SnailPort）
+          // 当前所有角色统一分配 claude-code-stateful，因为系统中只有一种 snail 类型
+          stagePlan[instance] = "claude-code-stateful";
+        }
+      }
+      plan[stageDef.key] = stagePlan;
+    }
+    return plan;
   }
 
   closeIssue(id: string): Issue {

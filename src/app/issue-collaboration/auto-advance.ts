@@ -1,4 +1,4 @@
-import type { Stage } from "@domain/issue/model";
+import type { Stage, Issue } from "@domain/issue/model";
 import type { StageTransitionSuggestion, AdversarialArtifact, DesignAdversarialArtifact, ReviewAdversarialArtifact, SignalType, EvaluationResult, EvaluationReason } from "@app/issue-collaboration/port";
 import { getLogger } from "@infra/logger";
 
@@ -9,7 +9,7 @@ export interface AutoAdvanceDeps {
   recordAuditTrail(fromStage: Stage, toStage: Stage, suggestion: StageTransitionSuggestion): Promise<void>;
   notifyConsumers(stageId: string, method: string, ...args: unknown[]): Promise<void>;
   generateDisagreementCard(stageId: string, suggestion: StageTransitionSuggestion): Promise<void>;
-  mustGetIssue(issueId: string): { context: Record<string, string> };
+  mustGetIssue(issueId: string): Issue;
 }
 
 export class AutoAdvanceEngine {
@@ -205,14 +205,32 @@ export class AutoAdvanceEngine {
 
   /** 返回未通过的 gate ID 列表（空数组表示全部通过） */
   private getFailedGates(stage: Stage, suggestion: StageTransitionSuggestion): string[] {
-    const stageKey = stage.key;
     const gateEvidence = suggestion.gate_evidence ?? {};
+
+    /** 优先从 SOP 的 StageDefinition.gate_ids 动态读取 */
+    const issue = this.deps.mustGetIssue(stage.issue_id);
+    const stageDef = issue.sop_snapshot.stage_definitions.find(sd => sd.key === stage.key);
+    if (stageDef?.gate_ids && stageDef.gate_ids.length > 0) {
+      return this.getFailedDynamicGates(stageDef.gate_ids, gateEvidence);
+    }
+
+    /** 向后兼容：回退到硬编码映射 */
+    const stageKey = stage.key;
     switch (stageKey) {
       case "design": return this.getFailedDesignGates(gateEvidence);
       case "development": return this.getFailedDevGates(gateEvidence);
       case "review": return this.getFailedReviewGates(gateEvidence);
       default: return ["unknown_stage"];
     }
+  }
+
+  private getFailedDynamicGates(gateIds: string[], evidence: Record<string, unknown>): string[] {
+    const failed: string[] = [];
+    for (const gate of gateIds) {
+      const value = evidence[gate];
+      if (typeof value !== "string" || !value.trim()) failed.push(gate);
+    }
+    return failed;
   }
 
   private getFailedDesignGates(evidence: Record<string, unknown>): string[] {
