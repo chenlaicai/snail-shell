@@ -9,6 +9,7 @@ import type {
   StageTransitionSuggestion,
 } from "@app/issue-collaboration/port";
 import type { Message } from "@domain/message/model";
+import { decodeWorkspaceId } from "@infra/http/workspace-id";
 
 const log = getLogger({ module: "websocket" });
 
@@ -75,8 +76,9 @@ function createRouteHandler(routeInfo: RouteInfo, collaboration: CollaborationIn
       issueConsumer = null;
     }
     if (routeInfo.isWorkspaceRoute && routeInfo.workspaceId && workspaceConsumer) {
-      log.info({ workspaceId: routeInfo.workspaceId }, "workspace-events disconnected");
-      collaboration.unregisterWorkspaceConsumer(routeInfo.workspaceId, workspaceConsumer);
+      const decodedWorkspacePath = decodeWorkspaceId(routeInfo.workspaceId);
+      log.info({ workspaceId: routeInfo.workspaceId, workspacePath: decodedWorkspacePath }, "workspace-events disconnected");
+      collaboration.unregisterWorkspaceConsumer(decodedWorkspacePath, workspaceConsumer);
       workspaceConsumer = null;
     }
   };
@@ -127,9 +129,10 @@ function handleWorkspaceOpen(
     socket.close(1008, "workspace_id is required");
     return null;
   }
-  log.info({ workspaceId }, "workspace-events connected");
+  const decodedWorkspacePath = decodeWorkspaceId(workspaceId);
+  log.info({ workspaceId, workspacePath: decodedWorkspacePath }, "workspace-events connected");
   const consumer = createWorkspaceConsumer(socket);
-  collaboration.registerWorkspaceConsumer(workspaceId, consumer);
+  collaboration.registerWorkspaceConsumer(decodedWorkspacePath, consumer);
   return consumer;
 }
 
