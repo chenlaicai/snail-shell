@@ -87,10 +87,20 @@ description: |
       "design-01": "docs/features/2026/06/26/F20260626m4vx.md 已锁定",
       "design-02": "所有争议已解决",
       "design-ctx": "worktree_path=/Users/.../worktrees/xxx, branch_name=feature-xxx"
+    },
+    "adversarial_artifact": {
+      "independent_verification": [...],
+      "adversarial_findings": [...],
+      "audit_trail": { "events": [...] },
+      "critique_obligation": { "items": [...] },
+      "independent_analysis": {...},
+      "scenario_coverage": { "scenarios_reviewed": 5, "scenarios_identified": 5, "coverage_ratio": 1.0 }
     }
   }
 }
 ```
+
+**注意**：`consensus: true` 必须携带 `adversarial_artifact`，否则引擎会拒绝信号。详见 `cd-shared/references/adversarial-artifact-protocol.md`。
 
 ### 分歧信号（存在争议）
 

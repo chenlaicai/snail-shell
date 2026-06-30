@@ -88,10 +88,21 @@ description: |
       "rev-02": "npm run check 通过",
       "rev-03": "PR #123 评论已签名",
       "rev-ctx": "pr_url=https://github.com/..."
+    },
+    "adversarial_artifact": {
+      "independent_verification": [...],
+      "adversarial_findings": [...],
+      "audit_trail": { "events": [...] },
+      "file_dispositions": [...],
+      "cross_review": {...},
+      "ci_independence": {...},
+      "file_coverage": { "files_reviewed": 5, "files_in_diff": 5, "coverage_ratio": 1.0 }
     }
   }
 }
 ```
+
+**注意**：`consensus: true` 必须携带 `adversarial_artifact`，否则引擎会拒绝信号。详见 `cd-shared/references/adversarial-artifact-protocol.md`。
 
 ### 分歧信号（存在问题）
 

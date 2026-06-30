@@ -15,6 +15,66 @@ export interface Position {
   evidence?: string;
 }
 
+export interface AdversarialArtifact {
+  independent_verification: {
+    command: string;
+    actual_output: string;
+    executed_at: string;
+  }[];
+  adversarial_findings: {
+    dimension: string;
+    finding: string;
+    disposition: string;
+  }[];
+  audit_trail: {
+    events: {
+      timestamp: string;
+      event_type: 'review_started' | 'cross_review_read' | 'disagreement_found' | 'consensus_reached';
+      detail: string;
+    }[];
+  };
+}
+
+export interface DesignAdversarialArtifact extends AdversarialArtifact {
+  critique_obligation: {
+    items: { type: 'risk' | 'gap' | 'alternative'; content: string }[];
+  };
+  independent_analysis: {
+    my_conclusion: string;
+    comparison_with_peer: string;
+    points_of_agreement: string[];
+    points_of_disagreement: string[];
+  };
+  scenario_coverage: {
+    scenarios_reviewed: number;
+    scenarios_identified: number;
+    coverage_ratio: number;
+  };
+}
+
+export interface ReviewAdversarialArtifact extends AdversarialArtifact {
+  file_dispositions: {
+    path: string;
+    status: 'reviewed' | 'not_applicable';
+    issues_found: number;
+  }[];
+  cross_review: {
+    peer_conclusion_summary: string;
+    my_independent_check: string;
+    alignment_or_conflict: string;
+  };
+  ci_independence: {
+    source: 'github_api' | 'checks_page';
+    status: string;
+    confirmed_at: string;
+  };
+  file_coverage: {
+    files_reviewed: number;
+    files_in_diff: number;
+    coverage_ratio: number;
+  };
+}
+
 export interface StageTransitionSuggestion {
   stage_id: string;
   message_id: number;
@@ -28,6 +88,7 @@ export interface StageTransitionSuggestion {
   positions?: Position[];
   review_round?: number;
   gate_evidence?: Record<string, unknown>;
+  adversarial_artifact?: AdversarialArtifact;
 }
 
 export interface CollaborationInput {
