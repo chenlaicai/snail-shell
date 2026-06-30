@@ -1,6 +1,7 @@
 import type { MCPServerConfig } from "@domain/snail-mcp-server/model";
 import type { McpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-message-store";
 import type { MessagePort } from "@domain/message/port";
+import type { StagePort } from "@domain/issue/port";
 import { getLogger } from "@infra/logger";
 const log = getLogger({ module: "snail-final-response" });
 
@@ -8,7 +9,7 @@ const log = getLogger({ module: "snail-final-response" });
  * snail-final-response MCP Server。
  * 用于 agent 提交消息的最终展示正文和路由目标声明。
  */
-export function createFinalResponseServer(messagePort: MessagePort, mcpMessageStore: McpMessageStore): MCPServerConfig {
+export function createFinalResponseServer(messagePort: MessagePort, mcpMessageStore: McpMessageStore, stagePort: StagePort): MCPServerConfig {
   /** 已提交 final body 的 message ID 集合，用于幂等防护（进程级生命周期） */
   const submittedMessages = new Set<number>();
   return {
@@ -39,15 +40,9 @@ export function createFinalResponseServer(messagePort: MessagePort, mcpMessageSt
           if (!rawMessageId) throw new Error("message_id is required");
           const messageId = Number(rawMessageId);
           if (!Number.isInteger(messageId) || messageId <= 0) throw new Error("message_id must be a positive integer");
-          /** 归属校验：保留参数校验，即使重复调用也不静默吞掉错误 */
           const stageId = params.stage_id as string;
-          if (stageId) {
-            const message = messagePort.getMessage(messageId);
-            if (!message) throw new Error(`message_id ${messageId} not found`);
-            if (message.stage_id !== stageId) {
-              throw new Error(`message_id ${messageId} does not belong to stage ${stageId} (actual: ${message.stage_id})`);
-            }
-          }
+          /** 归属校验：保留参数校验，即使重复调用也不静默吞掉错误 */
+          const message = verifyStageOwnership(messagePort, messageId, stageId);
           /** 幂等防护：同一 message 重复调用时跳过所有写入，返回区分性响应 */
           if (submittedMessages.has(messageId)) {
             return { ok: true, already_submitted: true, hint: "final body already recorded for this message; your response is complete" };
@@ -66,6 +61,7 @@ export function createFinalResponseServer(messagePort: MessagePort, mcpMessageSt
           if (Array.isArray(params.to_speakers) && params.to_speakers.length > 0) {
             const targets = (params.to_speakers as unknown[]).filter((t): t is string => typeof t === "string");
             if (targets.length > 0) {
+              validateToSpeakers(targets, stageId, stagePort, message?.from_speaker ?? null);
               mcpMessageStore.setMcpRoutingTargets(messageId, targets);
             }
           }
@@ -75,6 +71,47 @@ export function createFinalResponseServer(messagePort: MessagePort, mcpMessageSt
       },
     ],
   };
+}
+
+/**
+ * 归属校验：message_id 必须属于当前 stage，防止串台写入。
+ * stageId 为空时跳过校验（向后兼容无 stage_id 的调用）。
+ */
+function verifyStageOwnership(
+  messagePort: MessagePort,
+  messageId: number,
+  stageId: string,
+): ReturnType<typeof messagePort.getMessage> {
+  if (!stageId) return undefined;
+  const message = messagePort.getMessage(messageId);
+  if (!message) throw new Error(`message_id ${messageId} not found`);
+  if (message.stage_id !== stageId) {
+    throw new Error(`message_id ${messageId} does not belong to stage ${stageId} (actual: ${message.stage_id})`);
+  }
+  return message;
+}
+
+/**
+ * 校验 to_speakers 中的目标是否合法。
+ * 合法值："user" + stage.role_instances 中排除当前发言者。
+ * findStage 返回 undefined 时跳过校验（异常路径降级，下游 isValidReplyMention 兜底）。
+ */
+function validateToSpeakers(
+  targets: string[],
+  stageId: string,
+  stagePort: StagePort,
+  currentSpeaker: string | null,
+): void {
+  if (!stageId) return;
+  const stage = stagePort.findStage(stageId);
+  if (!stage) return;
+  const validTargets = stage.role_instances.filter(i => i !== currentSpeaker);
+  const invalid = targets.filter(t => t !== "user" && !validTargets.includes(t));
+  if (invalid.length > 0) {
+    throw new Error(
+      `Invalid to_speakers: [${invalid.join(", ")}]. Valid targets: [${validTargets.join(", ")}] or "user".`
+    );
+  }
 }
 
 /**
