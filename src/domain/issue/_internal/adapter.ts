@@ -10,6 +10,7 @@ import {
   type StagePreview,
   type IssueSnailAssignmentPlan,
   type StageSnailAssignmentPlan,
+  type CloseSummary,
 } from "@domain/issue/model";
 import type { IssuePort, StagePort, StageAuditRecord } from "@domain/issue/port";
 import type { IssueRepository, StageRepository, RoleSnailAssignmentRepository } from "@domain/issue/_internal/repository";
@@ -71,6 +72,7 @@ export class IssueAdapter implements IssuePort {
       context: input.context ?? {},
       created_at: now,
       closed_at: null,
+      close_summary: null,
     };
     this.issueRepo.create(issue);
     log.info({ issueId: issue.id, title: issue.title, sopKey: input.adopted_sop_key, workspacePath: input.workspace_path }, "issue.created");
@@ -92,8 +94,13 @@ export class IssueAdapter implements IssuePort {
       }
 
       log.info({ issueId: id, closedAt: now, activeStageId: activeStage?.id ?? null }, "issue.closed");
-      return { ...issue, closed_at: now };
+      return { ...issue, closed_at: now, close_summary: null };
     });
+  }
+
+  updateCloseSummary(id: string, summary: CloseSummary): void {
+    this.issueRepo.updateCloseSummary(id, JSON.stringify(summary));
+    log.info({ issueId: id }, "issue.close_summary.updated");
   }
 }
 

@@ -1,4 +1,4 @@
-import type { Issue, Stage, CreateStageInput, RoleSnailAssignment, StagePreview, IssueSnailAssignmentPlan, StageSnailAssignmentPlan } from "@domain/issue/model";
+import type { Issue, Stage, CreateStageInput, RoleSnailAssignment, StagePreview, IssueSnailAssignmentPlan, StageSnailAssignmentPlan, CloseSummary } from "@domain/issue/model";
 import type { Sop } from "@domain/sop/model";
 
 export interface StageAuditRecord {
@@ -21,6 +21,8 @@ export interface IssuePort {
   updateContext(issueId: string, context: Record<string, string>): void;
   /** 关闭 issue（用户主动终止，任意阶段可调用，幂等） */
   closeIssue(id: string): Issue;
+  /** 更新 close_summary（best-effort，失败仅记录日志） */
+  updateCloseSummary(id: string, summary: CloseSummary): void;
 }
 
 /** Stage 端口 */

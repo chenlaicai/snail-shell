@@ -64,6 +64,13 @@ export type SopDto = {
 };
 export type SopDetailDto = SopDto;
 
+export type CloseSummaryDto = {
+  pr: ResourceResultDto;
+  worktree: ResourceResultDto;
+  localBranch: ResourceResultDto;
+  remoteBranch: ResourceResultDto;
+};
+
 export type IssueDto = {
   id: string;
   workspace_id: string;
@@ -75,6 +82,7 @@ export type IssueDto = {
   context: Record<string, string>;
   created_at: string;
   closed_at: string | null;
+  close_summary: CloseSummaryDto | null;
 };
 export type IssueDetailDto = IssueDto & { stages: StageDetailDto[]; current_stage: StageDetailDto; activity_status: ActivityStatus };
 export type CreateIssueResult = { issue: IssueDetailDto; stage: StageDetailDto };

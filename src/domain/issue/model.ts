@@ -5,6 +5,13 @@ export type IssueSnailAssignmentPlan = Record<string, StageSnailAssignmentPlan>;
 
 // ── Issue ─────────────────────────────────────────────────────────────
 
+export interface CloseSummary {
+  pr: { status: "success" | "failed" | "skipped"; error?: string };
+  worktree: { status: "success" | "failed" | "skipped"; error?: string };
+  localBranch: { status: "success" | "failed" | "skipped"; error?: string };
+  remoteBranch: { status: "success" | "failed" | "skipped"; error?: string };
+}
+
 export interface Issue {
   id: string;
   workspace_path: string;
@@ -16,6 +23,8 @@ export interface Issue {
   context: Record<string, string>;
   created_at: string;
   closed_at: string | null;
+  /** 与 closed_at 配套，记录资源清理结果（best-effort） */
+  close_summary: CloseSummary | null;
 }
 
 export interface CreateIssueInput {

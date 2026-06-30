@@ -184,6 +184,12 @@ export class IssueCollaboration implements CollaborationInput {
       }
     }
     const cleanup = await cleanupResources(issue.context, issue.workspace_path);
+    /** best-effort：写入失败仅记录日志，不阻断 close 流程 */
+    try {
+      this.deps.issuePort.updateCloseSummary(issueId, cleanup);
+    } catch (err) {
+      log.error({ issueId, err }, "closeIssue: updateCloseSummary failed");
+    }
     return { issue, cleanup };
   }
   async resumeRoute(stageId: string, message: Message): Promise<void> {

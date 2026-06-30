@@ -14,6 +14,7 @@ export interface IssueRepository {
   /** 更新 Issue 上下文（merge 语义） */
   updateContext(issueId: string, context: Record<string, string>): void;
   updateClosedAt(id: string, closedAt: string): void;
+  updateCloseSummary(id: string, summary: string): void;
 }
 
 // ── Stage Repository ──────────────────────────────────────────────────
@@ -60,7 +61,8 @@ CREATE TABLE IF NOT EXISTS issue (
   snail_assignment_plan TEXT NOT NULL,
   context TEXT NOT NULL DEFAULT '{}',
   created_at TEXT NOT NULL,
-  closed_at TEXT
+  closed_at TEXT,
+  close_summary TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_issue_workspace_created ON issue(workspace_path, created_at DESC);
@@ -121,6 +123,7 @@ type IssueRow = {
   context: string;
   created_at: string;
   closed_at: string | null;
+  close_summary: string | null;
 };
 
 type StageRow = {
@@ -160,8 +163,8 @@ export class SQLiteIssueRepository implements IssueRepository {
 
   create(issue: Issue): void {
     this.db.run(
-      `INSERT INTO issue (id, workspace_path, title, summary, sop_snapshot, snail_assignment_plan, context, created_at, closed_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO issue (id, workspace_path, title, summary, sop_snapshot, snail_assignment_plan, context, created_at, closed_at, close_summary)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         issue.id,
         issue.workspace_path,
@@ -172,6 +175,7 @@ export class SQLiteIssueRepository implements IssueRepository {
         JSON.stringify(issue.context),
         issue.created_at,
         issue.closed_at,
+        issue.close_summary ? JSON.stringify(issue.close_summary) : null,
       ],
     );
   }
@@ -185,6 +189,10 @@ export class SQLiteIssueRepository implements IssueRepository {
 
   updateClosedAt(id: string, closedAt: string): void {
     this.db.run(`UPDATE issue SET closed_at = ? WHERE id = ?`, [closedAt, id]);
+  }
+
+  updateCloseSummary(id: string, summary: string): void {
+    this.db.run(`UPDATE issue SET close_summary = ? WHERE id = ?`, [summary, id]);
   }
 }
 
@@ -397,6 +405,7 @@ function mapIssue(row: IssueRow): Issue {
     context: JSON.parse(row.context),
     created_at: row.created_at,
     closed_at: row.closed_at,
+    close_summary: row.close_summary ? JSON.parse(row.close_summary) : null,
   };
 }
 
