@@ -335,7 +335,7 @@ export function IssueConversation() {
                 <div className="grid grid-cols-2 divide-x divide-white/6">
                   <div>
                     <PropRow label="Stage"><span className="text-[13px]">{stage?.stage_definition?.title ?? "—"}</span></PropRow>
-                    <PropRow label="SOP" last><span className="text-[13px] text-text-secondary">{issue.sop_snapshot?.name ?? "—"}</span></PropRow>
+                    <PropRow label="SOP" last><span className="text-[13px] text-text-secondary">{issue.sop_snapshot.name ?? "—"}</span></PropRow>
                   </div>
                   <div>
                     <PropRow label="Created"><span className="text-[13px] text-text-secondary">{issue.created_at ? new Date(issue.created_at).toLocaleDateString() : "—"}</span></PropRow>

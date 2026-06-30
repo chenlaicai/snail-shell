@@ -18,7 +18,7 @@ export function PropertiesPanel({ issue, stage }: PropertiesPanelProps) {
             <span className="text-[13px]">{currentStage?.stage_definition?.title ?? "—"}</span>
           </PropRow>
           <PropRow label="SOP">
-            <span className="text-[13px] text-text-secondary">{issue.sop_snapshot?.name ?? "—"}</span>
+            <span className="text-[13px] text-text-secondary">{issue.sop_snapshot.name ?? "—"}</span>
           </PropRow>
           <PropRow label="Created">
             <span className="text-[13px] text-text-secondary">{formatDate(issue.created_at)}</span>
