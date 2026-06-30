@@ -1,8 +1,32 @@
 import { describe, it, expect } from "vitest";
 import { createFinalResponseServer } from "@domain/snail-mcp-server/_internal/servers/snail-final-response";
 import type { MessagePort } from "@domain/message/port";
+import type { StagePort } from "@domain/issue/port";
 import type { McpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-message-store";
 import type { Message, MessageEvent, MessageEventPayload } from "@domain/message/model";
+
+function createMockStagePort(overrides: Partial<StagePort> = {}): StagePort {
+  return {
+    findStage: () => undefined,
+    listStages: () => [],
+    listOpenStageIds: () => [],
+    listAllOpenStageIds: () => [],
+    previewStage: () => ({ key: "", title: "", description: "", available_transitions: [], role_instances: [] }),
+    getStageSnailAssignmentPlan: () => ({}),
+    transaction: (fn) => fn(),
+    createStage: () => ({ id: "", workspace_path: "", issue_id: "", key: "", title: "", description: "", default_role_instance: "", role_instances: [], from_stage_id: null, available_transitions: [], output_artifacts: {}, entered_at: "", left_at: null }),
+    addOutputArtifacts: () => {},
+    advanceStage: () => ({ id: "", workspace_path: "", issue_id: "", key: "", title: "", description: "", default_role_instance: "", role_instances: [], from_stage_id: null, available_transitions: [], output_artifacts: {}, entered_at: "", left_at: null }),
+    rollbackStage: () => ({ id: "", workspace_path: "", issue_id: "", key: "", title: "", description: "", default_role_instance: "", role_instances: [], from_stage_id: null, available_transitions: [], output_artifacts: {}, entered_at: "", left_at: null }),
+    recordAudit: () => {},
+    getAuditTrail: () => [],
+    switchSnail: () => {},
+    setSnailInstanceId: () => {},
+    getRoleSnailAssignments: () => [],
+    getRoleSnailAssignment: () => null,
+    ...overrides,
+  };
+}
 
 function createMockMessagePort(overrides: Partial<MessagePort> = {}): MessagePort {
   return {
@@ -49,7 +73,7 @@ describe("set_final_body handler", () => {
       setContext: (id, kind, ctx) => { writtenId = id; writtenKind = kind; writtenCtx = ctx; },
     });
 
-    const server = createFinalResponseServer(port, createMockMcpMessageStore());
+    const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
     const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a" });
@@ -67,7 +91,7 @@ describe("set_final_body handler", () => {
       getMessage: (id) => messages.get(id),
     });
 
-    const server = createFinalResponseServer(port, createMockMcpMessageStore());
+    const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
     await expect(handler({ text: "hello", message_id: "100", stage_id: "stage-b" }))
@@ -79,7 +103,7 @@ describe("set_final_body handler", () => {
       getMessage: () => undefined,
     });
 
-    const server = createFinalResponseServer(port, createMockMcpMessageStore());
+    const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
     await expect(handler({ text: "hello", message_id: "999", stage_id: "stage-a" }))
@@ -96,7 +120,7 @@ describe("set_final_body handler", () => {
       setContext: (id) => { writtenId = id; },
     });
 
-    const server = createFinalResponseServer(port, createMockMcpMessageStore());
+    const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
     const result = await handler({ text: "hello", message_id: "100" });
@@ -106,7 +130,7 @@ describe("set_final_body handler", () => {
 
   it("rejects empty text", async () => {
     const port = createMockMessagePort();
-    const server = createFinalResponseServer(port, createMockMcpMessageStore());
+    const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
     await expect(handler({ text: "" }))
@@ -115,7 +139,7 @@ describe("set_final_body handler", () => {
 
   it("rejects non-positive message_id", async () => {
     const port = createMockMessagePort();
-    const server = createFinalResponseServer(port, createMockMcpMessageStore());
+    const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
     await expect(handler({ text: "hello", message_id: "0", stage_id: "stage-a" }))
@@ -124,11 +148,162 @@ describe("set_final_body handler", () => {
 
   it("rejects non-integer message_id", async () => {
     const port = createMockMessagePort();
-    const server = createFinalResponseServer(port, createMockMcpMessageStore());
+    const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
     await expect(handler({ text: "hello", message_id: "abc", stage_id: "stage-a" }))
       .rejects.toThrow("message_id must be a positive integer");
+  });
+});
+
+describe("set_final_body to_speakers validation", () => {
+  /** 构造包含指定 role_instances 的 mock stagePort */
+  function stagePortWithInstances(roleInstances: string[]) {
+    return createMockStagePort({
+      findStage: () => ({
+        id: "stage-a",
+        workspace_path: "",
+        issue_id: "",
+        key: "development",
+        title: "",
+        description: "",
+        default_role_instance: roleInstances[0] ?? "",
+        role_instances: roleInstances,
+        from_stage_id: null,
+        available_transitions: [],
+        output_artifacts: {},
+        entered_at: "",
+        left_at: null,
+      }),
+    });
+  }
+
+  it("B1: accepts valid role instance name (excluding self)", async () => {
+    const messages = new Map<number, Message>();
+    messages.set(100, { id: 100, stage_id: "stage-a", from_speaker: "开发者", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
+    let capturedTargets: string[] | undefined;
+    const port = createMockMessagePort({ getMessage: (id) => messages.get(id) });
+    const store: McpMessageStore = {
+      getMcpRoutingTargets: () => undefined,
+      setMcpRoutingTargets: (_id, targets) => { capturedTargets = targets; },
+      deleteMcpRoutingTargets: () => {},
+    };
+    const server = createFinalResponseServer(port, store, stagePortWithInstances(["开发者", "架构师-2"]));
+    const handler = server.tools[0].handler;
+
+    const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a", to_speakers: ["架构师-2"] });
+    expect(result).toEqual({ ok: true, proceed: "end_turn" });
+    expect(capturedTargets).toEqual(["架构师-2"]);
+  });
+
+  it("B2: accepts 'user' as valid target", async () => {
+    const messages = new Map<number, Message>();
+    messages.set(100, { id: 100, stage_id: "stage-a", from_speaker: "开发者", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
+    let capturedTargets: string[] | undefined;
+    const port = createMockMessagePort({ getMessage: (id) => messages.get(id) });
+    const store: McpMessageStore = {
+      getMcpRoutingTargets: () => undefined,
+      setMcpRoutingTargets: (_id, targets) => { capturedTargets = targets; },
+      deleteMcpRoutingTargets: () => {},
+    };
+    const server = createFinalResponseServer(port, store, stagePortWithInstances(["开发者", "架构师-2"]));
+    const handler = server.tools[0].handler;
+
+    const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a", to_speakers: ["user"] });
+    expect(result).toEqual({ ok: true, proceed: "end_turn" });
+    expect(capturedTargets).toEqual(["user"]);
+  });
+
+  it("B3: rejects invalid value (snail key)", async () => {
+    const messages = new Map<number, Message>();
+    messages.set(100, { id: 100, stage_id: "stage-a", from_speaker: "开发者", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
+    const port = createMockMessagePort({ getMessage: (id) => messages.get(id) });
+    const server = createFinalResponseServer(port, createMockMcpMessageStore(), stagePortWithInstances(["开发者", "架构师-2"]));
+    const handler = server.tools[0].handler;
+
+    await expect(handler({ text: "hello", message_id: "100", stage_id: "stage-a", to_speakers: ["claude-code-stateful"] }))
+      .rejects.toThrow('Invalid to_speakers: [claude-code-stateful]. Valid targets: [架构师-2] or "user".');
+  });
+
+  it("B4: rejects when mixed valid and invalid values", async () => {
+    const messages = new Map<number, Message>();
+    messages.set(100, { id: 100, stage_id: "stage-a", from_speaker: "开发者", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
+    const port = createMockMessagePort({ getMessage: (id) => messages.get(id) });
+    const server = createFinalResponseServer(port, createMockMcpMessageStore(), stagePortWithInstances(["开发者", "架构师-2"]));
+    const handler = server.tools[0].handler;
+
+    await expect(handler({ text: "hello", message_id: "100", stage_id: "stage-a", to_speakers: ["架构师-2", "claude-code-stateful"] }))
+      .rejects.toThrow('Invalid to_speakers: [claude-code-stateful]. Valid targets: [架构师-2] or "user".');
+  });
+
+  it("B5: skips validation for empty to_speakers array", async () => {
+    const messages = new Map<number, Message>();
+    messages.set(100, { id: 100, stage_id: "stage-a", from_speaker: "开发者", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
+    const port = createMockMessagePort({ getMessage: (id) => messages.get(id) });
+    const server = createFinalResponseServer(port, createMockMcpMessageStore(), stagePortWithInstances(["开发者", "架构师-2"]));
+    const handler = server.tools[0].handler;
+
+    const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a", to_speakers: [] });
+    expect(result).toEqual({ ok: true, proceed: "end_turn" });
+  });
+
+  it("rejects self-routing (to_speakers contains current speaker)", async () => {
+    const messages = new Map<number, Message>();
+    messages.set(100, { id: 100, stage_id: "stage-a", from_speaker: "开发者", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
+    const port = createMockMessagePort({ getMessage: (id) => messages.get(id) });
+    const server = createFinalResponseServer(port, createMockMcpMessageStore(), stagePortWithInstances(["开发者", "架构师-2"]));
+    const handler = server.tools[0].handler;
+
+    await expect(handler({ text: "hello", message_id: "100", stage_id: "stage-a", to_speakers: ["开发者"] }))
+      .rejects.toThrow('Invalid to_speakers: [开发者]. Valid targets: [架构师-2] or "user".');
+  });
+
+  it("skips validation when to_speakers is not provided", async () => {
+    const messages = new Map<number, Message>();
+    messages.set(100, { id: 100, stage_id: "stage-a", from_speaker: "开发者", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
+    const port = createMockMessagePort({ getMessage: (id) => messages.get(id) });
+    const server = createFinalResponseServer(port, createMockMcpMessageStore(), stagePortWithInstances(["开发者", "架构师-2"]));
+    const handler = server.tools[0].handler;
+
+    const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a" });
+    expect(result).toEqual({ ok: true, proceed: "end_turn" });
+  });
+
+  it("skips validation when stage is not found (defensive fallback)", async () => {
+    const messages = new Map<number, Message>();
+    messages.set(100, { id: 100, stage_id: "stage-a", from_speaker: "开发者", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
+    let capturedTargets: string[] | undefined;
+    const port = createMockMessagePort({ getMessage: (id) => messages.get(id) });
+    const store: McpMessageStore = {
+      getMcpRoutingTargets: () => undefined,
+      setMcpRoutingTargets: (_id, targets) => { capturedTargets = targets; },
+      deleteMcpRoutingTargets: () => {},
+    };
+    /** stagePort.findStage 返回 undefined（异常路径） */
+    const server = createFinalResponseServer(port, store, createMockStagePort());
+    const handler = server.tools[0].handler;
+
+    const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a", to_speakers: ["anyone"] });
+    expect(result).toEqual({ ok: true, proceed: "end_turn" });
+    expect(capturedTargets).toEqual(["anyone"]);
+  });
+
+  it("accepts multiple valid targets", async () => {
+    const messages = new Map<number, Message>();
+    messages.set(100, { id: 100, stage_id: "stage-a", from_speaker: "开发者", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
+    let capturedTargets: string[] | undefined;
+    const port = createMockMessagePort({ getMessage: (id) => messages.get(id) });
+    const store: McpMessageStore = {
+      getMcpRoutingTargets: () => undefined,
+      setMcpRoutingTargets: (_id, targets) => { capturedTargets = targets; },
+      deleteMcpRoutingTargets: () => {},
+    };
+    const server = createFinalResponseServer(port, store, stagePortWithInstances(["开发者", "架构师-2", "审查者-1"]));
+    const handler = server.tools[0].handler;
+
+    const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a", to_speakers: ["架构师-2", "审查者-1", "user"] });
+    expect(result).toEqual({ ok: true, proceed: "end_turn" });
+    expect(capturedTargets).toEqual(["架构师-2", "审查者-1", "user"]);
   });
 });
 
@@ -150,7 +325,7 @@ describe("set_final_body stage_transition signal extraction", () => {
 
   it("appends signal event when text contains valid stage_transition JSON", async () => {
     const { port, events } = createPortWithEventCapture();
-    const server = createFinalResponseServer(port, createMockMcpMessageStore());
+    const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
     const signalJson = JSON.stringify({
@@ -179,7 +354,7 @@ describe("set_final_body stage_transition signal extraction", () => {
 
   it("extracts stage_transition from Markdown with embedded JSON block", async () => {
     const { port, events } = createPortWithEventCapture();
-    const server = createFinalResponseServer(port, createMockMcpMessageStore());
+    const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
     const text = `## Summary
@@ -211,7 +386,7 @@ Implementation complete.
 
   it("does not append signal event when text has no stage_transition", async () => {
     const { port, events } = createPortWithEventCapture();
-    const server = createFinalResponseServer(port, createMockMcpMessageStore());
+    const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
     await handler({ text: "Just a regular message", message_id: "100", stage_id: "s1" });
@@ -221,7 +396,7 @@ Implementation complete.
 
   it("silently skips when stage_transition JSON is malformed", async () => {
     const { port, events } = createPortWithEventCapture();
-    const server = createFinalResponseServer(port, createMockMcpMessageStore());
+    const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
     await handler({ text: '{"stage_transition": {broken json', message_id: "100", stage_id: "s1" });
@@ -234,7 +409,7 @@ Implementation complete.
     const { port, events } = createPortWithEventCapture({
       setContext: (_id, kind) => { writtenKind = kind; },
     });
-    const server = createFinalResponseServer(port, createMockMcpMessageStore());
+    const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
     const signalJson = JSON.stringify({ stage_transition: { target_key: "review", consensus: true } });
@@ -246,7 +421,7 @@ Implementation complete.
 
   it("handles disagreement signal (consensus: false)", async () => {
     const { port, events } = createPortWithEventCapture();
-    const server = createFinalResponseServer(port, createMockMcpMessageStore());
+    const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
     const signalJson = JSON.stringify({
@@ -303,7 +478,7 @@ describe("set_final_body idempotent guard (B2)", () => {
 
   it("returns idempotent response on duplicate call and skips all writes", async () => {
     const { port, mcpStore, contextWrites, routingWrites } = createPortWithCapture();
-    const server = createFinalResponseServer(port, mcpStore);
+    const server = createFinalResponseServer(port, mcpStore, createMockStagePort());
     const handler = server.tools[0].handler;
 
     /** 首次调用 */
@@ -324,7 +499,7 @@ describe("set_final_body idempotent guard (B2)", () => {
 
   it("does not append signal event on duplicate call even with stage_transition", async () => {
     const { port, mcpStore, events } = createPortWithCapture();
-    const server = createFinalResponseServer(port, mcpStore);
+    const server = createFinalResponseServer(port, mcpStore, createMockStagePort());
     const handler = server.tools[0].handler;
 
     const signalJson = JSON.stringify({ stage_transition: { target_key: "review", consensus: true } });
@@ -348,7 +523,7 @@ describe("set_final_body idempotent guard (B2)", () => {
       getMessage: (id) => messages.get(id),
       setContext: (id, kind, ctx) => { contextWrites.push({ id, kind, ctx }); },
     });
-    const server = createFinalResponseServer(port, createMockMcpMessageStore());
+    const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
     await handler({ text: "body 100", message_id: "100", stage_id: "s1" });
@@ -367,7 +542,7 @@ describe("set_final_body idempotent guard (B2)", () => {
     const port = createMockMessagePort({
       getMessage: (id) => messages.get(id),
     });
-    const server = createFinalResponseServer(port, createMockMcpMessageStore());
+    const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
     /** 首次调用 */
@@ -382,7 +557,7 @@ describe("set_final_body idempotent guard (B2)", () => {
 
 describe("set_final_body tool description (B3)", () => {
   it("contains termination semantics in description", () => {
-    const server = createFinalResponseServer(createMockMessagePort(), createMockMcpMessageStore());
+    const server = createFinalResponseServer(createMockMessagePort(), createMockMcpMessageStore(), createMockStagePort());
     const description = server.tools[0].description;
     expect(description).toContain("调用此工具后，你的发言即告结束");
     expect(description).toContain("不得再调用任何其他工具");

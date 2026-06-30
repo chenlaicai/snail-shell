@@ -167,7 +167,7 @@ describe("Signal chain: set_final_body → detectStageTransition → autoAdvance
     });
 
     // Act
-    const server = createFinalResponseServer(messagePort, createMockMcpMessageStore());
+    const server = createFinalResponseServer(messagePort, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
     const signalJson = JSON.stringify({
@@ -253,7 +253,7 @@ describe("Signal chain: set_final_body → detectStageTransition → autoAdvance
     });
 
     // Act
-    const server = createFinalResponseServer(messagePort, createMockMcpMessageStore());
+    const server = createFinalResponseServer(messagePort, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
     const markdownText = `## Review Summary
@@ -343,7 +343,7 @@ All checks passed.
     });
 
     // Act
-    const server = createFinalResponseServer(messagePort, createMockMcpMessageStore());
+    const server = createFinalResponseServer(messagePort, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
     await handler({ text: "Just a regular message without signal", message_id: "300", stage_id: "s1" });

@@ -39,7 +39,7 @@ export function init(deps: SnailMCPServerDeps) {
   const adapter = new SnailMCPServerAdapter();
 
   // 注册所有 MCP Server
-  adapter.registerServer(createFinalResponseServer(deps.message, deps.mcpMessageStore));
+  adapter.registerServer(createFinalResponseServer(deps.message, deps.mcpMessageStore, deps.stage));
   adapter.registerServer(createEvolutionServer(deps.evolution));
   adapter.registerServer(createKnowledgeServer(deps.knowledge));
   adapter.registerServer(createRednoteResearchServer());
