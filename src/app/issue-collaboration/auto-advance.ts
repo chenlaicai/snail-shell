@@ -279,7 +279,7 @@ export class AutoAdvanceEngine {
      */
     if (stage.key === "review") {
       const unresolvedFindings = artifact.adversarial_findings.filter(
-        f => f.finding !== "no issues" && (f.disposition === "none" || f.disposition.trim() === ""),
+        f => f.finding !== "no issues" && (f.disposition === "none" || (f.disposition ?? "").trim() === ""),
       );
       if (unresolvedFindings.length > 0) {
         return { valid: false, reason: `${unresolvedFindings.length} finding(s) with unresolved disposition`, rule: "R8" };
