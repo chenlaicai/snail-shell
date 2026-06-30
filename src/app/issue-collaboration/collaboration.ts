@@ -147,12 +147,18 @@ export class IssueCollaboration implements CollaborationInput {
     if (consumers.size === 0) this.workspaceConsumers.delete(workspaceId);
   }
   listStageTransitionSuggestions(stageId: string): StageTransitionSuggestion[] {
-    return [...(this.suggestions.get(stageId) ?? [])];
+    const suggestions = this.suggestions.get(stageId) ?? [];
+    const seen = new Set<string>();
+    return suggestions.filter(s => {
+      if (seen.has(s.target_key)) return false;
+      seen.add(s.target_key);
+      return true;
+    });
   }
-  dismissSuggestion(stageId: string, targetKey: string): boolean {
+  dismissSuggestion(stageId: string, targetKey: string, createdAt: string): boolean {
     const suggestions = this.suggestions.get(stageId);
     if (!suggestions) return false;
-    const remaining = suggestions.filter(s => s.target_key !== targetKey);
+    const remaining = suggestions.filter(s => !(s.target_key === targetKey && s.created_at === createdAt));
     if (remaining.length === suggestions.length) return false;
     if (remaining.length === 0) {
       this.suggestions.delete(stageId);

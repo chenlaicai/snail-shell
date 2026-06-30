@@ -46,6 +46,7 @@ export function StageSuggestionCard({
     try {
       await api("DELETE /api/stages/:stageId/transition-suggestions/:targetKey", {
         params: { stageId, targetKey: suggestion.target_key },
+        query: { created_at: suggestion.created_at },
       });
       refetch();
     } catch (err: unknown) {
