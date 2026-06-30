@@ -82,8 +82,8 @@ description: |
 ```json
 {
   "stage_transition": {
+    "signal_type": "gate_complete",
     "target_key": "review",
-    "consensus": true,
     "reason": "代码实现完成，自检通过，PR 已创建",
     "guard": "dev-01: 代码已实现; dev-02: 自检通过; dev-03: 文档已更新; dev-04: PR 已创建; dev-06: 变更完整性已验证",
     "gate_evidence": {
@@ -98,4 +98,4 @@ description: |
 }
 ```
 
-**注意**：development stage 只有一个开发者，不存在对抗机制，所以 `consensus` 固定为 `true`。
+**注意**：development stage 只有一个开发者，不存在对抗机制，使用 `signal_type: "gate_complete"` 即可，无需 `consensus` 和 `adversarial_artifact`。

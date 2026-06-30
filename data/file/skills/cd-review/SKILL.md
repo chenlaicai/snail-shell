@@ -79,8 +79,8 @@ description: |
 ```json
 {
   "stage_transition": {
+    "signal_type": "adversarial_consensus",
     "target_key": "merge",
-    "consensus": true,
     "reason": "所有检视意见已处理，验证通过",
     "guard": "rev-01: 所有评论已处理; rev-02: 验证通过; rev-03: 已签名",
     "gate_evidence": {
@@ -90,27 +90,58 @@ description: |
       "rev-ctx": "pr_url=https://github.com/..."
     },
     "adversarial_artifact": {
-      "independent_verification": [...],
-      "adversarial_findings": [...],
-      "audit_trail": { "events": [...] },
-      "file_dispositions": [...],
-      "cross_review": {...},
-      "ci_independence": {...},
-      "file_coverage": { "files_reviewed": 5, "files_in_diff": 5, "coverage_ratio": 1.0 }
+      "independent_verification": [
+        {
+          "command": "{{实际执行的命令，如 npm run check}}",
+          "actual_output": "{{命令的实际输出，至少 20 字符}}",
+          "executed_at": "{{ISO 时间戳}}"
+        }
+      ],
+      "adversarial_findings": [
+        {
+          "dimension": "{{检查维度，如 completeness / correctness / regression}}",
+          "finding": "{{发现内容，可以是 'no issues' 但必须说明检查了什么}}",
+          "disposition": "{{处置方式}}"
+        }
+      ],
+      "audit_trail": {
+        "events": [
+          { "timestamp": "{{ISO}}", "event_type": "review_started", "detail": "开始检视" },
+          { "timestamp": "{{ISO}}", "event_type": "cross_review_read", "detail": "阅读对方结论" }
+        ]
+      },
+      "file_dispositions": [
+        { "path": "{{文件路径}}", "status": "reviewed", "issues_found": 0 }
+      ],
+      "cross_review": {
+        "peer_conclusion_summary": "{{对方结论摘要}}",
+        "my_independent_check": "{{你的独立检查结果}}",
+        "alignment_or_conflict": "{{aligned / conflict}}"
+      },
+      "ci_independence": {
+        "source": "github_api",
+        "status": "{{CI 状态}}",
+        "confirmed_at": "{{ISO 时间戳}}"
+      },
+      "file_coverage": {
+        "files_reviewed": 5,
+        "files_in_diff": 5,
+        "coverage_ratio": 1.0
+      }
     }
   }
 }
 ```
 
-**注意**：`consensus: true` 必须携带 `adversarial_artifact`，否则引擎会拒绝信号。详见 `cd-shared/references/adversarial-artifact-protocol.md`。
+**注意**：`signal_type: "adversarial_consensus"` 必须携带 `adversarial_artifact`，否则引擎会拒绝信号。详见 `cd-shared/references/adversarial-artifact-protocol.md`。
 
 ### 分歧信号（存在问题）
 
 ```json
 {
   "stage_transition": {
+    "signal_type": "disagreement",
     "target_key": "merge",
-    "consensus": false,
     "reason": "发现未处理的检视意见",
     "positions": [
       {

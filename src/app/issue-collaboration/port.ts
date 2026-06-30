@@ -8,6 +8,9 @@ export interface CreateIssueResult {
   stage: Stage;
 }
 
+/** 信号类型：显式声明信号语义，引擎按类型路由 */
+export type SignalType = "gate_complete" | "adversarial_consensus" | "disagreement";
+
 export interface Position {
   speaker: string;
   stance: "for" | "against" | "neutral";
@@ -84,11 +87,31 @@ export interface StageTransitionSuggestion {
   guard: string | null;
   artifacts: Record<string, string>;
   created_at: string;
+  /** 显式信号类型。缺失时引擎按字段推断（向后兼容） */
+  signal_type?: SignalType;
   consensus?: boolean;
   positions?: Position[];
   review_round?: number;
   gate_evidence?: Record<string, unknown>;
   adversarial_artifact?: AdversarialArtifact;
+}
+
+/** 引擎评估结果的动作 */
+export type EvaluationAction = "auto_advanced" | "blocked" | "escalated";
+
+/** 引擎评估结果中的单条原因 */
+export interface EvaluationReason {
+  code: string;
+  severity: "info" | "warning" | "error";
+  message: string;
+  details?: Record<string, unknown>;
+}
+
+/** 引擎评估结果 */
+export interface EvaluationResult {
+  action: EvaluationAction;
+  target_key?: string;
+  reasons: EvaluationReason[];
 }
 
 export interface CollaborationInput {
@@ -122,6 +145,7 @@ export interface CollaborationConsumer {
   onDisagreement?(stageId: string, suggestion: StageTransitionSuggestion): void | Promise<void>;
   onAutoAdvanced?(stageId: string, data: { from: string; to: string; reason: string }): void | Promise<void>;
   onContextMissing?(stageId: string, data: { missing_fields: string[] }): void | Promise<void>;
+  onEvaluationResult?(stageId: string, result: EvaluationResult): void | Promise<void>;
 }
 
 export interface WorkspaceConsumer {
