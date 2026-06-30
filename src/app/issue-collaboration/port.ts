@@ -1,6 +1,7 @@
 import type { Message, MessageContext, MessageEvent } from "@domain/message/model";
 import type { CreateIssueInput, Issue, Stage } from "@domain/issue/model";
 import type { StageAuditRecord } from "@domain/issue/port";
+import type { CleanupResult } from "@app/issue-collaboration/resource-cleanup";
 
 export interface CreateIssueResult {
   issue: Issue;
@@ -41,7 +42,7 @@ export interface CollaborationInput {
   advanceStage(stageId: string, targetKey: string): Promise<Stage>;
   rollbackStage(stageId: string, targetKey: string): Promise<Stage>;
   getStageAuditTrail(stageId: string): StageAuditRecord[];
-  closeIssue(issueId: string): Issue;
+  closeIssue(issueId: string): Promise<{ issue: Issue; cleanup: CleanupResult }>;
   /** 查询 stage 是否有 agent 正在执行（用于 activity_status 判断） */
   isInvoking(stageId: string): boolean;
   /** 计算 stage 的 activity_status（唯一实现） */

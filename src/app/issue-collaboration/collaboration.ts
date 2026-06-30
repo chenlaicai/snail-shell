@@ -13,6 +13,7 @@ import { AutoAdvanceEngine } from "@app/issue-collaboration/auto-advance";
 import { ConsumerNotifier } from "@app/issue-collaboration/consumer-notifier";
 import { MessageHandler } from "@app/issue-collaboration/message-handler";
 import { CollaborationHelpers } from "@app/issue-collaboration/helpers";
+import { cleanupResources, type CleanupResult } from "@app/issue-collaboration/resource-cleanup";
 import { buildIdentityBlock } from "@app/issue-collaboration/_internal/identity-block";
 import { getLogger } from "@infra/logger";
 const log = getLogger({ module: "collaboration" });
@@ -153,7 +154,7 @@ export class IssueCollaboration implements CollaborationInput {
     this.helpers.initStageCursors(stage);
     return stage;
   }
-  closeIssue(issueId: string): Issue {
+  async closeIssue(issueId: string): Promise<{ issue: Issue; cleanup: CleanupResult }> {
     const issue = this.deps.issuePort.closeIssue(issueId);
     const prevStatus = this.lastActivityStatus.get(issueId) ?? "needs_human";
     this.lastActivityStatus.delete(issueId);
@@ -163,7 +164,8 @@ export class IssueCollaboration implements CollaborationInput {
         consumer.onActivityStatusChanged(issueId, "completed", prevStatus);
       }
     }
-    return issue;
+    const cleanup = await cleanupResources(issue.context, issue.workspace_path);
+    return { issue, cleanup };
   }
   async resumeRoute(stageId: string, message: Message): Promise<void> {
     try {

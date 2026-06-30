@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { api } from "@/services/api-client";
 import { showToast } from "@/components/Toast";
 import { useCloseIssue } from "@/mutations/issue.mutations";
-import type { IssueDetailDto, StageDetailDto, StageTransition } from "@/types";
+import type { IssueDetailDto, StageDetailDto, StageTransition, CleanupResultDto, ResourceResultDto } from "@/types";
 
 export function StageActionBar({
   issue,
@@ -50,10 +50,31 @@ export function StageActionBar({
     }
   }
 
+  function formatCleanupResult(cleanup: CleanupResultDto): string {
+    const lines: string[] = ["Issue 已关闭"];
+    const labels: Record<keyof CleanupResultDto, string> = {
+      pr: "PR",
+      worktree: "Worktree",
+      localBranch: "本地分支",
+      remoteBranch: "远端分支",
+    };
+    for (const [key, label] of Object.entries(labels)) {
+      const r = cleanup[key as keyof CleanupResultDto] as ResourceResultDto;
+      if (r.status === "success") lines.push(`- ${label}: 已清理`);
+      else if (r.status === "skipped") lines.push(`- ${label}: 跳过${r.error ? `（${r.error}）` : ""}`);
+      else lines.push(`- ${label}: 失败${r.error ? `（${r.error}）` : ""}`);
+    }
+    return lines.join("\n");
+  }
+
   function handleClose() {
     if (!window.confirm("确认关闭此 Issue？关闭后对话保留为只读")) return;
     setIsClosing(true);
     closeIssue.mutate(issue.id, {
+      onSuccess: (data) => {
+        setIsClosing(false);
+        showToast(formatCleanupResult(data.cleanup));
+      },
       onError: (err: unknown) => {
         setIsClosing(false);
         showToast(`关闭失败：${err instanceof Error ? err.message : String(err)}`, true);
