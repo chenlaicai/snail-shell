@@ -88,6 +88,16 @@ export function createIssueRoutes(deps: IssueRoutesDeps) {
     return c.json(deps.collaboration.listStageTransitionSuggestions(c.req.param("stageId")));
   });
 
+  app.delete("/api/stages/:stageId/transition-suggestions/:targetKey", (c) => {
+    const stageId = c.req.param("stageId");
+    const targetKey = c.req.param("targetKey");
+    const createdAt = c.req.query("created_at");
+    if (!createdAt) return c.json({ error: "created_at query param required" }, 400);
+    const dismissed = deps.collaboration.dismissSuggestion(stageId, targetKey, createdAt);
+    if (!dismissed) return c.json({ error: "Suggestion not found" }, 404);
+    return c.json({ ok: true });
+  });
+
   app.post("/api/stages/:stageId/advance", zValidator("json", advanceStageBody), async (c) => {
     const body = c.req.valid("json");
     const stage = await deps.collaboration.advanceStage(c.req.param("stageId"), body.target_key);

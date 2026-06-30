@@ -42,10 +42,9 @@ type SpeakerTarget = {
   source: "mention" | "reply" | "default";
 };
 type DispatchStatus = "idle" | "invoking";
-interface DispatchState {
-  status: DispatchStatus;
-  pending: boolean;
-}
+type DispatchState = { status: DispatchStatus; pending: boolean };
+type TransitionPayload = { targetKey: string; reason: unknown; guard: unknown; signal_type?: SignalType; consensus?: boolean; positions?: Position[]; gate_evidence?: Record<string, unknown>; adversarial_artifact?: AdversarialArtifact };
+type ParsedTransition = { target_key?: string; reason?: string; guard?: string | null; signal_type?: string; consensus?: boolean; positions?: Position[]; gate_evidence?: Record<string, unknown>; adversarial_artifact?: AdversarialArtifact };
 export class IssueCollaboration implements CollaborationInput {
   private readonly issueConsumers = new Map<string, Set<CollaborationConsumer>>();
   private readonly workspaceConsumers = new Map<string, Set<WorkspaceConsumer>>();
@@ -147,11 +146,30 @@ export class IssueCollaboration implements CollaborationInput {
     if (consumers.size === 0) this.workspaceConsumers.delete(workspaceId);
   }
   listStageTransitionSuggestions(stageId: string): StageTransitionSuggestion[] {
-    return [...(this.suggestions.get(stageId) ?? [])];
+    const suggestions = this.suggestions.get(stageId) ?? [];
+    const seen = new Set<string>();
+    return suggestions.filter(s => {
+      if (seen.has(s.target_key)) return false;
+      seen.add(s.target_key);
+      return true;
+    });
+  }
+  dismissSuggestion(stageId: string, targetKey: string, createdAt: string): boolean {
+    const suggestions = this.suggestions.get(stageId);
+    if (!suggestions) return false;
+    const remaining = suggestions.filter(s => !(s.target_key === targetKey && s.created_at === createdAt));
+    if (remaining.length === suggestions.length) return false;
+    if (remaining.length === 0) {
+      this.suggestions.delete(stageId);
+    } else {
+      this.suggestions.set(stageId, remaining);
+    }
+    return true;
   }
   async advanceStage(stageId: string, targetKey: string): Promise<Stage> {
     const stage = this.deps.stagePort.advanceStage(stageId, targetKey);
     this.cleanupDispatchStates(stageId);
+    this.suggestions.delete(stageId);
     this.helpers.initStageCursors(stage);
     return stage;
   }
@@ -430,7 +448,7 @@ export class IssueCollaboration implements CollaborationInput {
     }
     return null;
   }
-  private extractSignalPayload(event: MessageEvent, stage: Stage): { targetKey: string; reason: unknown; guard: unknown; signal_type?: SignalType; consensus?: boolean; positions?: Position[]; gate_evidence?: Record<string, unknown>; adversarial_artifact?: AdversarialArtifact } | null {
+  private extractSignalPayload(event: MessageEvent, stage: Stage): TransitionPayload | null {
     if (event.payload.type === "signal" && typeof event.payload.stage_transition === "object" && event.payload.stage_transition) {
       return this.extractFromSignalPayload(event.payload.stage_transition as Record<string, unknown>, stage);
     }
@@ -439,7 +457,7 @@ export class IssueCollaboration implements CollaborationInput {
     }
     return null;
   }
-  private extractFromSignalPayload(payload: Record<string, unknown>, stage: Stage): { targetKey: string; reason: unknown; guard: unknown; signal_type?: SignalType; consensus?: boolean; positions?: Position[]; gate_evidence?: Record<string, unknown>; adversarial_artifact?: AdversarialArtifact } | null {
+  private extractFromSignalPayload(payload: Record<string, unknown>, stage: Stage): TransitionPayload | null {
     const targetKey = String(payload.target_key ?? payload.to ?? "");
     if (!targetKey || !stage.available_transitions.some(transition => transition.to === targetKey)) return null;
     const signalType = typeof payload.signal_type === "string" ? payload.signal_type as SignalType : undefined;
@@ -449,7 +467,7 @@ export class IssueCollaboration implements CollaborationInput {
       gate_evidence: typeof payload.gate_evidence === "object" ? payload.gate_evidence as Record<string, unknown> : undefined,
       adversarial_artifact: typeof payload.adversarial_artifact === "object" ? payload.adversarial_artifact as AdversarialArtifact : undefined };
   }
-  private extractFromTextPayload(text: string, stage: Stage): { targetKey: string; reason: unknown; guard: unknown; signal_type?: SignalType; consensus?: boolean; positions?: Position[]; gate_evidence?: Record<string, unknown>; adversarial_artifact?: AdversarialArtifact } | null {
+  private extractFromTextPayload(text: string, stage: Stage): TransitionPayload | null {
     const parsed = this.tryParseStageTransition(text);
     if (!parsed?.target_key || !stage.available_transitions.some(transition => transition.to === parsed.target_key)) return null;
     const signalType = typeof parsed.signal_type === "string" ? parsed.signal_type as SignalType : undefined;
@@ -459,19 +477,16 @@ export class IssueCollaboration implements CollaborationInput {
       gate_evidence: typeof parsed.gate_evidence === "object" ? parsed.gate_evidence as Record<string, unknown> : undefined,
       adversarial_artifact: typeof parsed.adversarial_artifact === "object" ? parsed.adversarial_artifact as AdversarialArtifact : undefined };
   }
-  private makeStageTransitionSuggestion(input: {
-    stage: Stage; roleInstance: string; messageId: number; targetKey: string;
-    reason: unknown; guard: unknown; signal_type?: SignalType; consensus?: boolean; positions?: Position[]; gate_evidence?: Record<string, unknown>; adversarial_artifact?: AdversarialArtifact;
-  }): StageTransitionSuggestion {
+  private makeStageTransitionSuggestion(input: { stage: Stage; roleInstance: string; messageId: number } & TransitionPayload): StageTransitionSuggestion {
     const { stage, roleInstance, messageId, targetKey, reason, guard, signal_type, consensus, positions, gate_evidence, adversarial_artifact } = input;
     const transition = stage.available_transitions.find(item => item.to === targetKey);
     return { stage_id: stage.id, message_id: messageId, from_speaker: roleInstance, target_key: targetKey,
       reason: typeof reason === "string" ? reason : "", guard: typeof guard === "string" ? guard : transition?.guard ?? null,
       artifacts: { ...stage.output_artifacts }, created_at: new Date().toISOString(), signal_type, consensus, positions, gate_evidence, adversarial_artifact };
   }
-  private tryParseStageTransition(text: string): { target_key?: string; reason?: string; guard?: string | null; signal_type?: string; consensus?: boolean; positions?: Position[]; gate_evidence?: Record<string, unknown>; adversarial_artifact?: AdversarialArtifact } | null {
+  private tryParseStageTransition(text: string): ParsedTransition | null {
     try {
-      const parsed = JSON.parse(text) as { stage_transition?: { target_key?: string; reason?: string; guard?: string | null; signal_type?: string; consensus?: boolean; positions?: Position[]; gate_evidence?: Record<string, unknown>; adversarial_artifact?: AdversarialArtifact } };
+      const parsed = JSON.parse(text) as { stage_transition?: ParsedTransition };
       return parsed.stage_transition ?? null;
     } catch {
       log.debug({ textLength: text.length }, "stage_transition.parse.skipped");
