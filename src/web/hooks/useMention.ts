@@ -40,7 +40,7 @@ export function extractMentionQuery(value: string, caret: number): { start: numb
    *  - 空白 → mention 已完成（如 @alice 后跟空格），不属于活跃查询
    *  - 标点/行尾 → 用户仍在输入，属于活跃查询 */
   const afterQuery = value.charAt(mentionStart + 1 + query.length);
-  if (/[\p{L}\p{N}_]/u.test(afterQuery)) return null;
+  if (/[\p{L}\p{N}_-]/u.test(afterQuery)) return null;
   if (/\s/.test(afterQuery)) return null;
   return { start: mentionStart, query };
 }

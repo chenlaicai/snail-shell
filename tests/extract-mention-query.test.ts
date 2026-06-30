@@ -71,4 +71,14 @@ describe("extractMentionQuery", () => {
   it("returns query when followed by punctuation", () => {
     expect(extractMentionQuery("@alice!", 6)).toEqual({ start: 0, query: "alice" });
   });
+
+  /** 连字符 mention：光标在连字符前时视为中间位置，不触发候选框 */
+  it("returns null when cursor before hyphen in mention", () => {
+    expect(extractMentionQuery("@alice-bob", 6)).toBeNull();
+  });
+
+  /** 连字符 mention：光标在末尾时正常触发 */
+  it("returns query for hyphenated mention at end", () => {
+    expect(extractMentionQuery("@alice-bob", 10)).toEqual({ start: 0, query: "alice-bob" });
+  });
 });
