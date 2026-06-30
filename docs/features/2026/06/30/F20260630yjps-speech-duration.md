@@ -34,12 +34,12 @@ Issue 对话中，每条消息目前只显示"发言开始时间"（`created_at`
 
 | # | 场景 | 预期行为 | 测试覆盖 |
 |---|------|----------|----------|
-| B1 | 当 assistant 消息正在 streaming 时 | 消息头部显示实时计时器，格式为 `Xm Ys` 或 `Xs`，每秒更新 | |
-| B2 | 当 assistant 消息 streaming 完成（status 变为 completed/failed/interrupted/cancelled；`sending` 为前端专用状态，不适用于 assistant 消息）时 | 计时器停止，显示最终耗时，基于 `(ended_at ?? updated_at) - created_at` 计算（优先使用后端精确的 `ended_at`，fallback 到前端近似的 `updated_at`）；重试场景下耗时为累计值（从消息创建到最终完成的总耗时） | |
-| B6 | 当 assistant 消息从历史记录加载（页面刷新后通过 REST API 获取，status 已为 completed）时 | 直接显示静态耗时，基于 `(ended_at ?? updated_at) - created_at` 计算，不启动实时计时器 | |
-| B3 | 当 assistant 消息的耗时不足 1 分钟时 | 仅显示秒数，格式 `Xs` | |
-| B4 | 当 assistant 消息的耗时达到 1 分钟但不足 1 小时时 | 显示 `Xm Ys` 格式 | |
-| B5 | 当 assistant 消息的耗时达到 1 小时以上时 | 显示 `Xh Ym` 格式 | |
+| B1 | 当 assistant 消息正在 streaming 时 | 消息头部显示实时计时器，格式为 `Xm Ys` 或 `Xs`，每秒更新 | — |
+| B2 | 当 assistant 消息 streaming 完成（status 变为 completed/failed/interrupted/cancelled；`sending` 为前端专用状态，不适用于 assistant 消息）时 | 计时器停止，显示最终耗时，基于 `(ended_at ?? updated_at) - created_at` 计算（优先使用后端精确的 `ended_at`，fallback 到前端近似的 `updated_at`）；重试场景下耗时为累计值（从消息创建到最终完成的总耗时） | — |
+| B6 | 当 assistant 消息从历史记录加载（页面刷新后通过 REST API 获取，status 已为 completed）时 | 直接显示静态耗时，基于 `(ended_at ?? updated_at) - created_at` 计算，不启动实时计时器 | — |
+| B3 | 当 assistant 消息的耗时不足 1 分钟时 | 仅显示秒数，格式 `Xs` | — |
+| B4 | 当 assistant 消息的耗时达到 1 分钟但不足 1 小时时 | 显示 `Xm Ys` 格式 | — |
+| B5 | 当 assistant 消息的耗时达到 1 小时以上时 | 显示 `Xh Ym` 格式 | — |
 
 ## 设计
 
