@@ -1,5 +1,5 @@
 ---
-id: F20260629advp
+id: F20260630advp
 title: adversarial-artifact-protocol
 from_ids: []
 tags: [collaboration, adversarial, review, design, sop]
@@ -8,7 +8,7 @@ doc_kind: spec
 change_type: feature
 ---
 
-# F20260629advp [sop][New Feature] 对抗产物协议：结构化对抗验证
+# F20260630advp [sop][New Feature] 对抗产物协议：结构化对抗验证
 
 ## 背景
 
