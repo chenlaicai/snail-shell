@@ -273,7 +273,10 @@ export class AutoAdvanceEngine {
       return { valid: false, reason: "adversarial_findings must not be empty", rule: "R1" };
     }
 
-    // R8: review 阶段，finding 非"no issues"且 disposition 未解决时阻断
+    /**
+     * R8: review 阶段防御性校验 — finding 非"no issues"且 disposition 未解决时阻断推进。
+     * 保护场景：防止审查者遗漏处理 findings 就直接推进到 merge。
+     */
     if (stage.key === "review") {
       const unresolvedFindings = artifact.adversarial_findings.filter(
         f => f.finding !== "no issues" && (f.disposition === "none" || f.disposition.trim() === ""),
