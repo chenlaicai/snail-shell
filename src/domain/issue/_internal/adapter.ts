@@ -191,6 +191,8 @@ export class IssueAdapter implements IssuePort {
       for (const role of stageDef.roles) {
         const instances = role.count <= 1 ? [role.name] : Array.from({ length: role.count }, (_, i) => `${role.name}-${i + 1}`);
         for (const instance of instances) {
+          // TODO: 使用 role.skill 查找匹配的 snail key（需注入 SnailPort）
+          // 当前所有角色统一分配 claude-code-stateful，因为系统中只有一种 snail 类型
           stagePlan[instance] = "claude-code-stateful";
         }
       }

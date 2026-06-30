@@ -64,7 +64,7 @@ const CREATE_SOP_SCHEMA = {
             },
           },
         },
-        required: ["key", "title"],
+        required: ["key", "title", "roles"],
       },
     },
     transitions: {
@@ -79,7 +79,20 @@ const CREATE_SOP_SCHEMA = {
 function createSopTool(sopPort: SopPort, workspaces: Workspace[]): MCPTool {
   return {
     name: "create_sop",
-    description: "动态创建 SOP。Agent 可定义新的 SOP 流程，系统校验结构正确性（S1-S6）。创建后的 SOP 可被子 issue 引用。",
+    description: [
+      "动态创建 SOP。创建后的 SOP 可被子 issue 引用。",
+      "",
+      "## 校验规则（S1-S6）",
+      "- S1: SOP 必须至少有 1 个 stage（阻断）",
+      "- S2: 每个 stage 必须至少有 1 个 role，且每个 role 必须有 key 和 name（阻断）",
+      "- S3: transitions 引用的 stage key 必须在 stages 中定义（阻断）",
+      "- S4: 涉及代码变更的 SOP 必须有 review stage（阻断）",
+      "- S5: 必须有且仅有一个入口 stage（无 incoming transition 的 stage）（阻断）",
+      "- S6: gate 覆盖度不足时警告（不阻断）",
+      "",
+      "## 示例",
+      '{"key":"my-flow","name":"My Flow","stages":[{"key":"design","title":"Design","roles":[{"key":"architect","name":"Architect"}]},{"key":"dev","title":"Development","roles":[{"key":"dev","name":"Developer"}]}],"transitions":[{"from":"design","to":"dev"}]}',
+    ].join("\n"),
     inputSchema: CREATE_SOP_SCHEMA,
     handler: async (params) => {
       const key = params.key as string;
