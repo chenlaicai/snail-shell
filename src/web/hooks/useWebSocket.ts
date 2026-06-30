@@ -222,6 +222,7 @@ class EventBatcher {
         context: latest.context ?? m.context,
         content: latest.context?.context ?? m.content,
         updated_at: new Date().toISOString(),
+        ended_at: latest.ended_at ?? m.ended_at,
       };
     });
     return { messages: result, changed };
