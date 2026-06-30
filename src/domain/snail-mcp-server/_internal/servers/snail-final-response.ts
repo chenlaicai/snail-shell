@@ -1,6 +1,8 @@
 import type { MCPServerConfig } from "@domain/snail-mcp-server/model";
 import type { McpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-message-store";
 import type { MessagePort } from "@domain/message/port";
+import { getLogger } from "@infra/logger";
+const log = getLogger({ module: "snail-final-response" });
 
 /**
  * snail-final-response MCP Server。
@@ -89,7 +91,9 @@ function tryParseStageTransition(text: string): Record<string, unknown> | null {
   try {
     const parsed = JSON.parse(text) as { stage_transition?: unknown };
     if (parsed?.stage_transition && typeof parsed.stage_transition === "object") return parsed.stage_transition as Record<string, unknown>;
-  } catch { /* 非 JSON 或格式错误 */ }
+  } catch {
+    log.debug({ textLength: text.length }, "stage_transition.parse.skipped");
+  }
   return null;
 }
 

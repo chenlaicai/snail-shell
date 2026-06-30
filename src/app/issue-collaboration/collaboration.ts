@@ -445,6 +445,9 @@ export class IssueCollaboration implements CollaborationInput {
       gate_evidence: typeof payload.gate_evidence === "object" ? payload.gate_evidence as Record<string, unknown> : undefined };
   }
   private extractFromTextPayload(text: string, stage: Stage): { targetKey: string; reason: unknown; guard: unknown; consensus?: boolean; positions?: Position[]; gate_evidence?: Record<string, unknown> } | null {
+    // 注意：此路径仅处理纯 JSON 文本，不处理 Markdown 嵌入的 JSON。
+    // 现在 set_final_body 已将 stage_transition 注入为 signal 事件（见 snail-final-response.ts），
+    // 信号会通过 extractFromSignalPayload 路径处理，此 text 解析路径主要用于向后兼容。
     const parsed = this.tryParseStageTransition(text);
     if (!parsed?.target_key || !stage.available_transitions.some(transition => transition.to === parsed.target_key)) return null;
     return { targetKey: parsed.target_key, reason: parsed.reason, guard: parsed.guard,
