@@ -187,7 +187,7 @@ export class AutoAdvanceEngine {
   private isIncompatibleBlocked(stage: Stage): boolean {
     if (stage.key !== "review") return false;
     const issue = this.deps.mustGetIssue(stage.issue_id);
-    const prTitle = issue.context["pr_title"] ?? "";
+    const prTitle = resolveContextValue(issue.context, "pr_title") ?? "";
     if (prTitle.includes("[Incompatible]")) {
       log.info({ stageId: stage.id }, "[Incompatible] tag blocks auto-advance");
       return true;
