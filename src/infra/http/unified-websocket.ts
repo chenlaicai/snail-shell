@@ -171,7 +171,7 @@ function createIssueConsumer(issueId: string, socket: Socket, collaboration: Col
         type: "issue_event",
         issue_id: issueId,
         activity_status: collaboration.getActivityStatus(stageId),
-        event: { type: "message_status_changed", stage_id: stageId, message_id: message.id, status: message.status, context },
+        event: { type: "message_status_changed", stage_id: stageId, message_id: message.id, status: message.status, context, ended_at: message.ended_at },
       });
     },
     onUserCalled(stageId, message) {

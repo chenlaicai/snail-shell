@@ -97,7 +97,7 @@ export type IssueRealtimeMessage = {
   event:
     | { type: "message_started"; stage_id: string; message_id: number; role: MessageRole; role_name: string | null; client_id: string | null; status: MessageStatus }
     | { type: "message_event_appended"; stage_id: string; message_id: number; event: MessageEvent }
-    | { type: "message_status_changed"; stage_id: string; message_id: number; status: MessageStatus; context: MessageContext | null }
+    | { type: "message_status_changed"; stage_id: string; message_id: number; status: MessageStatus; context: MessageContext | null; ended_at?: string | null }
     | { type: "user_called"; stage_id: string; message_id: number; role: MessageRole; role_name: string | null; client_id: string | null; status: MessageStatus; content?: string }
     | { type: "stage_transition_suggested"; stage_id: string; suggestion: StageSuggestion };
 };

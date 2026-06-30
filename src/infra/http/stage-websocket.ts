@@ -79,7 +79,7 @@ function createConsumer(issueId: string, socket: IssueSocket, collaboration: Col
       send(socket, { type: "issue_event", issue_id: issueId, activity_status: collaboration.getActivityStatus(stageId), event: { type: "message_event_appended", stage_id: stageId, message_id: event.message_id, event } });
     },
     onMessageCompleted(stageId, message, context) {
-      send(socket, { type: "issue_event", issue_id: issueId, activity_status: collaboration.getActivityStatus(stageId), event: { type: "message_status_changed", stage_id: stageId, message_id: message.id, status: message.status, context } });
+      send(socket, { type: "issue_event", issue_id: issueId, activity_status: collaboration.getActivityStatus(stageId), event: { type: "message_status_changed", stage_id: stageId, message_id: message.id, status: message.status, context, ended_at: message.ended_at } });
     },
     onUserCalled(stageId, message) {
       send(socket, { type: "issue_event", issue_id: issueId, activity_status: collaboration.getActivityStatus(stageId), event: { type: "user_called", stage_id: stageId, ...toMessageEventBase(message) } });
