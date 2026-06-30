@@ -19,7 +19,7 @@ export function IssueCard({ issue }: { issue: IssueDetailDto }) {
 
       <div className="flex items-center gap-2 mb-2">
         <StatusBadge status={issue.activity_status} />
-        {issue.sop_snapshot?.name && (
+        {issue.sop_snapshot.name && (
           <span className="text-[11px] text-text-muted">SOP: {issue.sop_snapshot.name}</span>
         )}
       </div>
