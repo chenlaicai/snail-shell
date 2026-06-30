@@ -53,7 +53,7 @@ describe("set_final_body handler", () => {
     const handler = server.tools[0].handler;
 
     const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a" });
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, proceed: "end_turn" });
     expect(writtenId).toBe(100);
     expect(writtenKind).toBe("mcp_final_body");
     expect(writtenCtx).toBe("hello");
@@ -100,7 +100,7 @@ describe("set_final_body handler", () => {
     const handler = server.tools[0].handler;
 
     const result = await handler({ text: "hello", message_id: "100" });
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, proceed: "end_turn" });
     expect(writtenId).toBe(100);
   });
 
@@ -269,5 +269,122 @@ Implementation complete.
         positions: [{ speaker: "architect-1", stance: "against", argument: "Too risky" }],
       },
     });
+  });
+});
+
+describe("set_final_body idempotent guard (B2)", () => {
+  function createPortWithCapture(): {
+    port: MessagePort;
+    mcpStore: McpMessageStore;
+    contextWrites: Array<{ id: number; kind: string; ctx: unknown }>;
+    events: Array<{ messageId: number; payload: MessageEventPayload }>;
+    routingWrites: Array<{ messageId: number; targets: string[] }>;
+  } {
+    const contextWrites: Array<{ id: number; kind: string; ctx: unknown }> = [];
+    const events: Array<{ messageId: number; payload: MessageEventPayload }> = [];
+    const routingWrites: Array<{ messageId: number; targets: string[] }> = [];
+    const messages = new Map<number, Message>();
+    messages.set(100, { id: 100, stage_id: "s1", from_speaker: "dev", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
+    const port = createMockMessagePort({
+      getMessage: (id) => messages.get(id),
+      setContext: (id, kind, ctx) => { contextWrites.push({ id, kind, ctx }); },
+      appendEvent: (messageId, payload) => {
+        events.push({ messageId, payload });
+        return { id: events.length, message_id: messageId, seq: events.length, payload, created_at: "" } as MessageEvent;
+      },
+    });
+    const mcpStore: McpMessageStore = {
+      getMcpRoutingTargets: () => undefined,
+      setMcpRoutingTargets: (messageId, targets) => { routingWrites.push({ messageId, targets }); },
+      deleteMcpRoutingTargets: () => {},
+    };
+    return { port, mcpStore, contextWrites, events, routingWrites };
+  }
+
+  it("returns idempotent response on duplicate call and skips all writes", async () => {
+    const { port, mcpStore, contextWrites, routingWrites } = createPortWithCapture();
+    const server = createFinalResponseServer(port, mcpStore);
+    const handler = server.tools[0].handler;
+
+    /** 首次调用 */
+    const first = await handler({ text: "body v1", message_id: "100", stage_id: "s1", to_speakers: ["reviewer"] });
+    expect(first).toEqual({ ok: true, proceed: "end_turn" });
+    expect(contextWrites).toHaveLength(1);
+    expect(routingWrites).toHaveLength(1);
+
+    /** 重复调用：即使传入不同 text，也不覆写 */
+    const second = await handler({ text: "body v2", message_id: "100", stage_id: "s1", to_speakers: ["other"] });
+    expect(second).toEqual({ ok: true, already_submitted: true, hint: "final body already recorded for this message; your response is complete" });
+    /** 无新增写入 */
+    expect(contextWrites).toHaveLength(1);
+    expect(contextWrites[0].ctx).toBe("body v1");
+    expect(routingWrites).toHaveLength(1);
+    expect(routingWrites[0].targets).toEqual(["reviewer"]);
+  });
+
+  it("does not append signal event on duplicate call even with stage_transition", async () => {
+    const { port, mcpStore, events } = createPortWithCapture();
+    const server = createFinalResponseServer(port, mcpStore);
+    const handler = server.tools[0].handler;
+
+    const signalJson = JSON.stringify({ stage_transition: { target_key: "review", consensus: true } });
+    /** 首次调用带 signal */
+    await handler({ text: signalJson, message_id: "100", stage_id: "s1" });
+    expect(events).toHaveLength(1);
+
+    /** 重复调用带不同 signal */
+    const signalJson2 = JSON.stringify({ stage_transition: { target_key: "merge", consensus: true } });
+    await handler({ text: signalJson2, message_id: "100", stage_id: "s1" });
+    /** 事件数不变 */
+    expect(events).toHaveLength(1);
+  });
+
+  it("different message IDs are tracked independently", async () => {
+    const contextWrites: Array<{ id: number; kind: string; ctx: unknown }> = [];
+    const messages = new Map<number, Message>();
+    messages.set(100, { id: 100, stage_id: "s1", from_speaker: "dev", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
+    messages.set(200, { id: 200, stage_id: "s1", from_speaker: "dev", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
+    const port = createMockMessagePort({
+      getMessage: (id) => messages.get(id),
+      setContext: (id, kind, ctx) => { contextWrites.push({ id, kind, ctx }); },
+    });
+    const server = createFinalResponseServer(port, createMockMcpMessageStore());
+    const handler = server.tools[0].handler;
+
+    await handler({ text: "body 100", message_id: "100", stage_id: "s1" });
+    await handler({ text: "body 200", message_id: "200", stage_id: "s1" });
+    expect(contextWrites).toHaveLength(2);
+
+    /** 重复调用 message 100 */
+    const result = await handler({ text: "body 100 v2", message_id: "100", stage_id: "s1" });
+    expect(result).toMatchObject({ already_submitted: true });
+    expect(contextWrites).toHaveLength(2);
+  });
+
+  it("still validates params on duplicate call", async () => {
+    const messages = new Map<number, Message>();
+    messages.set(100, { id: 100, stage_id: "s1", from_speaker: "dev", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
+    const port = createMockMessagePort({
+      getMessage: (id) => messages.get(id),
+    });
+    const server = createFinalResponseServer(port, createMockMcpMessageStore());
+    const handler = server.tools[0].handler;
+
+    /** 首次调用 */
+    await handler({ text: "body", message_id: "100", stage_id: "s1" });
+    /** 重复调用时参数错误仍应报错 */
+    await expect(handler({ text: "", message_id: "100", stage_id: "s1" }))
+      .rejects.toThrow("text is required");
+    await expect(handler({ text: "body", message_id: "100", stage_id: "s2" }))
+      .rejects.toThrow("message_id 100 does not belong to stage s2");
+  });
+});
+
+describe("set_final_body tool description (B3)", () => {
+  it("contains termination semantics in description", () => {
+    const server = createFinalResponseServer(createMockMessagePort(), createMockMcpMessageStore());
+    const description = server.tools[0].description;
+    expect(description).toContain("调用此工具后，你的发言即告结束");
+    expect(description).toContain("不得再调用任何其他工具");
   });
 });

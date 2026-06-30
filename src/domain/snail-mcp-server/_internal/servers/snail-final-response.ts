@@ -9,6 +9,8 @@ const log = getLogger({ module: "snail-final-response" });
  * 用于 agent 提交消息的最终展示正文和路由目标声明。
  */
 export function createFinalResponseServer(messagePort: MessagePort, mcpMessageStore: McpMessageStore): MCPServerConfig {
+  /** 已提交 final body 的 message ID 集合，用于幂等防护（进程级生命周期） */
+  const submittedMessages = new Set<number>();
   return {
     name: "snail-final-response",
     version: "1.0.0",
@@ -18,7 +20,8 @@ export function createFinalResponseServer(messagePort: MessagePort, mcpMessageSt
         description:
           "提交本次发言的最终答复正文。每次发言结束前必须调用此工具，" +
           "传入你希望展示给用户的完整 Markdown 内容。" +
-          "调用后，此正文将作为消息的主要展示内容，流式过程中的中间分析会被折叠。",
+          "调用后，此正文将作为消息的主要展示内容，流式过程中的中间分析会被折叠。" +
+          "重要：调用此工具后，你的发言即告结束。不得再调用任何其他工具。",
         inputSchema: {
           type: "object",
           properties: {
@@ -36,7 +39,7 @@ export function createFinalResponseServer(messagePort: MessagePort, mcpMessageSt
           if (!rawMessageId) throw new Error("message_id is required");
           const messageId = Number(rawMessageId);
           if (!Number.isInteger(messageId) || messageId <= 0) throw new Error("message_id must be a positive integer");
-          /** 归属校验：message_id 必须属于当前 stage，防止串台写入 */
+          /** 归属校验：保留参数校验，即使重复调用也不静默吞掉错误 */
           const stageId = params.stage_id as string;
           if (stageId) {
             const message = messagePort.getMessage(messageId);
@@ -44,6 +47,10 @@ export function createFinalResponseServer(messagePort: MessagePort, mcpMessageSt
             if (message.stage_id !== stageId) {
               throw new Error(`message_id ${messageId} does not belong to stage ${stageId} (actual: ${message.stage_id})`);
             }
+          }
+          /** 幂等防护：同一 message 重复调用时跳过所有写入，返回区分性响应 */
+          if (submittedMessages.has(messageId)) {
+            return { ok: true, already_submitted: true, hint: "final body already recorded for this message; your response is complete" };
           }
           messagePort.setContext(messageId, "mcp_final_body", text);
           /** 自动从 text 中提取 stage_transition 信号，注入为 signal 事件 */
@@ -62,7 +69,8 @@ export function createFinalResponseServer(messagePort: MessagePort, mcpMessageSt
               mcpMessageStore.setMcpRoutingTargets(messageId, targets);
             }
           }
-          return { ok: true };
+          submittedMessages.add(messageId);
+          return { ok: true, proceed: "end_turn" };
         },
       },
     ],
