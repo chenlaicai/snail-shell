@@ -26,4 +26,6 @@ created_at: 2026-06-30
 ## 影响范围
 
 - `src/app/issue-collaboration/resource-cleanup.ts` — 新增 `resolveContextValue`，修改 `cleanupResources`
+- `src/app/issue-collaboration/auto-advance.ts` — `getMissingContextFields` 改用 `resolveContextValue`
+- `src/app/issue-collaboration/collaboration.ts` — `buildContextBlock` 缺失字段检测改用 `resolveContextValue`
 - `tests/resource-cleanup.test.ts` — 新增 resolveContextValue 单测 + prefixed key 清理流程测试
