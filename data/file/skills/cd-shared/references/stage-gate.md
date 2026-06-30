@@ -9,6 +9,10 @@
 3. 在消息中呈现证据摘要（格式见各 SKILL.md）
 4. 确认所有 required 项通过后，才可包含 stage_transition 建议
 
+## 信号投递方式
+
+Agent 通过 `set_final_body` MCP 工具提交最终答复时，如果 text 中包含 `stage_transition` JSON，系统会自动提取并注入为 signal 事件。Agent 无需额外调用其他工具——按现有协议在消息末尾输出 `stage_transition` JSON 即可。
+
 ## 注意事项
 
 - required 项必须全部 passed 才能提议推进
