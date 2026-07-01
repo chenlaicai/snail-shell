@@ -1,6 +1,5 @@
 import type { Message, MessageContext, MessageEvent } from "@domain/message/model";
 import type { CollaborationConsumer, EvaluationResult, StageTransitionSuggestion } from "@app/issue-collaboration/port";
-
 export class ConsumerNotifier {
   async notifyConsumers(
     consumers: Set<CollaborationConsumer>,

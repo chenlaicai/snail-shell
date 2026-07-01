@@ -123,43 +123,27 @@ export class IssueCollaboration implements CollaborationInput {
     await this.route(stageId, updatedMessage);
   }
   registerIssueConsumer(issueId: string, consumer: CollaborationConsumer): void {
-    const consumers = this.issueConsumers.get(issueId) ?? new Set<CollaborationConsumer>();
-    consumers.add(consumer);
-    this.issueConsumers.set(issueId, consumers);
+    const consumers = this.issueConsumers.get(issueId) ?? new Set<CollaborationConsumer>(); consumers.add(consumer); this.issueConsumers.set(issueId, consumers);
   }
   unregisterIssueConsumer(issueId: string, consumer: CollaborationConsumer): void {
-    const consumers = this.issueConsumers.get(issueId);
-    if (!consumers) return;
-    consumers.delete(consumer);
-    if (consumers.size === 0) this.issueConsumers.delete(issueId);
+    const consumers = this.issueConsumers.get(issueId); if (!consumers) return; consumers.delete(consumer); if (consumers.size === 0) this.issueConsumers.delete(issueId);
   }
   registerWorkspaceConsumer(workspaceId: string, consumer: WorkspaceConsumer): void {
-    const consumers = this.workspaceConsumers.get(workspaceId) ?? new Set<WorkspaceConsumer>();
-    consumers.add(consumer);
-    this.workspaceConsumers.set(workspaceId, consumers);
+    const consumers = this.workspaceConsumers.get(workspaceId) ?? new Set<WorkspaceConsumer>(); consumers.add(consumer); this.workspaceConsumers.set(workspaceId, consumers);
   }
   unregisterWorkspaceConsumer(workspaceId: string, consumer: WorkspaceConsumer): void {
-    const consumers = this.workspaceConsumers.get(workspaceId);
-    if (!consumers) return;
-    consumers.delete(consumer);
-    if (consumers.size === 0) this.workspaceConsumers.delete(workspaceId);
+    const consumers = this.workspaceConsumers.get(workspaceId); if (!consumers) return; consumers.delete(consumer); if (consumers.size === 0) this.workspaceConsumers.delete(workspaceId);
   }
   listStageTransitionSuggestions(stageId: string): StageTransitionSuggestion[] {
     const suggestions = this.suggestions.get(stageId) ?? [];
     const seen = new Set<string>();
-    return suggestions.filter(s => {
-      if (seen.has(s.target_key)) return false;
-      seen.add(s.target_key);
-      return true;
-    });
+    return suggestions.filter(s => { if (seen.has(s.target_key)) return false; seen.add(s.target_key); return true; });
   }
   dismissSuggestion(stageId: string, targetKey: string, createdAt: string): boolean {
-    const suggestions = this.suggestions.get(stageId);
-    if (!suggestions) return false;
+    const suggestions = this.suggestions.get(stageId); if (!suggestions) return false;
     const remaining = suggestions.filter(s => !(s.target_key === targetKey && s.created_at === createdAt));
     if (remaining.length === suggestions.length) return false;
-    if (remaining.length === 0) this.suggestions.delete(stageId);
-    else this.suggestions.set(stageId, remaining);
+    if (remaining.length === 0) this.suggestions.delete(stageId); else this.suggestions.set(stageId, remaining);
     return true;
   }
   async advanceStage(stageId: string, targetKey: string): Promise<Stage> {
@@ -171,25 +155,50 @@ export class IssueCollaboration implements CollaborationInput {
     return stage;
   }
   async closeIssue(issueId: string): Promise<{ issue: Issue; cleanup: CleanupResult }> {
+    // 检查是否已关闭（幂等处理）
     const existingIssue = this.deps.issuePort.findIssue(issueId);
     if (existingIssue?.closed_at) {
-      // 已关闭的 Issue 幂等返回，不执行 cleanup，不覆盖 close_summary
-      const prevStatus = this.lastActivityStatus.get(issueId) ?? "needs_human";
-      this.lastActivityStatus.delete(issueId);
-      const consumers = this.workspaceConsumers.get(existingIssue.workspace_path);
-      if (consumers) for (const c of consumers) c.onActivityStatusChanged(issueId, "completed", prevStatus);
+      // 已关闭的 Issue 直接返回，不执行 cleanup，不覆盖 close_summary
+      this.notifyWorkspaceClose(issueId, existingIssue.workspace_path);
       // domain CloseSummary 与 app CleanupResult 结构相同，此处显式转换标记层边界
+      // close_summary 为 null 表示中断场景（cleanup 未执行），UI 通过 issue.close_summary 显示"清理结果未记录"
       const cleanup: CleanupResult = existingIssue.close_summary as CleanupResult ?? { pr: { status: "skipped" }, worktree: { status: "skipped" }, localBranch: { status: "skipped" }, remoteBranch: { status: "skipped" } };
       return { issue: existingIssue, cleanup };
     }
+
     const issue = this.deps.issuePort.closeIssue(issueId);
+    this.notifyWorkspaceClose(issueId, issue.workspace_path);
+    this.cleanupResourcesAsync(issueId, issue.context, issue.workspace_path).catch((err) => {
+      log.error({ issueId, err }, "closeIssue: cleanupResourcesAsync unhandled rejection");
+    });
+    const pending = { pr: { status: "pending" }, worktree: { status: "pending" }, localBranch: { status: "pending" }, remoteBranch: { status: "pending" } };
+    return { issue, cleanup: pending as unknown as CleanupResult };
+  }
+  private notifyWorkspaceClose(issueId: string, workspacePath: string): void {
     const prevStatus = this.lastActivityStatus.get(issueId) ?? "needs_human";
     this.lastActivityStatus.delete(issueId);
-    const consumers = this.workspaceConsumers.get(issue.workspace_path);
-    if (consumers) for (const c of consumers) c.onActivityStatusChanged(issueId, "completed", prevStatus);
-    const cleanup = await cleanupResources(issue.context, issue.workspace_path);
+    for (const c of this.workspaceConsumers.get(workspacePath) ?? []) c.onActivityStatusChanged(issueId, "completed", prevStatus);
+  }
+
+  /** 异步资源清理：执行完成后通过 WebSocket 推送 cleanup_completed */
+  private async cleanupResourcesAsync(issueId: string, context: Record<string, string>, workspacePath: string): Promise<void> {
+    let cleanup: CleanupResult | undefined;
+    try {
+      cleanup = await cleanupResources(context, workspacePath);
+    } catch (err) {
+      log.error({ issueId, err }, "cleanupResourcesAsync failed");
+      const error = String(err);
+      cleanup = { pr: { status: "failed", error }, worktree: { status: "failed", error }, localBranch: { status: "failed", error }, remoteBranch: { status: "failed", error } };
+    }
     try { this.deps.issuePort.updateCloseSummary(issueId, cleanup); } catch (err) { log.error({ issueId, err }, "closeIssue: updateCloseSummary failed"); }
-    return { issue, cleanup };
+    this.notifyCleanupCompleted(issueId, cleanup);
+  }
+
+  /** 向 issue-level consumers 推送 cleanup_completed 事件 */
+  private notifyCleanupCompleted(issueId: string, cleanup: CleanupResult): void {
+    const consumers = this.issueConsumers.get(issueId);
+    if (!consumers || consumers.size === 0) return;
+    for (const consumer of consumers) { try { consumer.onCleanupCompleted?.(issueId, cleanup); } catch (err) { log.warn({ issueId, err }, "notifyCleanupCompleted: consumer callback failed"); } }
   }
   async resumeRoute(stageId: string, message: Message): Promise<void> {
     try {
@@ -199,9 +208,7 @@ export class IssueCollaboration implements CollaborationInput {
     }
   }
   isInvoking(stageId: string): boolean {
-    for (const [key, state] of this.dispatchStates) {
-      if (key.startsWith(`${stageId}:`) && state.status === "invoking") return true;
-    }
+    for (const [key, state] of this.dispatchStates) { if (key.startsWith(`${stageId}:`) && state.status === "invoking") return true; }
     return false;
   }
   getActivityStatus(stageId: string, issueClosedAt?: string | null): "ai_running" | "needs_human" | "completed" {
@@ -213,9 +220,7 @@ export class IssueCollaboration implements CollaborationInput {
   }
   private cleanupDispatchStates(stageId: string): void {
     const prefix = `${stageId}:`;
-    for (const key of this.dispatchStates.keys()) {
-      if (key.startsWith(prefix)) this.dispatchStates.delete(key);
-    }
+    for (const key of this.dispatchStates.keys()) { if (key.startsWith(prefix)) this.dispatchStates.delete(key); }
   }
   private async route(stageId: string, message: Message): Promise<void> {
     const targets = message.to_speakers;
