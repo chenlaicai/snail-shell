@@ -8,7 +8,8 @@ import type { SnailFirstCallRequest, SnailResumeRequest } from "@domain/snail/mo
 import type { LiteAIPort } from "@domain/lite-ai/port";
 import type { AgentEvent, InvokeOptions } from "@infra/acs/model";
 import type { McpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-message-store";
-import type { AdversarialArtifact, CollaborationConsumer, CollaborationInput, CreateIssueResult, Position, SignalType, StageTransitionSuggestion, WorkspaceConsumer } from "@app/issue-collaboration/port";
+import type { AdversarialArtifact, CollaborationConsumer, CollaborationInput, CreateIssueResult, DecisionMode, Position, SignalType, StageTransitionSuggestion, WorkspaceConsumer } from "@app/issue-collaboration/port";
+import type { StageSuggestionRepository, StageSuggestionRecord } from "@domain/issue/_internal/repository";
 import { AutoAdvanceEngine } from "@app/issue-collaboration/auto-advance";
 import { ConsumerNotifier } from "@app/issue-collaboration/consumer-notifier";
 import { MessageHandler } from "@app/issue-collaboration/message-handler";
@@ -35,16 +36,20 @@ interface CollaborationDeps {
   snailPort: SnailPort;
   liteAIPort: LiteAIPort;
   mcpMessageStore: McpMessageStore;
+  stageSuggestionRepo: StageSuggestionRepository;
   maxCollaborationRounds?: number;
+  /** User Call 频率限制阈值（毫秒），默认 30000 */
+  userCallRateLimitMs?: number;
 }
 type SpeakerTarget = { speaker: string; source: "mention" | "reply" | "default" };
 type DispatchState = { status: "idle" | "invoking"; pending: boolean };
-type TransitionPayload = { targetKey: string; reason: unknown; guard: unknown; signal_type?: SignalType; consensus?: boolean; positions?: Position[]; gate_evidence?: Record<string, unknown>; adversarial_artifact?: AdversarialArtifact };
-type ParsedTransition = { target_key?: string; reason?: string; guard?: string | null; signal_type?: string; consensus?: boolean; positions?: Position[]; gate_evidence?: Record<string, unknown>; adversarial_artifact?: AdversarialArtifact };
+type TransitionPayload = { targetKey: string; reason: unknown; guard: unknown; signal_type?: SignalType; decision_mode?: DecisionMode; consensus?: boolean; positions?: Position[]; gate_evidence?: Record<string, unknown>; adversarial_artifact?: AdversarialArtifact; recommendation?: string; alternatives?: string[] };
+type ParsedTransition = { target_key?: string; reason?: string; guard?: string | null; signal_type?: string; decision_mode?: string; consensus?: boolean; positions?: Position[]; gate_evidence?: Record<string, unknown>; adversarial_artifact?: AdversarialArtifact; recommendation?: string; alternatives?: string[] };
 export class IssueCollaboration implements CollaborationInput {
   private readonly issueConsumers = new Map<string, Set<CollaborationConsumer>>();
   private readonly workspaceConsumers = new Map<string, Set<WorkspaceConsumer>>();
   private readonly lastActivityStatus = new Map<string, "ai_running" | "needs_human" | "completed">();
+  /** 内存缓存：仅用于当前进程的快速查询，持久化到 DB */
   private readonly suggestions = new Map<string, StageTransitionSuggestion[]>();
   private readonly maxCollaborationRounds: number;
   private readonly activeInvocations = new Map<number, AbortController>();
@@ -53,8 +58,13 @@ export class IssueCollaboration implements CollaborationInput {
   private readonly messageHandler: MessageHandler;
   private readonly helpers: CollaborationHelpers;
   private readonly dispatchStates = new Map<string, DispatchState>();
+  /** User Call 频率限制：per-stage 的上次 user call 时间戳 */
+  private readonly lastUserCallAt = new Map<string, number>();
+  /** User Call 频率限制阈值（毫秒） */
+  private readonly userCallRateLimitMs: number;
   constructor(private readonly deps: CollaborationDeps) {
     this.maxCollaborationRounds = deps.maxCollaborationRounds ?? 30;
+    this.userCallRateLimitMs = deps.userCallRateLimitMs ?? 30_000;
     this.consumerNotifier = new ConsumerNotifier();
     this.helpers = new CollaborationHelpers(deps.issuePort, deps.stagePort, deps.messagePort);
     this.messageHandler = new MessageHandler({
@@ -148,6 +158,10 @@ export class IssueCollaboration implements CollaborationInput {
       if (seen.has(s.target_key)) return false;
       seen.add(s.target_key);
       return true;
+    }).map(s => {
+      /** B5：附加该 target_key 被忽略的次数 */
+      const dismissCount = this.deps.stageSuggestionRepo.countIgnoredByStageAndTargetKey(stageId, s.target_key);
+      return dismissCount > 0 ? { ...s, dismiss_count: dismissCount } : s;
     });
   }
   dismissSuggestion(stageId: string, targetKey: string, createdAt: string): boolean {
@@ -155,6 +169,12 @@ export class IssueCollaboration implements CollaborationInput {
     if (!suggestions) return false;
     const remaining = suggestions.filter(s => !(s.target_key === targetKey && s.created_at === createdAt));
     if (remaining.length === suggestions.length) return false;
+    /** 标记对应的 DB 记录为 ignored */
+    for (const s of suggestions) {
+      if (s.target_key === targetKey && s.created_at === createdAt) {
+        this.deps.stageSuggestionRepo.markProcessed(s.message_id.toString(), "ignored");
+      }
+    }
     if (remaining.length === 0) this.suggestions.delete(stageId);
     else this.suggestions.set(stageId, remaining);
     return true;
@@ -162,41 +182,34 @@ export class IssueCollaboration implements CollaborationInput {
   async advanceStage(stageId: string, targetKey: string): Promise<Stage> {
     const stage = this.deps.stagePort.advanceStage(stageId, targetKey);
     this.cleanupDispatchStates(stageId);
+    /** 标记所有 pending suggestion 为 confirmed */
+    for (const s of (this.suggestions.get(stageId) ?? [])) {
+      this.deps.stageSuggestionRepo.markProcessed(s.message_id.toString(), "confirmed");
+    }
     this.suggestions.delete(stageId);
     this.helpers.initStageCursors(stage);
     return stage;
   }
   async closeIssue(issueId: string): Promise<{ issue: Issue; cleanup: CleanupResult }> {
-    // 检查是否已关闭（幂等处理）
     const existingIssue = this.deps.issuePort.findIssue(issueId);
     if (existingIssue?.closed_at) {
-      // 已关闭的 Issue 直接返回，不执行 cleanup，不覆盖 close_summary
       const prevStatus = this.lastActivityStatus.get(issueId) ?? "needs_human";
       this.lastActivityStatus.delete(issueId);
-      const consumers = this.workspaceConsumers.get(existingIssue.workspace_path);
-      if (consumers) {
-        for (const consumer of consumers) {
-          consumer.onActivityStatusChanged(issueId, "completed", prevStatus);
-        }
-      }
-      // domain CloseSummary 与 app CleanupResult 结构相同，此处显式转换标记层边界
-      // close_summary 为 null 表示中断场景（cleanup 未执行），UI 通过 issue.close_summary 显示"清理结果未记录"
+      this.broadcastWorkspaceStatus(existingIssue.workspace_path, issueId, "completed", prevStatus);
       const cleanup: CleanupResult = existingIssue.close_summary as CleanupResult ?? { pr: { status: "skipped" }, worktree: { status: "skipped" }, localBranch: { status: "skipped" }, remoteBranch: { status: "skipped" } };
       return { issue: existingIssue, cleanup };
     }
-
     const issue = this.deps.issuePort.closeIssue(issueId);
     const prevStatus = this.lastActivityStatus.get(issueId) ?? "needs_human";
     this.lastActivityStatus.delete(issueId);
-    const consumers = this.workspaceConsumers.get(issue.workspace_path);
-    if (consumers) {
-      for (const consumer of consumers) {
-        consumer.onActivityStatusChanged(issueId, "completed", prevStatus);
-      }
-    }
+    this.broadcastWorkspaceStatus(issue.workspace_path, issueId, "completed", prevStatus);
     const cleanup = await cleanupResources(issue.context, issue.workspace_path);
     try { this.deps.issuePort.updateCloseSummary(issueId, cleanup); } catch (err) { log.error({ issueId, err }, "closeIssue: updateCloseSummary failed"); }
     return { issue, cleanup };
+  }
+  private broadcastWorkspaceStatus(workspacePath: string, issueId: string, status: "ai_running" | "needs_human" | "completed", prevStatus: string): void {
+    const consumers = this.workspaceConsumers.get(workspacePath);
+    if (consumers) for (const c of consumers) c.onActivityStatusChanged(issueId, status, prevStatus as "ai_running" | "needs_human" | "completed");
   }
   async resumeRoute(stageId: string, message: Message): Promise<void> {
     try {
@@ -232,9 +245,22 @@ export class IssueCollaboration implements CollaborationInput {
     const uniqueTargets = [...new Set(targets)];
     await Promise.all(uniqueTargets.map(speaker => this.dispatch(stageId, speaker)));
   }
+  /** B4: User Call 频率限制 — 同一 stage 内连续 user call 间隔 < threshold 时跳过通知 */
+  private isUserCallRateLimited(stageId: string): boolean {
+    const now = Date.now();
+    const lastCall = this.lastUserCallAt.get(stageId);
+    if (lastCall !== undefined && now - lastCall < this.userCallRateLimitMs) {
+      log.debug({ stageId, elapsed: now - lastCall }, "dispatch: user call rate limited");
+      return true;
+    }
+    this.lastUserCallAt.set(stageId, now);
+    return false;
+  }
+
   private async dispatch(stageId: string, speaker: string): Promise<void> {
     const key = `${stageId}:${speaker}`;
     if (speaker === "user") {
+      if (this.isUserCallRateLimited(stageId)) return;
       const latest = this.deps.messagePort.findLatestMessage(stageId);
       if (latest) await this.notifyConsumers(stageId, "onUserCalled", latest);
       return;
@@ -281,13 +307,8 @@ export class IssueCollaboration implements CollaborationInput {
     const issue = this.helpers.mustGetIssue(stage.issue_id);
     const assignment = this.deps.stagePort.getRoleSnailAssignment(stageId, roleInstance);
     if (!assignment) throw new Error(`Role assignment not found: ${stageId}:${roleInstance}`);
-    log.info({
-      stageId, roleInstance, snailKey: assignment.snail_key,
-      snailInstanceId: assignment.snail_instance_id, unreadCount: unreadMessages.length, issueId: issue.id,
-    }, "invokeAgent start");
-    const agentMessage = this.deps.messagePort.createMessage({
-      stage_id: stageId, from_speaker: roleInstance, to_speakers: [], status: "streaming",
-    });
+    log.info({ stageId, roleInstance, snailKey: assignment.snail_key, snailInstanceId: assignment.snail_instance_id, unreadCount: unreadMessages.length, issueId: issue.id }, "invokeAgent start");
+    const agentMessage = this.deps.messagePort.createMessage({ stage_id: stageId, from_speaker: roleInstance, to_speakers: [], status: "streaming" });
     await this.notifyConsumers(stageId, "onMessageStarted", agentMessage);
     const abortController = new AbortController();
     this.activeInvocations.set(agentMessage.id, abortController);
@@ -305,30 +326,18 @@ export class IssueCollaboration implements CollaborationInput {
       log.info({ stageId, roleInstance, messageId: agentMessage.id, contextKind: context.kind, targets }, "invokeAgent completed");
       await this.detectStageTransition(stage, roleInstance, completedMessage.id);
       await this.notifyConsumers(stageId, "onMessageCompleted", completedMessage, this.deps.messagePort.getContext(completedMessage.id));
-      try {
-        await this.route(stageId, completedMessage);
-      } catch (routeError) {
-        log.error({ stageId, roleInstance, err: routeError }, "route after invokeAgent failed");
-      }
+      try { await this.route(stageId, completedMessage); } catch (routeError) { log.error({ stageId, roleInstance, err: routeError }, "route after invokeAgent failed"); }
     } catch (error) {
-      /** 丢弃未消费的路由目标，防止 MCP store 孤儿 entry 泄漏 */
       this.deps.mcpMessageStore.deleteMcpRoutingTargets(agentMessage.id);
-      log.error({
-        stageId, roleInstance, issueId: issue.id, snailKey: assignment.snail_key,
-        snailInstanceId: assignment.snail_instance_id,
-        err: error,
-      }, "invokeAgent failed");
+      log.error({ stageId, roleInstance, issueId: issue.id, snailKey: assignment.snail_key, snailInstanceId: assignment.snail_instance_id, err: error }, "invokeAgent failed");
       const status = abortController.signal.aborted ? "interrupted" : "failed";
       const errorReason = error instanceof Error ? error.message : String(error);
       const context = this.extractTerminalContext(agentMessage.id, status, truncateForUI(errorReason));
-      /** interrupted 时无 text event 则 context.kind 为 "event_summary"，context 内容为固定中断文案 */
       this.deps.messagePort.setContext(agentMessage.id, context.kind, context.context);
       this.deps.messagePort.completeMessage(agentMessage.id, status, { error: errorReason });
       await this.notifyConsumers(stageId, "onMessageCompleted", this.helpers.mustGetMessage(agentMessage.id), this.deps.messagePort.getContext(agentMessage.id));
       throw error;
-    } finally {
-      this.activeInvocations.delete(agentMessage.id);
-    }
+    } finally { this.activeInvocations.delete(agentMessage.id); }
   }
   private async executeAgentInvocation(input: {
     stageId: string; roleInstance: string; issue: Issue; stage: Stage;
@@ -337,15 +346,14 @@ export class IssueCollaboration implements CollaborationInput {
   }) {
     const { stageId, roleInstance, issue, stage, assignment, unreadMessages, agentMessage, signal } = input;
     const systemReminder = this.buildSystemReminder({ issue, stage, roleInstance, roleKey: assignment.role_key, snailKey: assignment.snail_key });
-    const invokeOptions: InvokeOptions = { signal };
-    const agentMessages = unreadMessages.map(message => this.messageHandler.toAgentMessage(message));
-    /** 唯一的上下文数据源：snail adapter 从这里构建 env vars，buildContextBlock 从 issue.context 渲染 system reminder */
+    const agentMessages = unreadMessages.map(m => this.messageHandler.toAgentMessage(m));
     const firstCallRequest = {
       workspace_path: issue.workspace_path, messages: agentMessages, systemReminder: systemReminder || undefined,
       context: { [CONTEXT_KEYS.ISSUE_ID]: issue.id, [CONTEXT_KEYS.STAGE_ID]: stage.id, [CONTEXT_KEYS.MESSAGE_ID]: String(agentMessage.id), stage_key: stage.key, role_instance: roleInstance, ...issue.context, snail_key: assignment.snail_key },
     };
     const resumeRequest = { workspace_path: issue.workspace_path, messages: agentMessages, system_reminder: systemReminder, messageId: String(agentMessage.id), stageId: stage.id };
     const onEvent = (event: AgentEvent) => this.handleAgentEvent(stageId, agentMessage.id, event);
+    const invokeOptions: InvokeOptions = { signal };
     return assignment.snail_instance_id
       ? await this.invokeResumeOrRecover({ stageId, roleInstance, snailInstanceId: assignment.snail_instance_id, snailKey: assignment.snail_key, resumeRequest, firstCallRequest, onEvent, invokeOptions })
       : await this.deps.snailPort.invokeFirstCall(assignment.snail_key, firstCallRequest, onEvent, invokeOptions);
@@ -361,9 +369,7 @@ export class IssueCollaboration implements CollaborationInput {
       return result;
     }
   }
-  private isMissingSnailInstanceError(error: unknown, snailInstanceId: string): boolean {
-    return error instanceof Error && error.message === `Snail instance not found: ${snailInstanceId}`;
-  }
+  private isMissingSnailInstanceError(error: unknown, snailInstanceId: string): boolean { return error instanceof Error && error.message === `Snail instance not found: ${snailInstanceId}`; }
   private handleAgentEvent(stageId: string, messageId: number, event: AgentEvent): void {
     const payload = this.messageHandler.mapAgentEvent(event);
     const appended = this.deps.messagePort.appendEvent(messageId, payload);
@@ -399,12 +405,22 @@ export class IssueCollaboration implements CollaborationInput {
   private async detectStageTransition(stage: Stage, roleInstance: string, messageId: number): Promise<void> {
     const suggestion = this.extractStageTransitionSuggestion(stage, roleInstance, messageId);
     if (!suggestion) return;
+    this.persistSuggestion(suggestion);
     const suggestions = this.suggestions.get(stage.id) ?? [];
     suggestions.push(suggestion);
     this.suggestions.set(stage.id, suggestions);
     await this.notifyConsumers(stage.id, "onStageTransitionSuggested", suggestion);
     const result = await this.autoAdvanceEngine.evaluate(stage, suggestions);
     await this.notifyConsumers(stage.id, "onEvaluationResult", result);
+  }
+
+  private persistSuggestion(suggestion: StageTransitionSuggestion): void {
+    this.deps.stageSuggestionRepo.insert({
+      id: suggestion.message_id.toString(), stage_id: suggestion.stage_id, target_key: suggestion.target_key,
+      signal_type: suggestion.signal_type ?? null, gate_evidence: suggestion.gate_evidence ? JSON.stringify(suggestion.gate_evidence) : null,
+      adversarial_artifact: suggestion.adversarial_artifact ? JSON.stringify(suggestion.adversarial_artifact) : null,
+      status: "pending", created_at: Date.now(), processed_at: null,
+    });
   }
   private async recordAuditTrail(fromStage: Stage, toStage: Stage, suggestion: StageTransitionSuggestion): Promise<void> {
     const audit: StageAuditRecord = {
@@ -435,9 +451,22 @@ export class IssueCollaboration implements CollaborationInput {
   async rollbackStage(stageId: string, targetKey: string): Promise<Stage> {
     const stage = this.deps.stagePort.rollbackStage(stageId, targetKey);
     this.cleanupDispatchStates(stageId);
+    this.deps.stageSuggestionRepo.deleteByStage(stageId);
     this.suggestions.delete(stageId);
     this.helpers.initStageCursors(stage);
     return stage;
+  }
+  /** 启动恢复：从 DB 记录恢复 suggestions 到内存缓存 */
+  restoreSuggestions(stageId: string, records: StageSuggestionRecord[]): void {
+    if (records.length === 0) return;
+    this.suggestions.set(stageId, records.map(r => ({
+      stage_id: r.stage_id, message_id: parseInt(r.id, 10), from_speaker: "recovered",
+      target_key: r.target_key, reason: "", guard: null, artifacts: {},
+      created_at: new Date(r.created_at).toISOString(),
+      signal_type: r.signal_type as SignalType | undefined,
+      gate_evidence: r.gate_evidence ? JSON.parse(r.gate_evidence) : undefined,
+      adversarial_artifact: r.adversarial_artifact ? JSON.parse(r.adversarial_artifact) : undefined,
+    })));
   }
   getStageAuditTrail(stageId: string): StageAuditRecord[] {
     return this.deps.stagePort.getAuditTrail(stageId);
@@ -445,9 +474,7 @@ export class IssueCollaboration implements CollaborationInput {
   private extractStageTransitionSuggestion(stage: Stage, roleInstance: string, messageId: number): StageTransitionSuggestion | null {
     for (const event of this.deps.messagePort.getMessageEvents(messageId)) {
       const payload = this.extractSignalPayload(event, stage);
-      if (payload) return this.makeStageTransitionSuggestion({ stage, roleInstance, messageId, targetKey: payload.targetKey,
-        reason: payload.reason, guard: payload.guard, signal_type: payload.signal_type, consensus: payload.consensus, positions: payload.positions, gate_evidence: payload.gate_evidence,
-        adversarial_artifact: payload.adversarial_artifact });
+      if (payload) return this.makeStageTransitionSuggestion({ stage, roleInstance, messageId, ...payload });
     }
     return null;
   }
@@ -462,30 +489,37 @@ export class IssueCollaboration implements CollaborationInput {
   }
   private extractFromSignalPayload(payload: Record<string, unknown>, stage: Stage): TransitionPayload | null {
     const targetKey = String(payload.target_key ?? payload.to ?? "");
-    if (!targetKey || !stage.available_transitions.some(transition => transition.to === targetKey)) return null;
-    const signalType = typeof payload.signal_type === "string" ? payload.signal_type as SignalType : undefined;
-    return { targetKey, reason: payload.reason, guard: payload.guard, signal_type: signalType,
-      consensus: typeof payload.consensus === "boolean" ? payload.consensus : undefined,
-      positions: Array.isArray(payload.positions) ? payload.positions as Position[] : undefined,
-      gate_evidence: typeof payload.gate_evidence === "object" ? payload.gate_evidence as Record<string, unknown> : undefined,
-      adversarial_artifact: typeof payload.adversarial_artifact === "object" ? payload.adversarial_artifact as AdversarialArtifact : undefined };
+    if (!targetKey || !stage.available_transitions.some(t => t.to === targetKey)) return null;
+    return this.buildTransitionPayload(targetKey, payload);
   }
   private extractFromTextPayload(text: string, stage: Stage): TransitionPayload | null {
     const parsed = this.tryParseStageTransition(text);
-    if (!parsed?.target_key || !stage.available_transitions.some(transition => transition.to === parsed.target_key)) return null;
-    const signalType = typeof parsed.signal_type === "string" ? parsed.signal_type as SignalType : undefined;
-    return { targetKey: parsed.target_key, reason: parsed.reason, guard: parsed.guard, signal_type: signalType,
-      consensus: typeof parsed.consensus === "boolean" ? parsed.consensus : undefined,
-      positions: Array.isArray(parsed.positions) ? parsed.positions as Position[] : undefined,
-      gate_evidence: typeof parsed.gate_evidence === "object" ? parsed.gate_evidence as Record<string, unknown> : undefined,
-      adversarial_artifact: typeof parsed.adversarial_artifact === "object" ? parsed.adversarial_artifact as AdversarialArtifact : undefined };
+    if (!parsed?.target_key || !stage.available_transitions.some(t => t.to === parsed.target_key)) return null;
+    return this.buildTransitionPayload(parsed.target_key, parsed as Record<string, unknown>);
+  }
+  /** 从原始 record 中提取 TransitionPayload 的通用逻辑 */
+  private buildTransitionPayload(targetKey: string, raw: Record<string, unknown>): TransitionPayload {
+    return {
+      targetKey, reason: raw.reason, guard: raw.guard,
+      signal_type: typeof raw.signal_type === "string" ? raw.signal_type as SignalType : undefined,
+      decision_mode: typeof raw.decision_mode === "string" ? raw.decision_mode as DecisionMode : undefined,
+      consensus: typeof raw.consensus === "boolean" ? raw.consensus : undefined,
+      positions: Array.isArray(raw.positions) ? raw.positions as Position[] : undefined,
+      gate_evidence: typeof raw.gate_evidence === "object" ? raw.gate_evidence as Record<string, unknown> : undefined,
+      adversarial_artifact: typeof raw.adversarial_artifact === "object" ? raw.adversarial_artifact as AdversarialArtifact : undefined,
+      recommendation: typeof raw.recommendation === "string" ? raw.recommendation : undefined,
+      alternatives: Array.isArray(raw.alternatives) ? raw.alternatives as string[] : undefined,
+    };
   }
   private makeStageTransitionSuggestion(input: { stage: Stage; roleInstance: string; messageId: number } & TransitionPayload): StageTransitionSuggestion {
-    const { stage, roleInstance, messageId, targetKey, reason, guard, signal_type, consensus, positions, gate_evidence, adversarial_artifact } = input;
-    const transition = stage.available_transitions.find(item => item.to === targetKey);
-    return { stage_id: stage.id, message_id: messageId, from_speaker: roleInstance, target_key: targetKey,
+    const { stage, roleInstance, messageId, targetKey, reason, guard, signal_type, decision_mode, consensus, positions, gate_evidence, adversarial_artifact, recommendation, alternatives } = input;
+    const transition = stage.available_transitions.find(t => t.to === targetKey);
+    return {
+      stage_id: stage.id, message_id: messageId, from_speaker: roleInstance, target_key: targetKey,
       reason: typeof reason === "string" ? reason : "", guard: typeof guard === "string" ? guard : transition?.guard ?? null,
-      artifacts: { ...stage.output_artifacts }, created_at: new Date().toISOString(), signal_type, consensus, positions, gate_evidence, adversarial_artifact };
+      artifacts: { ...stage.output_artifacts }, created_at: new Date().toISOString(),
+      signal_type, decision_mode, consensus, positions, gate_evidence, adversarial_artifact, recommendation, alternatives,
+    };
   }
   private tryParseStageTransition(text: string): ParsedTransition | null {
     try {
@@ -569,48 +603,20 @@ export class IssueCollaboration implements CollaborationInput {
     const missingInfra = ["worktree_path", "branch_name"].filter(f => !resolveContextValue(issue.context, f));
     const ctxLines = Object.entries(issue.context).map(([k, v]) => `- **${k}**: ${v}`).join("\n") || "无";
     const issueContext = missingInfra.length > 0 ? `${ctxLines}\n> ⚠️ 以下基础设施字段未记录：${missingInfra.join(", ")}` : ctxLines;
-    return `<context>
-## 项目上下文
-**Issue**：${issue.title}
-**Issue ID**：${issue.id}
-**工作区**：${issue.workspace_path}
-**Issue 摘要**：${issue.summary ?? "无"}
-## Issue 上下文（只读视图）
-${issueContext}
-> **注意**：这是只读视图。Agent 应使用 MCP 工具 \`set_context\` 和 \`get_context\` 读写 Issue 上下文。Issue 上下文也会通过环境变量 \`SNAIL_CTX_*\` 注入，可通过 \`process.env\` 读取。
-## 当前阶段
-**阶段**：${stage.title} (${stage.key})
-**阶段描述**：${stage.description}
-## 可用 Skills
-${skillList}
-使用 skill tool 触发对应的 skill，获取详细工作流程和规则。
-## 可用流转
-${transitions || "无"}
-## 协作规则
-- 你可以通过 @角色实例 请求其他角色回应
-- 你是当前阶段的守门人，不是推进者。建议 stage_transition 前，必须先完成所在 SKILL.md 中的 Stage Gate 自检并呈现完整证据。
-- 通过信号表达阶段工作结果：signal_type: gate_complete（单人完成）、adversarial_consensus（多人共识）、disagreement（分歧）
-## 最终答复规则
-**必须使用 \`set_final_body\` MCP 设置最终答复**。每次发言结束前必须调用此工具，传入你希望展示给用户的完整 Markdown 内容。调用后本轮发言结束，不得再调用任何其他工具。
-**路由目标声明**：如果需要其他角色继续处理，必须在 \`set_final_body\` 的 \`to_speakers\` 参数中声明目标角色。
-**可用路由目标**：${["user", ...stage.role_instances.filter(i => i !== roleInstance)].map(t => `\`${t}\``).join("、")}
-**格式要求**：必须使用上述精确名称。不要使用 snail key（如 claude-code-stateful）、role key（如 designer）或英文翻译（如 architect-1）。
-**必选参数**：调用 \`set_final_body\` 时必须传入 \`message_id\` 和 \`stage_id\`，从环境变量 \`SNAIL_CTX_MESSAGE_ID\` 和 \`SNAIL_CTX_STAGE_ID\` 获取。
-</context>`;
+    const targets = ["user", ...stage.role_instances.filter(i => i !== roleInstance)].map(t => `\`${t}\``).join("、");
+    return `<context>\n## 项目上下文\n**Issue**：${issue.title}\n**Issue ID**：${issue.id}\n**工作区**：${issue.workspace_path}\n**Issue 摘要**：${issue.summary ?? "无"}\n## Issue 上下文（只读视图）\n${issueContext}\n> **注意**：这是只读视图。Agent 应使用 MCP 工具 \`set_context\` 和 \`get_context\` 读写 Issue 上下文。Issue 上下文也会通过环境变量 \`SNAIL_CTX_*\` 注入，可通过 \`process.env\` 读取。\n## 当前阶段\n**阶段**：${stage.title} (${stage.key})\n**阶段描述**：${stage.description}\n## 可用 Skills\n${skillList}\n使用 skill tool 触发对应的 skill，获取详细工作流程和规则。\n## 可用流转\n${transitions || "无"}\n## 协作规则\n- 你可以通过 @角色实例 请求其他角色回应\n- 你是当前阶段的守门人，不是推进者。建议 stage_transition 前，必须先完成所在 SKILL.md 中的 Stage Gate 自检并呈现完整证据。\n- 通过信号表达阶段工作结果：signal_type: gate_complete（单人完成）、adversarial_consensus（多人共识）、disagreement（分歧）\n## 最终答复规则\n**必须使用 \`set_final_body\` MCP 设置最终答复**。每次发言结束前必须调用此工具，传入你希望展示给用户的完整 Markdown 内容。调用后本轮发言结束，不得再调用任何其他工具。\n**路由目标声明**：如果需要其他角色继续处理，必须在 \`set_final_body\` 的 \`to_speakers\` 参数中声明目标角色。\n**可用路由目标**：${targets}\n**格式要求**：必须使用上述精确名称。不要使用 snail key（如 claude-code-stateful）、role key（如 designer）或英文翻译（如 architect-1）。\n**必选参数**：调用 \`set_final_body\` 时必须传入 \`message_id\` 和 \`stage_id\`，从环境变量 \`SNAIL_CTX_MESSAGE_ID\` 和 \`SNAIL_CTX_STAGE_ID\` 获取。\n</context>`;
   }
   private async notifyConsumers(stageId: string, method: keyof CollaborationConsumer, ...args: unknown[]): Promise<void> {
     const stage = this.helpers.mustGetStage(stageId);
     const consumers = this.issueConsumers.get(stage.issue_id) ?? new Set<CollaborationConsumer>();
     await this.consumerNotifier.notifyConsumers(consumers, stageId, method, args);
     const issue = this.deps.issuePort.findIssue(stage.issue_id);
-    if (issue && !issue.closed_at) {
-      const newStatus = this.getActivityStatus(stageId, issue.closed_at);
-      const prev = this.lastActivityStatus.get(stage.issue_id);
-      if (prev !== newStatus) {
-        this.lastActivityStatus.set(stage.issue_id, newStatus);
-        const wsConsumers = this.workspaceConsumers.get(issue.workspace_path);
-        if (wsConsumers) for (const c of wsConsumers) c.onActivityStatusChanged(stage.issue_id, newStatus, prev ?? "needs_human");
-      }
+    if (!issue || issue.closed_at) return;
+    const newStatus = this.getActivityStatus(stageId, issue.closed_at);
+    const prev = this.lastActivityStatus.get(stage.issue_id);
+    if (prev !== newStatus) {
+      this.lastActivityStatus.set(stage.issue_id, newStatus);
+      this.broadcastWorkspaceStatus(issue.workspace_path, stage.issue_id, newStatus, prev ?? "needs_human");
     }
   }
 }

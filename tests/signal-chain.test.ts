@@ -3,6 +3,7 @@ import { createFinalResponseServer } from "@domain/snail-mcp-server/_internal/se
 import { IssueCollaboration } from "@app/issue-collaboration/collaboration";
 import type { MessagePort } from "@domain/message/port";
 import type { McpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-message-store";
+import type { StageSuggestionRepository } from "@domain/issue/_internal/repository";
 import type { Message, MessageEvent } from "@domain/message/model";
 import type { IssuePort, StagePort } from "@domain/issue/port";
 import type { SnailPort } from "@domain/snail/port";
@@ -38,6 +39,16 @@ function createMockMcpMessageStore(): McpMessageStore {
     getMcpRoutingTargets: () => undefined,
     setMcpRoutingTargets: () => {},
     deleteMcpRoutingTargets: () => {},
+  };
+}
+
+function createMockStageSuggestionRepo(): StageSuggestionRepository {
+  return {
+    insert: vi.fn(),
+    listPendingByStage: vi.fn().mockReturnValue([]),
+    countIgnoredByStageAndTargetKey: vi.fn().mockReturnValue(0),
+    markProcessed: vi.fn(),
+    deleteByStage: vi.fn(),
   };
 }
 
@@ -157,6 +168,7 @@ describe("Signal chain: set_final_body → detectStageTransition → autoAdvance
       snailPort: createMockSnailPort(),
       liteAIPort: createMockLiteAIPort(),
       mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
     });
 
     // Mock the autoAdvanceEngine.evaluate method
@@ -250,6 +262,7 @@ describe("Signal chain: set_final_body → detectStageTransition → autoAdvance
       snailPort: createMockSnailPort(),
       liteAIPort: createMockLiteAIPort(),
       mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
     });
 
     // Act
@@ -340,6 +353,7 @@ All checks passed.
       snailPort: createMockSnailPort(),
       liteAIPort: createMockLiteAIPort(),
       mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
     });
 
     // Act

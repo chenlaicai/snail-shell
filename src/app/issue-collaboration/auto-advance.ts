@@ -1,5 +1,5 @@
 import type { Stage } from "@domain/issue/model";
-import type { StageTransitionSuggestion, AdversarialArtifact, DesignAdversarialArtifact, ReviewAdversarialArtifact, SignalType, EvaluationResult, EvaluationReason } from "@app/issue-collaboration/port";
+import type { StageTransitionSuggestion, AdversarialArtifact, DesignAdversarialArtifact, ReviewAdversarialArtifact, SignalType, DecisionMode, EvaluationResult, EvaluationReason } from "@app/issue-collaboration/port";
 import { resolveContextValue } from "@app/issue-collaboration/resource-cleanup";
 import { getLogger } from "@infra/logger";
 
@@ -31,7 +31,13 @@ export class AutoAdvanceEngine {
     const typedSuggestions = suggestions.map(s => ({
       ...s,
       signal_type: s.signal_type ?? this.inferSignalType(s, stage.key),
+      /** 向后兼容：缺失 decision_mode 时默认 autonomous */
+      decision_mode: s.decision_mode ?? "autonomous",
     }));
+
+    // Decision Mode 校验（B3）
+    const decisionModeError = this.validateDecisionModes(typedSuggestions);
+    if (decisionModeError) return decisionModeError;
 
     // 分歧信号优先处理
     const disagreements = typedSuggestions.filter(s => s.signal_type === "disagreement");
@@ -52,6 +58,29 @@ export class AutoAdvanceEngine {
     }
 
     return { action: "blocked", reasons: [{ code: "NO_VALID_SIGNALS", severity: "info", message: "无有效信号" }] };
+  }
+
+  /** B3: Decision Mode 校验 — suggestive 模式必须包含 recommendation/reason/alternatives */
+  private validateDecisionModes(suggestions: StageTransitionSuggestion[]): EvaluationResult | null {
+    for (const s of suggestions) {
+      const mode = s.decision_mode as DecisionMode;
+      // suggestive + disagreement 是非法组合
+      if (mode === "suggestive" && s.signal_type === "disagreement") {
+        return { action: "blocked", reasons: [{ code: "INVALID_DECISION_MODE_COMBINATION", severity: "error", message: "decision_mode 'suggestive' 不适用于 disagreement 信号" }] };
+      }
+      if (mode === "suggestive") {
+        if (!s.recommendation) {
+          return { action: "blocked", reasons: [{ code: "SUGGESTIVE_MISSING_RECOMMENDATION", severity: "error", message: "suggestive 模式必须包含 recommendation 字段" }] };
+        }
+        if (!s.reason) {
+          return { action: "blocked", reasons: [{ code: "SUGGESTIVE_MISSING_REASON", severity: "error", message: "suggestive 模式必须包含 reason 字段" }] };
+        }
+        if (!s.alternatives || s.alternatives.length === 0) {
+          return { action: "blocked", reasons: [{ code: "SUGGESTIVE_MISSING_ALTERNATIVES", severity: "error", message: "suggestive 模式必须包含 alternatives 字段" }] };
+        }
+      }
+    }
+    return null;
   }
 
   /** 向后兼容：根据字段推断 signal_type。结合 stage.key 防止误路由 */

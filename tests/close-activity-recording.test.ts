@@ -6,6 +6,7 @@ import type { MessagePort } from "@domain/message/port";
 import type { SnailPort } from "@domain/snail/port";
 import type { LiteAIPort } from "@domain/lite-ai/port";
 import type { McpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-message-store";
+import type { StageSuggestionRepository } from "@domain/issue/_internal/repository";
 import type { Issue, CloseSummary } from "@domain/issue/model";
 import type { CleanupResult } from "@app/issue-collaboration/resource-cleanup";
 
@@ -109,6 +110,16 @@ function createMockMcpMessageStore(): McpMessageStore {
   return { getMcpRoutingTargets: vi.fn(), setMcpRoutingTargets: vi.fn(), deleteMcpRoutingTargets: vi.fn() };
 }
 
+function createMockStageSuggestionRepo(): StageSuggestionRepository {
+  return {
+    insert: vi.fn(),
+    listPendingByStage: vi.fn().mockReturnValue([]),
+    countIgnoredByStageAndTargetKey: vi.fn().mockReturnValue(0),
+    markProcessed: vi.fn(),
+    deleteByStage: vi.fn(),
+  };
+}
+
 /** 从 mock 调用记录中提取 updateCloseSummary 的第一个参数（CloseSummary） */
 function getCapturedSummary(issuePort: { updateCloseSummary: ReturnType<typeof vi.fn> }): CloseSummary | null {
   const calls = issuePort.updateCloseSummary.mock.calls;
@@ -140,6 +151,7 @@ describe("closeIssue activity recording", () => {
       snailPort: createMockSnailPort(),
       liteAIPort: createMockLiteAIPort(),
       mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
     });
 
     await collaboration.closeIssue("issue-1");
@@ -173,6 +185,7 @@ describe("closeIssue activity recording", () => {
       snailPort: createMockSnailPort(),
       liteAIPort: createMockLiteAIPort(),
       mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
     });
 
     const result = await collaboration.closeIssue("issue-1");
@@ -202,6 +215,7 @@ describe("closeIssue activity recording", () => {
       snailPort: createMockSnailPort(),
       liteAIPort: createMockLiteAIPort(),
       mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
     });
 
     await collaboration.closeIssue("issue-1");
@@ -232,6 +246,7 @@ describe("closeIssue activity recording", () => {
       snailPort: createMockSnailPort(),
       liteAIPort: createMockLiteAIPort(),
       mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
     });
 
     await collaboration.closeIssue("issue-1");
@@ -260,6 +275,7 @@ describe("closeIssue activity recording", () => {
       snailPort: createMockSnailPort(),
       liteAIPort: createMockLiteAIPort(),
       mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
     });
 
     await collaboration.closeIssue("issue-1");
@@ -293,6 +309,7 @@ describe("closeIssue activity recording", () => {
       snailPort: createMockSnailPort(),
       liteAIPort: createMockLiteAIPort(),
       mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
     });
 
     const result = await collaboration.closeIssue("issue-1");

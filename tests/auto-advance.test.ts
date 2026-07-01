@@ -701,3 +701,111 @@ describe("R7/R8 adversarial findings validation", () => {
     });
   });
 });
+
+describe("decision_mode validation (B3)", () => {
+  it("blocks when suggestive mode is missing recommendation", async () => {
+    const deps = createDeps();
+    const engine = new AutoAdvanceEngine(deps);
+    const suggestion = createSuggestion({
+      decision_mode: "suggestive",
+      reason: "should proceed",
+      alternatives: ["stay", "rollback"],
+      // recommendation is missing
+    });
+    const result = await engine.evaluate(createStage({ key: "development" }), [suggestion]);
+    expect(deps.advanceStage).not.toHaveBeenCalled();
+    expect(result.action).toBe("blocked");
+    expect(result.reasons[0].code).toBe("SUGGESTIVE_MISSING_RECOMMENDATION");
+  });
+
+  it("blocks when suggestive mode is missing reason", async () => {
+    const deps = createDeps();
+    const engine = new AutoAdvanceEngine(deps);
+    const suggestion = createSuggestion({
+      decision_mode: "suggestive",
+      recommendation: "proceed to review",
+      alternatives: ["stay", "rollback"],
+      reason: "", // empty reason
+    });
+    const result = await engine.evaluate(createStage({ key: "development" }), [suggestion]);
+    expect(deps.advanceStage).not.toHaveBeenCalled();
+    expect(result.action).toBe("blocked");
+    expect(result.reasons[0].code).toBe("SUGGESTIVE_MISSING_REASON");
+  });
+
+  it("blocks when suggestive mode is missing alternatives", async () => {
+    const deps = createDeps();
+    const engine = new AutoAdvanceEngine(deps);
+    const suggestion = createSuggestion({
+      decision_mode: "suggestive",
+      recommendation: "proceed to review",
+      // alternatives is missing
+    });
+    const result = await engine.evaluate(createStage({ key: "development" }), [suggestion]);
+    expect(deps.advanceStage).not.toHaveBeenCalled();
+    expect(result.action).toBe("blocked");
+    expect(result.reasons[0].code).toBe("SUGGESTIVE_MISSING_ALTERNATIVES");
+  });
+
+  it("blocks when suggestive mode has empty alternatives array", async () => {
+    const deps = createDeps();
+    const engine = new AutoAdvanceEngine(deps);
+    const suggestion = createSuggestion({
+      decision_mode: "suggestive",
+      recommendation: "proceed to review",
+      alternatives: [],
+    });
+    const result = await engine.evaluate(createStage({ key: "development" }), [suggestion]);
+    expect(deps.advanceStage).not.toHaveBeenCalled();
+    expect(result.action).toBe("blocked");
+    expect(result.reasons[0].code).toBe("SUGGESTIVE_MISSING_ALTERNATIVES");
+  });
+
+  it("blocks when suggestive + disagreement combination", async () => {
+    const deps = createDeps();
+    const engine = new AutoAdvanceEngine(deps);
+    const suggestion = createSuggestion({
+      signal_type: "disagreement",
+      decision_mode: "suggestive",
+      recommendation: "proceed",
+      reason: "done",
+      alternatives: ["stay"],
+      consensus: false,
+    });
+    const result = await engine.evaluate(createStage({ key: "development" }), [suggestion]);
+    expect(result.action).toBe("blocked");
+    expect(result.reasons[0].code).toBe("INVALID_DECISION_MODE_COMBINATION");
+  });
+
+  it("allows autonomous mode without recommendation/reason/alternatives", async () => {
+    const deps = createDeps();
+    const engine = new AutoAdvanceEngine(deps);
+    const suggestion = createSuggestion({ decision_mode: "autonomous" });
+    const result = await engine.evaluate(createStage({ key: "development" }), [suggestion]);
+    expect(deps.advanceStage).toHaveBeenCalled();
+    expect(result.action).toBe("auto_advanced");
+  });
+
+  it("defaults to autonomous when decision_mode is missing (backward compat)", async () => {
+    const deps = createDeps();
+    const engine = new AutoAdvanceEngine(deps);
+    const suggestion = createSuggestion({ decision_mode: undefined });
+    const result = await engine.evaluate(createStage({ key: "development" }), [suggestion]);
+    expect(deps.advanceStage).toHaveBeenCalled();
+    expect(result.action).toBe("auto_advanced");
+  });
+
+  it("allows suggestive mode with all required fields for gate_complete", async () => {
+    const deps = createDeps();
+    const engine = new AutoAdvanceEngine(deps);
+    const suggestion = createSuggestion({
+      decision_mode: "suggestive",
+      recommendation: "proceed to review",
+      reason: "all gates passed",
+      alternatives: ["stay in development", "rollback"],
+    });
+    const result = await engine.evaluate(createStage({ key: "development" }), [suggestion]);
+    expect(deps.advanceStage).toHaveBeenCalled();
+    expect(result.action).toBe("auto_advanced");
+  });
+});
