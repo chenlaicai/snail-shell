@@ -32,6 +32,8 @@ export function extractMentionQuery(value: string, caret: number): { start: numb
   const tail = value.slice(mentionStart + 1, caret);
   /** @ 后紧跟空白字符时，视为 mention 已结束（用户已完成输入） */
   if (/^\s/.test(tail)) return null;
+  /** @ 后无字符时，显示全量列表（与 Slack/GitHub/Notion 行为一致） */
+  if (tail.length === 0) return { start: mentionStart, query: "" };
   const queryMatch = tail.match(/^[\p{L}\p{N}_][\p{L}\p{N}_-]*/u);
   if (!queryMatch) return null;
   const query = queryMatch[0];
