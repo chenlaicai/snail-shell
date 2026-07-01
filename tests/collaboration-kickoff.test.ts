@@ -262,3 +262,211 @@ describe("autoInvokeNewStage: advanceStage/rollbackStage 后自动发送 kickoff
     expect(invokeFirstCallSpy).not.toHaveBeenCalled();
   });
 });
+
+describe("autoInvokeFirstStage: createIssue 后自动发送 kickoff 消息", () => {
+  let createMessageSpy: ReturnType<typeof vi.fn>;
+  let setContextSpy: ReturnType<typeof vi.fn>;
+  let appendEventSpy: ReturnType<typeof vi.fn>;
+  let invokeFirstCallSpy: ReturnType<typeof vi.fn>;
+  let nextMessageId: number;
+  let messageStore: Map<number, { id: number; stage_id: string; from_speaker: string; to_speakers: string[]; status: "completed" | "streaming" | "failed"; created_at: string; ended_at: null }>;
+
+  beforeEach(() => {
+    nextMessageId = 100;
+    messageStore = new Map();
+    createMessageSpy = vi.fn().mockImplementation((input: { stage_id: string; from_speaker: string; to_speakers: string[]; status: "completed" | "streaming" | "failed" }) => {
+      const id = nextMessageId++;
+      const msg = { id, ...input, created_at: "", ended_at: null };
+      messageStore.set(id, msg);
+      return msg;
+    });
+    setContextSpy = vi.fn();
+    appendEventSpy = vi.fn().mockReturnValue({ id: 1, message_id: 1, seq: 1, payload: { type: "text", text: "" }, created_at: "" });
+    invokeFirstCallSpy = vi.fn().mockResolvedValue({ snail_instance_id: "test-instance" });
+  });
+
+  function createFirstStage(): Stage {
+    return {
+      id: "s1",
+      workspace_path: "/workspace",
+      issue_id: "issue-1",
+      key: "design",
+      title: "Design",
+      description: "",
+      default_role_instance: "architect-1",
+      role_instances: ["architect-1"],
+      from_stage_id: null,
+      available_transitions: [],
+      output_artifacts: {},
+      entered_at: new Date().toISOString(),
+      left_at: null,
+    };
+  }
+
+  function createCollaborationForCreateIssue(opts: { summary?: string } = {}) {
+    const firstStage = createFirstStage();
+    const issue = createOpenIssue({
+      summary: opts.summary ?? null,
+      sop_snapshot: {
+        key: "test",
+        name: "Test SOP",
+        description: null,
+        shared_skill: null,
+        stage_definitions: [{ key: "design", title: "Design", description: "", roles: [] }],
+        transitions: [],
+        scope: Scope.Workspace,
+      },
+    });
+    const messagePort = createMockMessagePort({
+      createMessage: createMessageSpy as unknown as MessagePort["createMessage"],
+      setContext: setContextSpy as unknown as MessagePort["setContext"],
+      appendEvent: appendEventSpy as unknown as MessagePort["appendEvent"],
+      getMessage: (id) => messageStore.get(id),
+      updateMessageTargets: vi.fn((id: number, toSpeakers: string[]) => {
+        const msg = messageStore.get(id);
+        if (msg) msg.to_speakers = toSpeakers;
+      }) as unknown as MessagePort["updateMessageTargets"],
+      getUnreadMessages: () => {
+        const unread = [];
+        for (const msg of messageStore.values()) {
+          if (msg.status === "completed") unread.push(msg);
+        }
+        return unread;
+      },
+    });
+    const stagePort = createMockStagePort({
+      findStage: vi.fn().mockReturnValue(firstStage),
+      createStage: vi.fn().mockReturnValue(firstStage),
+      getRoleSnailAssignment: vi.fn().mockReturnValue({ snail_key: "test-snail", snail_instance_id: null, role_key: "architect" }),
+    });
+    const snailPort = {
+      ...createMockSnailPort(),
+      invokeFirstCall: invokeFirstCallSpy as unknown as SnailPort["invokeFirstCall"],
+    };
+
+    const collaboration = new IssueCollaboration({
+      issuePort: createMockIssuePort({ findIssue: vi.fn().mockReturnValue(issue) }),
+      createIssue: vi.fn().mockReturnValue(issue),
+      stagePort,
+      messagePort,
+      snailPort,
+      liteAIPort: createMockLiteAIPort(),
+      mcpMessageStore: createMockMcpMessageStore(),
+    });
+
+    return { collaboration, firstStage };
+  }
+
+  it("createIssue 后自动发送 summary 作为用户消息并触发 agent", async () => {
+    const { collaboration } = createCollaborationForCreateIssue({ summary: "帮我实现一个登录功能" });
+
+    await collaboration.createIssue({
+      workspace_path: "/workspace",
+      title: "Test Issue",
+      summary: "帮我实现一个登录功能",
+      adopted_sop_key: "test-sop",
+      snail_assignment_plan: {},
+    });
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(createMessageSpy).toHaveBeenCalled();
+    /** 第一次调用是 kickoff 消息，from_speaker="user" */
+    const firstCall = createMessageSpy.mock.calls[0][0];
+    expect(firstCall.from_speaker).toBe("user");
+    expect(invokeFirstCallSpy).toHaveBeenCalled();
+  });
+
+  it("kickoff 消息内容为 summary 文本", async () => {
+    const { collaboration } = createCollaborationForCreateIssue({ summary: "帮我实现一个登录功能" });
+
+    await collaboration.createIssue({
+      workspace_path: "/workspace",
+      title: "Test Issue",
+      summary: "帮我实现一个登录功能",
+      adopted_sop_key: "test-sop",
+      snail_assignment_plan: {},
+    });
+
+    /** setContext 被调用时，text 应为 summary 内容 */
+    expect(setContextSpy).toHaveBeenCalled();
+    const contextCall = setContextSpy.mock.calls[0];
+    expect(contextCall[2]).toBe("帮我实现一个登录功能");
+  });
+
+  it("summary 为空时 fallback 为系统消息", async () => {
+    const { collaboration } = createCollaborationForCreateIssue({ summary: undefined });
+
+    await collaboration.createIssue({
+      workspace_path: "/workspace",
+      title: "Test Issue",
+      adopted_sop_key: "test-sop",
+      snail_assignment_plan: {},
+    });
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(createMessageSpy).toHaveBeenCalled();
+    const firstCall = createMessageSpy.mock.calls[0][0];
+    /** from_speaker="" 表示系统消息 */
+    expect(firstCall.from_speaker).toBe("");
+  });
+
+  it("summary 为空时消息内容为'开始执行。'", async () => {
+    const { collaboration } = createCollaborationForCreateIssue({ summary: undefined });
+
+    await collaboration.createIssue({
+      workspace_path: "/workspace",
+      title: "Test Issue",
+      adopted_sop_key: "test-sop",
+      snail_assignment_plan: {},
+    });
+
+    expect(setContextSpy).toHaveBeenCalled();
+    const contextCall = setContextSpy.mock.calls[0];
+    expect(contextCall[2]).toBe("开始执行。");
+  });
+
+  it("无 default_role_instance 时不发送消息", async () => {
+    const firstStage = createFirstStage();
+    firstStage.default_role_instance = "";
+    const issue = createOpenIssue({
+      summary: "test",
+      sop_snapshot: {
+        key: "test",
+        name: "Test SOP",
+        description: null,
+        shared_skill: null,
+        stage_definitions: [{ key: "design", title: "Design", description: "", roles: [] }],
+        transitions: [],
+        scope: Scope.Workspace,
+      },
+    });
+    const messagePort = createMockMessagePort({
+      createMessage: createMessageSpy as unknown as MessagePort["createMessage"],
+    });
+    const stagePort = createMockStagePort({
+      findStage: vi.fn().mockReturnValue(firstStage),
+      createStage: vi.fn().mockReturnValue(firstStage),
+    });
+
+    const collaboration = new IssueCollaboration({
+      issuePort: createMockIssuePort({ findIssue: vi.fn().mockReturnValue(issue) }),
+      createIssue: vi.fn().mockReturnValue(issue),
+      stagePort,
+      messagePort,
+      snailPort: createMockSnailPort(),
+      liteAIPort: createMockLiteAIPort(),
+      mcpMessageStore: createMockMcpMessageStore(),
+    });
+
+    await collaboration.createIssue({
+      workspace_path: "/workspace",
+      title: "Test Issue",
+      summary: "test",
+      adopted_sop_key: "test-sop",
+      snail_assignment_plan: {},
+    });
+
+    expect(createMessageSpy).not.toHaveBeenCalled();
+    expect(invokeFirstCallSpy).not.toHaveBeenCalled();
+  });
+});

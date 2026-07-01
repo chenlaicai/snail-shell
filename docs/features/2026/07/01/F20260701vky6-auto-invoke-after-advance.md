@@ -27,9 +27,12 @@ doc_kind: spec
 
 **历史背景**：F2026060303 P4 已识别此问题，提出前端方案（`src/web/stage-controller.js` 自动发送"开始执行。"）。但该文件已不存在于当前代码库——架构已从前端驱动演变为后端 `IssueCollaboration` 编排驱动，P4 方案失效。
 
+**初始阶段同样缺失**：`createIssue()` 创建 issue 和第一个 stage 后直接返回，不调用 `autoInvokeNewStage()`。用户必须手动发消息才能触发第一个阶段的 agent 开始工作。与 advance/rollback 场景一样，这是额外的认知负担——用户已经填写了 title、summary、SOP 选择和 snail 分配，这些上下文对第一个阶段的 agent 来说已经足够启动。
+
 ## 目标
 
-stage transition 完成后（无论 auto-advance 还是手动 advance），系统自动向新阶段发送 kickoff 消息，触发新阶段的默认 agent 开始工作，消除用户手动干预。
+1. ~~stage transition 完成后（无论 auto-advance 还是手动 advance），系统自动向新阶段发送 kickoff 消息，触发新阶段的默认 agent 开始工作，消除用户手动干预~~ ✅ 已实现
+2. ~~issue 创建完成后，系统自动向第一个阶段发送 kickoff 消息，触发默认 agent 开始工作，消除用户手动干预~~ ✅ 已实现
 
 ## 非目标
 
@@ -42,80 +45,98 @@ stage transition 完成后（无论 auto-advance 还是手动 advance），系�
 
 ### 问题链路分析
 
+**advanceStage / rollbackStage**：✅ 已修复。`initStageCursors()` 之后调用 `autoInvokeNewStage(stage)`，链路完整。
+
+**createIssue**：当前断点如下：
+
 ```
-advanceStage()                          ← 纯状态转移，无消息
-    ├── stagePort.advanceStage()        ← domain 层创建新阶段
-    ├── cleanupDispatchStates()         ← 清理旧阶段调度状态
-    ├── suggestions.delete()            ← 清理旧阶段信号
-    └── helpers.initStageCursors()      ← 初始化新阶段 cursor
+createIssue()
+    ├── deps.createIssue(input)         ← domain 层创建 issue
+    ├── helpers.createInitialStage()    ← 创建第一个 stage + 初始化 cursor
         ↓
-    return newStage                     ← 返回，无后续动作
+    return { issue, stage }             ← 返回，无后续动作
 ```
 
-**断点**：`initStageCursors()` 之后没有任何机制向新阶段注入消息或触发 agent。
+**断点**：`createInitialStage()` 之后没有任何机制向第一个阶段注入消息或触发 agent。
 
-### 方案：advanceStage() 内嵌 kickoff
+### 方案：advanceStage() / rollbackStage() 内嵌 kickoff ✅ 已实现
 
-在 `IssueCollaboration.advanceStage()` 中，`initStageCursors()` 之后调用 `autoInvokeNewStage(stage)`：
+`advanceStage()` 和 `rollbackStage()` 均已调用 `autoInvokeNewStage(stage)`，`autoInvokeNewStage()` 方法已实现。`sendMessage` → `sendMessageAsync` → `resolveToSpeakers` → `route` → `dispatch` → `invokeAgent` 链路完整。PR #524 已通过 review 并合入。
+
+### 方案：createIssue() 内嵌 kickoff ✅ 已实现
+
+在 `IssueCollaboration.createIssue()` 中，`createInitialStage()` 之后调用 `autoInvokeFirstStage(stage, input)`：
 
 ```typescript
-async advanceStage(stageId: string, targetKey: string): Promise<Stage> {
-    const stage = this.deps.stagePort.advanceStage(stageId, targetKey);
-    this.cleanupDispatchStates(stageId);
-    this.suggestions.delete(stageId);
-    this.helpers.initStageCursors(stage);
-    this.autoInvokeNewStage(stage);       // ← 新增
-    return stage;
+async createIssue(input: CreateIssueInput): Promise<CreateIssueResult> {
+    return this.deps.stagePort.transaction(() => {
+      const issue = this.deps.createIssue(input);
+      const stage = this.helpers.createInitialStage(issue);
+      this.autoInvokeFirstStage(stage, input);  // ← 新增
+      return { issue, stage };
+    });
 }
+```
 
-private autoInvokeNewStage(stage: Stage): void {
+**kickoff 消息选择：使用 summary 作为用户消息**
+
+与 advanceStage/rollbackStage 的 `"开始执行。"` 不同，createIssue 场景下用户已在 `summary` 字段中提供了问题描述。将 summary 作为第一条**用户消息**发送（`fromSpeaker="user"`），而非系统消息：
+
+```typescript
+private autoInvokeFirstStage(stage: Stage, input: CreateIssueInput): void {
     const defaultSpeaker = stage.default_role_instance;
     if (!defaultSpeaker) return;
     try {
-        void this.sendMessage(stage.id, "开始执行。", "");
+        const summary = input.summary?.trim();
+        if (summary) {
+            void this.sendMessage(stage.id, summary, "user");    // 用户消息气泡
+        } else {
+            void this.sendMessage(stage.id, "开始执行。", "");    // 系统消息条
+        }
     } catch (err) {
-        log.error({ stageId: stage.id, err }, "autoInvokeNewStage failed");
+        log.error({ stageId: stage.id, err }, "autoInvokeFirstStage failed");
     }
 }
 ```
 
-**`fromSpeaker=""` 选择理由**：
+**与 advanceStage kickoff 的差异**：
 
-DTO 映射（`issue.route.ts:200`）使用 `message.from_speaker` 的 truthy/falsy 判断 role：
-```typescript
-const role = message.from_speaker === "user" ? "user" : message.from_speaker ? "assistant" : "system";
-```
+| 维度 | advanceStage kickoff | createIssue kickoff |
+|------|---------------------|---------------------|
+| 消息内容 | `"开始执行。"` | `summary` 内容（用户填写的问题描述） |
+| fromSpeaker | `""`（系统消息） | `"user"`（用户消息） |
+| UI 渲染 | 系统消息条（shield icon） | 用户气泡（右侧） |
+| agent 处理 | 通过 systemReminder 获取上下文 | 收到用户指令作为第一条消息 |
 
-- `from_speaker="system"` → truthy → `role="assistant"` → UI 渲染为 assistant 气泡（错误）
-- `from_speaker=""` → falsy → `role="system"` → UI 渲染为紧凑系统消息条（正确）
+**为什么用 `autoInvokeFirstStage` 而非复用 `autoInvokeNewStage`**：
+- `autoInvokeNewStage(stage)` 签名只有 stage，不接收 `CreateIssueInput`，无法获取 summary
+- `autoInvokeFirstStage(stage, input)` 需要访问 `input.summary` 决定消息内容和类型
+- 两者行为不同：`autoInvokeNewStage` 固定发送系统消息，`autoInvokeFirstStage` 根据 summary 有无选择用户消息或系统消息
 
-**触发链路**：
-```
-sendMessage("开始执行。", fromSpeaker="")
-    → sendMessageAsync()
-        → resolveToSpeakers()           ← 新阶段无历史消息，回退到 default_role_instance
-        → route()
-            → dispatch(default_role_instance)
-                → invokeAgent()         ← agent 被自动调用
-```
+**为什么用用户消息而非系统消息**：
+- summary 本质上是**用户给 agent 的指令**，不是 metadata
+- 作为用户消息发送，agent 会将其视为用户意图，优先处理
+- systemReminder 中仍保留 `**Issue 摘要**：` 字段，agent 同时看到结构化上下文和用户指令
+
+**summary 为空时的 fallback**：当用户未填写 summary 时，发送 `"开始执行。"` 作为系统消息（与 advanceStage 行为一致）。此时 agent 依赖 systemReminder 中的 title + SOP 定义启动。
+
+**前端 UI 适配**：当前 summary 是 3 行 textarea，标签 "Summary"，placeholder "Optional description"。需要调整为更大的编辑区域，标签改为"问题描述"，placeholder 改为"描述你希望 AI 帮你解决的问题"，鼓励用户提供充分上下文。
 
 ### 为什么选择这个位置
 
-| 方案 | 优点 | 缺点 |
-|------|------|------|
-| advanceStage() 内嵌 | 同时覆盖 auto-advance 和 manual advance；无需前端改动 | 与状态转移逻辑耦合 |
-| detectStageTransition() 后置 | 仅覆盖 auto-advance | manual advance 不受益；需在 evaluate 返回后再次查询新阶段 |
-| 前端 onAutoAdvanced 回调 | 解耦 | 仅覆盖 auto-advance；依赖 WebSocket 连接；增加前端复杂度 |
+**advanceStage / rollbackStage 位置选择**：✅ 已实现。选择 advanceStage() 内嵌——两种推进路径的唯一交汇点，改动最小、覆盖最全。
 
-选择 advanceStage() 内嵌：这是两种推进路径的唯一交汇点，改动最小、覆盖最全。
+**createIssue() 位置选择**：`createIssue()` 是创建初始阶段的唯一路径，在此处调用 `autoInvokeFirstStage()` 是覆盖初始阶段的最小改动。`autoInvokeFirstStage()` 与 `autoInvokeNewStage()` 签名不同，需要访问 `input.summary` 决定消息内容和类型。
 
 ### 边界条件
 
-1. **issue 已关闭**：`sendMessage()` 内部 `assertIssueOpen()` 会抛出，被 try-catch 捕获并记录日志，不影响 `advanceStage()` 的返回值
-2. **无 default_role_instance**：直接 return，不发送消息（防御性检查）
-3. **agent 调用失败**：`sendMessageAsync()` 的 fire-and-forget 模式下，错误被 `.catch()` 记录日志
-4. **并发调度**：`dispatchStates` 机制处理同一 speaker 的并发 dispatch，不会重复调用
-5. **rollback 转移**：rollback 也经过 `advanceStage()`，同样触发 kickoff。这是合理行为——rollback 后 agent 应开始处理回退任务
+1. **issue 已关闭**：`sendMessage()` 内部 `assertIssueOpen()` 会抛出，被 try-catch 捕获并记录日志 ✅ 已验证
+2. **无 default_role_instance**：直接 return，不发送消息（防御性检查）✅ 已验证
+3. **agent 调用失败**：`sendMessageAsync()` 的 fire-and-forget 模式下，错误被 `.catch()` 记录日志 ✅ 已验证
+4. **并发调度**：`dispatchStates` 机制处理同一 speaker 的并发 dispatch，不会重复调用 ✅ 已验证
+5. **rollback 转移**：rollback 也经过 `advanceStage()`，同样触发 kickoff ✅ 已验证
+6. **createIssue 事务内调用**：`createIssue()` 在 `stagePort.transaction()` 内执行，`autoInvokeFirstStage()` 的 `sendMessage` 是 fire-and-forget，事务提交后才实际触发 agent。这是安全的——`sendMessage` 内部会自行处理消息创建和路由
+7. **长 summary 内容**：summary 可能包含大量 markdown 内容。作为用户消息发送时，`sendMessage` 会完整保留原始文本。systemReminder 中也保留 summary 作为结构化上下文。agent 同时看到两份内容，但用户消息是主要指令来源
 
 ### kickoff 消息设计
 
@@ -123,95 +144,41 @@ sendMessage("开始执行。", fromSpeaker="")
 - **fromSpeaker**：`""`（空字符串）— 通过 DTO 映射的 falsy 判断得到 `role="system"`，UI 渲染为紧凑系统消息条
 - **可见性**：在 conversation 中可见，为用户提供反馈（"agent 已开始工作"）
 
-#### 行为条目 S1：kickoff 消息必须渲染为可读文本
+#### 行为条目 S1：kickoff 消息必须渲染为可读文本 ✅ 已实现
 
-**问题**：`sendMessage()` 将文本写入 `context.final_text`，但不创建 text event。UI 系统消息渲染逻辑（`ChatMessage.tsx:87-90`）只从 events 中提取文本：
-```typescript
-const text = message.events
-  .filter((e) => e.payload?.type === "text" && e.payload && "text" in e.payload)
-  .map((e) => (e.payload as unknown as { text: string }).text)
-  .join("");
-```
+`sendMessageAsync` 在 `fromSpeaker=""` 时已创建 text event，UI 可正确渲染 kickoff 文本。
 
-无 text event → `text = ""` → 渲染为无文本的 pill badge。
+#### 行为条目 S2：auto-advance 后前端自动切换阶段 ✅ 已实现
 
-**约束**：kickoff 消息必须在 conversation 中渲染为可读文本，不是空 pill badge。
-
-**实现方向**（供 development 参考）：`autoInvokeNewStage` 在调用 `sendMessage` 后，需为该 message 创建一条 text event（`appendEvent` with `payload.type === "text"`, `payload.text = "开始执行。"`）。关键约束：不能改变已有 user/agent 消息的事件创建流程。
-
-### 前端依赖：stage_changed 事件规范
-
-auto-advance 触发后，前端需要自动切换到新阶段的 conversation 视图，否则 kickoff 消息和 agent 工作对用户不可见。
-
-#### 行为条目 S2：auto-advance 后前端自动切换阶段
-
-**实现链路**：
-
-1. WebSocket consumer 新增 `onAutoAdvanced` 处理，发送 `stage_changed` 事件
-2. 前端监听 `stage_changed`，自动更新 `searchParams` 切换到新阶段
-
-**`stage_changed` 事件规范**：
-
-DTO 类型变更（`src/api-contracts/dto.ts`）— `IssueRealtimeMessage.event` 联合类型新增变体：
-```typescript
-| { type: "stage_changed"; stage_id: string; new_stage_id: string; from_key: string; to_key: string }
-```
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `stage_id` | `string` | 旧阶段 ID |
-| `new_stage_id` | `string` | 新阶段 ID |
-| `from_key` | `string` | 旧阶段 key（如 "design"） |
-| `to_key` | `string` | 新阶段 key（如 "development"） |
-
-**WebSocket consumer 实现**（`unified-websocket.ts`）：
-```typescript
-onAutoAdvanced(stageId, payload) {
-  send(socket, {
-    type: "issue_event",
-    issue_id: issueId,
-    activity_status: collaboration.getActivityStatus(payload.to),
-    event: { type: "stage_changed", stage_id: stageId, new_stage_id: payload.to, from_key: payload.from, to_key: payload.to },
-  });
-}
-```
-
-**前端处理**（`useWebSocket.ts` → `IssueConversation.tsx`）：
-- `EventBatcher` 新增 `stage_changed` 事件类型处理
-- 收到 `stage_changed` 后，调用 `setSearchParams({ stage: new_stage_id }, { replace: true })`
-- 新 stage 的 conversation 数据通过 React Query 自动 fetch（`queryKeys.stages.messages(new_stage_id)`）
+`dto.ts` 已包含 `stage_changed` 事件类型，`unified-websocket.ts` 和 `useWebSocket.ts` 均已实现。
 
 ## 生效路径
 
-- `src/app/issue-collaboration/collaboration.ts` — `advanceStage()` 新增 `autoInvokeNewStage()` 调用；新增 `autoInvokeNewStage()` 私有方法；kickoff 消息创建 text event（S1）
-- `src/api-contracts/dto.ts` — `IssueRealtimeMessage.event` 新增 `stage_changed` 变体
-- `src/infra/http/unified-websocket.ts` — WebSocket consumer 新增 `onAutoAdvanced` 处理
-- `src/web/hooks/useWebSocket.ts` — `EventBatcher` 新增 `stage_changed` 处理
-- `src/web/pages/IssueConversation.tsx` — 监听 `stage_changed` 自动切换阶段
+- `src/app/issue-collaboration/collaboration.ts` — `createIssue()` 新增 `autoInvokeFirstStage(stage, input)` 调用；新增 `autoInvokeFirstStage()` 方法
+- `src/web/components/NewIssueDialog.tsx` — summary 编辑区域 UI 优化
 
 ## 改动范围
 
-| 文件 | 改动 |
-|------|------|
-| `src/app/issue-collaboration/collaboration.ts` | `advanceStage()` 新增 `autoInvokeNewStage()` 调用；新增 `autoInvokeNewStage()` 方法；kickoff 消息需创建 text event（S1） |
-| `src/api-contracts/dto.ts` | `IssueRealtimeMessage.event` 联合类型新增 `stage_changed` 变体 |
-| `src/infra/http/unified-websocket.ts` | WebSocket consumer 新增 `onAutoAdvanced` 处理，发送 `stage_changed` 事件 |
-| `src/web/hooks/useWebSocket.ts` | `EventBatcher` 新增 `stage_changed` 事件类型处理 |
-| `src/web/pages/IssueConversation.tsx` | 监听 `stage_changed` 事件，自动切换 `searchParams` 到新阶段 |
-| `tests/collaboration-kickoff.test.ts` | 新增：advanceStage 后自动发送 kickoff 消息的测试用例 |
+| 文件 | 改动 | 状态 |
+|------|------|------|
+| `src/app/issue-collaboration/collaboration.ts` | `createIssue()` 新增 `autoInvokeFirstStage(stage, input)` 调用；新增 `autoInvokeFirstStage()` 方法（summary 作为用户消息） | ✅ 已实现 |
+| `src/web/components/NewIssueDialog.tsx` | summary textarea 改为更大编辑区域，标签改为"问题描述"，placeholder 改为"描述你希望 AI 帮你解决的问题" | ✅ 已实现 |
+| `tests/collaboration-kickoff.test.ts` | 新增：createIssue 后自动发送 kickoff 消息的测试用例（含 summary 有内容和空 summary 两种场景） | ✅ 已实现 |
 
 ## 验证
 
-- [ ] auto-advance（design→development）后，development 阶段 agent 自动开始工作
-- [ ] auto-advance（development→review）后，review 阶段 agent 自动开始工作
-- [ ] 手动 advance 后，新阶段 agent 自动开始工作
-- [ ] kickoff 消息在 conversation 中可见，渲染为系统消息条样式（shield icon + 单行），文本内容可读（非空 pill badge）
-- [ ] agent 调用失败时不影响 advanceStage() 的返回值
-- [ ] 无 default_role_instance 时不发送消息（不报错）
-- [ ] auto-advance 后前端自动切换到新阶段 conversation
-- [ ] rollback 后，新阶段 agent 自动开始工作
-- [ ] rollback kickoff 消息在 conversation 中可见
-- [ ] kickoff 消息在 advanceStage 返回后立即可见；agent 流式输出可能有短暂延迟
-- [ ] 现有 auto-advance 测试全部通过
+- [x] 创建 issue 后，第一个阶段 agent 自动开始工作
+- [x] 创建 issue 后，summary 内容作为用户消息在 conversation 中可见（右侧用户气泡）
+- [x] summary 为空时，fallback 为"开始执行。"系统消息
+- [x] 前端 NewIssueDialog 的 summary 编辑区域 UI 已优化（更大编辑区、标签"问题描述"）
+- [x] auto-advance（design→development）后，development 阶段 agent 自动开始工作（PR #524 已验证）
+- [x] auto-advance（development→review）后，review 阶段 agent 自动开始工作（PR #524 已验证）
+- [x] 手动 advance 后，新阶段 agent 自动开始工作（PR #524 已验证）
+- [x] kickoff 消息渲染为系统消息条样式，文本内容可读（PR #524 已验证）
+- [x] agent 调用失败时不影响 advanceStage() 的返回值（PR #524 已验证）
+- [x] 无 default_role_instance 时不发送消息（PR #524 已验证）
+- [x] auto-advance 后前端自动切换到新阶段 conversation（PR #524 已验证）
+- [x] rollback 后，新阶段 agent 自动开始工作（PR #524 已验证）
+- [x] 现有 auto-advance 测试全部通过
 
 <!-- [design-time] 章节结束 -->

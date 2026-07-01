@@ -72,6 +72,7 @@ export class IssueCollaboration implements CollaborationInput {
     return this.deps.stagePort.transaction(() => {
       const issue = this.deps.createIssue(input);
       const stage = this.helpers.createInitialStage(issue);
+      this.autoInvokeFirstStage(stage, input);
       return { issue, stage };
     });
   }
@@ -410,6 +411,23 @@ export class IssueCollaboration implements CollaborationInput {
       this.sendMessage(stage.id, "开始执行。", "");
     } catch (err) {
       log.error({ stageId: stage.id, err }, "autoInvokeNewStage failed");
+    }
+  }
+  /** createIssue 后自动向第一个阶段发送 kickoff 消息，使用 summary 作为用户指令 */
+  private autoInvokeFirstStage(stage: Stage, input: CreateIssueInput): void {
+    const defaultSpeaker = stage.default_role_instance;
+    if (!defaultSpeaker) return;
+    try {
+      const summary = input.summary?.trim();
+      if (summary) {
+        /** summary 本质是用户给 agent 的指令，作为用户消息发送（右侧气泡），agent 优先处理 */
+        void this.sendMessage(stage.id, summary, "user");
+      } else {
+        /** 无 summary 时 fallback 为系统消息，与 advanceStage 行为一致 */
+        void this.sendMessage(stage.id, "开始执行。", "");
+      }
+    } catch (err) {
+      log.error({ stageId: stage.id, err }, "autoInvokeFirstStage failed");
     }
   }
 
