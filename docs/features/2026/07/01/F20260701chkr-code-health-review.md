@@ -81,7 +81,7 @@ EvolutionAdapter.createIssue(itemId)
   → 返回 { issue }，仅使用 issue.id 关联回 evolution item
 ```
 
-**根因**：不是类型放错了位置（`CollaborationInput` 确实属于 app 层），而是 domain 层消费了过宽的抽象。Evolution 只需要"从 evolution item 创建 issue"的能力，却依赖了整个协作引擎的 17 方法接口。
+**根因**：不是类型放错了位置（`CollaborationInput` 确实属于 app 层），而是 domain 层消费了过宽的抽象。Evolution 只需要"从 evolution item 创建 issue"的能力，却依赖了整个协作引擎的 16 方法接口。
 
 **当前缓解**：`import type`（编译时擦除）+ `main.ts` 中 Proxy 懒加载（lines 58-66），解决的是 MCP server ↔ evolution 的初始化顺序问题，与本次违规无关。
 
@@ -201,9 +201,10 @@ type CreateIssueFromEvolution = (input: CreateIssueInput) => Promise<CreateIssue
 
 **位置**：
 - `src/domain/workspace/port.ts:11` — `// TODO: remove 方法需要先清理 workspace 下的 skill/prompt/sop 等业务数据`
-- `src/infra/acs/model.ts:9` — `// 只含已实现的能力，TODO 维度不入模型`
 
-**问题**：2 处 TODO 标记表示未完成的功能或待改进的设计。
+**问题**：1 处 TODO 标记表示未完成的功能。
+
+> `src/infra/acs/model.ts:9` 的 "TODO 维度不入模型" 是设计原则描述（"只含已实现的能力，TODO 维度不入模型"），非待办标记，已排除。
 
 **建议**：评估优先级，创建对应的 issue 跟踪或在本次检视后明确处理计划。
 
