@@ -323,7 +323,7 @@ export class IssueCollaboration implements CollaborationInput {
     /** 唯一的上下文数据源：snail adapter 从这里构建 env vars，buildContextBlock 从 issue.context 渲染 system reminder */
     const firstCallRequest = {
       workspace_path: issue.workspace_path, messages: agentMessages, systemReminder: systemReminder || undefined,
-      context: { [CONTEXT_KEYS.ISSUE_ID]: issue.id, [CONTEXT_KEYS.STAGE_ID]: stage.id, [CONTEXT_KEYS.MESSAGE_ID]: String(agentMessage.id), stage_key: stage.key, role_instance: roleInstance, ...issue.context, snail_key: assignment.snail_key },
+      context: { [CONTEXT_KEYS.ISSUE_ID]: issue.id, [CONTEXT_KEYS.STAGE_ID]: stage.id, stage_key: stage.key, role_instance: roleInstance, ...issue.context, snail_key: assignment.snail_key },
     };
     const resumeRequest = { workspace_path: issue.workspace_path, messages: agentMessages, system_reminder: systemReminder, messageId: String(agentMessage.id), stageId: stage.id };
     const onEvent = (event: AgentEvent) => this.handleAgentEvent(stageId, agentMessage.id, event);
@@ -579,7 +579,8 @@ ${transitions || "无"}
 **必须使用 \`set_final_body\` MCP 设置最终答复**。每次发言结束前必须调用此工具，传入你希望展示给用户的完整 Markdown 内容。调用后本轮发言结束，不得再调用任何其他工具。
 **路由目标声明**：如果需要其他角色继续处理，必须在 \`set_final_body\` 的 \`to_speakers\` 参数中声明目标角色。
 **可用路由目标**：${["user", ...stage.role_instances.filter(i => i !== roleInstance)].map(t => `\`${t}\``).join("、")}
-**格式要求**：必须使用上述精确名称。不要使用 snail key、role key 或英文翻译。**必选参数**：调用 \`set_final_body\` 时必须传入 \`message_id\` 和 \`stage_id\`，从环境变量 \`SNAIL_CTX_MESSAGE_ID\` 和 \`SNAIL_CTX_STAGE_ID\` 获取。
+**格式要求**：必须使用上述精确名称。不要使用 snail key、role key 或英文翻译。
+**必选参数**：调用 \`set_final_body\` 前必须先调用 \`get_current_message_id\` 获取 \`message_id\`；\`stage_id\` 从环境变量 \`SNAIL_CTX_STAGE_ID\` 获取。
 </context>`;
   }
   private async notifyConsumers(stageId: string, method: keyof CollaborationConsumer, ...args: unknown[]): Promise<void> {
