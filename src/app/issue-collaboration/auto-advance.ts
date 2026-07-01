@@ -199,7 +199,8 @@ export class AutoAdvanceEngine {
     const targetKey = suggestion.target_key;
     const newStage = await this.deps.advanceStage(stage.id, targetKey);
     await this.deps.recordAuditTrail(stage, newStage, suggestion);
-    await this.deps.notifyConsumers(stage.id, "onAutoAdvanced", {
+    // 使用新 stage.id 通知——确保 board 在新阶段的 agent 调用前正确反映状态
+    await this.deps.notifyConsumers(newStage.id, "onAutoAdvanced", {
       from: stage.key, to: newStage.key, reason: suggestion.reason
     });
   }

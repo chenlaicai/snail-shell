@@ -7,6 +7,7 @@ import { TopBar } from "@/components/TopBar";
 import { IssueRow } from "@/components/IssueRow";
 import { NewIssueDialog } from "@/components/NewIssueDialog";
 import { groupByActivityStatus, activityStatusColumns } from "@/lib/issue-utils";
+import { useWorkspaceRealtime } from "@/hooks/useWorkspaceRealtime";
 import type { IssueDetailDto } from "@/types";
 
 export function IssueList() {
@@ -14,6 +15,8 @@ export function IssueList() {
   const navigate = useNavigate();
   const [showNewIssue, setShowNewIssue] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
+  const wsStatus = useWorkspaceRealtime(workspaceId ?? null);
 
   const { data: workspace, isLoading: wsLoading } = useQuery({
     queryKey: queryKeys.workspaces.detail(workspaceId ?? ""),
@@ -25,6 +28,8 @@ export function IssueList() {
     queryKey: queryKeys.workspaces.issues(workspaceId ?? ""),
     queryFn: () => api("GET /api/workspaces/:workspaceId/issues", { params: { workspaceId: workspaceId! } }) as Promise<IssueDetailDto[]>,
     enabled: !!workspaceId,
+    refetchOnWindowFocus: true,
+    refetchInterval: wsStatus !== "connected" ? 10_000 : false,
   });
 
   const grouped = groupByActivityStatus(issues);
