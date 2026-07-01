@@ -240,5 +240,6 @@ function send(socket: Socket, payload: unknown, cleanup?: () => void): void {
   } catch (error) {
     log.warn({ err: error, event: (payload as { type?: string })?.type }, "ws.send failed — triggering cleanup");
     cleanup?.();
+    socket.close();
   }
 }

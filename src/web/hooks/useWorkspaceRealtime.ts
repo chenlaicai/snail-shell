@@ -73,7 +73,7 @@ export function useWorkspaceRealtime(workspaceId: string | null): WsStatus {
       ws.onclose = () => {
         if (!guard(ws)) return;
         console.warn(`[WorkspaceWebSocket] disconnected, reconnecting in ${reconnectDelay.current}ms`);
-        setStatus("disconnected");
+        setStatus(prev => prev === "error" ? "error" : "disconnected");
         reconnectTimer.current = setTimeout(() => {
           reconnectDelay.current = Math.min(reconnectDelay.current * 2, 30000);
           connect();
