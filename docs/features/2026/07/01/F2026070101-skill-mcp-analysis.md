@@ -21,19 +21,18 @@ tags: [analysis, cleanup, architecture]
 - `.claude/skills/`：Claude Code 实际使用的目录，包含 15 个 symlinks，指向 `data/file/skills/` 下的目录
 - `data/file/skills/`：实际存放 skill 内容的目录，包含 14 个普通目录（其中 4 个为空）
 
-#### 活跃 Skills（11 个，在系统提示词中注册）
+#### 活跃 Skills（10 个，在系统提示词中注册）
 
 | Skill | 类型 | 依赖 | 状态 |
 |-------|------|------|------|
 | cd-design | 行为指南 | 无 | ✅ 正常 |
 | cd-development | 行为指南 | 无 | ✅ 正常 |
 | cd-merge | 行为指南 | 无 | ✅ 正常 |
-| cd-review | 行为指南 | message-payload | ✅ 正常 |
+| cd-review | 行为指南 | 无 | ✅ 正常 |
 | cd-review-dev | 行为指南 | 无 | ✅ 正常 |
 | cd-shared | 行为指南 | 无 | ✅ 正常 |
-| evo-executor | 行为指南 | evolution-candidate | ⚠️ 引用已不存在的 skill |
+| evo-executor | 行为指南 | 无 | ✅ 正常（已改用 snail-evolution MCP） |
 | ga-assistant | 行为指南 | 无 | ✅ 正常 |
-| message-payload | 脚本工具 | node 脚本 | ✅ 正常（与 set_final_body 互补） |
 | prompt-constraints | 文档索引 | 无 | ✅ 正常 |
 | snail-skill-creator | 行为指南 | 无 | ✅ 正常 |
 
