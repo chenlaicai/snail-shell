@@ -125,7 +125,7 @@ function verifyMessageFreshness(
 ): void {
   if (!stageId) return;
   const latest = messagePort.findLatestMessage(stageId);
-  if (!latest) throw new Error(`no message found for stage ${stageId}`);
+  if (!latest) throw new Error(`no message found for stage ${stageId} (message_id: ${messageId})`);
   if (latest.status !== "streaming") {
     throw new Error(`message ${latest.id} is not streaming (actual: ${latest.status})`);
   }

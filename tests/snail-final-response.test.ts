@@ -621,16 +621,18 @@ describe("set_final_body freshness validation (AC-1, AC-2)", () => {
       .rejects.toThrow("message 100 is not the active streaming message for stage s1 (latest streaming: 200)");
   });
 
-  it("AC-2b: rejects when no message found for stage", async () => {
+  it("AC-2b: rejects when findLatestMessage returns undefined (freshness path)", async () => {
+    const messages = new Map<number, Message>();
+    messages.set(100, { id: 100, stage_id: "s1", from_speaker: "dev", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
     const port = createMockMessagePort({
-      getMessage: () => undefined,
+      getMessage: (id) => messages.get(id),
       findLatestMessage: () => undefined,
     });
     const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
     await expect(handler({ text: "hello", message_id: "100", stage_id: "s1" }))
-      .rejects.toThrow("message_id 100 not found");
+      .rejects.toThrow("no message found for stage s1 (message_id: 100)");
   });
 });
 
