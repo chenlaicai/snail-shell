@@ -21,21 +21,12 @@ export interface CleanupResult {
 const RESERVED_BRANCHES = new Set(["main", "master"]);
 
 /**
- * 从 Issue context 中解析值，兼容 stage-prefixed key。
- * Agent 通过 set_context 写入时使用 `{stage_key}.{artifact_name}` 格式（如 design.worktree_path），
- * 本函数先尝试精确匹配，再尝试带任意前缀的 key。
+ * 从 Issue context 中解析值（精确匹配）。
+ * 调用方应使用完整的 stage-prefixed key（如 "design.worktree_path"）。
  */
 export function resolveContextValue(context: Record<string, string>, key: string): string | undefined {
-  const exact = context[key]?.trim();
-  if (exact) return exact;
-  const suffix = `.${key}`;
-  for (const k of Object.keys(context)) {
-    if (k.endsWith(suffix)) {
-      const val = context[k]?.trim();
-      if (val) return val;
-    }
-  }
-  return undefined;
+  const val = context[key]?.trim();
+  return val || undefined;
 }
 
 /**
@@ -86,9 +77,9 @@ export async function cleanupResources(
     remoteBranch: { status: "skipped" },
   };
 
-  const prUrl = resolveContextValue(context, "pr_url");
-  const worktreePath = resolveContextValue(context, "worktree_path");
-  const branchName = resolveContextValue(context, "branch_name");
+  const prUrl = resolveContextValue(context, "development.pr_url");
+  const worktreePath = resolveContextValue(context, "design.worktree_path");
+  const branchName = resolveContextValue(context, "design.branch_name");
 
   // 1. 关闭 PR
   if (prUrl) {
