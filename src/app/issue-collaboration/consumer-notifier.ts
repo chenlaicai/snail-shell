@@ -1,7 +1,5 @@
 import type { Message, MessageContext, MessageEvent } from "@domain/message/model";
 import type { CollaborationConsumer, EvaluationResult, StageTransitionSuggestion } from "@app/issue-collaboration/port";
-import type { CleanupResult } from "@app/issue-collaboration/resource-cleanup";
-
 export class ConsumerNotifier {
   async notifyConsumers(
     consumers: Set<CollaborationConsumer>,
@@ -32,8 +30,7 @@ export class ConsumerNotifier {
       onDisagreement: consumer.onDisagreement ? async (stageId, args) => { await consumer.onDisagreement!(stageId, args[0] as StageTransitionSuggestion); } : null,
       onAutoAdvanced: consumer.onAutoAdvanced ? async (stageId, args) => { await consumer.onAutoAdvanced!(stageId, args[0] as { from: string; to: string; from_key: string; to_key: string; reason: string }); } : null,
       onContextMissing: consumer.onContextMissing ? async (stageId, args) => { await consumer.onContextMissing!(stageId, args[0] as { missing_fields: string[] }); } : null,
-      onEvaluationResult: consumer.onEvaluationResult ? async (stageId, args) => { await consumer.onEvaluationResult!(stageId, args[0] as EvaluationResult); } : null,
-      onCleanupCompleted: consumer.onCleanupCompleted ? async (_stageId, args) => { await consumer.onCleanupCompleted!(args[0] as string, args[1] as CleanupResult); } : null
+      onEvaluationResult: consumer.onEvaluationResult ? async (stageId, args) => { await consumer.onEvaluationResult!(stageId, args[0] as EvaluationResult); } : null
     };
     return callbacks[method] ?? null;
   }
