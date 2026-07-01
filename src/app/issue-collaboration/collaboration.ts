@@ -97,13 +97,17 @@ export class IssueCollaboration implements CollaborationInput {
     return true;
   }
   async sendMessage(stageId: string, text: string, fromSpeaker = "user", toSpeakers?: string[]): Promise<void> {
-    const stage = this.helpers.mustGetStage(stageId);
-    this.helpers.assertIssueOpen(stage.issue_id);
-    const message = this.deps.messagePort.createMessage({ stage_id: stageId, from_speaker: fromSpeaker, to_speakers: [], status: "completed" });
-    this.deps.messagePort.setContext(message.id, "final_text", text);
-    void this.sendMessageAsync(stageId, stage, message, text, fromSpeaker, toSpeakers).catch((error) => {
-      log.error({ stageId, messageId: message.id, err: error }, "sendMessage: async chain failed");
-    });
+    try {
+      const stage = this.helpers.mustGetStage(stageId);
+      this.helpers.assertIssueOpen(stage.issue_id);
+      const message = this.deps.messagePort.createMessage({ stage_id: stageId, from_speaker: fromSpeaker, to_speakers: [], status: "completed" });
+      this.deps.messagePort.setContext(message.id, "final_text", text);
+      void this.sendMessageAsync(stageId, stage, message, text, fromSpeaker, toSpeakers).catch((error) => {
+        log.error({ stageId, messageId: message.id, err: error }, "sendMessage: async chain failed");
+      });
+    } catch (error) {
+      log.error({ stageId, err: error }, "sendMessage failed");
+    }
   }
   private async sendMessageAsync(stageId: string, stage: Stage, message: Message, text: string, fromSpeaker: string, toSpeakers?: string[]): Promise<void> {
     const targets: SpeakerTarget[] = toSpeakers && toSpeakers.length > 0
@@ -111,6 +115,8 @@ export class IssueCollaboration implements CollaborationInput {
       : await this.resolveToSpeakers(stage, text, fromSpeaker);
     log.info({ stageId, fromSpeaker, targets: targets.map(t => `${t.speaker}(${t.source})`) }, "sendMessage.targets");
     if (targets.length > 0) this.deps.messagePort.updateMessageTargets(message.id, targets.map(t => t.speaker));
+    /** system 消息（from_speaker falsy）需 text event 确保 UI 可渲染（ChatMessage 从 events 提取文本） */
+    if (!fromSpeaker) this.deps.messagePort.appendEvent(message.id, { type: "text", text });
     const updatedMessage = this.helpers.mustGetMessage(message.id);
     try {
       await this.notifyConsumers(stageId, "onMessageCompleted", updatedMessage, this.deps.messagePort.getContext(message.id));
@@ -400,15 +406,8 @@ export class IssueCollaboration implements CollaborationInput {
     const defaultSpeaker = stage.default_role_instance;
     if (!defaultSpeaker) return;
     try {
-      this.helpers.assertIssueOpen(stage.issue_id);
-      /** from_speaker="" → DTO falsy → role="system"（UI 渲染为系统消息条） */
-      const message = this.deps.messagePort.createMessage({ stage_id: stage.id, from_speaker: "", to_speakers: [], status: "completed" });
-      this.deps.messagePort.setContext(message.id, "final_text", "开始执行。");
-      /** S1: text event 确保 UI 可渲染（ChatMessage 从 events 提取文本） */
-      this.deps.messagePort.appendEvent(message.id, { type: "text", text: "开始执行。" });
-      this.deps.messagePort.completeMessage(message.id, "completed");
-      void this.notifyConsumers(stage.id, "onMessageCompleted", this.helpers.mustGetMessage(message.id), this.deps.messagePort.getContext(message.id));
-      void this.route(stage.id, this.helpers.mustGetMessage(message.id)).catch((err) => { log.error({ stageId: stage.id, err }, "autoInvokeNewStage: route failed"); });
+      /** from_speaker="" → sendMessageAsync 通过 resolveToSpeakers 解析出 default_role_instance → route → dispatch → invokeAgent */
+      this.sendMessage(stage.id, "开始执行。", "");
     } catch (err) {
       log.error({ stageId: stage.id, err }, "autoInvokeNewStage failed");
     }

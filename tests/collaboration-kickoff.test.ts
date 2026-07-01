@@ -135,27 +135,46 @@ describe("autoInvokeNewStage: advanceStage/rollbackStage 后自动发送 kickoff
   let setContextSpy: ReturnType<typeof vi.fn>;
   let appendEventSpy: ReturnType<typeof vi.fn>;
   let completeMessageSpy: ReturnType<typeof vi.fn>;
+  let invokeFirstCallSpy: ReturnType<typeof vi.fn>;
   let nextMessageId: number;
+  let messageStore: Map<number, { id: number; stage_id: string; from_speaker: string; to_speakers: string[]; status: "completed" | "streaming" | "failed"; created_at: string; ended_at: null }>;
 
   beforeEach(() => {
-    nextMessageId = 1;
-    createMessageSpy = vi.fn().mockImplementation(() => {
+    nextMessageId = 100; // start high to avoid collision with seeded messages
+    messageStore = new Map();
+    // Seed with a user message so dispatch finds unread messages
+    messageStore.set(1, { id: 1, stage_id: "s2", from_speaker: "user", to_speakers: [], status: "completed" as const, created_at: "", ended_at: null });
+    createMessageSpy = vi.fn().mockImplementation((input: { stage_id: string; from_speaker: string; to_speakers: string[]; status: "completed" | "streaming" | "failed" }) => {
       const id = nextMessageId++;
-      return { id, stage_id: "s2", from_speaker: "", to_speakers: [], status: "completed", created_at: "", ended_at: null };
+      const msg = { id, ...input, created_at: "", ended_at: null };
+      messageStore.set(id, msg);
+      return msg;
     });
     setContextSpy = vi.fn();
     appendEventSpy = vi.fn().mockReturnValue({ id: 1, message_id: 1, seq: 1, payload: { type: "text", text: "开始执行。" }, created_at: "" });
     completeMessageSpy = vi.fn();
+    invokeFirstCallSpy = vi.fn().mockResolvedValue({ snail_instance_id: "test-instance" });
   });
 
-  function createCollaboration(opts: { issuePort?: IssuePort; stagePort?: StagePort; messagePort?: MessagePort } = {}) {
+  function createCollaboration(opts: { issuePort?: IssuePort; stagePort?: StagePort; messagePort?: MessagePort; snailPort?: SnailPort } = {}) {
     const newStage = createNewStage();
     const messagePort = opts.messagePort ?? createMockMessagePort({
       createMessage: createMessageSpy as unknown as MessagePort["createMessage"],
       setContext: setContextSpy as unknown as MessagePort["setContext"],
       appendEvent: appendEventSpy as unknown as MessagePort["appendEvent"],
       completeMessage: completeMessageSpy as unknown as MessagePort["completeMessage"],
-      getMessage: (id) => ({ id, stage_id: newStage.id, from_speaker: "", to_speakers: [], status: "completed", created_at: "", ended_at: null }),
+      getMessage: (id) => messageStore.get(id),
+      updateMessageTargets: vi.fn((id: number, toSpeakers: string[]) => {
+        const msg = messageStore.get(id);
+        if (msg) msg.to_speakers = toSpeakers;
+      }) as unknown as MessagePort["updateMessageTargets"],
+      getUnreadMessages: () => {
+        const unread = [];
+        for (const msg of messageStore.values()) {
+          if (msg.from_speaker === "user" && msg.status === "completed") unread.push(msg);
+        }
+        return unread;
+      },
     });
     const issuePort = opts.issuePort ?? createMockIssuePort({
       findIssue: vi.fn().mockReturnValue(createOpenIssue()),
@@ -164,25 +183,32 @@ describe("autoInvokeNewStage: advanceStage/rollbackStage 后自动发送 kickoff
       findStage: vi.fn().mockReturnValue(newStage),
       advanceStage: vi.fn().mockReturnValue(newStage),
       rollbackStage: vi.fn().mockReturnValue(newStage),
+      getRoleSnailAssignment: vi.fn().mockReturnValue({ snail_key: "test-snail", snail_instance_id: null, role_key: "developer" }),
     });
+    const snailPort = opts.snailPort ?? {
+      ...createMockSnailPort(),
+      invokeFirstCall: invokeFirstCallSpy as unknown as SnailPort["invokeFirstCall"],
+    };
 
     return new IssueCollaboration({
       issuePort,
       createIssue: vi.fn(),
       stagePort,
       messagePort,
-      snailPort: createMockSnailPort(),
+      snailPort,
       liteAIPort: createMockLiteAIPort(),
       mcpMessageStore: createMockMcpMessageStore(),
     });
   }
 
-  it("advanceStage 后自动发送 kickoff 消息", async () => {
+  it("advanceStage 后自动发送 kickoff 消息并触发 agent", async () => {
     const collaboration = createCollaboration();
 
     await collaboration.advanceStage("s1", "development");
+    await new Promise(resolve => setTimeout(resolve, 0));
 
     expect(createMessageSpy).toHaveBeenCalled();
+    expect(invokeFirstCallSpy).toHaveBeenCalled();
   });
 
   it("kickoff 消息设置 final_text context", async () => {
@@ -197,25 +223,19 @@ describe("autoInvokeNewStage: advanceStage/rollbackStage 后自动发送 kickoff
     const collaboration = createCollaboration();
 
     await collaboration.advanceStage("s1", "development");
+    await new Promise(resolve => setTimeout(resolve, 0));
 
     expect(appendEventSpy).toHaveBeenCalled();
   });
 
-  it("kickoff 消息标记为 completed", async () => {
-    const collaboration = createCollaboration();
-
-    await collaboration.advanceStage("s1", "development");
-
-    expect(completeMessageSpy).toHaveBeenCalled();
-  });
-
-  it("rollbackStage 后也自动发送 kickoff 消息", async () => {
+  it("rollbackStage 后也自动发送 kickoff 消息并触发 agent", async () => {
     const collaboration = createCollaboration();
 
     await collaboration.rollbackStage("s2", "design");
+    await new Promise(resolve => setTimeout(resolve, 0));
 
     expect(createMessageSpy).toHaveBeenCalled();
-    expect(appendEventSpy).toHaveBeenCalled();
+    expect(invokeFirstCallSpy).toHaveBeenCalled();
   });
 
   it("无 default_role_instance 时不发送消息", async () => {
@@ -228,6 +248,7 @@ describe("autoInvokeNewStage: advanceStage/rollbackStage 后自动发送 kickoff
     await collaboration.advanceStage("s1", "development");
 
     expect(createMessageSpy).not.toHaveBeenCalled();
+    expect(invokeFirstCallSpy).not.toHaveBeenCalled();
   });
 
   it("issue 已关闭时不发送消息（不抛异常）", async () => {
@@ -238,5 +259,6 @@ describe("autoInvokeNewStage: advanceStage/rollbackStage 后自动发送 kickoff
 
     await expect(collaboration.advanceStage("s1", "development")).resolves.toBeDefined();
     expect(createMessageSpy).not.toHaveBeenCalled();
+    expect(invokeFirstCallSpy).not.toHaveBeenCalled();
   });
 });
