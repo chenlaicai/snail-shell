@@ -35,7 +35,7 @@ description: |
 - 变更完整性验证命令必须独立执行，输出写入 rev-02 的 gate_evidence
 - PR 评论按签名规则收尾（规则见 cd-shared 的 `references/pr-signature.md`）
 - 审查报告中每个问题必须有"处置方式"字段，只允许填"在当前 PR 修复"，禁用"不堵塞""可遗留""建议合入""后续优化""不影响功能""不影响，建议合入"等变体话术
-- 检视后必须通过 `message-payload` 在系统内呼叫开发者 role instance
+- 检视后必须通过 `set_final_body` 的 `to_speakers` 声明路由目标
 
 ## Stage Gate 自检（必须）
 
