@@ -148,11 +148,13 @@ type CreateIssueFromEvolution = (input: CreateIssueInput) => Promise<CreateIssue
 ### F-4: 超大文件需拆分 [Medium]
 
 **位置**：
-- `src/app/issue-collaboration/collaboration.ts` — 600 行（恰好等于 app 层限制 600 行，不超标但已临界）
-- `src/web/components/ChatMessage.tsx` — 596 行（ESLint web 限制 450 行，超出 146 行）
-- `src/web/pages/IssueConversation.tsx` — 453 行（超出 450 行限制 3 行）
+- `src/app/issue-collaboration/collaboration.ts` — 600 行（恰好等于 app 层 `max-lines` 限制，不超标但已临界）
+- `src/web/components/ChatMessage.tsx` — 596 行
+- `src/web/pages/IssueConversation.tsx` — 453 行
 
-**问题**：`ChatMessage.tsx` 和 `IssueConversation.tsx` 超过 ESLint 配置的上限（web 层 450 行）。`collaboration.ts` 恰好等于 app 层限制，虽不超标但已临界。
+**问题**：3 个文件行数偏高，影响可维护性。`collaboration.ts` 已达 app 层 `max-lines` 限制（600 行），后续扩展将立即超标。
+
+> **注意**：ESLint `max-lines` 规则的 glob 为 `src/**/*.ts`，不匹配 `.tsx` 文件。`ChatMessage.tsx` 和 `IssueConversation.tsx` 虽行数较高，但不受 ESLint `max-lines` 规则约束（ESLint 对这 3 个文件均无报错）。
 
 **建议**：
 - `collaboration.ts`：已临界，后续扩展时需拆分消息发送/接收逻辑
