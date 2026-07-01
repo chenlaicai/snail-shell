@@ -34,7 +34,7 @@ doc_kind: spec
 | 高内聚低耦合 | **优秀**，infra/http 通过 DI + type-only import 正确消费 domain port | 0 |
 | 依赖关系 | 5 处 infra→domain `_internal` 误引用 + 3 个未使用依赖 | 1 Medium + 3 Low |
 | 代码质量 | 良好，2 个超大文件需拆分 | 2 Medium |
-| 代码实现干净度 | 良好，4 处 console.* 需替换 | 4 Low |
+| 代码实现干净度 | 良好，7 处 console.* 需替换 | 7 Low |
 | 兼容性残留代码 | 需清理 2 个死代码文件 + 1 个 legacy 函数 | 3 Low |
 | 模块封装 | 1 处 domain→infra `_internal` 侵入 + ESLint 未强制 import 方向 | 2 Low |
 
@@ -148,15 +148,15 @@ type CreateIssueFromEvolution = (input: CreateIssueInput) => Promise<CreateIssue
 ### F-4: 超大文件需拆分 [Medium]
 
 **位置**：
-- `src/app/issue-collaboration/collaboration.ts` — 616 行（ESLint app 层限制 600 行，超出 16 行）
+- `src/app/issue-collaboration/collaboration.ts` — 600 行（恰好等于 app 层限制 600 行，不超标但已临界）
 - `src/web/components/ChatMessage.tsx` — 596 行（ESLint web 限制 450 行，超出 146 行）
-- `src/web/pages/IssueConversation.tsx` — 454 行（超出 450 行限制 4 行）
+- `src/web/pages/IssueConversation.tsx` — 453 行（超出 450 行限制 3 行）
 
-**问题**：文件行数超过 ESLint 配置的上限。`ChatMessage.tsx` 超出幅度最大。
+**问题**：`ChatMessage.tsx` 和 `IssueConversation.tsx` 超过 ESLint 配置的上限（web 层 450 行）。`collaboration.ts` 恰好等于 app 层限制，虽不超标但已临界。
 
 **建议**：
-- `collaboration.ts`：将消息发送/接收逻辑拆分到独立模块
-- `ChatMessage.tsx`：将消息渲染子组件（代码块、工具调用卡片等）拆分为独立组件
+- `collaboration.ts`：已临界，后续扩展时需拆分消息发送/接收逻辑
+- `ChatMessage.tsx`：超出最多，将消息渲染子组件（代码块、工具调用卡片等）拆分为独立组件
 - `IssueConversation.tsx`：轻微超标，可将 hook 逻辑提取到自定义 hook
 
 ---
@@ -164,12 +164,15 @@ type CreateIssueFromEvolution = (input: CreateIssueInput) => Promise<CreateIssue
 ### F-5: 前端 console.* 使用 [Low]
 
 **位置**：
-- `src/web/hooks/useWebSocket.ts:311` — `console.warn("[WebSocket] message parse failed", ...)`
-- `src/web/hooks/useWebSocket.ts:357` — `console.log("[WebSocket] connection closed, ...")`
-- `src/web/hooks/useWorkspaceRealtime.ts:67` — `console.warn("[WorkspaceWebSocket] message parse failed", ...)`
+- `src/web/hooks/useWebSocket.ts:337` — `console.warn("[WebSocket] 消息解析失败:", ...)`
+- `src/web/hooks/useWebSocket.ts:384` — `console.log("[WebSocket] 连接关闭，...ms 后重连")`
+- `src/web/hooks/useWorkspaceRealtime.ts:56` — `console.log("[WorkspaceWebSocket] connected", ...)`
+- `src/web/hooks/useWorkspaceRealtime.ts:70` — `console.warn("[WorkspaceWebSocket] 消息解析失败:", ...)`
+- `src/web/hooks/useWorkspaceRealtime.ts:75` — `console.warn("[WorkspaceWebSocket] disconnected, reconnecting in ...ms")`
+- `src/web/hooks/useWorkspaceRealtime.ts:83` — `console.error("[WorkspaceWebSocket] error")`
 - `src/web/components/ChatMessage.tsx:118` — `console.warn("[StuckDetector] message #N stuck in streaming...")`
 
-**问题**：服务端代码统一使用 pino 结构化日志，但前端 4 处使用原生 console。
+**问题**：服务端代码统一使用 pino 结构化日志，但前端 7 处使用原生 console。
 
 **建议**：引入轻量前端日志工具（或复用 `src/web/lib/perf-logger.ts` 的模式），统一日志输出。
 
