@@ -1,11 +1,11 @@
 ---
 id: F20260701b9k2
-title: '发送中"指示器位置调整：移入气泡内左侧'
+title: '发送中"指示器位置调整：移至气泡外左侧'
 status: implemented
 created_at: 2026-07-01
 ---
 
-# F20260701b9k2 — "发送中"指示器位置调整：移入气泡内左侧
+# F20260701b9k2 — "发送中"指示器位置调整：移至气泡外左侧
 
 ## 问题背景
 
@@ -44,7 +44,7 @@ streaming cursor（光标闪烁）已经是气泡内 inline 指示器（`ChatMes
 
 ### 核心业务行为
 
-1. **当用户发送消息时**，"发送中"旋转加载圈显示在消息气泡内部左侧
+1. **当用户发送消息时**，"发送中"旋转加载圈显示在消息气泡外部左侧
 2. **当 POST 请求成功时**，加载圈消失，气泡恢复正常样式，垂直位置不变
 3. **当 POST 请求失败时**，消息气泡下方独立行显示红色感叹号 + "重试"按钮（维持现有行为）
 
@@ -60,21 +60,21 @@ flex-col items-end
     └── content + streaming cursor
 ```
 
-**变更后**：spinner 在气泡内部左侧
+**变更后**：spinner 在气泡外部左侧（作为气泡的兄弟元素）
 
 ```
 flex-col items-end
 ├── Header (justify-end)
+├── 🔄 spinner (shrink-0, 仅 isSending)
 └── Bubble (rounded-2xl, opacity-70)
-    ├── 🔄 spinner (shrink-0, self-start)
     └── content + streaming cursor
 ```
 
 **关键变化**：
 - 移除"发送中"独立行（`div.flex.justify-end.px-1.mb-1`）
-- spinner 作为气泡 div 的第一个子元素，利用气泡已有 `px-4` padding 提供间距
-- spinner 使用 `self-start` 顶部对齐，避免多行文本时与基线冲突
-- 与 streaming cursor 同为气泡内指示器，设计语言统一
+- spinner 作为气泡 div 的兄弟元素，放在气泡外部左侧
+- 气泡 div 本身不变，spinner 出现/消失不影响气泡内部布局
+- `flex-col items-end` 确保右边缘锚定，spinner 不影响气泡位置
 
 ### 气泡样式不变
 
@@ -93,7 +93,7 @@ flex-col items-end
 
 | 文件 | 变更类型 | 说明 |
 |------|---------|------|
-| `src/web/components/ChatMessage.tsx` | 布局调整 | spinner 从独立行移入气泡内部左侧 |
+| `src/web/components/ChatMessage.tsx` | 布局调整 | spinner 从独立行移至气泡外部左侧 |
 
 ### 兼容性
 
@@ -105,27 +105,26 @@ flex-col items-end
 
 ### D1: 气泡内左侧 vs 气泡外左侧 vs 气泡内 inline
 
-**决策**：气泡内左侧（spinner 作为气泡 div 的第一个子元素）。
+**决策**：气泡外左侧（spinner 作为气泡 div 的兄弟元素）。
 
 **三个方案对比**：
 
 | 维度 | 气泡内左侧 | 气泡外左侧 | 气泡内 inline（文字后缀） |
 |------|-----------|-----------|------------------------|
-| 布局跳动 | 无 | 无 | 无 |
+| 布局跳动 | 可能（flex 子元素变化） | 无 | 无 |
 | 气泡宽度变化 | 无 | 无 | 有（spinner 移除后变窄） |
 | 设计语言一致性 | 高（与 streaming cursor 同级） | 中（外部元素） | 高（同为 inline） |
-| 结构复杂度 | 低（复用气泡容器） | 中（需额外容器） | 低 |
+| 结构复杂度 | 低（复用气泡容器） | 低（兄弟元素） | 低 |
 | 文本干扰 | 无（在 padding 区域） | 无 | 中（在文字旁边） |
 
 **正方**：
-- 气泡已有 `opacity-70` + 浅色背景的"发送中"视觉语言，spinner 作为内部元素语义一致
-- 与 streaming cursor 同为气泡内指示器，设计语言统一
-- 利用气泡已有 padding，无需额外间距管理
-- 不改变气泡宽度，不影响文本排版
+- 气泡 div 本身不变，spinner 出现/消失不影响气泡内部布局
+- `flex-col items-end` 确保右边缘锚定，spinner 不影响气泡位置
+- 结构简洁，无需修改气泡内部样式
 
-**反方**：气泡内部结构略增复杂度（需要 flex 或 absolute 定位处理 spinner 位置）
+**反方**：spinner 与 streaming cursor 不在同一容器内，设计语言略不统一
 
-**结论**：采用正方。设计一致性优先，且实现复杂度可控。
+**结论**：采用正方。气泡内方案会导致 spinner 消失时气泡内部布局重组（flex 子元素减少），气泡外方案气泡内容零干扰。
 
 ### D2: 失败状态是否一并移入气泡
 
@@ -137,8 +136,8 @@ flex-col items-end
 
 ## 验证场景
 
-1. **发送中 → 成功**：spinner 在气泡左侧显示 → POST 成功 → spinner 消失，气泡位置不变
-2. **发送中 → 失败**：spinner 在气泡左侧显示 → POST 失败 → spinner 消失，气泡下方出现独立行（感叹号 + 重试）
-3. **多行消息**：spinner 顶部对齐，不与文本基线冲突
-4. **短消息**（如 "OK"）：spinner 在气泡左侧，不遮挡文本
-5. **发送中 → 页面刷新 → 恢复**：localStorage 恢复的 pending 消息同样使用气泡内 spinner
+1. **发送中 → 成功**：spinner 在气泡外部左侧显示 → POST 成功 → spinner 消失，气泡位置不变
+2. **发送中 → 失败**：spinner 在气泡外部左侧显示 → POST 失败 → spinner 消失，气泡下方出现独立行（感叹号 + 重试）
+3. **多行消息**：spinner 在气泡外部，不影响气泡内部布局
+4. **短消息**（如 "OK"）：spinner 在气泡外部左侧，不遮挡文本
+5. **发送中 → 页面刷新 → 恢复**：localStorage 恢复的 pending 消息同样使用气泡外 spinner
