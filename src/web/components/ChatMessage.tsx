@@ -140,7 +140,7 @@ function ChatMessageInner({ message, onInterrupt, onRetry }: { message: MessageD
         )}
         {/* 发送中 spinner：气泡外部左侧，作为气泡的兄弟元素，避免气泡内布局跳动 */}
         {isUser && isSending && (
-          <svg className="w-3.5 h-3.5 animate-spin text-shell-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg className="w-3.5 h-3.5 animate-spin text-shell-400 shrink-0 self-start" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M12 2v4m0 12v4m-8-10H2m20 0h-2m-2.93-7.07l-1.41 1.41M7.05 16.95l-1.41 1.41m0-13.41l1.41 1.41m9.9 9.9l1.41 1.41" />
           </svg>
         )}
