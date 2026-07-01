@@ -65,8 +65,10 @@ npm run service:start
 
 This starts both the backend and Web UI in the background without occupying the current terminal. The service script first checks whether configured ports are already in use and only reports running after the services are actually listening. Logs are written to:
 
-- `logs/server.log`
-- `logs/web.log`
+- `logs/snail-shell.YYYY-MM-DD.log` — structured JSON logs from backend (primary log location)
+- `logs/web.YYYY-MM-DD.log` — frontend performance logs
+- `logs/server.log` — process-level output (non-pino, for startup failure debugging)
+- `logs/web.log` — Vite process output
 
 Common service commands:
 
