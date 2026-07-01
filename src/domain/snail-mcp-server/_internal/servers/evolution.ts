@@ -11,20 +11,17 @@ const TRIGGER_REASONS = [
   "feature_missing",
 ] as const;
 
-/** 自动创建时 metadata.auto_generation 的结构 */
-interface AutoGenerationMeta {
-  source_type: "auto";
-  trigger_reason: (typeof TRIGGER_REASONS)[number];
-  related_message_id: number;
-  related_issue_id: string;
-  related_stage_id: string;
+type TriggerReason = (typeof TRIGGER_REASONS)[number];
+
+function isTriggerReason(value: string): value is TriggerReason {
+  return (TRIGGER_REASONS as readonly string[]).includes(value);
 }
 
 /**
  * 校验 metadata 中的 auto_generation 结构。
  * 仅在 metadata 包含 auto_generation 时校验；无 auto_generation 时视为手动创建，跳过校验。
  */
-function validateAutoGeneration(metadata: unknown): asserts metadata is { auto_generation: AutoGenerationMeta } {
+function validateAutoGeneration(metadata: unknown): void {
   if (metadata == null || typeof metadata !== "object") return;
   const meta = metadata as Record<string, unknown>;
   if (!("auto_generation" in meta)) return;
@@ -38,7 +35,7 @@ function validateAutoGeneration(metadata: unknown): asserts metadata is { auto_g
   if (agObj.source_type !== "auto") {
     throw new Error('metadata.auto_generation.source_type must be "auto"');
   }
-  if (typeof agObj.trigger_reason !== "string" || !TRIGGER_REASONS.includes(agObj.trigger_reason as never)) {
+  if (typeof agObj.trigger_reason !== "string" || !isTriggerReason(agObj.trigger_reason)) {
     throw new Error(`metadata.auto_generation.trigger_reason must be one of: ${TRIGGER_REASONS.join(", ")}`);
   }
   if (typeof agObj.related_message_id !== "number") {
