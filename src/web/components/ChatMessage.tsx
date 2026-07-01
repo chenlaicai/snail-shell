@@ -138,6 +138,12 @@ function ChatMessageInner({ message, onInterrupt, onRetry }: { message: MessageD
             </svg>
           </div>
         )}
+        {/* 发送中 spinner：气泡外部左侧，作为气泡的兄弟元素，避免气泡内布局跳动 */}
+        {isUser && isSending && (
+          <svg className="w-3.5 h-3.5 animate-spin text-shell-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M12 2v4m0 12v4m-8-10H2m20 0h-2m-2.93-7.07l-1.41 1.41M7.05 16.95l-1.41 1.41m0-13.41l1.41 1.41m9.9 9.9l1.41 1.41" />
+          </svg>
+        )}
 
         <div className="flex-1 min-w-0">
           <div className={`flex items-center gap-2 mb-1 px-1 ${isUser ? "justify-end" : "flex-wrap"}`}>
@@ -201,7 +207,7 @@ function ChatMessageInner({ message, onInterrupt, onRetry }: { message: MessageD
 
           {/* 最终答复：优先 context，其次 content，否则显示空状态提示 */}
           {/* hasContext 时预留 pr-24 给来源标签，避免长文本与 badge 重叠（最长 kind mcp_final_body ~84px + right-3 12px = 96px） */}
-          <div className={`group relative rounded-2xl px-4 py-3 text-[13px] leading-relaxed ${hasContext ? "pr-24" : ""} ${isUser && isSending ? "flex items-start gap-2" : ""} ${
+          <div className={`group relative rounded-2xl px-4 py-3 text-[13px] leading-relaxed ${hasContext ? "pr-24" : ""} ${
             isUser
               ? isSending
                 ? "rounded-br-md bg-shell-600/10 border border-shell-600/10 opacity-70"
@@ -212,12 +218,6 @@ function ChatMessageInner({ message, onInterrupt, onRetry }: { message: MessageD
                 ? "rounded-bl-md bg-surface-2 border border-shell-500/50 shadow-[0_0_12px_rgba(214,138,62,0.15)]"
                 : "rounded-bl-md bg-surface-2 border border-white/6"
           }`}>
-            {/* 发送中 spinner：气泡内左侧，与 streaming cursor 同为气泡内指示器 */}
-            {isUser && isSending && (
-              <svg className="w-3.5 h-3.5 animate-spin text-shell-400 shrink-0 self-start" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 2v4m0 12v4m-8-10H2m20 0h-2m-2.93-7.07l-1.41 1.41M7.05 16.95l-1.41 1.41m0-13.41l1.41 1.41m9.9 9.9l1.41 1.41" />
-              </svg>
-            )}
             {/* 来源标签：absolute 定位避免 badge 占据内容流空间，right-3 与 contextUsage badge 视觉对齐 */}
             {hasContext && (
               <span className="absolute top-2 right-3 select-none text-[10px] text-text-grey font-mono">
