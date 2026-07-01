@@ -2,6 +2,56 @@ import type { MCPServerConfig, MCPTool } from "@domain/snail-mcp-server/model";
 import type { EvolutionPort } from "@domain/evolution/port";
 import type { CreateEvolutionItemInput } from "@domain/evolution/model";
 
+/** 自动创建时允许的反馈信号类型 */
+const TRIGGER_REASONS = [
+  "user_dissatisfied",
+  "user_confused",
+  "user_corrected",
+  "repeat_problem",
+  "feature_missing",
+] as const;
+
+/** 自动创建时 metadata.auto_generation 的结构 */
+interface AutoGenerationMeta {
+  source_type: "auto";
+  trigger_reason: (typeof TRIGGER_REASONS)[number];
+  related_message_id: number;
+  related_issue_id: string;
+  related_stage_id: string;
+}
+
+/**
+ * 校验 metadata 中的 auto_generation 结构。
+ * 仅在 metadata 包含 auto_generation 时校验；无 auto_generation 时视为手动创建，跳过校验。
+ */
+function validateAutoGeneration(metadata: unknown): asserts metadata is { auto_generation: AutoGenerationMeta } {
+  if (metadata == null || typeof metadata !== "object") return;
+  const meta = metadata as Record<string, unknown>;
+  if (!("auto_generation" in meta)) return;
+
+  const ag = meta.auto_generation;
+  if (ag == null || typeof ag !== "object") {
+    throw new Error("metadata.auto_generation must be an object");
+  }
+  const agObj = ag as Record<string, unknown>;
+
+  if (agObj.source_type !== "auto") {
+    throw new Error('metadata.auto_generation.source_type must be "auto"');
+  }
+  if (typeof agObj.trigger_reason !== "string" || !TRIGGER_REASONS.includes(agObj.trigger_reason as never)) {
+    throw new Error(`metadata.auto_generation.trigger_reason must be one of: ${TRIGGER_REASONS.join(", ")}`);
+  }
+  if (typeof agObj.related_message_id !== "number") {
+    throw new Error("metadata.auto_generation.related_message_id must be a number");
+  }
+  if (typeof agObj.related_issue_id !== "string") {
+    throw new Error("metadata.auto_generation.related_issue_id must be a string");
+  }
+  if (typeof agObj.related_stage_id !== "string") {
+    throw new Error("metadata.auto_generation.related_stage_id must be a string");
+  }
+}
+
 /**
  * snail-evolution MCP Server。
  * 用于 agent 在演进治理对话中回写处理结果，以及创建演进候选。
@@ -52,7 +102,24 @@ function createCreateCandidateTool(evolution: EvolutionPort): MCPTool {
         content: { type: "string", description: "演进项内容（Markdown）" },
         workspace_id: { type: "string", description: "工作区 ID" },
         tags: { type: "array", items: { type: "string" }, description: "标签列表（可选）" },
-        metadata: { description: "元数据（可选）" },
+        metadata: {
+          type: "object",
+          description: "元数据（可选）。手动创建时不传；自动创建时需包含 auto_generation 结构",
+          properties: {
+            auto_generation: {
+              type: "object",
+              description: "自动创建时的上下文信息（仅 agent 自动识别反馈信号时填写）",
+              properties: {
+                source_type: { type: "string", const: "auto", description: '固定为 "auto"' },
+                trigger_reason: { type: "string", enum: [...TRIGGER_REASONS], description: "反馈信号类型" },
+                related_message_id: { type: "number", description: "触发反馈的用户消息 ID" },
+                related_issue_id: { type: "string", description: "触发反馈的 issue ID" },
+                related_stage_id: { type: "string", description: "触发反馈的 stage ID" },
+              },
+              required: ["source_type", "trigger_reason", "related_message_id", "related_issue_id", "related_stage_id"],
+            },
+          },
+        },
       },
       required: ["title", "content", "workspace_id"],
     },
@@ -64,6 +131,7 @@ function createCreateCandidateTool(evolution: EvolutionPort): MCPTool {
         tags?: string[];
         metadata?: unknown;
       };
+      validateAutoGeneration(metadata);
       const input: CreateEvolutionItemInput = {
         title,
         content,
