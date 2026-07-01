@@ -78,8 +78,8 @@ export async function cleanupResources(
   };
 
   const prUrl = resolveContextValue(context, "development.pr_url");
-  const worktreePath = resolveContextValue(context, "development.worktree_path");
-  const branchName = resolveContextValue(context, "development.branch_name");
+  const worktreePath = resolveContextValue(context, "design.worktree_path");
+  const branchName = resolveContextValue(context, "design.branch_name");
 
   // 1. 关闭 PR
   if (prUrl) {
