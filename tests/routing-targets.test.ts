@@ -209,7 +209,7 @@ describe("buildContextBlock routing targets", () => {
 
     // Should include format requirement
     expect(systemReminder).toContain("**格式要求**");
-    expect(systemReminder).toContain("不要使用 snail key（如 claude-code-stateful）");
+    expect(systemReminder).toContain("不要使用 snail key、role key 或英文翻译");
   });
 
   it("should include all role instances when roleInstance is not in stage", async () => {
