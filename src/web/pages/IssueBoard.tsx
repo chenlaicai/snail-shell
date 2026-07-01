@@ -89,15 +89,15 @@ export function IssueBoard() {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-hidden px-6 py-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 h-full">
+      <div className="flex-1 min-h-0 overflow-y-hidden px-6 py-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 h-full min-h-0">
           {issues.length === 0 ? (
             <div className="col-span-full text-center text-text-muted text-sm py-16">No issues in this workspace</div>
           ) : (
             activityStatusColumns.map((col) => {
               const colIssues = grouped[col.status] ?? [];
               return (
-                <div key={col.status} className="flex flex-col">
+                <div key={col.status} className="flex flex-col min-h-0">
                   <div className="flex items-center gap-2 px-2 py-2 mb-2">
                     <div className={`w-2.5 h-2.5 rounded-full ${col.dot}`} />
                     <span className="text-xs font-medium text-text-secondary">{col.label}</span>
