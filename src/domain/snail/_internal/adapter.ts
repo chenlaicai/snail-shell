@@ -183,7 +183,6 @@ export class SnailAdapter implements SnailPort {
     }, "invokeResume");
 
     const contextEnv: Record<string, string> = { [CONTEXT_KEYS.WORKSPACE_PATH]: request.workspace_path, [CONTEXT_KEYS.SNAIL_KEY]: instance.snail_key };
-    if (request.messageId != null) contextEnv[CONTEXT_KEYS.MESSAGE_ID] = request.messageId;
     if (request.stageId != null) contextEnv[CONTEXT_KEYS.STAGE_ID] = request.stageId;
     const invokeOptions = this.buildOptions(snail, options, contextEnv);
 
