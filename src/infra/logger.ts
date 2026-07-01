@@ -62,11 +62,6 @@ export function getWebLogger(): pino.Logger {
           },
           level: "info",
         },
-        {
-          target: "pino/file",
-          options: { destination: 1 },
-          level: "info",
-        },
       ],
     });
 
@@ -90,14 +85,7 @@ function initRootLogger(): pino.Logger {
   const config = loadConfig(repoRoot);
 
   const transport = pino.transport({
-    targets: [
-      buildFileTarget(config),
-      {
-        target: "pino/file",
-        options: { destination: 1 },
-        level: config.level,
-      },
-    ],
+    targets: [buildFileTarget(config)],
   });
 
   return pino(
