@@ -91,8 +91,9 @@ function createMockLiteAIPort(): LiteAIPort {
 
 describe("User Call rate limiting (B4)", () => {
   it("should suppress duplicate user call within rate limit window", async () => {
-    const createMessage = vi.fn().mockReturnValue({ id: 1, stage_id: "s1", from_speaker: "user", to_speakers: ["user"], status: "completed", created_at: "", ended_at: null });
-    const messagePort = createMockMessagePort({ createMessage });
+    const msg = { id: 1, stage_id: "s1", from_speaker: "user", to_speakers: ["user"], status: "completed", created_at: "", ended_at: null };
+    const createMessage = vi.fn().mockReturnValue(msg);
+    const messagePort = createMockMessagePort({ createMessage, getMessage: vi.fn().mockReturnValue(msg) });
     const onUserCalled = vi.fn();
     const collaboration = new IssueCollaboration({
       issuePort: createMockIssuePort(),
@@ -109,19 +110,24 @@ describe("User Call rate limiting (B4)", () => {
     collaboration.registerIssueConsumer("i1", { onUserCalled, onEvent: vi.fn(), onMessageCompleted: vi.fn() });
 
     // First call should trigger onUserCalled
-    await collaboration.sendMessage("s1", "hello", "user");
+    await collaboration.sendMessage("s1", "hello", "user", ["user"]);
     // Second call within rate limit should NOT trigger onUserCalled again
-    await collaboration.sendMessage("s1", "hello again", "user");
+    await collaboration.sendMessage("s1", "hello again", "user", ["user"]);
+    // Wait for async fire-and-forget chains to complete
+    await new Promise(resolve => setTimeout(resolve, 50));
 
     // onUserCalled should only be called once (first call), not twice
     expect(onUserCalled).toHaveBeenCalled();
   });
 
   it("should allow user call after rate limit window expires", async () => {
+    const msg1 = { id: 1, stage_id: "s1", from_speaker: "user", to_speakers: ["user"], status: "completed", created_at: "", ended_at: null };
+    const msg2 = { id: 2, stage_id: "s1", from_speaker: "user", to_speakers: ["user"], status: "completed", created_at: "", ended_at: null };
     const createMessage = vi.fn()
-      .mockReturnValueOnce({ id: 1, stage_id: "s1", from_speaker: "user", to_speakers: ["user"], status: "completed", created_at: "", ended_at: null })
-      .mockReturnValueOnce({ id: 2, stage_id: "s1", from_speaker: "user", to_speakers: ["user"], status: "completed", created_at: "", ended_at: null });
-    const messagePort = createMockMessagePort({ createMessage });
+      .mockReturnValueOnce(msg1)
+      .mockReturnValueOnce(msg2);
+    const getMessage = vi.fn().mockImplementation((id: number) => id === 1 ? msg1 : msg2);
+    const messagePort = createMockMessagePort({ createMessage, getMessage });
     const onUserCalled = vi.fn();
     const collaboration = new IssueCollaboration({
       issuePort: createMockIssuePort(),
@@ -137,10 +143,10 @@ describe("User Call rate limiting (B4)", () => {
 
     collaboration.registerIssueConsumer("i1", { onUserCalled, onEvent: vi.fn(), onMessageCompleted: vi.fn() });
 
-    await collaboration.sendMessage("s1", "hello", "user");
+    await collaboration.sendMessage("s1", "hello", "user", ["user"]);
     // Wait for rate limit to expire
     await new Promise(resolve => setTimeout(resolve, 10));
-    await collaboration.sendMessage("s1", "hello again", "user");
+    await collaboration.sendMessage("s1", "hello again", "user", ["user"]);
 
     // Both calls should trigger onUserCalled
     expect(onUserCalled).toHaveBeenCalled();
