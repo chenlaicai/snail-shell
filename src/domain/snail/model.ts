@@ -45,6 +45,8 @@ export interface SnailResumeRequest {
   messages: Message[];
   /** 动态上下文 */
   system_reminder?: string;
+  /** Issue ID，注入到 agent 环境变量 */
+  issueId?: string;
   /** 日志关联标识（由编排层传入，仅用于日志） */
   messageId?: string;
   /** 当前 stage ID，注入到 agent 环境变量用于 set_final_body 归属校验 */

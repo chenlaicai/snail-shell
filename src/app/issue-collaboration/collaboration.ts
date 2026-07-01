@@ -350,7 +350,7 @@ export class IssueCollaboration implements CollaborationInput {
       context: { stage_key: stage.key, role_instance: roleInstance, snail_key: assignment.snail_key, ...issue.context },
       systemContext: { [CONTEXT_KEYS.ISSUE_ID]: issue.id, [CONTEXT_KEYS.STAGE_ID]: stage.id, [CONTEXT_KEYS.MESSAGE_ID]: String(agentMessage.id) },
     };
-    const resumeRequest = { workspace_path: issue.workspace_path, messages: agentMessages, system_reminder: systemReminder, messageId: String(agentMessage.id), stageId: stage.id, context: { stage_key: stage.key, role_instance: roleInstance, snail_key: assignment.snail_key, ...issue.context } };
+    const resumeRequest = { workspace_path: issue.workspace_path, messages: agentMessages, system_reminder: systemReminder, issueId: issue.id, messageId: String(agentMessage.id), stageId: stage.id, context: { stage_key: stage.key, role_instance: roleInstance, snail_key: assignment.snail_key, ...issue.context } };
     const onEvent = (event: AgentEvent) => this.handleAgentEvent(stageId, agentMessage.id, event);
     return assignment.snail_instance_id
       ? await this.invokeResumeOrRecover({ stageId, roleInstance, snailInstanceId: assignment.snail_instance_id, snailKey: assignment.snail_key, resumeRequest, firstCallRequest, onEvent, invokeOptions })

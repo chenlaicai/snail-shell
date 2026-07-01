@@ -188,6 +188,7 @@ export class SnailAdapter implements SnailPort {
       context: {
         ...request.context,
         [CONTEXT_KEYS.SNAIL_KEY]: instance.snail_key,
+        ...(request.issueId != null ? { [CONTEXT_KEYS.ISSUE_ID]: request.issueId } : {}),
         ...(request.messageId != null ? { [CONTEXT_KEYS.MESSAGE_ID]: request.messageId } : {}),
         ...(request.stageId != null ? { [CONTEXT_KEYS.STAGE_ID]: request.stageId } : {}),
       },

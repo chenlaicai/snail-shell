@@ -415,6 +415,7 @@ describe("executeAgentInvocation CONTEXT_KEYS usage", () => {
     // Assert
     expect(capturedInstanceId).toBe("instance-1");
     expect(capturedRequest).toBeDefined();
+    expect(capturedRequest.issueId).toBe("issue-1");
     expect(capturedRequest.messageId).toBe("100");
     expect(capturedRequest.stageId).toBe("s1");
 
