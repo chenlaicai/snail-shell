@@ -27,7 +27,7 @@ export function createFinalResponseServer(messagePort: MessagePort, mcpMessageSt
           type: "object",
           properties: {
             text: { type: "string", description: "最终答复的 Markdown 正文" },
-            message_id: { type: "string", description: "当前消息的 ID，通过环境变量 SNAIL_CTX_MESSAGE_ID 注入" },
+            message_id: { type: "string", description: "当前消息的 ID，通过 get_current_message_id 工具获取" },
             stage_id: { type: "string", description: "当前 stage 的 ID，通过环境变量 SNAIL_CTX_STAGE_ID 注入" },
             to_speakers: { type: "array", items: { type: "string" }, description: "路由目标（严格优先级最高）" },
           },
@@ -43,6 +43,8 @@ export function createFinalResponseServer(messagePort: MessagePort, mcpMessageSt
           const stageId = params.stage_id as string;
           /** 归属校验：保留参数校验，即使重复调用也不静默吞掉错误 */
           const message = verifyStageOwnership(messagePort, messageId, stageId);
+          /** 时效性校验：message_id 必须指向 stage 中最新的 streaming 消息 */
+          verifyMessageFreshness(messagePort, messageId, stageId);
           /** 幂等防护：同一 message 重复调用时跳过所有写入，返回区分性响应 */
           if (submittedMessages.has(messageId)) {
             return { ok: true, already_submitted: true, hint: "final body already recorded for this message; your response is complete" };
@@ -69,6 +71,27 @@ export function createFinalResponseServer(messagePort: MessagePort, mcpMessageSt
           return { ok: true, proceed: "end_turn" };
         },
       },
+      {
+        name: "get_current_message_id",
+        description:
+          "查询当前 stage 中正在 streaming 的消息 ID。" +
+          "在调用 set_final_body 前必须先调用此工具获取 message_id。",
+        inputSchema: {
+          type: "object",
+          properties: {
+            stage_id: { type: "string", description: "当前 stage 的 ID" },
+          },
+          required: ["stage_id"],
+        },
+        handler: async (params) => {
+          const stageId = params.stage_id as string;
+          if (!stageId) throw new Error("stage_id is required");
+          const latest = messagePort.findLatestMessage(stageId);
+          if (!latest) throw new Error(`no message found for stage ${stageId}`);
+          if (latest.status !== "streaming") throw new Error(`no active streaming message found for stage ${stageId} (latest: ${latest.id}, status: ${latest.status})`);
+          return { message_id: String(latest.id), from_speaker: latest.from_speaker };
+        },
+      },
     ],
   };
 }
@@ -89,6 +112,26 @@ function verifyStageOwnership(
     throw new Error(`message_id ${messageId} does not belong to stage ${stageId} (actual: ${message.stage_id})`);
   }
   return message;
+}
+
+/**
+ * 时效性校验：message_id 必须是 stage 中最新的 streaming 消息。
+ * 防止 agent 传入过期 message_id 导致串台写入。
+ */
+function verifyMessageFreshness(
+  messagePort: MessagePort,
+  messageId: number,
+  stageId: string,
+): void {
+  if (!stageId) return;
+  const latest = messagePort.findLatestMessage(stageId);
+  if (!latest) throw new Error(`no message found for stage ${stageId}`);
+  if (latest.status !== "streaming") {
+    throw new Error(`message ${latest.id} is not streaming (actual: ${latest.status})`);
+  }
+  if (latest.id !== messageId) {
+    throw new Error(`message ${messageId} is not the active streaming message for stage ${stageId} (latest streaming: ${latest.id})`);
+  }
 }
 
 /**

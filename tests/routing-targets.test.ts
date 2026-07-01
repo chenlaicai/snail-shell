@@ -341,19 +341,15 @@ describe("executeAgentInvocation CONTEXT_KEYS usage", () => {
     const context = capturedRequest!.context!;
 
     // Verify CONTEXT_KEYS constants are used (they should be the keys in the context object)
-    // The context object should have CONTEXT_KEYS.ISSUE_ID, CONTEXT_KEYS.STAGE_ID, CONTEXT_KEYS.MESSAGE_ID
-    // But since CONTEXT_KEYS values are like "SNAIL_CTX_ISSUE_ID", and the context object keys
-    // are used to build env vars via buildContextEnv, we need to verify the keys are correct
+    // Note: MESSAGE_ID is no longer injected as env var (agent must use get_current_message_id MCP tool)
 
     // The context object should have these keys (using CONTEXT_KEYS constants)
     expect(context).toHaveProperty(CONTEXT_KEYS.ISSUE_ID);
     expect(context).toHaveProperty(CONTEXT_KEYS.STAGE_ID);
-    expect(context).toHaveProperty(CONTEXT_KEYS.MESSAGE_ID);
 
     // Verify the values are correct
     expect(context[CONTEXT_KEYS.ISSUE_ID]).toBe("issue-1");
     expect(context[CONTEXT_KEYS.STAGE_ID]).toBe("s1");
-    expect(context[CONTEXT_KEYS.MESSAGE_ID]).toBe("100");
 
     // Verify other context fields are present
     expect(context).toHaveProperty("stage_key", "review");
