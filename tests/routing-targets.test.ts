@@ -417,5 +417,13 @@ describe("executeAgentInvocation CONTEXT_KEYS usage", () => {
     expect(capturedRequest).toBeDefined();
     expect(capturedRequest.messageId).toBe("100");
     expect(capturedRequest.stageId).toBe("s1");
+
+    // 业务数据在 context 中（与 firstCall 路径一致）
+    const context = capturedRequest.context;
+    expect(context).toBeDefined();
+    expect(context).toHaveProperty("stage_key", "review");
+    expect(context).toHaveProperty("role_instance", "reviewer-1");
+    expect(context).toHaveProperty("snail_key", "test-snail");
+    expect(context).not.toHaveProperty(CONTEXT_KEYS.ISSUE_ID);
   });
 });
