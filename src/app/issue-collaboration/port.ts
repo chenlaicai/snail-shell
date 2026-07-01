@@ -147,6 +147,7 @@ export interface CollaborationConsumer {
   onAutoAdvanced?(stageId: string, data: { from: string; to: string; from_key: string; to_key: string; reason: string }): void | Promise<void>;
   onContextMissing?(stageId: string, data: { missing_fields: string[] }): void | Promise<void>;
   onEvaluationResult?(stageId: string, result: EvaluationResult): void | Promise<void>;
+  onCleanupCompleted?(issueId: string, cleanup: CleanupResult): void | Promise<void>;
 }
 
 export interface WorkspaceConsumer {

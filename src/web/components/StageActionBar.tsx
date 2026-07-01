@@ -1,7 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api-client";
 import { showToast } from "@/components/Toast";
 import { useCloseIssue } from "@/mutations/issue.mutations";
+import { queryKeys } from "@/queries/keys";
 import type { IssueDetailDto, StageDetailDto, StageTransition, CleanupResultDto, ResourceResultDto } from "@/types";
 
 export function StageActionBar({
@@ -17,6 +19,25 @@ export function StageActionBar({
   const [isClosing, setIsClosing] = useState(false);
   const [selectedTarget, setSelectedTarget] = useState("");
   const closeIssue = useCloseIssue(issue.workspace_id);
+  const qc = useQueryClient();
+  /** 记录上次看到的 close_summary，用于检测从 null → 有值的转变 */
+  const prevCloseSummaryRef = useRef<CleanupResultDto | null | undefined>(issue.close_summary);
+
+  /** 订阅 close_summary 变化：WebSocket cleanup_completed 更新 cache 后弹 toast */
+  useEffect(() => {
+    return qc.subscribe({
+      queryKey: queryKeys.issues.detail(issue.id),
+      listener: ({ query }) => {
+        const data = query.state.data as IssueDetailDto | undefined;
+        const current = data?.close_summary;
+        const prev = prevCloseSummaryRef.current;
+        prevCloseSummaryRef.current = current;
+        if (prev == null && current != null) {
+          showToast(formatCleanupResult(current));
+        }
+      },
+    });
+  }, [qc, issue.id]);
 
   const transitions = useMemo<StageTransition[]>(() => {
     if (!currentStage) return [];
@@ -71,9 +92,9 @@ export function StageActionBar({
     if (!window.confirm("确认关闭此 Issue？关闭后对话保留为只读")) return;
     setIsClosing(true);
     closeIssue.mutate(issue.id, {
-      onSuccess: (data) => {
+      onSuccess: () => {
         setIsClosing(false);
-        showToast(formatCleanupResult(data.cleanup));
+        showToast("Issue 已关闭");
       },
       onError: (err: unknown) => {
         setIsClosing(false);

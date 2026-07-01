@@ -203,6 +203,14 @@ function createIssueConsumer(issueId: string, socket: Socket, collaboration: Col
         event: { type: "stage_changed", stage_id: stageId, new_stage_id: data.to, from_key: data.from_key, to_key: data.to_key },
       });
     },
+    onCleanupCompleted(cleanupIssueId, cleanupResult) {
+      send(socket, {
+        type: "issue_event",
+        issue_id: cleanupIssueId,
+        activity_status: "completed",
+        event: { type: "cleanup_completed", issue_id: cleanupIssueId, cleanup: cleanupResult },
+      }, cleanup);
+    },
   };
 }
 
