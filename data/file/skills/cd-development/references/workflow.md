@@ -25,7 +25,7 @@
 ## 阶段二：设计确认
 
 1. 对照 Feature 文档的 [design-time] 章节，确认理解无歧义
-2. 如有歧义，通过 message-payload skill 向架构师提问
+2. 如有歧义，通过 `set_final_body` 的 `to_speakers` 向架构师提问
 3. 确认设计约束摘要中的边界和语义不变量
 
 ## 阶段三：实现

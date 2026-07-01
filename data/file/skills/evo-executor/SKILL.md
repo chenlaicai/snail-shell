@@ -9,7 +9,7 @@ description: |
 
 ## 演进项创建参考（按需）
 
-治理对话中如需创建新演进项，使用 `evolution-candidate` skill。关键字段速查：
+治理对话中如需创建新演进项，使用 `snail-evolution` MCP 的 `create_candidate` tool。关键字段速查：
 - `title`（必填）：候选标题
 - `content`（必填）：可长期复用的正文
 - `workspace_id`（必填）：所属 workspace id
@@ -17,7 +17,6 @@ description: |
 - `metadata`（可选）：结构化补充信息
 
 副作用：一次调用会原子性创建 evolution_item + issue + stage + conversation 4 条记录。
-完整协议详见 `evolution-candidate` skill。
 
 ## Gotchas（必读）
 
