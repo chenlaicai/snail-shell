@@ -72,6 +72,7 @@ export class IssueCollaboration implements CollaborationInput {
     return this.deps.stagePort.transaction(() => {
       const issue = this.deps.createIssue(input);
       const stage = this.helpers.createInitialStage(issue);
+      this.autoInvokeFirstStage(stage, input);
       return { issue, stage };
     });
   }
@@ -111,6 +112,8 @@ export class IssueCollaboration implements CollaborationInput {
       : await this.resolveToSpeakers(stage, text, fromSpeaker);
     log.info({ stageId, fromSpeaker, targets: targets.map(t => `${t.speaker}(${t.source})`) }, "sendMessage.targets");
     if (targets.length > 0) this.deps.messagePort.updateMessageTargets(message.id, targets.map(t => t.speaker));
+    /** system 消息（from_speaker falsy）需 text event 确保 UI 可渲染（ChatMessage 从 events 提取文本） */
+    if (!fromSpeaker) this.deps.messagePort.appendEvent(message.id, { type: "text", text });
     const updatedMessage = this.helpers.mustGetMessage(message.id);
     try {
       await this.notifyConsumers(stageId, "onMessageCompleted", updatedMessage, this.deps.messagePort.getContext(message.id));
@@ -164,36 +167,26 @@ export class IssueCollaboration implements CollaborationInput {
     this.cleanupDispatchStates(stageId);
     this.suggestions.delete(stageId);
     this.helpers.initStageCursors(stage);
+    this.autoInvokeNewStage(stage);
     return stage;
   }
   async closeIssue(issueId: string): Promise<{ issue: Issue; cleanup: CleanupResult }> {
-    // 检查是否已关闭（幂等处理）
     const existingIssue = this.deps.issuePort.findIssue(issueId);
     if (existingIssue?.closed_at) {
-      // 已关闭的 Issue 直接返回，不执行 cleanup，不覆盖 close_summary
+      // 已关闭的 Issue 幂等返回，不执行 cleanup，不覆盖 close_summary
       const prevStatus = this.lastActivityStatus.get(issueId) ?? "needs_human";
       this.lastActivityStatus.delete(issueId);
       const consumers = this.workspaceConsumers.get(existingIssue.workspace_path);
-      if (consumers) {
-        for (const consumer of consumers) {
-          consumer.onActivityStatusChanged(issueId, "completed", prevStatus);
-        }
-      }
+      if (consumers) for (const c of consumers) c.onActivityStatusChanged(issueId, "completed", prevStatus);
       // domain CloseSummary 与 app CleanupResult 结构相同，此处显式转换标记层边界
-      // close_summary 为 null 表示中断场景（cleanup 未执行），UI 通过 issue.close_summary 显示"清理结果未记录"
       const cleanup: CleanupResult = existingIssue.close_summary as CleanupResult ?? { pr: { status: "skipped" }, worktree: { status: "skipped" }, localBranch: { status: "skipped" }, remoteBranch: { status: "skipped" } };
       return { issue: existingIssue, cleanup };
     }
-
     const issue = this.deps.issuePort.closeIssue(issueId);
     const prevStatus = this.lastActivityStatus.get(issueId) ?? "needs_human";
     this.lastActivityStatus.delete(issueId);
     const consumers = this.workspaceConsumers.get(issue.workspace_path);
-    if (consumers) {
-      for (const consumer of consumers) {
-        consumer.onActivityStatusChanged(issueId, "completed", prevStatus);
-      }
-    }
+    if (consumers) for (const c of consumers) c.onActivityStatusChanged(issueId, "completed", prevStatus);
     const cleanup = await cleanupResources(issue.context, issue.workspace_path);
     try { this.deps.issuePort.updateCloseSummary(issueId, cleanup); } catch (err) { log.error({ issueId, err }, "closeIssue: updateCloseSummary failed"); }
     return { issue, cleanup };
@@ -260,8 +253,7 @@ export class IssueCollaboration implements CollaborationInput {
         await this.invokeAgent(stageId, speaker, unread);
         this.deps.messagePort.advanceCursor(stageId, speaker, unread[unread.length - 1].id);
       } catch {
-        // 不推进 cursor，保留 unread 消息供下次 dispatch 重试。
-        // 立即退出循环，避免在同一组失败消息上烧尽 maxCollaborationRounds。
+        // 不推进 cursor，保留 unread 消息供下次 dispatch 重试；立即退出避免烧尽 rounds
         this.dispatchStates.set(key, { status: "idle", pending: false });
         return;
       }
@@ -281,10 +273,7 @@ export class IssueCollaboration implements CollaborationInput {
     const issue = this.helpers.mustGetIssue(stage.issue_id);
     const assignment = this.deps.stagePort.getRoleSnailAssignment(stageId, roleInstance);
     if (!assignment) throw new Error(`Role assignment not found: ${stageId}:${roleInstance}`);
-    log.info({
-      stageId, roleInstance, snailKey: assignment.snail_key,
-      snailInstanceId: assignment.snail_instance_id, unreadCount: unreadMessages.length, issueId: issue.id,
-    }, "invokeAgent start");
+    log.info({ stageId, roleInstance, snailKey: assignment.snail_key, snailInstanceId: assignment.snail_instance_id, unreadCount: unreadMessages.length, issueId: issue.id }, "invokeAgent start");
     const agentMessage = this.deps.messagePort.createMessage({
       stage_id: stageId, from_speaker: roleInstance, to_speakers: [], status: "streaming",
     });
@@ -313,11 +302,7 @@ export class IssueCollaboration implements CollaborationInput {
     } catch (error) {
       /** 丢弃未消费的路由目标，防止 MCP store 孤儿 entry 泄漏 */
       this.deps.mcpMessageStore.deleteMcpRoutingTargets(agentMessage.id);
-      log.error({
-        stageId, roleInstance, issueId: issue.id, snailKey: assignment.snail_key,
-        snailInstanceId: assignment.snail_instance_id,
-        err: error,
-      }, "invokeAgent failed");
+      log.error({ stageId, roleInstance, issueId: issue.id, snailKey: assignment.snail_key, snailInstanceId: assignment.snail_instance_id, err: error }, "invokeAgent failed");
       const status = abortController.signal.aborted ? "interrupted" : "failed";
       const errorReason = error instanceof Error ? error.message : String(error);
       const context = this.extractTerminalContext(agentMessage.id, status, truncateForUI(errorReason));
@@ -330,11 +315,7 @@ export class IssueCollaboration implements CollaborationInput {
       this.activeInvocations.delete(agentMessage.id);
     }
   }
-  private async executeAgentInvocation(input: {
-    stageId: string; roleInstance: string; issue: Issue; stage: Stage;
-    assignment: { snail_key: string; snail_instance_id: string | null; role_key: string };
-    unreadMessages: Message[]; agentMessage: Message; signal?: AbortSignal;
-  }) {
+  private async executeAgentInvocation(input: { stageId: string; roleInstance: string; issue: Issue; stage: Stage; assignment: { snail_key: string; snail_instance_id: string | null; role_key: string }; unreadMessages: Message[]; agentMessage: Message; signal?: AbortSignal }) {
     const { stageId, roleInstance, issue, stage, assignment, unreadMessages, agentMessage, signal } = input;
     const systemReminder = this.buildSystemReminder({ issue, stage, roleInstance, roleKey: assignment.role_key, snailKey: assignment.snail_key });
     const invokeOptions: InvokeOptions = { signal };
@@ -407,38 +388,44 @@ export class IssueCollaboration implements CollaborationInput {
     await this.notifyConsumers(stage.id, "onEvaluationResult", result);
   }
   private async recordAuditTrail(fromStage: Stage, toStage: Stage, suggestion: StageTransitionSuggestion): Promise<void> {
-    const audit: StageAuditRecord = {
-      stage_id: fromStage.id,
-      from_key: fromStage.key,
-      to_key: toStage.key,
-      trigger: "auto",
-      trigger_reason: suggestion.reason,
-      consensus_content: suggestion.guard ?? "",
-      timestamp: Date.now()
-    };
-    this.deps.stagePort.recordAudit(audit);
+    this.deps.stagePort.recordAudit({ stage_id: fromStage.id, from_key: fromStage.key, to_key: toStage.key, trigger: "auto", trigger_reason: suggestion.reason, consensus_content: suggestion.guard ?? "", timestamp: Date.now() });
   }
   private async generateDisagreementCard(stageId: string, suggestion: StageTransitionSuggestion): Promise<void> {
-    const positions = suggestion.positions ?? [];
-    const options = positions.map(p => ({
-      label: `${p.speaker}: ${p.stance}`,
-      description: p.argument
-    }));
-    await this.notifyConsumers(stageId, "onDisagreement", {
-      ...suggestion,
-      question: {
-        text: suggestion.reason,
-        options
-      }
-    });
+    const options = (suggestion.positions ?? []).map(p => ({ label: `${p.speaker}: ${p.stance}`, description: p.argument }));
+    await this.notifyConsumers(stageId, "onDisagreement", { ...suggestion, question: { text: suggestion.reason, options } });
   }
   async rollbackStage(stageId: string, targetKey: string): Promise<Stage> {
     const stage = this.deps.stagePort.rollbackStage(stageId, targetKey);
     this.cleanupDispatchStates(stageId);
     this.suggestions.delete(stageId);
     this.helpers.initStageCursors(stage);
+    this.autoInvokeNewStage(stage);
     return stage;
   }
+  /** 阶段推进后自动向新阶段发送 kickoff 消息，触发默认 agent 开始工作 */
+  private autoInvokeNewStage(stage: Stage): void {
+    const defaultSpeaker = stage.default_role_instance;
+    if (!defaultSpeaker) return;
+    /** from_speaker="" → sendMessageAsync 通过 resolveToSpeakers 解析出 default_role_instance → route → dispatch → invokeAgent */
+    this.sendMessage(stage.id, "开始执行。", "").catch((err) => {
+      log.error({ stageId: stage.id, err }, "autoInvokeNewStage failed");
+    });
+  }
+  /** createIssue 后自动向第一个阶段发送 kickoff 消息，使用 summary 作为用户指令 */
+  private autoInvokeFirstStage(stage: Stage, input: CreateIssueInput): void {
+    const defaultSpeaker = stage.default_role_instance;
+    if (!defaultSpeaker) return;
+    const summary = input.summary?.trim();
+    const sendMessage = summary
+      ? /** summary 本质是用户给 agent 的指令，作为用户消息发送（右侧气泡），agent 优先处理 */
+        this.sendMessage(stage.id, summary, "user")
+      : /** 无 summary 时 fallback 为系统消息，与 advanceStage 行为一致 */
+        this.sendMessage(stage.id, "开始执行。", "");
+    sendMessage.catch((err) => {
+      log.error({ stageId: stage.id, err }, "autoInvokeFirstStage failed");
+    });
+  }
+
   getStageAuditTrail(stageId: string): StageAuditRecord[] {
     return this.deps.stagePort.getAuditTrail(stageId);
   }
@@ -572,15 +559,13 @@ export class IssueCollaboration implements CollaborationInput {
     return `<context>
 ## 项目上下文
 **Issue**：${issue.title}
-**Issue ID**：${issue.id}
-**工作区**：${issue.workspace_path}
+**Issue ID**：${issue.id} | **工作区**：${issue.workspace_path}
 **Issue 摘要**：${issue.summary ?? "无"}
 ## Issue 上下文（只读视图）
 ${issueContext}
 > **注意**：这是只读视图。Agent 应使用 MCP 工具 \`set_context\` 和 \`get_context\` 读写 Issue 上下文。Issue 上下文也会通过环境变量 \`SNAIL_CTX_*\` 注入，可通过 \`process.env\` 读取。
 ## 当前阶段
-**阶段**：${stage.title} (${stage.key})
-**阶段描述**：${stage.description}
+**阶段**：${stage.title} (${stage.key}) — ${stage.description}
 ## 可用 Skills
 ${skillList}
 使用 skill tool 触发对应的 skill，获取详细工作流程和规则。
@@ -594,8 +579,7 @@ ${transitions || "无"}
 **必须使用 \`set_final_body\` MCP 设置最终答复**。每次发言结束前必须调用此工具，传入你希望展示给用户的完整 Markdown 内容。调用后本轮发言结束，不得再调用任何其他工具。
 **路由目标声明**：如果需要其他角色继续处理，必须在 \`set_final_body\` 的 \`to_speakers\` 参数中声明目标角色。
 **可用路由目标**：${["user", ...stage.role_instances.filter(i => i !== roleInstance)].map(t => `\`${t}\``).join("、")}
-**格式要求**：必须使用上述精确名称。不要使用 snail key（如 claude-code-stateful）、role key（如 designer）或英文翻译（如 architect-1）。
-**必选参数**：调用 \`set_final_body\` 时必须传入 \`message_id\` 和 \`stage_id\`，从环境变量 \`SNAIL_CTX_MESSAGE_ID\` 和 \`SNAIL_CTX_STAGE_ID\` 获取。
+**格式要求**：必须使用上述精确名称。不要使用 snail key、role key 或英文翻译。**必选参数**：调用 \`set_final_body\` 时必须传入 \`message_id\` 和 \`stage_id\`，从环境变量 \`SNAIL_CTX_MESSAGE_ID\` 和 \`SNAIL_CTX_STAGE_ID\` 获取。
 </context>`;
   }
   private async notifyConsumers(stageId: string, method: keyof CollaborationConsumer, ...args: unknown[]): Promise<void> {

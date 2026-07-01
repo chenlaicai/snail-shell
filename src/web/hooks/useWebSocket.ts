@@ -56,6 +56,7 @@ function createEmptyBatch(): StageBatch {
 class EventBatcher {
   private batch = new Map<string, StageBatch>();
   private pendingStageTransitions: Array<{ issueId: string; stageId: string }> = [];
+  private pendingStageChanges: Array<{ issueId: string; newStageId: string }> = [];
   /** 每个 issue 只保留最新的 activity_status，flush 时一次性更新 */
   private pendingActivityStatus = new Map<string, IssueDetailDto["activity_status"]>();
   private scheduled = false;
@@ -72,6 +73,13 @@ class EventBatcher {
 
     if (event.type === "stage_transition_suggested") {
       this.pendingStageTransitions.push({ issueId: msg.issue_id, stageId });
+      this.schedule();
+      return;
+    }
+
+    /** auto-advance 后切换到新阶段 */
+    if (event.type === "stage_changed") {
+      this.pendingStageChanges.push({ issueId: msg.issue_id, newStageId: event.new_stage_id });
       this.schedule();
       return;
     }
@@ -285,11 +293,28 @@ class EventBatcher {
       this.queryClient.invalidateQueries({ queryKey: queryKeys.stages.messages(stageId) });
     }
     this.pendingStageTransitions = [];
+
+    // Stage changed 事件：更新 issue 缓存的 current_stage 并切换视图
+    for (const { issueId, newStageId } of this.pendingStageChanges) {
+      /** 先查询新阶段详情，更新缓存后组件通过 current_stage 自动切换 */
+      this.queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(issueId) });
+      this.queryClient.invalidateQueries({ queryKey: queryKeys.stages.messages(newStageId) });
+      /** 直接更新 issue 缓存的 current_stage，避免等待 refetch 完成 */
+      this.queryClient.setQueryData(
+        queryKeys.issues.detail(issueId),
+        (old: IssueDetailDto | null | undefined) => {
+          if (!old) return old;
+          const newStage = old.stages.find((s) => s.id === newStageId);
+          return newStage ? { ...old, current_stage: newStage } : old;
+        },
+      );
+    }
+    this.pendingStageChanges = [];
   }
 
   /** 组件卸载时调用，确保 pending 事件不丢失 */
   dispose(): void {
-    if (this.batch.size > 0 || this.pendingStageTransitions.length > 0 || this.pendingActivityStatus.size > 0) {
+    if (this.batch.size > 0 || this.pendingStageTransitions.length > 0 || this.pendingStageChanges.length > 0 || this.pendingActivityStatus.size > 0) {
       this.flush();
     }
   }

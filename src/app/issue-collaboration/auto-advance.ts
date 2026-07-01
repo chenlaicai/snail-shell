@@ -201,7 +201,7 @@ export class AutoAdvanceEngine {
     await this.deps.recordAuditTrail(stage, newStage, suggestion);
     // 使用新 stage.id 通知——确保 board 在新阶段的 agent 调用前正确反映状态
     await this.deps.notifyConsumers(newStage.id, "onAutoAdvanced", {
-      from: stage.key, to: newStage.key, reason: suggestion.reason
+      from: stage.id, to: newStage.id, from_key: stage.key, to_key: newStage.key, reason: suggestion.reason
     });
   }
 
@@ -237,9 +237,16 @@ export class AutoAdvanceEngine {
 
   private getFailedReviewGates(evidence: Record<string, unknown>): string[] {
     const failed: string[] = [];
-    for (const gate of ["rev-01", "rev-02", "rev-03"]) {
+    for (const gate of ["rev-01", "rev-02", "rev-03", "rev-04"]) {
       const value = evidence[gate];
       if (typeof value !== "string" || !value.trim()) failed.push(gate);
+    }
+    // rev-04 额外格式校验：值必须是合法的特性编号（F + 8位日期 + 4位随机码）
+    if (!failed.includes("rev-04")) {
+      const rev04 = evidence["rev-04"] as string;
+      if (!/^F\d{8}[a-kmnp-z][2-9a-kmnp-z]{3}$/.test(rev04)) {
+        failed.push("rev-04");
+      }
     }
     return failed;
   }

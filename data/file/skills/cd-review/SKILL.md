@@ -48,6 +48,7 @@ description: |
 | rev-01 | 所有检视意见已逐条处理 | ✅ |
 | rev-02 | 根据变更类型独立执行验证命令，实际输出作为检视证据 | ✅ |
 | rev-03 | PR 评论已按签名模板收尾 | ✅ |
+| rev-04 | 特性编号已验证合规并写入 gate_evidence（格式：FYYYYMMDDxxxx） | ✅ |
 | rev-ctx | pr_url 已通过 set_context 写入 Issue.context（reviewer 需据此定位 PR） | ✅ |
 
 ### 执行步骤
