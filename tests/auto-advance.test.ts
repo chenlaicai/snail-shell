@@ -52,7 +52,7 @@ function createDeps(overrides: Partial<AutoAdvanceDeps> = {}): AutoAdvanceDeps {
     notifyConsumers: vi.fn().mockResolvedValue(undefined),
     generateDisagreementCard: vi.fn().mockResolvedValue(undefined),
     mustGetIssue: vi.fn().mockReturnValue({
-      context: { worktree_path: "/wt", branch_name: "feature-x", pr_url: "https://github.com/pr/1" },
+      context: { "design.worktree_path": "/wt", "design.branch_name": "feature-x", "development.pr_url": "https://github.com/pr/1" },
     }),
     ...overrides,
   };
@@ -84,7 +84,7 @@ describe("AutoAdvanceEngine context validation", () => {
     it("blocks auto-advance when worktree_path is missing", async () => {
       const deps = createDeps({
         mustGetIssue: vi.fn().mockReturnValue({
-          context: { branch_name: "feature-x", pr_url: "https://github.com/pr/1" },
+          context: { "design.branch_name": "feature-x", "development.pr_url": "https://github.com/pr/1" },
         }),
       });
       const engine = new AutoAdvanceEngine(deps);
@@ -93,13 +93,13 @@ describe("AutoAdvanceEngine context validation", () => {
       expect(deps.advanceStage).not.toHaveBeenCalled();
       expect(result.action).toBe("blocked");
       expect(result.reasons[0].code).toBe("CONTEXT_MISSING");
-      assertContextMissing(deps, ["worktree_path"]);
+      assertContextMissing(deps, ["design.worktree_path"]);
     });
 
     it("blocks auto-advance when branch_name is missing", async () => {
       const deps = createDeps({
         mustGetIssue: vi.fn().mockReturnValue({
-          context: { worktree_path: "/wt", pr_url: "https://github.com/pr/1" },
+          context: { "design.worktree_path": "/wt", "development.pr_url": "https://github.com/pr/1" },
         }),
       });
       const engine = new AutoAdvanceEngine(deps);
@@ -108,13 +108,13 @@ describe("AutoAdvanceEngine context validation", () => {
       expect(deps.advanceStage).not.toHaveBeenCalled();
       expect(result.action).toBe("blocked");
       expect(result.reasons[0].code).toBe("CONTEXT_MISSING");
-      assertContextMissing(deps, ["branch_name"]);
+      assertContextMissing(deps, ["design.branch_name"]);
     });
 
     it("blocks auto-advance when pr_url is missing", async () => {
       const deps = createDeps({
         mustGetIssue: vi.fn().mockReturnValue({
-          context: { worktree_path: "/wt", branch_name: "feature-x" },
+          context: { "design.worktree_path": "/wt", "design.branch_name": "feature-x" },
         }),
       });
       const engine = new AutoAdvanceEngine(deps);
@@ -123,7 +123,7 @@ describe("AutoAdvanceEngine context validation", () => {
       expect(deps.advanceStage).not.toHaveBeenCalled();
       expect(result.action).toBe("blocked");
       expect(result.reasons[0].code).toBe("CONTEXT_MISSING");
-      assertContextMissing(deps, ["pr_url"]);
+      assertContextMissing(deps, ["development.pr_url"]);
     });
 
     it("blocks auto-advance when all context fields are missing", async () => {
@@ -136,13 +136,13 @@ describe("AutoAdvanceEngine context validation", () => {
       expect(deps.advanceStage).not.toHaveBeenCalled();
       expect(result.action).toBe("blocked");
       expect(result.reasons[0].code).toBe("CONTEXT_MISSING");
-      assertContextMissing(deps, ["worktree_path", "branch_name", "pr_url"]);
+      assertContextMissing(deps, ["design.worktree_path", "design.branch_name", "development.pr_url"]);
     });
 
     it("blocks auto-advance when context field is empty string", async () => {
       const deps = createDeps({
         mustGetIssue: vi.fn().mockReturnValue({
-          context: { worktree_path: "", branch_name: "feature-x", pr_url: "https://github.com/pr/1" },
+          context: { "design.worktree_path": "", "design.branch_name": "feature-x", "development.pr_url": "https://github.com/pr/1" },
         }),
       });
       const engine = new AutoAdvanceEngine(deps);
@@ -151,7 +151,7 @@ describe("AutoAdvanceEngine context validation", () => {
       expect(deps.advanceStage).not.toHaveBeenCalled();
       expect(result.action).toBe("blocked");
       expect(result.reasons[0].code).toBe("CONTEXT_MISSING");
-      assertContextMissing(deps, ["worktree_path"]);
+      assertContextMissing(deps, ["design.worktree_path"]);
     });
 
     it("allows auto-advance when all context fields are present", async () => {
@@ -196,7 +196,7 @@ describe("AutoAdvanceEngine context validation", () => {
       expect(deps.advanceStage).not.toHaveBeenCalled();
       expect(result.action).toBe("blocked");
       expect(result.reasons[0].code).toBe("CONTEXT_MISSING");
-      assertContextMissing(deps, ["worktree_path", "branch_name"]);
+      assertContextMissing(deps, ["design.worktree_path", "design.branch_name"]);
     });
 
     it("allows auto-advance when context fields are present", async () => {
@@ -331,7 +331,7 @@ describe("adversarial artifact validation", () => {
   describe("review stage context", () => {
     it("blocks when pr_url is missing", async () => {
       const deps = createDeps({
-        mustGetIssue: vi.fn().mockReturnValue({ context: { worktree_path: "/wt", branch_name: "feature-x" } }),
+        mustGetIssue: vi.fn().mockReturnValue({ context: { "design.worktree_path": "/wt", "design.branch_name": "feature-x" } }),
       });
       const engine = new AutoAdvanceEngine(deps);
       const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed" } });
@@ -340,7 +340,7 @@ describe("adversarial artifact validation", () => {
       expect(deps.advanceStage).not.toHaveBeenCalled();
       expect(result.action).toBe("blocked");
       expect(result.reasons[0].code).toBe("CONTEXT_MISSING");
-      assertContextMissing(deps, ["pr_url"]);
+      assertContextMissing(deps, ["development.pr_url"]);
     });
 
     it("allows when all fields present", async () => {

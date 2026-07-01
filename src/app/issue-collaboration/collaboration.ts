@@ -339,12 +339,18 @@ export class IssueCollaboration implements CollaborationInput {
     const systemReminder = this.buildSystemReminder({ issue, stage, roleInstance, roleKey: assignment.role_key, snailKey: assignment.snail_key });
     const invokeOptions: InvokeOptions = { signal };
     const agentMessages = unreadMessages.map(message => this.messageHandler.toAgentMessage(message));
-    /** 唯一的上下文数据源：snail adapter 从这里构建 env vars，buildContextBlock 从 issue.context 渲染 system reminder */
+    /**
+     * 上下文数据分两层：
+     * - 系统标识符（ISSUE_ID, STAGE_ID, MESSAGE_ID）由编排层写入，生命周期与 spawn 绑定
+     * - 业务数据（stage_key, role_instance, snail_key + issue.context）跨调用持久化
+     * snail adapter 将两者合并后注入环境变量。
+     */
     const firstCallRequest = {
       workspace_path: issue.workspace_path, messages: agentMessages, systemReminder: systemReminder || undefined,
-      context: { [CONTEXT_KEYS.ISSUE_ID]: issue.id, [CONTEXT_KEYS.STAGE_ID]: stage.id, [CONTEXT_KEYS.MESSAGE_ID]: String(agentMessage.id), stage_key: stage.key, role_instance: roleInstance, ...issue.context, snail_key: assignment.snail_key },
+      context: { stage_key: stage.key, role_instance: roleInstance, snail_key: assignment.snail_key, ...issue.context },
+      systemContext: { [CONTEXT_KEYS.ISSUE_ID]: issue.id, [CONTEXT_KEYS.STAGE_ID]: stage.id, [CONTEXT_KEYS.MESSAGE_ID]: String(agentMessage.id) },
     };
-    const resumeRequest = { workspace_path: issue.workspace_path, messages: agentMessages, system_reminder: systemReminder, messageId: String(agentMessage.id), stageId: stage.id };
+    const resumeRequest = { workspace_path: issue.workspace_path, messages: agentMessages, system_reminder: systemReminder, messageId: String(agentMessage.id), stageId: stage.id, context: { stage_key: stage.key, role_instance: roleInstance, snail_key: assignment.snail_key, ...issue.context } };
     const onEvent = (event: AgentEvent) => this.handleAgentEvent(stageId, agentMessage.id, event);
     return assignment.snail_instance_id
       ? await this.invokeResumeOrRecover({ stageId, roleInstance, snailInstanceId: assignment.snail_instance_id, snailKey: assignment.snail_key, resumeRequest, firstCallRequest, onEvent, invokeOptions })
@@ -566,7 +572,7 @@ export class IssueCollaboration implements CollaborationInput {
       roleDef?.skill ? `- \`${roleDef.skill}\` — ${roleDef.name}工作流程` : null,
     ].filter(Boolean).join("\n");
     /** Issue 上下文：只读视图，Agent 应使用 MCP 工具读写。基础设施字段缺失时标注警告 */
-    const missingInfra = ["worktree_path", "branch_name"].filter(f => !resolveContextValue(issue.context, f));
+    const missingInfra = ["design.worktree_path", "design.branch_name"].filter(f => !resolveContextValue(issue.context, f));
     const ctxLines = Object.entries(issue.context).map(([k, v]) => `- **${k}**: ${v}`).join("\n") || "无";
     const issueContext = missingInfra.length > 0 ? `${ctxLines}\n> ⚠️ 以下基础设施字段未记录：${missingInfra.join(", ")}` : ctxLines;
     return `<context>

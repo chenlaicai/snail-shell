@@ -48,7 +48,7 @@ description: |
 | dev-04 | PR 已创建且包含完整改动摘要 | ✅ |
 | dev-05 | 不兼容更新已在 PR 中标注 | |
 | dev-06 | 变更完整性已验证：根据 issue context 的 `sop.change_type` 执行对应验证命令，实际输出已写入 gate_evidence | ✅ |
-| dev-ctx | worktree_path、branch_name、pr_url 已通过 set_context 写入 Issue.context | ✅ |
+| dev-ctx | design.worktree_path、design.branch_name、development.pr_url 已通过 set_context 写入 Issue.context | ✅ |
 
 ### 执行步骤
 
@@ -92,7 +92,7 @@ description: |
       "dev-03": "docs/features/2026/06/26/F20260626m4vx.md 已更新",
       "dev-04": "PR #123 已创建",
       "dev-06": "npm run check 通过",
-      "dev-ctx": "worktree_path=/Users/.../worktrees/xxx, branch_name=feature-xxx, pr_url=https://github.com/..."
+      "dev-ctx": "design.worktree_path=/Users/.../worktrees/xxx, design.branch_name=feature-xxx, development.pr_url=https://github.com/..."
     }
   }
 }

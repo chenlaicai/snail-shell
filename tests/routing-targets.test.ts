@@ -339,26 +339,22 @@ describe("executeAgentInvocation CONTEXT_KEYS usage", () => {
     expect(capturedRequest?.context).toBeDefined();
 
     const context = capturedRequest!.context!;
+    const systemContext = capturedRequest!.systemContext!;
 
-    // Verify CONTEXT_KEYS constants are used (they should be the keys in the context object)
-    // The context object should have CONTEXT_KEYS.ISSUE_ID, CONTEXT_KEYS.STAGE_ID, CONTEXT_KEYS.MESSAGE_ID
-    // But since CONTEXT_KEYS values are like "SNAIL_CTX_ISSUE_ID", and the context object keys
-    // are used to build env vars via buildContextEnv, we need to verify the keys are correct
+    // 系统标识符在 systemContext 中（方案 C：分离系统标识符和业务数据）
+    expect(systemContext).toHaveProperty(CONTEXT_KEYS.ISSUE_ID);
+    expect(systemContext).toHaveProperty(CONTEXT_KEYS.STAGE_ID);
+    expect(systemContext).toHaveProperty(CONTEXT_KEYS.MESSAGE_ID);
+    expect(systemContext[CONTEXT_KEYS.ISSUE_ID]).toBe("issue-1");
+    expect(systemContext[CONTEXT_KEYS.STAGE_ID]).toBe("s1");
+    expect(systemContext[CONTEXT_KEYS.MESSAGE_ID]).toBe("100");
 
-    // The context object should have these keys (using CONTEXT_KEYS constants)
-    expect(context).toHaveProperty(CONTEXT_KEYS.ISSUE_ID);
-    expect(context).toHaveProperty(CONTEXT_KEYS.STAGE_ID);
-    expect(context).toHaveProperty(CONTEXT_KEYS.MESSAGE_ID);
-
-    // Verify the values are correct
-    expect(context[CONTEXT_KEYS.ISSUE_ID]).toBe("issue-1");
-    expect(context[CONTEXT_KEYS.STAGE_ID]).toBe("s1");
-    expect(context[CONTEXT_KEYS.MESSAGE_ID]).toBe("100");
-
-    // Verify other context fields are present
+    // 业务数据在 context 中
     expect(context).toHaveProperty("stage_key", "review");
     expect(context).toHaveProperty("role_instance", "reviewer-1");
     expect(context).toHaveProperty("snail_key", "test-snail");
+    // 系统标识符不应出现在业务 context 中
+    expect(context).not.toHaveProperty(CONTEXT_KEYS.ISSUE_ID);
   });
 
   it("should use CONTEXT_KEYS constants in resume context", async () => {

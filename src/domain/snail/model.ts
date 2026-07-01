@@ -31,8 +31,10 @@ export interface SnailFirstCallRequest {
   tags?: string[];
   /** system-reminder 内容 */
   systemReminder?: string;
-  /** 业务上下文标识（conversation_id, message_id, evolution_item_id 等），注入到 system-reminder 和 env vars */
+  /** 业务上下文（stage_key, role_instance, snail_key + issue.context），注入到 env vars */
   context?: Record<string, unknown>;
+  /** 系统标识符（ISSUE_ID, STAGE_ID, MESSAGE_ID），由编排层写入，注入到 env vars */
+  systemContext?: Record<string, string>;
 }
 
 /** Snail 后续调用请求 */
@@ -47,6 +49,8 @@ export interface SnailResumeRequest {
   messageId?: string;
   /** 当前 stage ID，注入到 agent 环境变量用于 set_final_body 归属校验 */
   stageId?: string;
+  /** 业务上下文（stage_key, role_instance, snail_key + issue.context），注入到 env vars */
+  context?: Record<string, unknown>;
 }
 
 // ── Snail Instance ────────────────────────────────────────────────────

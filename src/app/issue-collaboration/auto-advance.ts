@@ -165,11 +165,11 @@ export class AutoAdvanceEngine {
     return { result: null, r7Warnings };
   }
 
-  /** 各 stage 推进所需的 Issue.context 必要字段 */
+  /** 各 stage 推进所需的 Issue.context 必要字段（统一使用 {stage_key}.{artifact_name} 格式） */
   private static readonly REQUIRED_CONTEXT_FIELDS: Record<string, string[]> = {
-    design: ["worktree_path", "branch_name"],
-    development: ["worktree_path", "branch_name", "pr_url"],
-    review: ["pr_url"],
+    design: ["design.worktree_path", "design.branch_name"],
+    development: ["design.worktree_path", "design.branch_name", "development.pr_url"],
+    review: ["development.pr_url"],
   };
 
   private getMissingContextFields(stage: Stage): string[] {
@@ -187,7 +187,7 @@ export class AutoAdvanceEngine {
   private isIncompatibleBlocked(stage: Stage): boolean {
     if (stage.key !== "review") return false;
     const issue = this.deps.mustGetIssue(stage.issue_id);
-    const prTitle = resolveContextValue(issue.context, "pr_title") ?? "";
+    const prTitle = resolveContextValue(issue.context, "development.pr_title") ?? "";
     if (prTitle.includes("[Incompatible]")) {
       log.info({ stageId: stage.id }, "[Incompatible] tag blocks auto-advance");
       return true;

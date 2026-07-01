@@ -70,7 +70,7 @@ description: |
 | design-01 | Feature 文档的 [design-time] 章节已锁定 | ✅ |
 | design-02 | 无未解决的设计争议 | ✅ |
 | design-03 | 关键设计取舍有正反两面论述记录 | |
-| design-ctx | worktree_path 和 branch_name 已通过 set_context 写入 Issue.context | ✅ |
+| design-ctx | design.worktree_path 和 design.branch_name 已通过 set_context 写入 Issue.context | ✅ |
 
 ### 执行步骤
 
@@ -108,7 +108,7 @@ description: |
     "gate_evidence": {
       "design-01": "docs/features/2026/06/26/F20260626m4vx.md 已锁定",
       "design-02": "所有争议已解决",
-      "design-ctx": "worktree_path=/Users/.../worktrees/xxx, branch_name=feature-xxx"
+      "design-ctx": "design.worktree_path=/Users/.../worktrees/xxx, design.branch_name=feature-xxx"
     },
     "adversarial_artifact": {
       "independent_verification": [

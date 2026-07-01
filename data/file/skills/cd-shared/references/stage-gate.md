@@ -58,7 +58,7 @@ Agent 通过 `set_final_body` MCP 工具提交最终答复时，如果 text 中�
 
 | code | 含义 |
 |------|------|
-| `CONTEXT_MISSING` | Issue 上下文缺少必要字段（worktree_path / branch_name / pr_url） |
+| `CONTEXT_MISSING` | Issue 上下文缺少必要字段（design.worktree_path / design.branch_name / development.pr_url） |
 | `SPEAKERS_INSUFFICIENT` | 共识信号的 speaker 不足 2 个 |
 | `GATE_FAILED` | gate_evidence 中 required 项缺失或为空 |
 | `INCOMPATIBLE_BLOCKED` | PR 标题含 [Incompatible] |

@@ -48,7 +48,7 @@ description: |
 | rev-01 | 所有检视意见已逐条处理 | ✅ |
 | rev-02 | 根据变更类型独立执行验证命令，实际输出作为检视证据 | ✅ |
 | rev-03 | PR 评论已按签名模板收尾 | ✅ |
-| rev-ctx | pr_url 已通过 set_context 写入 Issue.context（reviewer 需据此定位 PR） | ✅ |
+| rev-ctx | development.pr_url 已通过 set_context 写入 Issue.context（reviewer 需据此定位 PR） | ✅ |
 
 ### 执行步骤
 
@@ -87,7 +87,7 @@ description: |
       "rev-01": "所有评论处置状态: 已修复",
       "rev-02": "npm run check 通过",
       "rev-03": "PR #123 评论已签名",
-      "rev-ctx": "pr_url=https://github.com/..."
+      "rev-ctx": "development.pr_url=https://github.com/..."
     },
     "adversarial_artifact": {
       "independent_verification": [

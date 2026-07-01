@@ -3,7 +3,7 @@
 ## 阶段一：准备与上下文加载
 
 ### GATE-1: 进入 issue 的 worktree
-- 从 Stage 的 `stage_input_artifacts` 中 `worktree_path` 字段获取 worktree 路径
+- 从 Issue.context 中通过 `design.worktree_path` 获取 worktree 路径
 - 如果字段不存在，向开发者确认 worktree 路径
 
 ### GATE-2: 确认 PR 基于最新 `origin/main`

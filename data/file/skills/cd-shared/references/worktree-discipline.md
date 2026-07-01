@@ -8,9 +8,9 @@
 2. **基于最新 `origin/main`**：worktree 必须从最新的远程 main 分支创建。
 3. **验证工作目录**：创建后立即验证 cwd 在 `<workspace>/.claude/worktrees/` 或 `<workspace>/.snail/worktrees/` 内。
 4. **主目录零修改**：严禁在主目录进行任何文件修改，包括 feature 文档、代码、配置文件。
-5. **记录上下文**：创建 worktree 后调用 `set_context` MCP 工具写入 Issue.context：
-   - key: `worktree_path`, value: `<worktree 绝对路径>`
-   - key: `branch_name`, value: `<分支名>`
+5. **记录上下文**：创建 worktree 后调用 `set_context` MCP 工具写入 Issue.context（key 使用 `{stage_key}.{artifact_name}` 格式）：
+   - key: `design.worktree_path`, value: `<worktree 绝对路径>`
+   - key: `design.branch_name`, value: `<分支名>`
 
 ## 执行流程
 
@@ -18,7 +18,7 @@
 1. git fetch origin main
 2. git worktree add <path> -b <branch> origin/main
 3. pwd 验证 cwd 在 worktree 内
-4. 调用 set_context 写入 worktree_path 和 branch_name
+4. 调用 set_context 写入 design.worktree_path 和 design.branch_name
 5. 开始执行正式工作
 ```
 

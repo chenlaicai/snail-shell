@@ -6,9 +6,9 @@
 - 使用 `git worktree add` 基于最新 `origin/main` 创建 worktree
 - 验证：当前工作目录必须在 worktree 内
 - 严禁在主目录进行任何文件修改
-- 创建 worktree 和分支后，调用 `set_context` 写入 Issue.context：
-  - key: `worktree_path`, value: `<worktree 绝对路径>`
-  - key: `branch_name`, value: `<分支名>`
+- 创建 worktree 和分支后，调用 `set_context` 写入 Issue.context（key 使用 `{stage_key}.{artifact_name}` 格式）：
+  - key: `design.worktree_path`, value: `<worktree 绝对路径>`
+  - key: `design.branch_name`, value: `<分支名>`
 
 ### GATE-2: 拉取并确认 `origin/main` 最新
 - 在 worktree 内执行 `git fetch origin main` 并 rebase

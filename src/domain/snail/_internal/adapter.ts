@@ -182,9 +182,16 @@ export class SnailAdapter implements SnailPort {
       sessionId, messageCount: request.messages.length,
     }, "invokeResume");
 
-    const contextEnv: Record<string, string> = { [CONTEXT_KEYS.WORKSPACE_PATH]: request.workspace_path, [CONTEXT_KEYS.SNAIL_KEY]: instance.snail_key };
-    if (request.messageId != null) contextEnv[CONTEXT_KEYS.MESSAGE_ID] = request.messageId;
-    if (request.stageId != null) contextEnv[CONTEXT_KEYS.STAGE_ID] = request.stageId;
+    /** resume 路径复用 buildContextEnv，注入系统标识符 + 业务数据，与 first-call 保持一致 */
+    const contextEnv = buildContextEnv({
+      workspacePath: request.workspace_path,
+      context: {
+        ...request.context,
+        [CONTEXT_KEYS.SNAIL_KEY]: instance.snail_key,
+        ...(request.messageId != null ? { [CONTEXT_KEYS.MESSAGE_ID]: request.messageId } : {}),
+        ...(request.stageId != null ? { [CONTEXT_KEYS.STAGE_ID]: request.stageId } : {}),
+      },
+    });
     const invokeOptions = this.buildOptions(snail, options, contextEnv);
 
     const result = await agent.invokeResume(
@@ -253,6 +260,6 @@ export class SnailAdapter implements SnailPort {
   }
 
   private buildContextEnv(request: SnailFirstCallRequest): Record<string, string> {
-    return buildContextEnv({ workspacePath: request.workspace_path, context: request.context });
+    return buildContextEnv({ workspacePath: request.workspace_path, context: { ...request.context, ...request.systemContext } });
   }
 }
