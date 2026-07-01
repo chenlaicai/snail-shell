@@ -122,6 +122,20 @@ private autoInvokeFirstStage(stage: Stage, input: CreateIssueInput): void {
 
 **前端 UI 适配**：当前 summary 是 3 行 textarea，标签 "Summary"，placeholder "Optional description"。需要调整为更大的编辑区域，标签改为"问题描述"，placeholder 改为"描述你希望 AI 帮你解决的问题"，鼓励用户提供充分上下文。
 
+**为什么将 textarea 改为更大编辑区域**：
+- summary 现在作为 kickoff 消息直接发送给 agent（`autoInvokeFirstStage`），是 agent 启动的核心输入——用户写得越充分，agent 第一轮响应质量越高
+- 3 行 textarea 视觉上暗示"简短摘要"，与实际用途（问题描述/指令）不匹配，用户倾向于少写或留空
+- 更大的编辑区域（可调高度）降低填写心理门槛，鼓励用户在创建 issue 时就提供充分上下文
+
+**为什么标签从 "Summary" 改为 "问题描述"**：
+- "Summary"（摘要）暗示对已有内容的概括，但 issue 创建时还没有内容可概括——用户需要描述的是"我希望 AI 帮我解决什么问题"
+- "问题描述"直接表达用途，与 `autoInvokeFirstStage` 将其作为用户指令发送的语义一致
+- 中文标签与系统其他中文 UI（如"开始执行。"）保持一致
+
+**为什么 placeholder 改为 "描述你希望 AI 帮你解决的问题"**：
+- 明确引导用户写出可执行的描述，而非泛泛的"可选描述"（"Optional description"）
+- 与 `autoInvokeFirstStage` 的行为对齐：这段文字会作为用户消息发送给 agent，placeholder 应提示用户这里写的是给 agent 的指令
+
 ### 为什么选择这个位置
 
 **advanceStage / rollbackStage 位置选择**：✅ 已实现。选择 advanceStage() 内嵌——两种推进路径的唯一交汇点，改动最小、覆盖最全。

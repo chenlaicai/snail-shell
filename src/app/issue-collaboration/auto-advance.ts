@@ -201,7 +201,7 @@ export class AutoAdvanceEngine {
     await this.deps.recordAuditTrail(stage, newStage, suggestion);
     // 使用新 stage.id 通知——确保 board 在新阶段的 agent 调用前正确反映状态
     await this.deps.notifyConsumers(newStage.id, "onAutoAdvanced", {
-      from: stage.key, to: newStage.key, reason: suggestion.reason
+      from: stage.id, to: newStage.id, from_key: stage.key, to_key: newStage.key, reason: suggestion.reason
     });
   }
 

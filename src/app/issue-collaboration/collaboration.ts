@@ -98,17 +98,13 @@ export class IssueCollaboration implements CollaborationInput {
     return true;
   }
   async sendMessage(stageId: string, text: string, fromSpeaker = "user", toSpeakers?: string[]): Promise<void> {
-    try {
-      const stage = this.helpers.mustGetStage(stageId);
-      this.helpers.assertIssueOpen(stage.issue_id);
-      const message = this.deps.messagePort.createMessage({ stage_id: stageId, from_speaker: fromSpeaker, to_speakers: [], status: "completed" });
-      this.deps.messagePort.setContext(message.id, "final_text", text);
-      void this.sendMessageAsync(stageId, stage, message, text, fromSpeaker, toSpeakers).catch((error) => {
-        log.error({ stageId, messageId: message.id, err: error }, "sendMessage: async chain failed");
-      });
-    } catch (error) {
-      log.error({ stageId, err: error }, "sendMessage failed");
-    }
+    const stage = this.helpers.mustGetStage(stageId);
+    this.helpers.assertIssueOpen(stage.issue_id);
+    const message = this.deps.messagePort.createMessage({ stage_id: stageId, from_speaker: fromSpeaker, to_speakers: [], status: "completed" });
+    this.deps.messagePort.setContext(message.id, "final_text", text);
+    void this.sendMessageAsync(stageId, stage, message, text, fromSpeaker, toSpeakers).catch((error) => {
+      log.error({ stageId, messageId: message.id, err: error }, "sendMessage: async chain failed");
+    });
   }
   private async sendMessageAsync(stageId: string, stage: Stage, message: Message, text: string, fromSpeaker: string, toSpeakers?: string[]): Promise<void> {
     const targets: SpeakerTarget[] = toSpeakers && toSpeakers.length > 0
@@ -177,10 +173,12 @@ export class IssueCollaboration implements CollaborationInput {
   async closeIssue(issueId: string): Promise<{ issue: Issue; cleanup: CleanupResult }> {
     const existingIssue = this.deps.issuePort.findIssue(issueId);
     if (existingIssue?.closed_at) {
+      // 已关闭的 Issue 幂等返回，不执行 cleanup，不覆盖 close_summary
       const prevStatus = this.lastActivityStatus.get(issueId) ?? "needs_human";
       this.lastActivityStatus.delete(issueId);
       const consumers = this.workspaceConsumers.get(existingIssue.workspace_path);
       if (consumers) for (const c of consumers) c.onActivityStatusChanged(issueId, "completed", prevStatus);
+      // domain CloseSummary 与 app CleanupResult 结构相同，此处显式转换标记层边界
       const cleanup: CleanupResult = existingIssue.close_summary as CleanupResult ?? { pr: { status: "skipped" }, worktree: { status: "skipped" }, localBranch: { status: "skipped" }, remoteBranch: { status: "skipped" } };
       return { issue: existingIssue, cleanup };
     }
@@ -255,7 +253,7 @@ export class IssueCollaboration implements CollaborationInput {
         await this.invokeAgent(stageId, speaker, unread);
         this.deps.messagePort.advanceCursor(stageId, speaker, unread[unread.length - 1].id);
       } catch {
-        // 不推进 cursor，保留 unread 供下次重试；立即退出避免烧尽 rounds
+        // 不推进 cursor，保留 unread 消息供下次 dispatch 重试；立即退出避免烧尽 rounds
         this.dispatchStates.set(key, { status: "idle", pending: false });
         return;
       }
@@ -302,11 +300,13 @@ export class IssueCollaboration implements CollaborationInput {
         log.error({ stageId, roleInstance, err: routeError }, "route after invokeAgent failed");
       }
     } catch (error) {
+      /** 丢弃未消费的路由目标，防止 MCP store 孤儿 entry 泄漏 */
       this.deps.mcpMessageStore.deleteMcpRoutingTargets(agentMessage.id);
       log.error({ stageId, roleInstance, issueId: issue.id, snailKey: assignment.snail_key, snailInstanceId: assignment.snail_instance_id, err: error }, "invokeAgent failed");
       const status = abortController.signal.aborted ? "interrupted" : "failed";
       const errorReason = error instanceof Error ? error.message : String(error);
       const context = this.extractTerminalContext(agentMessage.id, status, truncateForUI(errorReason));
+      /** interrupted 时无 text event 则 context.kind 为 "event_summary"，context 内容为固定中断文案 */
       this.deps.messagePort.setContext(agentMessage.id, context.kind, context.context);
       this.deps.messagePort.completeMessage(agentMessage.id, status, { error: errorReason });
       await this.notifyConsumers(stageId, "onMessageCompleted", this.helpers.mustGetMessage(agentMessage.id), this.deps.messagePort.getContext(agentMessage.id));
@@ -320,7 +320,7 @@ export class IssueCollaboration implements CollaborationInput {
     const systemReminder = this.buildSystemReminder({ issue, stage, roleInstance, roleKey: assignment.role_key, snailKey: assignment.snail_key });
     const invokeOptions: InvokeOptions = { signal };
     const agentMessages = unreadMessages.map(message => this.messageHandler.toAgentMessage(message));
-    /** 唯一上下文数据源：snail adapter 构建 env vars，buildContextBlock 渲染 system reminder */
+    /** 唯一的上下文数据源：snail adapter 从这里构建 env vars，buildContextBlock 从 issue.context 渲染 system reminder */
     const firstCallRequest = {
       workspace_path: issue.workspace_path, messages: agentMessages, systemReminder: systemReminder || undefined,
       context: { [CONTEXT_KEYS.ISSUE_ID]: issue.id, [CONTEXT_KEYS.STAGE_ID]: stage.id, [CONTEXT_KEYS.MESSAGE_ID]: String(agentMessage.id), stage_key: stage.key, role_instance: roleInstance, ...issue.context, snail_key: assignment.snail_key },
@@ -406,29 +406,24 @@ export class IssueCollaboration implements CollaborationInput {
   private autoInvokeNewStage(stage: Stage): void {
     const defaultSpeaker = stage.default_role_instance;
     if (!defaultSpeaker) return;
-    try {
-      /** from_speaker="" → sendMessageAsync 通过 resolveToSpeakers 解析出 default_role_instance → route → dispatch → invokeAgent */
-      this.sendMessage(stage.id, "开始执行。", "");
-    } catch (err) {
+    /** from_speaker="" → sendMessageAsync 通过 resolveToSpeakers 解析出 default_role_instance → route → dispatch → invokeAgent */
+    this.sendMessage(stage.id, "开始执行。", "").catch((err) => {
       log.error({ stageId: stage.id, err }, "autoInvokeNewStage failed");
-    }
+    });
   }
   /** createIssue 后自动向第一个阶段发送 kickoff 消息，使用 summary 作为用户指令 */
   private autoInvokeFirstStage(stage: Stage, input: CreateIssueInput): void {
     const defaultSpeaker = stage.default_role_instance;
     if (!defaultSpeaker) return;
-    try {
-      const summary = input.summary?.trim();
-      if (summary) {
-        /** summary 本质是用户给 agent 的指令，作为用户消息发送（右侧气泡），agent 优先处理 */
-        void this.sendMessage(stage.id, summary, "user");
-      } else {
-        /** 无 summary 时 fallback 为系统消息，与 advanceStage 行为一致 */
-        void this.sendMessage(stage.id, "开始执行。", "");
-      }
-    } catch (err) {
+    const summary = input.summary?.trim();
+    const sendMessage = summary
+      ? /** summary 本质是用户给 agent 的指令，作为用户消息发送（右侧气泡），agent 优先处理 */
+        this.sendMessage(stage.id, summary, "user")
+      : /** 无 summary 时 fallback 为系统消息，与 advanceStage 行为一致 */
+        this.sendMessage(stage.id, "开始执行。", "");
+    sendMessage.catch((err) => {
       log.error({ stageId: stage.id, err }, "autoInvokeFirstStage failed");
-    }
+    });
   }
 
   getStageAuditTrail(stageId: string): StageAuditRecord[] {
@@ -557,7 +552,7 @@ export class IssueCollaboration implements CollaborationInput {
       sharedSkill ? `- \`${sharedSkill}\` — 共享规则（特性编号、PR签名、证据规则、完成标准）` : null,
       roleDef?.skill ? `- \`${roleDef.skill}\` — ${roleDef.name}工作流程` : null,
     ].filter(Boolean).join("\n");
-    /** Issue 上下文：只读视图，基础设施字段缺失时标注警告 */
+    /** Issue 上下文：只读视图，Agent 应使用 MCP 工具读写。基础设施字段缺失时标注警告 */
     const missingInfra = ["worktree_path", "branch_name"].filter(f => !resolveContextValue(issue.context, f));
     const ctxLines = Object.entries(issue.context).map(([k, v]) => `- **${k}**: ${v}`).join("\n") || "无";
     const issueContext = missingInfra.length > 0 ? `${ctxLines}\n> ⚠️ 以下基础设施字段未记录：${missingInfra.join(", ")}` : ctxLines;

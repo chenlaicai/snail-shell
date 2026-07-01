@@ -200,7 +200,7 @@ function createIssueConsumer(issueId: string, socket: Socket, collaboration: Col
         type: "issue_event",
         issue_id: issueId,
         activity_status: collaboration.getActivityStatus(data.to),
-        event: { type: "stage_changed", stage_id: stageId, new_stage_id: data.to, from_key: data.from, to_key: data.to },
+        event: { type: "stage_changed", stage_id: stageId, new_stage_id: data.to, from_key: data.from_key, to_key: data.to_key },
       });
     },
   };

@@ -208,6 +208,11 @@ describe("autoInvokeNewStage: advanceStage/rollbackStage 后自动发送 kickoff
     await new Promise(resolve => setTimeout(resolve, 0));
 
     expect(createMessageSpy).toHaveBeenCalled();
+    /** kickoff 消息参数：系统消息（from_speaker=""） */
+    const kickoffCall = createMessageSpy.mock.calls[0][0];
+    expect(kickoffCall.stage_id).toBe("s2");
+    expect(kickoffCall.from_speaker).toBe("");
+    expect(kickoffCall.status).toBe("completed");
     expect(invokeFirstCallSpy).toHaveBeenCalled();
   });
 
@@ -217,6 +222,10 @@ describe("autoInvokeNewStage: advanceStage/rollbackStage 后自动发送 kickoff
     await collaboration.advanceStage("s1", "development");
 
     expect(setContextSpy).toHaveBeenCalled();
+    /** setContext 参数：messageId, "final_text", "开始执行。" */
+    const contextCall = setContextSpy.mock.calls[0];
+    expect(contextCall[1]).toBe("final_text");
+    expect(contextCall[2]).toBe("开始执行。");
   });
 
   it("kickoff 消息创建 text event（S1：确保 UI 可渲染）", async () => {
@@ -226,6 +235,9 @@ describe("autoInvokeNewStage: advanceStage/rollbackStage 后自动发送 kickoff
     await new Promise(resolve => setTimeout(resolve, 0));
 
     expect(appendEventSpy).toHaveBeenCalled();
+    /** appendEvent 参数：messageId, { type: "text", text: "开始执行。" } */
+    const eventCall = appendEventSpy.mock.calls[0];
+    expect(eventCall[1]).toEqual({ type: "text", text: "开始执行。" });
   });
 
   it("rollbackStage 后也自动发送 kickoff 消息并触发 agent", async () => {
@@ -373,6 +385,8 @@ describe("autoInvokeFirstStage: createIssue 后自动发送 kickoff 消息", () 
     /** 第一次调用是 kickoff 消息，from_speaker="user" */
     const firstCall = createMessageSpy.mock.calls[0][0];
     expect(firstCall.from_speaker).toBe("user");
+    expect(firstCall.stage_id).toBe("s1");
+    expect(firstCall.status).toBe("completed");
     expect(invokeFirstCallSpy).toHaveBeenCalled();
   });
 
@@ -387,9 +401,10 @@ describe("autoInvokeFirstStage: createIssue 后自动发送 kickoff 消息", () 
       snail_assignment_plan: {},
     });
 
-    /** setContext 被调用时，text 应为 summary 内容 */
+    /** setContext 被调用时，kind 和 text 应正确 */
     expect(setContextSpy).toHaveBeenCalled();
     const contextCall = setContextSpy.mock.calls[0];
+    expect(contextCall[1]).toBe("final_text");
     expect(contextCall[2]).toBe("帮我实现一个登录功能");
   });
 
@@ -408,6 +423,7 @@ describe("autoInvokeFirstStage: createIssue 后自动发送 kickoff 消息", () 
     const firstCall = createMessageSpy.mock.calls[0][0];
     /** from_speaker="" 表示系统消息 */
     expect(firstCall.from_speaker).toBe("");
+    expect(firstCall.stage_id).toBe("s1");
   });
 
   it("summary 为空时消息内容为'开始执行。'", async () => {
@@ -422,6 +438,7 @@ describe("autoInvokeFirstStage: createIssue 后自动发送 kickoff 消息", () 
 
     expect(setContextSpy).toHaveBeenCalled();
     const contextCall = setContextSpy.mock.calls[0];
+    expect(contextCall[1]).toBe("final_text");
     expect(contextCall[2]).toBe("开始执行。");
   });
 
