@@ -2,7 +2,6 @@ import type { Message, MessageContext, MessageEvent } from "@domain/message/mode
 import type { MessagePort } from "@domain/message/port";
 import type { IssuePort, StagePort, StageAuditRecord } from "@domain/issue/port";
 import type { CreateIssueInput, Issue, Stage } from "@domain/issue/model";
-import type { RoleDefinition } from "@domain/sop/model";
 import type { SnailPort } from "@domain/snail/port";
 import type { SnailFirstCallRequest, SnailResumeRequest } from "@domain/snail/model";
 import type { LiteAIPort } from "@domain/lite-ai/port";
@@ -14,8 +13,8 @@ import { AutoAdvanceEngine } from "@app/issue-collaboration/auto-advance";
 import { ConsumerNotifier } from "@app/issue-collaboration/consumer-notifier";
 import { MessageHandler } from "@app/issue-collaboration/message-handler";
 import { CollaborationHelpers } from "@app/issue-collaboration/helpers";
-import { cleanupResources, resolveContextValue, type CleanupResult } from "@app/issue-collaboration/resource-cleanup";
-import { buildIdentityBlock } from "@app/issue-collaboration/_internal/identity-block";
+import { cleanupResources, type CleanupResult } from "@app/issue-collaboration/resource-cleanup";
+import { buildSystemReminder } from "@app/issue-collaboration/_internal/system-prompt";
 import { CONTEXT_KEYS } from "@infra/acs/context-keys";
 import { getLogger } from "@infra/logger";
 const log = getLogger({ module: "collaboration" });
@@ -192,21 +191,20 @@ export class IssueCollaboration implements CollaborationInput {
   }
   async closeIssue(issueId: string): Promise<{ issue: Issue; cleanup: CleanupResult }> {
     const existingIssue = this.deps.issuePort.findIssue(issueId);
-    const skipped: CleanupResult = { pr: { status: "skipped" }, worktree: { status: "skipped" }, localBranch: { status: "skipped" }, remoteBranch: { status: "skipped" } };
     if (existingIssue?.closed_at) {
-      this.broadcastCompletion(existingIssue.workspace_path, issueId);
-      return { issue: existingIssue, cleanup: existingIssue.close_summary as CleanupResult ?? skipped };
+      const prevStatus = this.lastActivityStatus.get(issueId) ?? "needs_human";
+      this.lastActivityStatus.delete(issueId);
+      this.broadcastWorkspaceStatus(existingIssue.workspace_path, issueId, "completed", prevStatus);
+      const cleanup: CleanupResult = existingIssue.close_summary as CleanupResult ?? { pr: { status: "skipped" }, worktree: { status: "skipped" }, localBranch: { status: "skipped" }, remoteBranch: { status: "skipped" } };
+      return { issue: existingIssue, cleanup };
     }
     const issue = this.deps.issuePort.closeIssue(issueId);
-    this.broadcastCompletion(issue.workspace_path, issueId);
+    const prevStatus = this.lastActivityStatus.get(issueId) ?? "needs_human";
+    this.lastActivityStatus.delete(issueId);
+    this.broadcastWorkspaceStatus(issue.workspace_path, issueId, "completed", prevStatus);
     const cleanup = await cleanupResources(issue.context, issue.workspace_path);
     try { this.deps.issuePort.updateCloseSummary(issueId, cleanup); } catch (err) { log.error({ issueId, err }, "closeIssue: updateCloseSummary failed"); }
     return { issue, cleanup };
-  }
-  private broadcastCompletion(workspacePath: string, issueId: string): void {
-    const prev = this.lastActivityStatus.get(issueId) ?? "needs_human";
-    this.lastActivityStatus.delete(issueId);
-    this.broadcastWorkspaceStatus(workspacePath, issueId, "completed", prev);
   }
   private broadcastWorkspaceStatus(workspacePath: string, issueId: string, status: "ai_running" | "needs_human" | "completed", prevStatus: string): void {
     const consumers = this.workspaceConsumers.get(workspacePath);
@@ -246,6 +244,7 @@ export class IssueCollaboration implements CollaborationInput {
     const uniqueTargets = [...new Set(targets)];
     await Promise.all(uniqueTargets.map(speaker => this.dispatch(stageId, speaker)));
   }
+  /** B4: User Call 频率限制 — 同一 stage 内连续 user call 间隔 < threshold 时跳过通知 */
   private isUserCallRateLimited(stageId: string): boolean {
     const now = Date.now();
     const lastCall = this.lastUserCallAt.get(stageId);
@@ -292,7 +291,11 @@ export class IssueCollaboration implements CollaborationInput {
         return;
       }
       const current = this.dispatchStates.get(key);
-      if (!current || !current.pending) { this.dispatchStates.set(key, { status: "idle", pending: false }); return; }
+      if (!current) return;
+      if (!current.pending) {
+        this.dispatchStates.set(key, { status: "idle", pending: false });
+        return;
+      }
       remainingRounds--;
     }
     log.warn({ stageId, speaker }, "dispatch: max rounds reached");
@@ -341,7 +344,7 @@ export class IssueCollaboration implements CollaborationInput {
     unreadMessages: Message[]; agentMessage: Message; signal?: AbortSignal;
   }) {
     const { stageId, roleInstance, issue, stage, assignment, unreadMessages, agentMessage, signal } = input;
-    const systemReminder = this.buildSystemReminder({ issue, stage, roleInstance, roleKey: assignment.role_key, snailKey: assignment.snail_key });
+    const systemReminder = buildSystemReminder({ issue, stage, roleInstance, roleKey: assignment.role_key, snailKey: assignment.snail_key, snailPort: this.deps.snailPort });
     const agentMessages = unreadMessages.map(m => this.messageHandler.toAgentMessage(m));
     const firstCallRequest = {
       workspace_path: issue.workspace_path, messages: agentMessages, systemReminder: systemReminder || undefined,
@@ -526,7 +529,10 @@ export class IssueCollaboration implements CollaborationInput {
     try {
       const parsed = JSON.parse(text) as { stage_transition?: ParsedTransition };
       return parsed.stage_transition ?? null;
-    } catch { return null; }
+    } catch {
+      log.debug({ textLength: text.length }, "stage_transition.parse.skipped");
+      return null;
+    }
   }
   private async resolveToSpeakers(stage: Stage, text: string, fromSpeaker: string): Promise<SpeakerTarget[]> {
     const mentions = await this.resolveMentions(stage, text, fromSpeaker);
@@ -583,26 +589,6 @@ export class IssueCollaboration implements CollaborationInput {
         ? (reason ? `任务执行失败（${reason}）` : "任务执行失败")
         : "（无文本输出）";
     return { message_id: messageId, kind: "event_summary", context: fallback, created_at: new Date().toISOString() };
-  }
-  private buildSystemReminder(input: { issue: Issue; stage: Stage; roleInstance: string; roleKey: string; snailKey: string }): string {
-    const { issue, stage, roleInstance, roleKey, snailKey } = input;
-    const stageDef = issue.sop_snapshot.stage_definitions.find(d => d.key === stage.key);
-    const roleDef = stageDef?.roles.find(r => r.key === roleKey);
-    return [buildIdentityBlock(roleDef?.name ?? roleInstance, roleInstance, roleDef, this.deps.snailPort.findByKey(snailKey)), this.buildContextBlock(issue, stage, roleDef, roleInstance)].join("\n\n");
-  }
-  private buildContextBlock(issue: Issue, stage: Stage, roleDef: RoleDefinition | undefined, roleInstance: string): string {
-    const transitions = stage.available_transitions.map(transition => `- ${transition.to}${transition.guard ? `: ${transition.guard}` : ""}`).join("\n");
-    const sharedSkill = issue.sop_snapshot.shared_skill;
-    const skillList = [
-      sharedSkill ? `- \`${sharedSkill}\` — 共享规则（特性编号、PR签名、证据规则、完成标准）` : null,
-      roleDef?.skill ? `- \`${roleDef.skill}\` — ${roleDef.name}工作流程` : null,
-    ].filter(Boolean).join("\n");
-    /** Issue 上下文：只读视图，Agent 应使用 MCP 工具读写。基础设施字段缺失时标注警告 */
-    const missingInfra = ["worktree_path", "branch_name"].filter(f => !resolveContextValue(issue.context, f));
-    const ctxLines = Object.entries(issue.context).map(([k, v]) => `- **${k}**: ${v}`).join("\n") || "无";
-    const issueContext = missingInfra.length > 0 ? `${ctxLines}\n> ⚠️ 以下基础设施字段未记录：${missingInfra.join(", ")}` : ctxLines;
-    const targets = ["user", ...stage.role_instances.filter(i => i !== roleInstance)].map(t => `\`${t}\``).join("、");
-    return `<context>\n## 项目上下文\n**Issue**：${issue.title}\n**Issue ID**：${issue.id}\n**工作区**：${issue.workspace_path}\n**Issue 摘要**：${issue.summary ?? "无"}\n## Issue 上下文（只读视图）\n${issueContext}\n> **注意**：这是只读视图。Agent 应使用 MCP 工具 \`set_context\` 和 \`get_context\` 读写 Issue 上下文。Issue 上下文也会通过环境变量 \`SNAIL_CTX_*\` 注入，可通过 \`process.env\` 读取。\n## 当前阶段\n**阶段**：${stage.title} (${stage.key})\n**阶段描述**：${stage.description}\n## 可用 Skills\n${skillList}\n使用 skill tool 触发对应的 skill，获取详细工作流程和规则。\n## 可用流转\n${transitions || "无"}\n## 协作规则\n- 你可以通过 @角色实例 请求其他角色回应\n- 你是当前阶段的守门人，不是推进者。建议 stage_transition 前，必须先完成所在 SKILL.md 中的 Stage Gate 自检并呈现完整证据。\n- 通过信号表达阶段工作结果：signal_type: gate_complete（单人完成）、adversarial_consensus（多人共识）、disagreement（分歧）\n## 最终答复规则\n**必须使用 \`set_final_body\` MCP 设置最终答复**。每次发言结束前必须调用此工具，传入你希望展示给用户的完整 Markdown 内容。调用后本轮发言结束，不得再调用任何其他工具。\n**路由目标声明**：如果需要其他角色继续处理，必须在 \`set_final_body\` 的 \`to_speakers\` 参数中声明目标角色。\n**可用路由目标**：${targets}\n**格式要求**：必须使用上述精确名称。不要使用 snail key（如 claude-code-stateful）、role key（如 designer）或英文翻译（如 architect-1）。\n**必选参数**：调用 \`set_final_body\` 时必须传入 \`message_id\` 和 \`stage_id\`，从环境变量 \`SNAIL_CTX_MESSAGE_ID\` 和 \`SNAIL_CTX_STAGE_ID\` 获取。\n</context>`;
   }
   private async notifyConsumers(stageId: string, method: keyof CollaborationConsumer, ...args: unknown[]): Promise<void> {
     const stage = this.helpers.mustGetStage(stageId);
