@@ -7,9 +7,14 @@ describe("extractMentionQuery", () => {
     expect(extractMentionQuery("@ali", 4)).toEqual({ start: 0, query: "ali" });
   });
 
-  /** @ 后无字符时不匹配（需要至少一个字母/数字/_ 开头） */
-  it("returns null when cursor right after @ with no query", () => {
-    expect(extractMentionQuery("@", 1)).toBeNull();
+  /** @ 后无字符时显示全量列表 */
+  it("returns empty query when cursor right after @ with no query", () => {
+    expect(extractMentionQuery("@", 1)).toEqual({ start: 0, query: "" });
+  });
+
+  /** 空格后 @ 后无字符时也显示全量列表 */
+  it("returns empty query when cursor right after @ with space prefix", () => {
+    expect(extractMentionQuery(" @", 2)).toEqual({ start: 1, query: "" });
   });
 
   /** 核心修复：选中 mention 后 trailing space 不触发候选框 */

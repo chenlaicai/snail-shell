@@ -4,7 +4,7 @@
 
 本规则适用于开发者和审查者写入 GitHub PR 的普通评论，包括检视意见、检视意见处理结论、复检请求、复检结论和仍需对方响应的说明。
 
-本规则不适用于 message-payload 结构化消息。message-payload 的责任归属和路由由 payload 中的消息元数据与 mentions 字段承担。
+本规则不适用于通过 `set_final_body` 提交的最终答复。`set_final_body` 的路由由 `to_speakers` 参数承担。
 
 ## 模板
 

@@ -54,7 +54,7 @@
 
 ## 阶段五补充：检视后系统内呼叫
 
-PR 评论完成后，必须在 Snail Shell 系统中通过 `message-payload` 向开发者发送消息，@对应 role instance。消息内容包含：
+PR 评论完成后，必须通过 `set_final_body` 的 `to_speakers` 声明路由目标。消息内容包含：
 - PR 链接
 - 检视结论摘要
 - 待处理问题列表

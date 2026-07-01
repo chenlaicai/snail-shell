@@ -1,5 +1,5 @@
 ---
-id: F2026070101
+id: F20260701w8ey
 title: stage-suggestion-position
 from_ids: [F2026060306]
 tags: [ui, ux]
@@ -7,7 +7,7 @@ modules: [web]
 doc_kind: spec
 ---
 
-# F2026070101 [web] Stage Suggestion / Actions 显示位置优化
+# F20260701w8ey [web] Stage Suggestion / Actions 显示位置优化
 
 <!-- [design-time] 以下章节在需求收敛与设计阶段（代码前）完成并锁定 -->
 <!-- 进入实现阶段后不得单方面修改，如需变更须通过问题卡片向用户提出并确认 -->

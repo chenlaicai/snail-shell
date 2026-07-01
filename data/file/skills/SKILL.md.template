@@ -35,7 +35,6 @@ description: 简要说明这个 skill 提供什么能力，以及 Claude 在什�
 - 是否必填：建议必填；未填写时通常会回退到目录名。
 - 命名建议：使用 kebab-case。
 - 示例取值：
-  - `message-payload`
   - `ask-user`
   - `code-style-review`
 
@@ -62,9 +61,9 @@ description: 简要说明这个 skill 提供什么能力，以及 Claude 在什�
 
 ### 示例 1：带命令入口的 skill
 
-- 名称：`message-payload`
-- 用途：统一包装结构化消息内容
-- 正文中会写清楚命令路径，例如：`node .meta/skills/message-payload/scripts/message-payload.js`
+- 名称：`example-script-skill`
+- 用途：统一包装结构化内容
+- 正文中会写清楚命令路径，例如：`node scripts/example.js`
 
 ### 示例 2：偏规则型的 skill
 
