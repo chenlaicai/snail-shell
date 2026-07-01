@@ -65,8 +65,10 @@ npm run service:start
 
 该命令会在后台同时启动后端和 Web，不占用当前终端。启动脚本会先检查配置端口是否被占用，并在确认服务真正监听成功后才报告运行中。日志写入：
 
-- `logs/server.log`
-- `logs/web.log`
+- `logs/snail-shell.YYYY-MM-DD.log` — 后端结构化 JSON 日志（主要日志位置）
+- `logs/web.YYYY-MM-DD.log` — 前端性能日志
+- `logs/server.log` — 进程级输出（非 pino，启动失败排查用）
+- `logs/web.log` — Vite 进程输出
 
 常用管理命令：
 
