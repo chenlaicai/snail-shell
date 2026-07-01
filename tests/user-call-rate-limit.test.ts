@@ -117,7 +117,7 @@ describe("User Call rate limiting (B4)", () => {
     await new Promise(resolve => setTimeout(resolve, 50));
 
     // onUserCalled should only be called once (first call), not twice
-    expect(onUserCalled).toHaveBeenCalled();
+    expect(onUserCalled.mock.calls).toHaveLength(1);
   });
 
   it("should allow user call after rate limit window expires", async () => {
@@ -148,7 +148,9 @@ describe("User Call rate limiting (B4)", () => {
     await new Promise(resolve => setTimeout(resolve, 10));
     await collaboration.sendMessage("s1", "hello again", "user", ["user"]);
 
+    // Wait for async fire-and-forget chains to complete
+    await new Promise(resolve => setTimeout(resolve, 50));
     // Both calls should trigger onUserCalled
-    expect(onUserCalled).toHaveBeenCalled();
+    expect(onUserCalled.mock.calls).toHaveLength(2);
   });
 });

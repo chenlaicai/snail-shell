@@ -192,20 +192,21 @@ export class IssueCollaboration implements CollaborationInput {
   }
   async closeIssue(issueId: string): Promise<{ issue: Issue; cleanup: CleanupResult }> {
     const existingIssue = this.deps.issuePort.findIssue(issueId);
+    const skipped: CleanupResult = { pr: { status: "skipped" }, worktree: { status: "skipped" }, localBranch: { status: "skipped" }, remoteBranch: { status: "skipped" } };
     if (existingIssue?.closed_at) {
-      const prevStatus = this.lastActivityStatus.get(issueId) ?? "needs_human";
-      this.lastActivityStatus.delete(issueId);
-      this.broadcastWorkspaceStatus(existingIssue.workspace_path, issueId, "completed", prevStatus);
-      const cleanup: CleanupResult = existingIssue.close_summary as CleanupResult ?? { pr: { status: "skipped" }, worktree: { status: "skipped" }, localBranch: { status: "skipped" }, remoteBranch: { status: "skipped" } };
-      return { issue: existingIssue, cleanup };
+      this.broadcastCompletion(existingIssue.workspace_path, issueId);
+      return { issue: existingIssue, cleanup: existingIssue.close_summary as CleanupResult ?? skipped };
     }
     const issue = this.deps.issuePort.closeIssue(issueId);
-    const prevStatus = this.lastActivityStatus.get(issueId) ?? "needs_human";
-    this.lastActivityStatus.delete(issueId);
-    this.broadcastWorkspaceStatus(issue.workspace_path, issueId, "completed", prevStatus);
+    this.broadcastCompletion(issue.workspace_path, issueId);
     const cleanup = await cleanupResources(issue.context, issue.workspace_path);
     try { this.deps.issuePort.updateCloseSummary(issueId, cleanup); } catch (err) { log.error({ issueId, err }, "closeIssue: updateCloseSummary failed"); }
     return { issue, cleanup };
+  }
+  private broadcastCompletion(workspacePath: string, issueId: string): void {
+    const prev = this.lastActivityStatus.get(issueId) ?? "needs_human";
+    this.lastActivityStatus.delete(issueId);
+    this.broadcastWorkspaceStatus(workspacePath, issueId, "completed", prev);
   }
   private broadcastWorkspaceStatus(workspacePath: string, issueId: string, status: "ai_running" | "needs_human" | "completed", prevStatus: string): void {
     const consumers = this.workspaceConsumers.get(workspacePath);
@@ -245,7 +246,6 @@ export class IssueCollaboration implements CollaborationInput {
     const uniqueTargets = [...new Set(targets)];
     await Promise.all(uniqueTargets.map(speaker => this.dispatch(stageId, speaker)));
   }
-  /** B4: User Call 频率限制 — 同一 stage 内连续 user call 间隔 < threshold 时跳过通知 */
   private isUserCallRateLimited(stageId: string): boolean {
     const now = Date.now();
     const lastCall = this.lastUserCallAt.get(stageId);
@@ -292,11 +292,7 @@ export class IssueCollaboration implements CollaborationInput {
         return;
       }
       const current = this.dispatchStates.get(key);
-      if (!current) return;
-      if (!current.pending) {
-        this.dispatchStates.set(key, { status: "idle", pending: false });
-        return;
-      }
+      if (!current || !current.pending) { this.dispatchStates.set(key, { status: "idle", pending: false }); return; }
       remainingRounds--;
     }
     log.warn({ stageId, speaker }, "dispatch: max rounds reached");
@@ -419,6 +415,8 @@ export class IssueCollaboration implements CollaborationInput {
       id: suggestion.message_id.toString(), stage_id: suggestion.stage_id, target_key: suggestion.target_key,
       signal_type: suggestion.signal_type ?? null, gate_evidence: suggestion.gate_evidence ? JSON.stringify(suggestion.gate_evidence) : null,
       adversarial_artifact: suggestion.adversarial_artifact ? JSON.stringify(suggestion.adversarial_artifact) : null,
+      decision_mode: suggestion.decision_mode ?? null, recommendation: suggestion.recommendation ?? null,
+      alternatives: suggestion.alternatives ? JSON.stringify(suggestion.alternatives) : null,
       status: "pending", created_at: Date.now(), processed_at: null,
     });
   }
@@ -466,6 +464,9 @@ export class IssueCollaboration implements CollaborationInput {
       signal_type: r.signal_type as SignalType | undefined,
       gate_evidence: r.gate_evidence ? JSON.parse(r.gate_evidence) : undefined,
       adversarial_artifact: r.adversarial_artifact ? JSON.parse(r.adversarial_artifact) : undefined,
+      decision_mode: r.decision_mode as DecisionMode | undefined,
+      recommendation: r.recommendation ?? undefined,
+      alternatives: r.alternatives ? JSON.parse(r.alternatives) as string[] : undefined,
     })));
   }
   getStageAuditTrail(stageId: string): StageAuditRecord[] {
@@ -525,10 +526,7 @@ export class IssueCollaboration implements CollaborationInput {
     try {
       const parsed = JSON.parse(text) as { stage_transition?: ParsedTransition };
       return parsed.stage_transition ?? null;
-    } catch {
-      log.debug({ textLength: text.length }, "stage_transition.parse.skipped");
-      return null;
-    }
+    } catch { return null; }
   }
   private async resolveToSpeakers(stage: Stage, text: string, fromSpeaker: string): Promise<SpeakerTarget[]> {
     const mentions = await this.resolveMentions(stage, text, fromSpeaker);
