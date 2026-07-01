@@ -126,28 +126,20 @@ describe("validateWorktreePath", () => {
 // ── resolveContextValue ──────────────────────────────────────────────
 
 describe("resolveContextValue", () => {
-  it("精确匹配无前缀 key", () => {
-    expect(resolveContextValue({ worktree_path: "/path" }, "worktree_path")).toBe("/path");
-  });
-
-  it("精确匹配 stage-prefixed key", () => {
-    expect(resolveContextValue({ "design.worktree_path": "/path" }, "worktree_path")).toBe("/path");
-  });
-
-  it("无前缀 key 优先于 prefixed key", () => {
-    expect(resolveContextValue({ worktree_path: "/a", "design.worktree_path": "/b" }, "worktree_path")).toBe("/a");
+  it("精确匹配 key", () => {
+    expect(resolveContextValue({ "design.worktree_path": "/path" }, "design.worktree_path")).toBe("/path");
   });
 
   it("key 不存在时返回 undefined", () => {
-    expect(resolveContextValue({}, "worktree_path")).toBeUndefined();
+    expect(resolveContextValue({}, "design.worktree_path")).toBeUndefined();
   });
 
   it("值为空白时返回 undefined", () => {
-    expect(resolveContextValue({ worktree_path: "  " }, "worktree_path")).toBeUndefined();
+    expect(resolveContextValue({ "design.worktree_path": "  " }, "design.worktree_path")).toBeUndefined();
   });
 
   it("匹配 development.pr_url", () => {
-    expect(resolveContextValue({ "development.pr_url": "https://github.com/x/y/pull/1" }, "pr_url")).toBe("https://github.com/x/y/pull/1");
+    expect(resolveContextValue({ "development.pr_url": "https://github.com/x/y/pull/1" }, "development.pr_url")).toBe("https://github.com/x/y/pull/1");
   });
 });
 
@@ -171,38 +163,38 @@ describe("cleanupResources", () => {
 
   it("成功关闭 PR", async () => {
     mockExecSuccess();
-    const result = await cleanupResources({ pr_url: "https://github.com/owner/repo/pull/42" }, "/workspace");
+    const result = await cleanupResources({ "development.pr_url": "https://github.com/owner/repo/pull/42" }, "/workspace");
     expect(result.pr.status).toBe("success");
   });
 
   it("PR 不存在时 skipped", async () => {
     mockExecFail(1, "Could not resolve to a pull request");
-    const result = await cleanupResources({ pr_url: "https://github.com/owner/repo/pull/999" }, "/workspace");
+    const result = await cleanupResources({ "development.pr_url": "https://github.com/owner/repo/pull/999" }, "/workspace");
     expect(result.pr.status).toBe("skipped");
   });
 
   it("成功删除 worktree", async () => {
     mockExecSuccess();
-    const result = await cleanupResources({ worktree_path: "/workspace/.snail/worktrees/feature-x" }, "/workspace");
+    const result = await cleanupResources({ "development.worktree_path": "/workspace/.snail/worktrees/feature-x" }, "/workspace");
     expect(result.worktree.status).toBe("success");
   });
 
   it("worktree 有未提交更改时 failed", async () => {
     mockExecFail(1, "fatal: '/workspace/.snail/worktrees/feature-x' contains modified or untracked files");
-    const result = await cleanupResources({ worktree_path: "/workspace/.snail/worktrees/feature-x" }, "/workspace");
+    const result = await cleanupResources({ "development.worktree_path": "/workspace/.snail/worktrees/feature-x" }, "/workspace");
     expect(result.worktree.status).toBe("failed");
     expect(result.worktree.error).toContain("未提交更改");
   });
 
   it("worktree 路径不在白名单时 failed", async () => {
-    const result = await cleanupResources({ worktree_path: "/workspace/src" }, "/workspace");
+    const result = await cleanupResources({ "development.worktree_path": "/workspace/src" }, "/workspace");
     expect(result.worktree.status).toBe("failed");
     expect(result.worktree.error).toContain("白名单");
   });
 
   it("成功删除本地和远端分支", async () => {
     mockExecSuccess();
-    const result = await cleanupResources({ branch_name: "feature-x" }, "/workspace");
+    const result = await cleanupResources({ "development.branch_name": "feature-x" }, "/workspace");
     expect(result.localBranch.status).toBe("success");
     expect(result.remoteBranch.status).toBe("success");
   });
@@ -224,14 +216,14 @@ describe("cleanupResources", () => {
       cb?.(null, "", "");
       return {} as any;
     });
-    const result = await cleanupResources({ branch_name: "feature-x" }, "/workspace");
+    const result = await cleanupResources({ "development.branch_name": "feature-x" }, "/workspace");
     expect(result.localBranch.status).toBe("failed");
     expect(result.localBranch.error).toContain("未合入");
     expect(result.remoteBranch.status).toBe("success");
   });
 
   it("拒绝删除保留分支时 localBranch 和 remoteBranch 均 failed", async () => {
-    const result = await cleanupResources({ branch_name: "main" }, "/workspace");
+    const result = await cleanupResources({ "development.branch_name": "main" }, "/workspace");
     expect(result.localBranch.status).toBe("failed");
     expect(result.localBranch.error).toContain("保留分支");
     expect(result.remoteBranch.status).toBe("failed");
@@ -257,7 +249,7 @@ describe("cleanupResources", () => {
       cb?.(err, "", "error: remote ref does not exist");
       return {} as any;
     });
-    const result = await cleanupResources({ branch_name: "feature-x" }, "/workspace");
+    const result = await cleanupResources({ "development.branch_name": "feature-x" }, "/workspace");
     expect(result.localBranch.status).toBe("success");
     expect(result.remoteBranch.status).toBe("skipped");
   });
@@ -265,9 +257,9 @@ describe("cleanupResources", () => {
   it("完整清理流程：PR → worktree → local branch → remote branch", async () => {
     mockExecSuccess();
     const result = await cleanupResources({
-      pr_url: "https://github.com/owner/repo/pull/42",
-      worktree_path: "/workspace/.snail/worktrees/feature-x",
-      branch_name: "feature/x",
+      "development.pr_url": "https://github.com/owner/repo/pull/42",
+      "development.worktree_path": "/workspace/.snail/worktrees/feature-x",
+      "development.branch_name": "feature/x",
     }, "/workspace");
     expect(result.pr.status).toBe("success");
     expect(result.worktree.status).toBe("success");
@@ -278,8 +270,8 @@ describe("cleanupResources", () => {
   it("stage-prefixed key 能正确解析（agent 通过 set_context 写入的格式）", async () => {
     mockExecSuccess();
     const result = await cleanupResources({
-      "design.worktree_path": "/workspace/.snail/worktrees/feature-x",
-      "design.branch_name": "feature-x",
+      "development.worktree_path": "/workspace/.snail/worktrees/feature-x",
+      "development.branch_name": "feature-x",
       "development.pr_url": "https://github.com/owner/repo/pull/42",
     }, "/workspace");
     expect(result.pr.status).toBe("success");
