@@ -300,6 +300,7 @@ interface WsHandlers {
   onOpen: () => void;
   onMessage: (msg: WsServerMessage) => void;
   onClose: () => void;
+  onError?: () => void;
 }
 
 function createWsConnection(url: string, handlers: WsHandlers): WebSocket {
@@ -311,7 +312,7 @@ function createWsConnection(url: string, handlers: WsHandlers): WebSocket {
     catch (err) { console.warn("[WebSocket] 消息解析失败:", err, e.data); }
   };
   ws.onclose = () => { if (handlers.mounted()) handlers.onClose(); };
-  ws.onerror = () => ws.close();
+  ws.onerror = () => { handlers.onError?.(); ws.close(); };
   return ws;
 }
 
@@ -349,11 +350,12 @@ export function useIssueRealtime(issueId: string | null, currentStageId: string 
             setWsStatus("connected");
           },
           onMessage: (msg) => batcherRef.current!.add(msg),
+          onError: () => { if (mounted && activeWs === ws && wsRef.current === ws) setWsStatus("error"); },
           onClose: () => {
             if (!mounted || activeWs !== ws || wsRef.current !== ws) return;
             t.count++;
             recordWsDisconnect(`reconnect in ${t.delay}ms`, t.count);
-            setWsStatus("disconnected");
+            if (useConversationStore.getState().wsStatus !== "error") setWsStatus("disconnected");
             console.log(`[WebSocket] 连接关闭，${t.delay}ms 后重连`);
             t.timer = setTimeout(() => { t.delay = Math.min(t.delay * 2, 30000); connect(); }, t.delay);
           },
