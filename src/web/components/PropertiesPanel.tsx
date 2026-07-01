@@ -1,17 +1,21 @@
 import { formatDate, formatRelativeTime } from "@/lib/utils";
+import { StageActionBar } from "@/components/StageActionBar";
 import type { IssueDetailDto, StageDetailDto, CleanupResultDto } from "@/types";
 
 interface PropertiesPanelProps {
   issue: IssueDetailDto;
   stage?: StageDetailDto | null;
+  onStageChanged: (stage: StageDetailDto) => void;
 }
 
-export function PropertiesPanel({ issue, stage }: PropertiesPanelProps) {
+export function PropertiesPanel({ issue, stage, onStageChanged }: PropertiesPanelProps) {
   const currentStage = stage ?? issue.current_stage;
 
   return (
     <aside className="w-[280px] shrink-0 bg-surface-1 border-l border-white/6 flex flex-col overflow-y-auto">
       <div className="px-4 py-4 space-y-4">
+
+        <StageActionBar issue={issue} currentStage={currentStage} onStageChanged={onStageChanged} />
 
         <Section title="Details">
           <PropRow label="Stage">
