@@ -18,8 +18,8 @@ tags: [analysis, cleanup, architecture]
 ### Skills 目录结构
 
 **两个目录的关系**：
-- `.claude/skills/`：Claude Code 实际使用的目录，包含 15 个 symlinks，指向 `data/file/skills/` 下的目录
-- `data/file/skills/`：实际存放 skill 内容的目录，包含 14 个普通目录（其中 4 个为空）
+- `.claude/skills/`：Claude Code 实际使用的目录，包含 10 个 symlinks，指向 `data/file/skills/` 下的目录
+- `data/file/skills/`：实际存放 skill 内容的目录，包含 9 个普通目录
 
 #### 活跃 Skills（10 个，在系统提示词中注册）
 
