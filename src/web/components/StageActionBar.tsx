@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api-client";
 import { showToast } from "@/components/Toast";
+import { CloseIssueDialog } from "@/components/CloseIssueDialog";
 import { useCloseIssue } from "@/mutations/issue.mutations";
 import { queryKeys } from "@/queries/keys";
 import type { IssueDetailDto, StageDetailDto, StageTransition, CleanupResultDto } from "@/types";
@@ -17,6 +18,7 @@ export function StageActionBar({
 }) {
   const [advancing, setAdvancing] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+  const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [selectedTarget, setSelectedTarget] = useState("");
   const closeIssue = useCloseIssue(issue.workspace_id);
   const qc = useQueryClient();
@@ -93,11 +95,15 @@ export function StageActionBar({
   }
 
   function handleClose() {
-    if (!window.confirm("确认关闭此 Issue？关闭后对话保留为只读")) return;
+    setShowCloseDialog(true);
+  }
+
+  function confirmClose() {
     setIsClosing(true);
     closeIssue.mutate(issue.id, {
       onSuccess: () => {
         setIsClosing(false);
+        setShowCloseDialog(false);
         showToast("Issue 已关闭");
       },
       onError: (err: unknown) => {
@@ -134,6 +140,12 @@ export function StageActionBar({
       >
         {closeIssue.isPending || isClosing ? "Closing..." : "Close Issue"}
       </button>
+      <CloseIssueDialog
+        open={showCloseDialog}
+        onClose={() => setShowCloseDialog(false)}
+        onConfirm={confirmClose}
+        closing={isClosing}
+      />
     </div>
   );
 }
