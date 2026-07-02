@@ -20,6 +20,19 @@ description: |
 - **commit message 格式严格**：按 `cd-shared/references/feature-numbering.md` 中的编号格式和 PR 标题模板。
 - **不兼容更新必须标注**：commit 和 PR title 中的 `[Incompatible]` 标记不可省略。
 
+## 情境感知
+
+进入 stage 后，在开始具体工作前，先了解当前情境：
+
+1. **阅读 context block**：system-reminder 中的"阶段历史"段落已包含完整的阶段链和前序阶段的关键消息
+2. **判断是否为重新进入**：如果 kickoff 消息包含"重新进入"或 context block 标注"重新进入"，说明你正在重新进入一个已访问过的阶段，需要特别关注前序阶段发生了什么变化
+3. **按需深入查询**：如果 context block 中的信息不足以理解当前情况，使用以下 MCP 工具：
+   - `get_stage_history`：获取完整的阶段历史和结构化数据
+   - `list_messages`：查询特定阶段的消息列表
+   - `search_messages`：按关键词搜索历史消息
+   - `get_context`：读取 Issue 上下文中存储的跨阶段元数据
+4. **不要假设"开始执行"意味着从零开始**：前序阶段可能已经完成了大量工作，你需要在已有基础上继续
+
 ## 工作流程索引
 
 1. **环境准备** — worktree 创建、origin/main 确认、feature 文档加载、issue context `sop.change_type` 设置。详见 `references/workflow.md`。

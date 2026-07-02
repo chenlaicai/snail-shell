@@ -29,7 +29,7 @@ export interface StageRepository {
   listAllOpenStageIds(): string[];
   create(stage: Stage): void;
   update(stageId: string, updates: Partial<Pick<Stage, "left_at" | "output_artifacts">>): void;
-  /** 回退到指定 Stage */
+  /** @deprecated 使用 advanceStage（通过 StagePort）代替。保留实现以兼容，不再被调用。 */
   rollbackStage(currentStageId: string, targetKey: string): Stage;
   /** 记录审计轨迹 */
   recordAudit(audit: StageAuditRecord): void;

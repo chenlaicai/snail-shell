@@ -232,8 +232,9 @@ export class StageAdapter implements StagePort {
     });
   }
 
+  /** @deprecated 使用 advanceStage() 代替。内部委托给 advanceStage()，保持 append-only 模型。 */
   rollbackStage(currentStageId: string, targetKey: string): Stage {
-    return this.stageRepo.rollbackStage(currentStageId, targetKey);
+    return this.advanceStage(currentStageId, targetKey);
   }
 
   recordAudit(audit: StageAuditRecord): void {

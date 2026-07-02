@@ -16,6 +16,7 @@ import { MessageHandler } from "@app/issue-collaboration/message-handler";
 import { CollaborationHelpers } from "@app/issue-collaboration/helpers";
 import { cleanupResources, resolveContextValue, type CleanupResult } from "@app/issue-collaboration/resource-cleanup";
 import { buildIdentityBlock } from "@app/issue-collaboration/_internal/identity-block";
+import { buildStageHistoryBlock, isStageReEntry } from "@app/issue-collaboration/_internal/stage-history-block";
 import { CONTEXT_KEYS } from "@infra/acs/context-keys";
 import { getLogger } from "@infra/logger";
 const log = getLogger({ module: "collaboration" });
@@ -415,18 +416,16 @@ export class IssueCollaboration implements CollaborationInput {
     })));
   }
   async rollbackStage(stageId: string, targetKey: string): Promise<Stage> {
-    const stage = this.deps.stagePort.rollbackStage(stageId, targetKey);
-    this.cleanupDispatchStates(stageId);
-    this.deps.stageSuggestionRepo.deleteByStage(stageId);
-    this.suggestions.delete(stageId);
-    this.helpers.initStageCursors(stage);
-    this.autoInvokeNewStage(stage);
-    return stage;
+    return this.advanceStage(stageId, targetKey);
   }
   /** 阶段推进后自动向新阶段发送 kickoff 消息，触发默认 agent 开始工作 */
   private autoInvokeNewStage(stage: Stage): void {
     if (!stage.default_role_instance) return;
-    this.sendMessage(stage.id, "开始执行。", "").catch((err) => {
+    const reEntry = isStageReEntry(this.deps.stagePort, stage);
+    const text = reEntry
+      ? `重新进入 [${stage.key}] 阶段。请先了解前序阶段的情况和变更，再开始工作。`
+      : "开始执行。";
+    this.sendMessage(stage.id, text, "").catch((err) => {
       log.error({ stageId: stage.id, err }, "autoInvokeNewStage failed");
     });
   }
@@ -559,6 +558,8 @@ export class IssueCollaboration implements CollaborationInput {
     const missingInfra = (issue.sop_snapshot.stage_definitions.find(d => d.key === stage.key)?.auto_advance?.required_context_fields ?? []).filter(f => !resolveContextValue(issue.context, f));
     const ctxLines = Object.entries(issue.context).map(([k, v]) => `- **${k}**: ${v}`).join("\n") || "无";
     const issueContext = missingInfra.length > 0 ? `${ctxLines}\n> ⚠️ 以下基础设施字段未记录：${missingInfra.join(", ")}` : ctxLines;
+    /** 阶段历史：通过 from_stage_id 回溯构建链路，展示前序阶段的最近消息 */
+    const stageHistory = buildStageHistoryBlock(this.deps.stagePort, this.deps.messagePort, stage);
     return `<context>
 ## 项目上下文
 **Issue**：${issue.title}
@@ -567,6 +568,7 @@ export class IssueCollaboration implements CollaborationInput {
 ## Issue 上下文（只读视图）
 ${issueContext}
 > **注意**：这是只读视图。Agent 应使用 MCP 工具 \`set_context\` 和 \`get_context\` 读写 Issue 上下文。Issue 上下文也会通过环境变量 \`SNAIL_CTX_*\` 注入，可通过 \`process.env\` 读取。
+${stageHistory}
 ## 当前阶段
 **阶段**：${stage.title} (${stage.key}) — ${stage.description}
 ## 可用 Skills
