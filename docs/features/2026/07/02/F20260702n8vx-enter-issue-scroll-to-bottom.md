@@ -132,21 +132,34 @@ scrollContainer (clientHeight = 800px)
 
 `scrollToIndex(last, { align: 'end' })` → `scrollTop = 360` → 用户看到最后一条消息在底部，无空白。
 
-**修改点 1**：使用 ref 跟踪不含 padding 的内容高度，动态计算 `paddingEnd`
+**修改点 1**：使用 `ResizeObserver` 监听容器尺寸变化，动态计算 `paddingEnd`
 
 ```typescript
-const contentHeightRef = useRef(0);
 const [paddingEnd, setPaddingEnd] = useState(0);
+const [containerHeight, setContainerHeight] = useState(0);
 
+/** 监听容器尺寸变化（窗口 resize、PropertiesPanel 展开/折叠等） */
+useEffect(() => {
+  const el = scrollRef.current;
+  if (!el) return;
+  setContainerHeight(el.clientHeight);
+  const observer = new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      setContainerHeight(entry.contentRect.height);
+    }
+  });
+  observer.observe(el);
+  return () => observer.disconnect();
+}, []);
+
+/** 当消息数量或容器尺寸变化时，计算 paddingEnd */
 useLayoutEffect(() => {
   const el = scrollRef.current;
   if (!el) return;
-  const containerHeight = el.clientHeight;
   const rawContentHeight = sorted.length * 120; // estimateSize
-  contentHeightRef.current = rawContentHeight;
-  const needed = Math.max(0, containerHeight - rawContentHeight);
+  const needed = Math.max(0, el.clientHeight - rawContentHeight);
   setPaddingEnd(needed);
-}, [sorted.length]);
+}, [sorted.length, containerHeight]);
 ```
 
 > **[D1]** 当虚拟列表总高度 < 可视区域高度时，使用 `paddingEnd` 增加 scrollHeight。正方：解决"消息少时大面积空白"的问题，同时保持"滚动到底部"的正确行为；`paddingEnd` 是 TanStack Virtual 的原生支持，不会破坏虚拟滚动机制。反方：增加了复杂度，需要避免循环依赖。依据：`getTotalSize()` 返回值包含 `paddingEnd`（`end - scrollMargin + paddingEnd`），所以 `paddingEnd` 会影响 `totalSize`，不能用 `totalSize` 计算 `paddingEnd`。
@@ -190,16 +203,16 @@ useEffect(() => {
 ### 硬约束（违反即 bug）
 - 进入 issue 时（`prevStageIdRef` 从 `null` 变为实际值）必须滚动到底部
 - 消息少时（虚拟列表总高度 < 可视区域高度）不得出现大面积空白
-- `paddingEnd` 必须使用 ref 跟踪的不含 padding 的内容高度计算，避免循环依赖
+- `paddingEnd` 必须使用 `el.clientHeight`（DOM 实际值）计算，避免与 `getTotalSize()` 循环依赖
 
 ### 设计取舍（不得自行推翻）
 - 使用 `paddingEnd` 而非 `offsetY` 偏移，因为 `offsetY` 会导致消息渲染在 scrollHeight 之外
-- 使用 ref 跟踪 `rawContentHeight`，而非直接使用 `virtualizer.getTotalSize()`，避免循环依赖
+- 使用 `el.clientHeight` 而非 `virtualizer.getTotalSize()`，避免循环依赖；通过 `ResizeObserver` 响应容器尺寸变化
 
 ### 语义不变量（实现中必须保持为真）
 - `wasAtBottomRef.current === true` 当且仅当需要自动滚动到底部
 - `paddingEnd >= 0` 当且仅当虚拟列表总高度 < 可视区域高度
-- `contentHeightRef.current` 始终为不含 padding 的原始内容高度
+- `containerHeight` 通过 `ResizeObserver` 保持与滚动容器 `clientHeight` 同步
 
 ### 非目标（不得扩展）
 - 不重构滚动逻辑的整体架构
@@ -242,5 +255,5 @@ useEffect(() => {
 
 | # | 风险 | 严重程度 | 影响 | 缓解策略 | 负责方 |
 |---|------|----------|------|----------|--------|
-| R1 | `paddingEnd` 与 `getTotalSize()` 循环依赖 | 高 | 无限循环 | 使用 ref 跟踪不含 padding 的原始内容高度，仅在 `sorted.length` 变化时更新 `paddingEnd` | 架构师-1 |
+| R1 | `paddingEnd` 与 `getTotalSize()` 循环依赖 | 高 | 无限循环 | 使用 `el.clientHeight`（DOM 实际值）计算，不依赖 `getTotalSize()`；`containerHeight` 通过 `ResizeObserver` 作为触发依赖 | 架构师-1 |
 | R2 | `paddingEnd` 计算使用 `estimateSize` 而非实际高度 | 低 | 消息高度不一致时 padding 不精确 | `estimateSize` 返回 120px 是经验值，实际消息高度差异不大；后续可通过 `measureElement` 回调修正 | 架构师-1 |
