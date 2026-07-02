@@ -249,7 +249,7 @@ interface UseMessagesOptions {
 | AC-4 | `npm run check` | lint 0 error, tsc 0 error, build 成功 |
 | AC-5 | `npm run test` | 全部通过，无回归 |
 | AC-6 | `grep -r "export class IssueCollaboration" src/app/issue-collaboration/collaboration.ts` | 1 结果（主类仍在原文件） |
-| AC-7 | `grep -r "export function ChatMessage" src/web/components/ChatMessage.tsx` | 1 结果（主组件仍在原文件） |
+| AC-7 | `grep -r "export const ChatMessage" src/web/components/ChatMessage.tsx` | 1 结果（主组件仍在原文件） |
 | AC-8 | `grep -r "export function IssueConversation" src/web/pages/IssueConversation.tsx` | 1 结果（页面组件仍在原文件） |
 
 ## 决策记录
