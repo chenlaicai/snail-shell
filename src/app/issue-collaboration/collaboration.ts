@@ -8,7 +8,7 @@ import type { SnailFirstCallRequest, SnailResumeRequest } from "@domain/snail/mo
 import type { LiteAIPort } from "@domain/lite-ai/port";
 import type { AgentEvent, InvokeOptions } from "@infra/acs/model";
 import type { McpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-message-store";
-import type { AdversarialArtifact, CollaborationConsumer, CollaborationInput, CreateIssueResult, DecisionMode, Position, SignalType, StageTransitionSuggestion, WorkspaceConsumer } from "@app/issue-collaboration/port";
+import type { AdversarialArtifact, CollaborationConsumer, CollaborationInput, CreateIssueResult, DecisionMode, EvaluationResult, Position, SignalType, StageTransitionSuggestion, WorkspaceConsumer } from "@app/issue-collaboration/port";
 import type { StageSuggestionRepository, StageSuggestionRecord } from "@domain/issue/_internal/repository";
 import { AutoAdvanceEngine } from "@app/issue-collaboration/auto-advance";
 import { ConsumerNotifier } from "@app/issue-collaboration/consumer-notifier";
@@ -163,6 +163,16 @@ export class IssueCollaboration implements CollaborationInput {
     this.autoInvokeNewStage(stage);
     return stage;
   }
+  /** L2: 手动推进前的引擎评估（不执行自动推进）。内存缓存为空时从 DB 回读 */
+  async evaluateAdvance(stageId: string): Promise<EvaluationResult> {
+    const stage = this.helpers.mustGetStage(stageId);
+    let suggestions = this.suggestions.get(stageId);
+    if (!suggestions?.length) {
+      const pending = this.deps.stageSuggestionRepo.listPendingByStage(stageId);
+      if (pending.length) { this.restoreSuggestions(stageId, pending); suggestions = this.suggestions.get(stageId); }
+    }
+    return this.autoAdvanceEngine.evaluateAdvance(stage, suggestions ?? []);
+  }
   async closeIssue(issueId: string): Promise<{ issue: Issue; cleanup: CleanupResult }> {
     const existingIssue = this.deps.issuePort.findIssue(issueId);
     if (existingIssue?.closed_at) {
@@ -186,8 +196,7 @@ export class IssueCollaboration implements CollaborationInput {
     let cleanup: CleanupResult | undefined;
     try { cleanup = await cleanupResources(context, workspacePath); } catch (err) {
       log.error({ issueId, err }, "cleanupResourcesAsync failed");
-      const e = String(err);
-      cleanup = { pr: { status: "failed", error: e }, worktree: { status: "failed", error: e }, localBranch: { status: "failed", error: e }, remoteBranch: { status: "failed", error: e } };
+      cleanup = { pr: { status: "failed", error: String(err) }, worktree: { status: "failed", error: String(err) }, localBranch: { status: "failed", error: String(err) }, remoteBranch: { status: "failed", error: String(err) } };
     }
     try { this.deps.issuePort.updateCloseSummary(issueId, cleanup); } catch (err) { log.error({ issueId, err }, "closeIssue: updateCloseSummary failed"); }
     this.notifyCleanupCompleted(issueId, cleanup);
@@ -294,14 +303,12 @@ export class IssueCollaboration implements CollaborationInput {
         log.error({ stageId, roleInstance, err: routeError }, "route after invokeAgent failed");
       }
     } catch (error) {
-      /** 丢弃未消费的路由目标，防止 MCP store 孤儿 entry 泄漏 */
       this.deps.mcpMessageStore.deleteMcpRoutingTargets(agentMessage.id);
       log.error({ stageId, roleInstance, issueId: issue.id, snailKey: assignment.snail_key, snailInstanceId: assignment.snail_instance_id, err: error }, "invokeAgent failed");
       const status = abortController.signal.aborted ? "interrupted" : "failed";
       const errorReason = error instanceof Error ? error.message : String(error);
-      const context = this.extractTerminalContext(agentMessage.id, status, truncateForUI(errorReason));
-      /** interrupted 时无 text event 则 context.kind 为 "event_summary"，context 内容为固定中断文案 */
-      this.deps.messagePort.setContext(agentMessage.id, context.kind, context.context);
+      const ctx = this.extractTerminalContext(agentMessage.id, status, truncateForUI(errorReason));
+      this.deps.messagePort.setContext(agentMessage.id, ctx.kind, ctx.context);
       this.deps.messagePort.completeMessage(agentMessage.id, status, { error: errorReason });
       await this.notifyConsumers(stageId, "onMessageCompleted", this.helpers.mustGetMessage(agentMessage.id), this.deps.messagePort.getContext(agentMessage.id));
       throw error;
@@ -312,15 +319,12 @@ export class IssueCollaboration implements CollaborationInput {
   private async executeAgentInvocation(input: { stageId: string; roleInstance: string; issue: Issue; stage: Stage; assignment: { snail_key: string; snail_instance_id: string | null; role_key: string }; unreadMessages: Message[]; agentMessage: Message; signal?: AbortSignal }) {
     const { stageId, roleInstance, issue, stage, assignment, unreadMessages, agentMessage, signal } = input;
     const systemReminder = this.buildSystemReminder({ issue, stage, roleInstance, roleKey: assignment.role_key, snailKey: assignment.snail_key });
-    const invokeOptions: InvokeOptions = { signal };
-    const agentMessages = unreadMessages.map(message => this.messageHandler.toAgentMessage(message));
-    /** 唯一的上下文数据源：snail adapter 从这里构建 env vars，buildContextBlock 从 issue.context 渲染 system reminder */
+    const invokeOptions: InvokeOptions = { signal }; const agentMessages = unreadMessages.map(message => this.messageHandler.toAgentMessage(message));
     const firstCallRequest = {
       workspace_path: issue.workspace_path, messages: agentMessages, systemReminder: systemReminder || undefined,
       context: { [CONTEXT_KEYS.ISSUE_ID]: issue.id, [CONTEXT_KEYS.STAGE_ID]: stage.id, stage_key: stage.key, role_instance: roleInstance, ...issue.context, snail_key: assignment.snail_key },
     };
-    const resumeRequest = { workspace_path: issue.workspace_path, messages: agentMessages, system_reminder: systemReminder, messageId: String(agentMessage.id), stageId: stage.id };
-    const onEvent = (event: AgentEvent) => this.handleAgentEvent(stageId, agentMessage.id, event);
+    const resumeRequest = { workspace_path: issue.workspace_path, messages: agentMessages, system_reminder: systemReminder, messageId: String(agentMessage.id), stageId: stage.id }; const onEvent = (event: AgentEvent) => this.handleAgentEvent(stageId, agentMessage.id, event);
     return assignment.snail_instance_id
       ? await this.invokeResumeOrRecover({ stageId, roleInstance, snailInstanceId: assignment.snail_instance_id, snailKey: assignment.snail_key, resumeRequest, firstCallRequest, onEvent, invokeOptions })
       : await this.deps.snailPort.invokeFirstCall(assignment.snail_key, firstCallRequest, onEvent, invokeOptions);
@@ -340,21 +344,16 @@ export class IssueCollaboration implements CollaborationInput {
     return error instanceof Error && error.message === `Snail instance not found: ${snailInstanceId}`;
   }
   private handleAgentEvent(stageId: string, messageId: number, event: AgentEvent): void {
-    const payload = this.messageHandler.mapAgentEvent(event);
-    const appended = this.deps.messagePort.appendEvent(messageId, payload);
-    void this.notifyConsumers(stageId, "onEvent", appended).catch((err) => {
-      log.warn({ stageId, messageId, err }, "handleAgentEvent notifyConsumers failed — consumer may miss subsequent events");
-    });
+    const payload = this.messageHandler.mapAgentEvent(event); const appended = this.deps.messagePort.appendEvent(messageId, payload);
+    void this.notifyConsumers(stageId, "onEvent", appended).catch((err) => { log.warn({ stageId, messageId, err }, "handleAgentEvent notifyConsumers failed"); });
   }
   private resolveReplies(stage: Stage, roleInstance: string, messageId: number): string[] {
-    /** 优先级 1: MCP to_speakers（agent 通过 set_final_body 显式声明） */
+    /** 优先级 1: MCP to_speakers（agent 通过 set_final_body 显式声明）；优先级 2: signal mentions + text @mentions */
     const mcpTargets = this.deps.mcpMessageStore.getMcpRoutingTargets(messageId);
     if (mcpTargets && mcpTargets.length > 0) {
-      /** 消费后清理，防止泄漏 */
       this.deps.mcpMessageStore.deleteMcpRoutingTargets(messageId);
       return mcpTargets.filter(mention => this.isValidReplyMention(stage, roleInstance, mention));
     }
-    /** 优先级 2: 现有逻辑（signal mentions + text @mentions） */
     const mentions = new Set<string>();
     for (const event of this.deps.messagePort.getMessageEvents(messageId)) {
       for (const mention of this.getEventMentions(event)) {
@@ -374,6 +373,16 @@ export class IssueCollaboration implements CollaborationInput {
   private async detectStageTransition(stage: Stage, roleInstance: string, messageId: number): Promise<void> {
     const suggestion = this.extractStageTransitionSuggestion(stage, roleInstance, messageId);
     if (!suggestion) return;
+    /** L1 信号拦截：adversarial_consensus 含未解决 findings 时不持久化（SOP 合规性强制执行，与 R8 逻辑一致） */
+    if (suggestion.signal_type === "adversarial_consensus") {
+      const af = suggestion.adversarial_artifact?.adversarial_findings;
+      const unresolved = af?.filter(f => f.finding !== "no issues" && (f.disposition === "none" || (f.disposition ?? "").trim() === ""));
+      if (unresolved && unresolved.length > 0) {
+        log.warn({ stageId: stage.id, roleInstance, messageId, count: unresolved.length }, "L1: blocked adversarial_consensus with unresolved findings");
+        await this.notifyConsumers(stage.id, "onEvaluationResult", { action: "blocked", reasons: [{ code: "L1_UNRESOLVED_FINDINGS", severity: "error", message: `存在 ${unresolved.length} 个未解决的 findings，拦截推进信号`, details: { unresolved_count: unresolved.length } }] });
+        return;
+      }
+    }
     this.persistSuggestion(suggestion);
     const suggestions = this.suggestions.get(stage.id) ?? [];
     suggestions.push(suggestion);
@@ -419,23 +428,16 @@ export class IssueCollaboration implements CollaborationInput {
   }
   /** 阶段推进后自动向新阶段发送 kickoff 消息，触发默认 agent 开始工作 */
   private autoInvokeNewStage(stage: Stage): void {
-    const defaultSpeaker = stage.default_role_instance;
-    if (!defaultSpeaker) return;
-    /** from_speaker="" → sendMessageAsync 通过 resolveToSpeakers 解析出 default_role_instance → route → dispatch → invokeAgent */
+    if (!stage.default_role_instance) return;
     this.sendMessage(stage.id, "开始执行。", "").catch((err) => {
       log.error({ stageId: stage.id, err }, "autoInvokeNewStage failed");
     });
   }
   /** createIssue 后自动向第一个阶段发送 kickoff 消息，使用 summary 作为用户指令 */
   private autoInvokeFirstStage(stage: Stage, input: CreateIssueInput): void {
-    const defaultSpeaker = stage.default_role_instance;
-    if (!defaultSpeaker) return;
+    if (!stage.default_role_instance) return;
     const summary = input.summary?.trim();
-    const sendMessage = summary
-      ? /** summary 本质是用户给 agent 的指令，作为用户消息发送（右侧气泡），agent 优先处理 */
-        this.sendMessage(stage.id, summary, "user")
-      : /** 无 summary 时 fallback 为系统消息，与 advanceStage 行为一致 */
-        this.sendMessage(stage.id, "开始执行。", "");
+    const sendMessage = summary ? this.sendMessage(stage.id, summary, "user") : this.sendMessage(stage.id, "开始执行。", "");
     sendMessage.catch((err) => {
       log.error({ stageId: stage.id, err }, "autoInvokeFirstStage failed");
     });
@@ -504,16 +506,12 @@ export class IssueCollaboration implements CollaborationInput {
     const mentions = await this.resolveMentions(stage, text, fromSpeaker);
     if (mentions.length > 0) return mentions.map(speaker => ({ speaker, source: "mention" }));
     const latest = this.deps.messagePort.findLatestRespondingSpeaker(stage.id);
-    if (latest && latest !== fromSpeaker && stage.role_instances.includes(latest)) {
-      return [{ speaker: latest, source: "reply" }];
-    }
+    if (latest && latest !== fromSpeaker && stage.role_instances.includes(latest)) return [{ speaker: latest, source: "reply" }];
     return [{ speaker: stage.default_role_instance, source: "default" }];
   }
   private async resolveMentions(stage: Stage, text: string, fromSpeaker: string): Promise<string[]> {
-    const directMentions = this.extractMentions(text).filter(mention => stage.role_instances.includes(mention) && mention !== fromSpeaker);
-    if (directMentions.length > 0 || !this.deps.liteAIPort.getConfig()) {
-      return directMentions;
-    }
+    const directMentions = this.extractMentions(text).filter(m => stage.role_instances.includes(m) && m !== fromSpeaker);
+    if (directMentions.length > 0 || !this.deps.liteAIPort.getConfig()) return directMentions;
     try {
       const answer = await this.deps.liteAIPort.chat([
         { role: "system", content: "Extract mentioned role instances from the user message. Return only a JSON array of exact role names." },
@@ -548,12 +546,9 @@ export class IssueCollaboration implements CollaborationInput {
         return { message_id: messageId, kind: "final_text", context: blocksText ?? event.payload.text, created_at: new Date().toISOString() };
       }
     }
-    /** 无 text event 也无 mcp_final_body 时返回状态对应的兜底文案，不 dump 原始 event 给用户 */
-    const fallback = status === "interrupted"
-      ? (reason ? `用户中断了本次回复（${reason}）` : "用户中断了本次回复")
-      : status === "failed"
-        ? (reason ? `任务执行失败（${reason}）` : "任务执行失败")
-        : "（无文本输出）";
+    /** 无 text event 也无 mcp_final_body 时返回状态对应的兜底文案 */
+    const r = reason ? `（${reason}）` : "";
+    const fallback = status === "interrupted" ? `用户中断了本次回复${r}` : status === "failed" ? `任务执行失败${r}` : "（无文本输出）";
     return { message_id: messageId, kind: "event_summary", context: fallback, created_at: new Date().toISOString() };
   }
   private buildSystemReminder(input: { issue: Issue; stage: Stage; roleInstance: string; roleKey: string; snailKey: string }): string {
