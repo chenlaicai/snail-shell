@@ -102,17 +102,14 @@ export function IssueConversation() {
   const allHistoryLoadedRef = useRef(false);
   const prevStageIdRef = useRef<string | null>(null);
 
-  /** 当 stageId 切换时，清空旧 stage 的 pending 消息、已加载的历史并滚动到顶部 */
+  /** 当 stageId 切换时，清空旧 stage 的 pending 消息、已加载的历史并设置滚动策略 */
   useEffect(() => {
     if (prevStageIdRef.current !== stageId) {
       if (prevStageIdRef.current) clearPendingMessages(prevStageIdRef.current);
       prevStageIdRef.current = stageId;
       setOlderHistory([]);
       allHistoryLoadedRef.current = false;
-      wasAtBottomRef.current = false;
-      /** 滚动到列表顶部，避免新 stage 消息少时出现空白区域 */
-      const el = scrollRef.current;
-      if (el) el.scrollTop = 0;
+      wasAtBottomRef.current = true;
     }
   }, [stageId]);
 
@@ -131,11 +128,38 @@ export function IssueConversation() {
   const [scrollPosition, setScrollPosition] = useState<'top' | 'middle' | 'bottom'>('bottom');
   const isSmoothScrollingRef = useRef(false);
 
+  const [paddingEnd, setPaddingEnd] = useState(0);
+  const [containerHeight, setContainerHeight] = useState(0);
+
+  /** 监听容器尺寸变化（窗口 resize、PropertiesPanel 展开/折叠等） */
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setContainerHeight(el.clientHeight);
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerHeight(entry.contentRect.height);
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  /** 当消息数量或容器尺寸变化时，计算 paddingEnd：虚拟列表总高度 < 可视区域高度时补齐空白 */
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const rawContentHeight = sorted.length * 120; // estimateSize
+    const needed = Math.max(0, el.clientHeight - rawContentHeight);
+    setPaddingEnd(needed);
+  }, [sorted.length, containerHeight]);
+
   const virtualizer = useVirtualizer({
     count: sorted.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 120,
     overscan: 10,
+    paddingEnd,
   });
 
   // 只在用户已经在底部时自动滚动，避免打断用户阅读历史消息
