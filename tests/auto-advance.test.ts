@@ -253,7 +253,10 @@ describe("AutoAdvanceEngine context validation", () => {
           { type: 'alternative' as const, content: "alt 1" },
         ] },
         independent_analysis: { my_conclusion: "ok", comparison_with_peer: "same", points_of_agreement: ["a"], points_of_disagreement: [] },
-        scenario_coverage: { scenarios_reviewed: 5, scenarios_identified: 5, coverage_ratio: 1.0 },
+        scenario_coverage: { scenarios_reviewed: 5, scenarios_identified: 5, coverage_ratio: 1.0, constructed_scenarios: [
+          { scenario: "when stage transitions fail mid-flight", question: "should the system auto-retry or escalate?" },
+          { scenario: "when two reviewers submit conflicting findings", question: "should developer resolve or escalate?" },
+        ] },
       };
       const adversarialArtifact2 = {
         ...adversarialArtifact1,
@@ -755,7 +758,10 @@ describe("R7/R8 adversarial findings validation", () => {
           { type: 'alternative' as const, content: "alt 1" },
         ] },
         independent_analysis: { my_conclusion: "ok", comparison_with_peer: "same", points_of_agreement: ["a"], points_of_disagreement: [] },
-        scenario_coverage: { scenarios_reviewed: 5, scenarios_identified: 5, coverage_ratio: 1.0 },
+        scenario_coverage: { scenarios_reviewed: 5, scenarios_identified: 5, coverage_ratio: 1.0, constructed_scenarios: [
+          { scenario: "when stage transitions fail mid-flight", question: "should the system auto-retry or escalate?" },
+          { scenario: "when two reviewers submit conflicting findings", question: "should developer resolve or escalate?" },
+        ] },
       };
       const a2 = { ...a1, independent_verification: [{ command: "npm run lint", actual_output: "zero warnings and zero errors across all source files", executed_at: now }] };
       const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "architect-1", target_key: "development", gate_evidence: { "design-01": "locked", "design-02": "resolved" }, adversarial_artifact: a1 as any });
