@@ -18,8 +18,6 @@ interface AdversarialArtifact {
   }[];
 
   // 对抗发现：证明自己真的找了问题（即使没找到也要说明找了什么）
-  // 预定义 dimension："fact_verification"（事实性声明验证）
-  // fact_verification 的 finding 格式：声明：{声明} | 代码证据：{代码+位置} | 结论：verified/contradicted/unverifiable
   adversarial_findings: {
     dimension: string;     // 检查了什么维度
     finding: string;       // 发现了什么（可以是"无问题"，但必须说明检查了什么）
@@ -42,6 +40,7 @@ interface AdversarialArtifact {
 - `audit_trail.events` 中必须包含 `cross_review_read` 事件，且时间戳晚于 `review_started`
 - `independent_verification` 的 `actual_output` 长度不得少于 20 字符
 - `adversarial_findings` 不得全部为空数组
+- `adversarial_findings` 预定义 dimension `"fact_verification"`（事实性声明验证）。finding 格式：`声明：{声明} | 代码证据：{代码+位置} | 结论：verified/contradicted/unverifiable`
 
 ## Design 阶段特有字段（架构师×架构师）
 

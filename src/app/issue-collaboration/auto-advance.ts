@@ -359,9 +359,8 @@ export class AutoAdvanceEngine {
   ): { valid: boolean; reason?: string; rule?: string } | null {
     const isDesignArtifact = "critique_obligation" in artifact || "independent_analysis" in artifact || "scenario_coverage" in artifact;
     if (isDesignArtifact) {
-      if (!this.isValidDesignArtifact(artifact)) {
-        return { valid: false, reason: "design stage requires critique_obligation.items >= 4", rule: "R4" };
-      }
+      const designValidation = this.validateDesignArtifactRules(artifact);
+      if (designValidation) return designValidation;
     }
 
     const isReviewArtifact = "file_coverage" in artifact || "file_dispositions" in artifact || "cross_review" in artifact || "ci_independence" in artifact;
@@ -374,11 +373,22 @@ export class AutoAdvanceEngine {
     return null;
   }
 
-  private isValidDesignArtifact(artifact: AdversarialArtifact | DesignAdversarialArtifact): boolean {
-    return "critique_obligation" in artifact &&
-      !!artifact.critique_obligation &&
-      Array.isArray(artifact.critique_obligation.items) &&
-      artifact.critique_obligation.items.length >= 4;
+  private validateDesignArtifactRules(artifact: AdversarialArtifact | DesignAdversarialArtifact): { valid: boolean; reason: string; rule: string } | null {
+    // R4: critique_obligation.items >= 4
+    if (!("critique_obligation" in artifact) ||
+      !artifact.critique_obligation ||
+      !Array.isArray(artifact.critique_obligation.items) ||
+      artifact.critique_obligation.items.length < 4) {
+      return { valid: false, reason: "design stage requires critique_obligation.items >= 4", rule: "R4" };
+    }
+    // R4b: scenario_coverage.constructed_scenarios >= 2
+    if (!("scenario_coverage" in artifact) ||
+      !artifact.scenario_coverage ||
+      !Array.isArray(artifact.scenario_coverage.constructed_scenarios) ||
+      artifact.scenario_coverage.constructed_scenarios.length < 2) {
+      return { valid: false, reason: "design stage requires scenario_coverage.constructed_scenarios >= 2", rule: "R4b" };
+    }
+    return null;
   }
 
   private isValidReviewArtifact(artifact: AdversarialArtifact | ReviewAdversarialArtifact): boolean {

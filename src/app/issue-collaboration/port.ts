@@ -56,6 +56,10 @@ export interface DesignAdversarialArtifact extends AdversarialArtifact {
     scenarios_reviewed: number;
     scenarios_identified: number;
     coverage_ratio: number;
+    constructed_scenarios: {
+      scenario: string;
+      question: string;
+    }[];
   };
 }
 

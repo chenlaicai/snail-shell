@@ -228,7 +228,7 @@ CONTEXT.md 的创建是审视的**产出**，不是**前提**。仅 L3 级别才
 
 ### 变更影响分析
 
-- **后端**：无类型变更（复用现有 `adversarial_findings` + `scenario_coverage` 结构）
+- **后端**：`DesignAdversarialArtifact` 类型新增 `scenario_coverage.constructed_scenarios` 字段；`auto-advance.ts` 新增 R4b 校验规则（`constructed_scenarios` >= 2）
 - **前端**：无
 - **提示词/SOP**：见下方变更清单
 
@@ -245,7 +245,6 @@ CONTEXT.md 的创建是审视的**产出**，不是**前提**。仅 L3 级别才
 
 | 模块 | 原因 |
 |------|------|
-| 后端引擎（auto-advance.ts、port.ts） | 不新增顶层字段，不改变 `AdversarialArtifact` 类型定义 |
 | 前端 UI | 无 UI 变更 |
 | SOP 定义（code-delivery.yaml） | 不改变阶段结构或角色分配 |
 | 质疑义务（critique_obligation） | 场景压力测试不属于质疑义务，归入 scenario_coverage |
@@ -276,7 +275,7 @@ CONTEXT.md 的创建是审视的**产出**，不是**前提**。仅 L3 级别才
 
 ### 变更类型
 
-prompt-only（仅 SOP/提示词文件变更，无后端/前端代码修改）
+prompt-only + 引擎规则增量（SOP/提示词文件变更 + port.ts 类型扩展 + auto-advance.ts R4b 校验）
 
 ### 实际变更清单
 
@@ -286,8 +285,10 @@ prompt-only（仅 SOP/提示词文件变更，无后端/前端代码修改）
 | `cd-shared/references/adversarial-artifact-protocol.md` | 修改 | `scenario_coverage` 新增 `constructed_scenarios` 子字段定义（>=2）；`adversarial_findings` 添加 `fact_verification` dimension 说明；引擎校验规则新增 R4b |
 | `cd-design/references/cross-review.md` | 修改 | `scenario_coverage` 描述更新；新增"通用战术适配（design 阶段）"检查点，引用 3 个战术的 design 阶段适配 |
 | `cd-review/references/adversarial-check.md` | 修改 | 检查维度新增"事实性声明验证"；新增"通用战术适配（review 阶段）"章节，说明场景压力测试不适用于 review 阶段 |
+| `src/app/issue-collaboration/port.ts` | 修改 | `DesignAdversarialArtifact.scenario_coverage` 类型新增 `constructed_scenarios` 字段 |
+| `src/app/issue-collaboration/auto-advance.ts` | 修改 | `validateDesignArtifactRules` 新增 R4b 校验：`scenario_coverage.constructed_scenarios` >= 2 |
 
 ### 验证
 
-- 无后端/前端代码变更，无需 `npm run check`
+- `npm run check` 通过（port.ts 类型扩展 + auto-advance.ts R4b 校验）
 - 变更完整性通过文件内容检查验证：所有 5 条核心业务行为均已在对应文件中实现
