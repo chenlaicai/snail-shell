@@ -246,7 +246,7 @@ useLayoutEffect(() => {
 }, [sorted, totalSize]);
 ```
 
-**注意**：这个修改会移除 `wasAtBottomRef` 的影响，可能会影响其他场景（如页面初始加载）。需要评估是否需要保留 `wasAtBottomRef` 的逻辑。
+**不推荐**：此修改会移除 `wasAtBottomRef` 的影响，虽然能阻止 stage 切换时的自动滚动，但会同时移除"用户在底部时新消息到达自动滚动"的行为。推荐方案 A 不需要修改此逻辑——`wasAtBottomRef.current = false` 已足够。保留原逻辑确保其他场景正常工作。
 
 ### 边界情况处理
 
@@ -286,6 +286,18 @@ useLayoutEffect(() => {
 - 用户会看到新 stage 的第一条消息
 
 **处理**：符合预期，用户可以从头开始阅读新 stage。
+
+#### 5. 页面初始加载
+
+当用户首次打开 issue 页面时：
+- `wasAtBottomRef` 初始化为 `true`（127 行）
+- 初始加载时 `stageId` 从 `null` 变为实际值（URL 参数或 `issue.current_stage`）
+- 触发 `useEffect`（106-114 行），将 `wasAtBottomRef.current` 设为 `false`
+
+**当前行为**：初始加载后自动滚动到底部（显示最新消息）
+**修改后行为**：初始加载后停在顶部（显示 issue header）
+
+**处理**：这是预期行为变化。新 stage 和初始加载都从顶部开始阅读是 UX 一致的。用户如需查看最新消息，可使用"回到底部"按钮。
 
 ## 验收标准
 
@@ -389,7 +401,23 @@ useLayoutEffect(() => {
 - 不出现空白区域
 - 滚动位置在列表顶部
 
-### 场景 5：Stage 切换后新消息到达
+### 场景 5：通过 stage tab 切换
+
+**前置条件**：
+- 当前 stage 有 10 条消息
+- 用户在底部位置
+- 页面侧边栏显示 stage tab 列表
+
+**操作步骤**：
+1. 点击侧边栏中的 stage tab 按钮
+2. 等待目标 stage 加载完成
+
+**预期结果**：
+- 页面显示目标 stage 的第一条消息
+- 不出现空白区域
+- 滚动位置在列表顶部
+
+### 场景 6：Stage 切换后新消息到达
 
 **前置条件**：
 - 刚刚切换到新 stage
