@@ -115,9 +115,13 @@ export function ChatInput({ onSend, disabled, placeholder = "Reply to this issue
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isMentionActive, hideSuggestions]);
 
-  /** Debounce 保存草稿到 localStorage */
+  /** Debounce 保存草稿到 localStorage；清空输入时立即删除旧草稿 */
   useEffect(() => {
-    if (!issueId || !value) return;
+    if (!issueId) return;
+    if (!value) {
+      removeDraft(issueId);
+      return;
+    }
     const timer = setTimeout(() => saveDraft(issueId, value), 300);
     return () => clearTimeout(timer);
   }, [issueId, value]);

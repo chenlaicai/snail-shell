@@ -10,7 +10,6 @@ const STORAGE_KEY = "snail:input_drafts";
 
 interface DraftData {
   content: string;
-  updatedAt: string; // ISO timestamp
 }
 
 function readAll(): Record<string, DraftData> {
@@ -33,7 +32,7 @@ function writeAll(data: Record<string, DraftData>): void {
 /** 保存草稿到 localStorage */
 export function saveDraft(issueId: string, content: string): void {
   const all = readAll();
-  all[issueId] = { content, updatedAt: new Date().toISOString() };
+  all[issueId] = { content };
   writeAll(all);
 }
 
