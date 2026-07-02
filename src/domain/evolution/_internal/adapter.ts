@@ -59,6 +59,7 @@ export class EvolutionAdapter implements EvolutionPort {
 
     this.repo.update(id, {
       status: updates.status as EvolutionStatus | undefined,
+      issue_id: updates.issue_id,
       result: updates.result,
       updated_at: new Date().toISOString(),
     });
