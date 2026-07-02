@@ -4,7 +4,7 @@ import { api } from "@/services/api-client";
 import { showToast } from "@/components/Toast";
 import { useCloseIssue } from "@/mutations/issue.mutations";
 import { queryKeys } from "@/queries/keys";
-import type { IssueDetailDto, StageDetailDto, StageTransition, CleanupResultDto, ResourceResultDto } from "@/types";
+import type { IssueDetailDto, StageDetailDto, StageTransition, CleanupResultDto } from "@/types";
 
 export function StageActionBar({
   issue,
@@ -81,7 +81,7 @@ export function StageActionBar({
       remoteBranch: "远端分支",
     };
     for (const [key, label] of Object.entries(labels)) {
-      const r = cleanup[key as keyof CleanupResultDto] as ResourceResultDto;
+      const r = cleanup[key as keyof CleanupResultDto];
       if (r.status === "merged") lines.push(`- ${label}: 已合入`);
       else if (r.status === "closed") lines.push(`- ${label}: 已关闭`);
       else if (r.status === "success") lines.push(`- ${label}: 已清理`);
