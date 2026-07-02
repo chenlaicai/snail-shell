@@ -25,17 +25,18 @@ export function StageActionBar({
 
   /** 订阅 close_summary 变化：WebSocket cleanup_completed 更新 cache 后弹 toast */
   useEffect(() => {
-    return qc.subscribe({
-      queryKey: queryKeys.issues.detail(issue.id),
-      listener: ({ query }) => {
-        const data = query.state.data as IssueDetailDto | undefined;
-        const current = data?.close_summary;
-        const prev = prevCloseSummaryRef.current;
-        prevCloseSummaryRef.current = current;
-        if (prev == null && current != null) {
-          showToast(formatCleanupResult(current));
-        }
-      },
+    const targetKey = queryKeys.issues.detail(issue.id);
+    return qc.getQueryCache().subscribe((event) => {
+      if (event.type !== "updated") return;
+      const qk = event.query.queryKey;
+      if (qk.length !== targetKey.length || qk[0] !== targetKey[0] || qk[1] !== targetKey[1]) return;
+      const data = event.query.state.data as IssueDetailDto | undefined;
+      const current = data?.close_summary;
+      const prev = prevCloseSummaryRef.current;
+      prevCloseSummaryRef.current = current;
+      if (prev == null && current != null) {
+        showToast(formatCleanupResult(current));
+      }
     });
   }, [qc, issue.id]);
 
