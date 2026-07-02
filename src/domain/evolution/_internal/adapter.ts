@@ -4,27 +4,18 @@ import type {
   CreateEvolutionItemInput,
   EvolutionItemListFilters,
 } from "@domain/evolution/model";
-import { EvolutionStatus, EVOLUTION_ITEM_ID_KEY } from "@domain/evolution/model";
+import { EvolutionStatus } from "@domain/evolution/model";
 import type { EvolutionPort, UpdateEvolutionItemInput } from "@domain/evolution/port";
 import type { EvolutionRepository } from "@domain/evolution/_internal/repository";
-import type { IssuePort } from "@domain/issue/port";
-import type { IssueSnailAssignmentPlan } from "@domain/issue/model";
-import type { SnailPort } from "@domain/snail/port";
-import type { CollaborationInput } from "@app/issue-collaboration/port";
 
 /**
- * Evolution 适配器。
+ * Evolution 适配器（纯数据层）。
  *
- * 职责：候选入库、查询、状态管理、基于 item 创建 issue。
- * IssuePort 为必需依赖 — previewSopStages() 内部用于生成 snail assignment plan。
+ * 职责：候选入库、查询、状态管理。
+ * 编排逻辑（createIssue）已移至 app/evolution。
  */
 export class EvolutionAdapter implements EvolutionPort {
-  constructor(
-    private repo: EvolutionRepository,
-    private issuePort: IssuePort,
-    private snailPort: SnailPort,
-    private collaboration: CollaborationInput,
-  ) {}
+  constructor(private repo: EvolutionRepository) {}
 
   findById(id: string): EvolutionItem | undefined {
     return this.repo.findById(id);
@@ -68,49 +59,11 @@ export class EvolutionAdapter implements EvolutionPort {
 
     this.repo.update(id, {
       status: updates.status as EvolutionStatus | undefined,
+      issue_id: updates.issue_id,
       result: updates.result,
       updated_at: new Date().toISOString(),
     });
 
     return this.repo.findById(id)!;
-  }
-
-  async createIssue(itemId: string): Promise<EvolutionItem> {
-    const item = this.repo.findById(itemId);
-    if (!item) throw new Error(`Evolution item not found: ${itemId}`);
-    if (item.status !== EvolutionStatus.Candidate) {
-      throw new Error(`Cannot create issue for item in status "${item.status}", must be "candidate"`);
-    }
-
-    const { issue } = await this.collaboration.createIssue({
-      workspace_path: item.workspace_id,
-      title: `[Evolution] ${item.title}`,
-      summary: item.content,
-      adopted_sop_key: "evolution",
-      snail_assignment_plan: this.createDefaultSnailAssignmentPlan("evolution", `[Evolution] ${item.title}`),
-      context: { [EVOLUTION_ITEM_ID_KEY]: item.id },
-    });
-
-    this.repo.update(itemId, {
-      issue_id: issue.id,
-      status: EvolutionStatus.InProgress,
-      updated_at: new Date().toISOString(),
-    });
-
-    return this.repo.findById(itemId)!;
-  }
-
-  private createDefaultSnailAssignmentPlan(adoptedSopKey: string, title: string): IssueSnailAssignmentPlan {
-    const snail = this.snailPort.list()[0];
-    if (!snail) throw new Error("Cannot create evolution issue without configured snails");
-
-    const plan: IssueSnailAssignmentPlan = {};
-    for (const stage of this.issuePort.previewSopStages(adoptedSopKey, title)) {
-      plan[stage.key] = {};
-      for (const role of stage.role_instances) {
-        plan[stage.key][role.role_instance] = snail.key;
-      }
-    }
-    return plan;
   }
 }

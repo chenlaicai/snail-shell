@@ -217,7 +217,6 @@ export const CONTEXT_KEYS = {
 ```
 
 **使用**:
-- `context-env.ts` 使用 `CONTEXT_KEYS` 构造环境变量
 - skill 脚本通过 `process.env[CONTEXT_KEYS.WORKSPACE_PATH]` 获取
 
 **好处**:
