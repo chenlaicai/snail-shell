@@ -458,7 +458,7 @@ export function IssueConversation() {
                   当前 Stage 已结束，历史对话保留为只读。请切换到当前 Stage 继续对话。
                 </div>
               ) : (
-                <ChatInput onSend={handleSend} disabled={!stageId || stage?.status !== "in_progress"} roleInstances={stage?.role_instances ?? []} />
+                <ChatInput onSend={handleSend} disabled={!stageId || stage?.status !== "in_progress"} roleInstances={stage?.role_instances ?? []} issueId={issueId} />
               )}
             </div>
           </div>
