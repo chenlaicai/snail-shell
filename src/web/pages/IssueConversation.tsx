@@ -102,14 +102,17 @@ export function IssueConversation() {
   const allHistoryLoadedRef = useRef(false);
   const prevStageIdRef = useRef<string | null>(null);
 
-  /** 当 stageId 切换时，清空旧 stage 的 pending 消息、已加载的历史并滚动到底部 */
+  /** 当 stageId 切换时，清空旧 stage 的 pending 消息、已加载的历史并滚动到顶部 */
   useEffect(() => {
     if (prevStageIdRef.current !== stageId) {
       if (prevStageIdRef.current) clearPendingMessages(prevStageIdRef.current);
       prevStageIdRef.current = stageId;
       setOlderHistory([]);
       allHistoryLoadedRef.current = false;
-      wasAtBottomRef.current = true;
+      wasAtBottomRef.current = false;
+      /** 滚动到列表顶部，避免新 stage 消息少时出现空白区域 */
+      const el = scrollRef.current;
+      if (el) el.scrollTop = 0;
     }
   }, [stageId]);
 
