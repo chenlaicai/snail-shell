@@ -191,7 +191,6 @@ export class IssueCollaboration implements CollaborationInput {
     this.lastActivityStatus.delete(issueId);
     for (const c of this.workspaceConsumers.get(workspacePath) ?? []) c.onActivityStatusChanged(issueId, "completed", prevStatus);
   }
-
   private async cleanupResourcesAsync(issueId: string, context: Record<string, string>, workspacePath: string): Promise<void> {
     let cleanup: CleanupResult | undefined;
     try { cleanup = await cleanupResources(context, workspacePath); } catch (err) {
@@ -201,7 +200,6 @@ export class IssueCollaboration implements CollaborationInput {
     try { this.deps.issuePort.updateCloseSummary(issueId, cleanup); } catch (err) { log.error({ issueId, err }, "closeIssue: updateCloseSummary failed"); }
     this.notifyCleanupCompleted(issueId, cleanup);
   }
-
   private notifyCleanupCompleted(issueId: string, cleanup: CleanupResult): void {
     for (const c of this.issueConsumers.get(issueId) ?? []) { try { c.onCleanupCompleted?.(issueId, cleanup); } catch (err) { log.warn({ issueId, err }, "notifyCleanupCompleted failed"); } }
   }
@@ -257,19 +255,23 @@ export class IssueCollaboration implements CollaborationInput {
     }
     this.dispatchStates.set(key, { status: "invoking", pending: true });
     let remainingRounds = this.maxCollaborationRounds;
-    while (remainingRounds > 0) {
-      const state = this.dispatchStates.get(key);
-      if (!state) return;
-      state.pending = false;
-      const unread = this.deps.messagePort.getUnreadMessages(stageId, speaker);
-      if (unread.length === 0) { this.dispatchStates.set(key, { status: "idle", pending: false }); return; }
-      try { await this.invokeAgent(stageId, speaker, unread); this.deps.messagePort.advanceCursor(stageId, speaker, unread[unread.length - 1].id); } catch { this.dispatchStates.set(key, { status: "idle", pending: false }); return; }
-      const current = this.dispatchStates.get(key);
-      if (!current || !current.pending) { this.dispatchStates.set(key, { status: "idle", pending: false }); return; }
-      remainingRounds--;
+    try {
+      while (remainingRounds > 0) {
+        const state = this.dispatchStates.get(key);
+        if (!state) return;
+        state.pending = false;
+        const unread = this.deps.messagePort.getUnreadMessages(stageId, speaker);
+        if (unread.length === 0) break;
+        await this.invokeAgent(stageId, speaker, unread);
+        this.deps.messagePort.advanceCursor(stageId, speaker, unread[unread.length - 1].id);
+        if (!this.dispatchStates.get(key)?.pending) break;
+        remainingRounds--;
+      }
+    } finally {
+      if (remainingRounds <= 0) log.warn({ stageId, speaker }, "dispatch: max rounds reached");
+      this.dispatchStates.set(key, { status: "idle", pending: false });
+      this.notifyWorkspaceIfStatusChanged(stageId);
     }
-    log.warn({ stageId, speaker }, "dispatch: max rounds reached");
-    this.dispatchStates.set(key, { status: "idle", pending: false });
   }
   private async invokeAgent(stageId: string, roleInstance: string, unreadMessages: Message[]): Promise<void> {
     const stage = this.helpers.mustGetStage(stageId);
@@ -333,15 +335,12 @@ export class IssueCollaboration implements CollaborationInput {
     try {
       return await this.deps.snailPort.invokeResume(input.snailInstanceId, input.resumeRequest, input.onEvent, input.invokeOptions);
     } catch (error) {
-      if (!this.isMissingSnailInstanceError(error, input.snailInstanceId)) throw error;
+      if (!(error instanceof Error && error.message === `Snail instance not found: ${input.snailInstanceId}`)) throw error;
       log.warn({ snailInstanceId: input.snailInstanceId, snailKey: input.snailKey, stageId: input.stageId }, "invokeResume.instance_missing.fallback");
       const result = await this.deps.snailPort.invokeFirstCall(input.snailKey, input.firstCallRequest, input.onEvent, input.invokeOptions);
       this.deps.stagePort.setSnailInstanceId(input.stageId, input.roleInstance, result.snail_instance_id);
       return result;
     }
-  }
-  private isMissingSnailInstanceError(error: unknown, snailInstanceId: string): boolean {
-    return error instanceof Error && error.message === `Snail instance not found: ${snailInstanceId}`;
   }
   private handleAgentEvent(stageId: string, messageId: number, event: AgentEvent): void {
     const payload = this.messageHandler.mapAgentEvent(event); const appended = this.deps.messagePort.appendEvent(messageId, payload);
@@ -355,11 +354,9 @@ export class IssueCollaboration implements CollaborationInput {
       return mcpTargets.filter(mention => this.isValidReplyMention(stage, roleInstance, mention));
     }
     const mentions = new Set<string>();
-    for (const event of this.deps.messagePort.getMessageEvents(messageId)) {
-      for (const mention of this.getEventMentions(event)) {
+    for (const event of this.deps.messagePort.getMessageEvents(messageId))
+      for (const mention of this.getEventMentions(event))
         if (this.isValidReplyMention(stage, roleInstance, mention)) mentions.add(mention);
-      }
-    }
     return [...mentions];
   }
   private getEventMentions(event: MessageEvent): string[] {
@@ -442,7 +439,6 @@ export class IssueCollaboration implements CollaborationInput {
       log.error({ stageId: stage.id, err }, "autoInvokeFirstStage failed");
     });
   }
-
   getStageAuditTrail(stageId: string): StageAuditRecord[] {
     return this.deps.stagePort.getAuditTrail(stageId);
   }
@@ -454,12 +450,9 @@ export class IssueCollaboration implements CollaborationInput {
     return null;
   }
   private extractSignalPayload(event: MessageEvent, stage: Stage): TransitionPayload | null {
-    if (event.payload.type === "signal" && typeof event.payload.stage_transition === "object" && event.payload.stage_transition) {
+    if (event.payload.type === "signal" && typeof event.payload.stage_transition === "object" && event.payload.stage_transition)
       return this.extractFromSignalPayload(event.payload.stage_transition as Record<string, unknown>, stage);
-    }
-    if (event.payload.type === "text") {
-      return this.extractFromTextPayload(event.payload.text, stage);
-    }
+    if (event.payload.type === "text") return this.extractFromTextPayload(event.payload.text, stage);
     return null;
   }
   private extractFromSignalPayload(payload: Record<string, unknown>, stage: Stage): TransitionPayload | null {
@@ -529,9 +522,7 @@ export class IssueCollaboration implements CollaborationInput {
     const result = new Set<string>();
     const matcher = /@([\p{L}\p{N}_-]+)/gu;
     let match: RegExpExecArray | null;
-    while ((match = matcher.exec(text)) !== null) {
-      result.add(match[1]);
-    }
+    while ((match = matcher.exec(text)) !== null) result.add(match[1]);
     return [...result];
   }
   private extractTerminalContext(messageId: number, status: "completed" | "interrupted" | "failed", reason?: string): MessageContext {
@@ -599,15 +590,17 @@ ${transitions || "无"}
     const stage = this.helpers.mustGetStage(stageId);
     const consumers = this.issueConsumers.get(stage.issue_id) ?? new Set<CollaborationConsumer>();
     await this.consumerNotifier.notifyConsumers(consumers, stageId, method, args);
+    this.notifyWorkspaceIfStatusChanged(stageId);
+  }
+  private notifyWorkspaceIfStatusChanged(stageId: string): void {
+    const stage = this.helpers.mustGetStage(stageId);
     const issue = this.deps.issuePort.findIssue(stage.issue_id);
-    if (issue && !issue.closed_at) {
-      const newStatus = this.getActivityStatus(stageId, issue.closed_at);
-      const prev = this.lastActivityStatus.get(stage.issue_id);
-      if (prev !== newStatus) {
-        this.lastActivityStatus.set(stage.issue_id, newStatus);
-        const wsConsumers = this.workspaceConsumers.get(issue.workspace_path);
-        if (wsConsumers) for (const c of wsConsumers) c.onActivityStatusChanged(stage.issue_id, newStatus, prev ?? "needs_human");
-      }
-    }
+    if (!issue || issue.closed_at) return;
+    const newStatus = this.getActivityStatus(stageId, issue.closed_at);
+    const prev = this.lastActivityStatus.get(stage.issue_id);
+    if (prev === newStatus) return;
+    this.lastActivityStatus.set(stage.issue_id, newStatus);
+    const wsConsumers = this.workspaceConsumers.get(issue.workspace_path);
+    if (wsConsumers) for (const c of wsConsumers) c.onActivityStatusChanged(stage.issue_id, newStatus, prev ?? "needs_human");
   }
 }
