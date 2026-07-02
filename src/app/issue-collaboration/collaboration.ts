@@ -411,6 +411,7 @@ export class IssueCollaboration implements CollaborationInput {
   async rollbackStage(stageId: string, targetKey: string): Promise<Stage> {
     const stage = this.deps.stagePort.rollbackStage(stageId, targetKey);
     this.cleanupDispatchStates(stageId);
+    this.deps.stageSuggestionRepo.deleteByStage(stageId);
     this.suggestions.delete(stageId);
     this.helpers.initStageCursors(stage);
     this.autoInvokeNewStage(stage);
