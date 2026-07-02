@@ -241,4 +241,28 @@ describe("dispatch idle → workspace notification", () => {
       expect(statusChanges[i].newStatus).not.toBe(statusChanges[i - 1].newStatus);
     }
   });
+
+  it("invokeAgent 抛异常时 finally 块仍触发 workspace 通知", async () => {
+    const { collaboration, issue } = createCollaboration();
+
+    /** 让 invokeFirstCall 抛出异常 */
+    invokeFirstCallSpy.mockRejectedValue(new Error("agent crashed"));
+
+    const statusChanges: { issueId: string; newStatus: string; prevStatus: string }[] = [];
+    const consumer: WorkspaceConsumer = {
+      onActivityStatusChanged: (issueId, newStatus, prevStatus) => {
+        statusChanges.push({ issueId, newStatus, prevStatus });
+      },
+    };
+    collaboration.registerWorkspaceConsumer(issue.workspace_path, consumer);
+
+    /** sendMessage 会触发 dispatch → invokeAgent，异常不应阻止 finally 块 */
+    await collaboration.sendMessage("s1", "hello", "user", ["developer"]);
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    /** 即使 invokeAgent 失败，finally 块应将状态从 ai_running 恢复为 needs_human */
+    const needsHuman = statusChanges.find(s => s.newStatus === "needs_human");
+    expect(needsHuman).toBeDefined();
+    expect(needsHuman!.issueId).toBe(issue.id);
+  });
 });
