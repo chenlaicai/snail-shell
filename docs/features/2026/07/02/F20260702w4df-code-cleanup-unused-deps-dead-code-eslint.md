@@ -20,7 +20,7 @@ Feature Doc [F20260701chkr] 对代码仓进行系统性健康检视，发现 10 
 
 1. 移除 package.json 中 3 个未使用的依赖
 2. 删除 2 个已废弃的 WebSocket 死代码文件
-3. 清理前端 7 处原生 console.* 调用（删除 3 处有 perf-logger 覆盖的，保留 4 处无替代的），启用 ESLint `no-console` 规则阻止回退
+3. 清理前端 7 处原生 console.* 调用：创建 `src/web/lib/logger.ts` 薄封装，全部替换为 `getLogger()` 调用；启用 ESLint `no-console: "warn"` 规则阻止回退（logger.ts 豁免）
 4. 添加 ESLint 规则防止架构层级方向违规回退（覆盖全部 15 个 domain 模块）
 
 ## 非目标
@@ -204,4 +204,4 @@ Feature Doc [F20260701chkr] 对代码仓进行系统性健康检视，发现 10 
 
 **处置**：✅ 确认接受。验证：useWebSocket.ts 导入了 `recordWsReconnect` + `recordWsDisconnect`（第 6/392/404 行），useWorkspaceRealtime.ts 零 perf-logger 引用。
 
-**修正**：Part 3 改为分类处理 — 删除 3 处（useWebSocket.ts ×2 有 perf-logger 覆盖 + ChatMessage.tsx ×1 dev-only），保留 4 处 useWorkspaceRealtime.ts console（加 eslint-disable 注释）。
+**修正**：综合 Finding 3，Part 3 改为 logger.ts 统一替换方案 — 7 处 console 全部替换为 `getLogger()`，保留 useWorkspaceRealtime.ts 的可观测性。启用 `no-console: "warn"`（logger.ts 豁免）。
