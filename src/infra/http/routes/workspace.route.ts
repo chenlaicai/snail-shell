@@ -8,7 +8,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { toWorkspaceDto } from "@infra/http/workspace-id";
-import type { WorkspaceAdapter } from "@domain/workspace/_internal/adapter";
+import type { WorkspacePort } from "@domain/workspace/port";
 
 const CreateWorkspaceBodySchema = z.object({
   path: z.string().min(1, "path 不能为空"),
@@ -22,7 +22,7 @@ export type WorkspaceDto = {
 };
 export type CreateWorkspaceBody = z.infer<typeof CreateWorkspaceBodySchema>;
 
-export function createWorkspaceRoutes(adapter: WorkspaceAdapter) {
+export function createWorkspaceRoutes(adapter: WorkspacePort) {
   const app = new Hono();
 
   app.get(

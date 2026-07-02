@@ -3,7 +3,7 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { decodeWorkspaceId, encodeWorkspaceId, toWorkspaceDto } from "@infra/http/workspace-id";
 import { getLogger } from "@infra/logger";
-import type { WorkspaceAdapter } from "@domain/workspace/_internal/adapter";
+import type { WorkspacePort } from "@domain/workspace/port";
 import type { IssuePort, StagePort } from "@domain/issue/port";
 import type { MessagePort } from "@domain/message/port";
 import type { CollaborationInput } from "@app/issue-collaboration/port";
@@ -13,7 +13,7 @@ import type { Message } from "@domain/message/model";
 const log = getLogger({ module: "http" });
 
 interface IssueRoutesDeps {
-  workspaceAdapter: WorkspaceAdapter;
+  workspaceAdapter: WorkspacePort;
   issuePort: IssuePort;
   stagePort: StagePort;
   messagePort: MessagePort;

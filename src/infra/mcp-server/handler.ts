@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { getLogger } from "@infra/logger";
-import type { SnailMCPServerAdapter } from "@domain/snail-mcp-server/_internal/adapter";
+import type { SnailMCPServerPort } from "@domain/snail-mcp-server/port";
 import type { JsonRpcRequest } from "@domain/snail-mcp-server/model";
 
 const log = getLogger({ module: "mcp-server" });
@@ -9,7 +9,7 @@ const log = getLogger({ module: "mcp-server" });
  * MCP HTTP 处理器。
  * 为每个 MCP Server 创建独立的端点。
  */
-export function createMcpHandler(adapter: SnailMCPServerAdapter): Hono {
+export function createMcpHandler(adapter: SnailMCPServerPort): Hono {
   const app = new Hono();
 
   // 列出所有 MCP Server

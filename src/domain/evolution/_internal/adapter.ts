@@ -5,12 +5,11 @@ import type {
   EvolutionItemListFilters,
 } from "@domain/evolution/model";
 import { EvolutionStatus, EVOLUTION_ITEM_ID_KEY } from "@domain/evolution/model";
-import type { EvolutionPort, UpdateEvolutionItemInput } from "@domain/evolution/port";
+import type { EvolutionPort, UpdateEvolutionItemInput, CreateIssueFn } from "@domain/evolution/port";
 import type { EvolutionRepository } from "@domain/evolution/_internal/repository";
 import type { IssuePort } from "@domain/issue/port";
 import type { IssueSnailAssignmentPlan } from "@domain/issue/model";
 import type { SnailPort } from "@domain/snail/port";
-import type { CollaborationInput } from "@app/issue-collaboration/port";
 
 /**
  * Evolution 适配器。
@@ -23,7 +22,7 @@ export class EvolutionAdapter implements EvolutionPort {
     private repo: EvolutionRepository,
     private issuePort: IssuePort,
     private snailPort: SnailPort,
-    private collaboration: CollaborationInput,
+    private createIssueFn: CreateIssueFn,
   ) {}
 
   findById(id: string): EvolutionItem | undefined {
@@ -82,7 +81,7 @@ export class EvolutionAdapter implements EvolutionPort {
       throw new Error(`Cannot create issue for item in status "${item.status}", must be "candidate"`);
     }
 
-    const { issue } = await this.collaboration.createIssue({
+    const { issue } = await this.createIssueFn({
       workspace_path: item.workspace_id,
       title: `[Evolution] ${item.title}`,
       summary: item.content,
