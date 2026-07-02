@@ -4,7 +4,10 @@ import { useConversationStore } from "../stores/conversationStore";
 import { queryKeys } from "../queries/keys";
 import { removePendingMessage } from "../lib/pending-messages";
 import { recordWsReconnect, recordWsDisconnect } from "../lib/perf-logger";
+import { getLogger } from "../lib/logger";
 import type { IssueRealtimeMessage, IssueDetailDto, MessageDto, WsServerMessage, CleanupResultDto } from "../types";
+
+const log = getLogger("WebSocket");
 
 /** staleTime 与 client.ts 保持一致 */
 const STALE_TIME = 30_000;
@@ -386,7 +389,7 @@ function createWsConnection(url: string, handlers: WsHandlers): WebSocket {
   ws.onmessage = (e) => {
     if (!handlers.mounted()) return;
     try { handlers.onMessage(JSON.parse(e.data)); }
-    catch (err) { console.warn("[WebSocket] 消息解析失败:", err, e.data); }
+    catch (err) { log.warn("消息解析失败:", err, e.data); }
   };
   ws.onclose = () => { if (handlers.mounted()) handlers.onClose(); };
   ws.onerror = () => { handlers.onError?.(); ws.close(); };
@@ -434,7 +437,7 @@ export function useIssueRealtime(issueId: string | null, currentStageId: string 
             t.count++;
             recordWsDisconnect(`reconnect in ${t.delay}ms`, t.count);
             if (useConversationStore.getState().wsStatus !== "error") setWsStatus("disconnected");
-            console.log(`[WebSocket] 连接关闭，${t.delay}ms 后重连`);
+            log.info(`连接关闭，${t.delay}ms 后重连`);
             t.timer = setTimeout(() => { t.delay = Math.min(t.delay * 2, 30000); connect(); }, t.delay);
           },
         },
