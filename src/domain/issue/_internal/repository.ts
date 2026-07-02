@@ -1,5 +1,5 @@
 import type { SQLiteDatabase } from "@infra/database";
-import type { Issue, Stage, RoleSnailAssignment } from "@domain/issue/model";
+import type { Issue, Stage, RoleSnailAssignment, StageStatus } from "@domain/issue/model";
 import type { StageAuditRecord } from "@domain/issue/port";
 import { getLogger } from "@infra/logger";
 
@@ -29,8 +29,10 @@ export interface StageRepository {
   listAllOpenStageIds(): string[];
   create(stage: Stage): void;
   update(stageId: string, updates: Partial<Pick<Stage, "left_at" | "output_artifacts">>): void;
-  /** @deprecated 使用 advanceStage（通过 StagePort）代替。保留实现以兼容，不再被调用。 */
+  /** 回退到指定 Stage（仅限直接前驱，保留向后兼容） */
   rollbackStage(currentStageId: string, targetKey: string): Stage;
+  /** 统一转移入口：正向创建新 stage，反向找到目标 stage 并重新激活 */
+  transferStage(currentStageId: string, targetKey: string): Stage;
   /** 记录审计轨迹 */
   recordAudit(audit: StageAuditRecord): void;
   /** 获取审计轨迹 */
@@ -51,84 +53,18 @@ export interface RoleSnailAssignmentRepository {
   setSnailInstanceId(stageId: string, roleInstance: string, snailInstanceId: string): void;
 }
 
-const ISSUE_SCHEMA = `
-CREATE TABLE IF NOT EXISTS issue (
-  id TEXT PRIMARY KEY,
-  workspace_path TEXT NOT NULL,
-  title TEXT NOT NULL,
-  summary TEXT,
-  sop_snapshot TEXT NOT NULL,
-  snail_assignment_plan TEXT NOT NULL,
-  context TEXT NOT NULL DEFAULT '{}',
-  created_at TEXT NOT NULL,
-  closed_at TEXT,
-  close_summary TEXT
-);
-
-CREATE INDEX IF NOT EXISTS idx_issue_workspace_created ON issue(workspace_path, created_at DESC);
-
-CREATE TABLE IF NOT EXISTS stage (
-  id TEXT PRIMARY KEY,
-  workspace_path TEXT NOT NULL,
-  issue_id TEXT NOT NULL REFERENCES issue(id),
-  key TEXT NOT NULL,
-  title TEXT NOT NULL,
-  description TEXT NOT NULL,
-  default_role_instance TEXT NOT NULL,
-  role_instances TEXT NOT NULL,
-  from_stage_id TEXT REFERENCES stage(id),
-  available_transitions TEXT NOT NULL,
-  output_artifacts TEXT NOT NULL,
-  entered_at TEXT NOT NULL,
-  left_at TEXT
-);
-
-CREATE INDEX IF NOT EXISTS idx_stage_issue_entered ON stage(issue_id, entered_at ASC);
-
-CREATE TABLE IF NOT EXISTS role_snail_assignment (
-  stage_id TEXT NOT NULL REFERENCES stage(id),
-  role_instance TEXT NOT NULL,
-  seq INTEGER NOT NULL,
-  snail_key TEXT NOT NULL,
-  snail_instance_id TEXT,
-  role_key TEXT NOT NULL,
-  description TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  PRIMARY KEY(stage_id, role_instance, seq)
-);
-
-CREATE INDEX IF NOT EXISTS idx_role_snail_assignment_stage ON role_snail_assignment(stage_id);
-
-CREATE TABLE IF NOT EXISTS stage_audit (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  stage_id TEXT NOT NULL,
-  from_key TEXT NOT NULL,
-  to_key TEXT NOT NULL,
-  trigger TEXT NOT NULL,
-  trigger_reason TEXT NOT NULL,
-  consensus_content TEXT NOT NULL,
-  timestamp INTEGER NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_stage_audit_stage ON stage_audit(stage_id);
-
-CREATE TABLE IF NOT EXISTS stage_suggestion (
-  id TEXT PRIMARY KEY,
-  stage_id TEXT NOT NULL,
-  target_key TEXT NOT NULL,
-  signal_type TEXT,
-  gate_evidence TEXT,
-  adversarial_artifact TEXT,
-  decision_mode TEXT,
-  recommendation TEXT,
-  alternatives TEXT,
-  status TEXT NOT NULL DEFAULT 'pending',
-  created_at INTEGER NOT NULL,
-  processed_at INTEGER
-);
-
-CREATE INDEX IF NOT EXISTS idx_stage_suggestion_stage_status ON stage_suggestion(stage_id, status);
-`;
+const ISSUE_SCHEMA = [
+  `CREATE TABLE IF NOT EXISTS issue (id TEXT PRIMARY KEY, workspace_path TEXT NOT NULL, title TEXT NOT NULL, summary TEXT, sop_snapshot TEXT NOT NULL, snail_assignment_plan TEXT NOT NULL, context TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL, closed_at TEXT, close_summary TEXT)`,
+  `CREATE INDEX IF NOT EXISTS idx_issue_workspace_created ON issue(workspace_path, created_at DESC)`,
+  `CREATE TABLE IF NOT EXISTS stage (id TEXT PRIMARY KEY, workspace_path TEXT NOT NULL, issue_id TEXT NOT NULL REFERENCES issue(id), key TEXT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL, default_role_instance TEXT NOT NULL, role_instances TEXT NOT NULL, from_stage_id TEXT REFERENCES stage(id), available_transitions TEXT NOT NULL, output_artifacts TEXT NOT NULL, entered_at TEXT NOT NULL, left_at TEXT, status TEXT NOT NULL DEFAULT 'active')`,
+  `CREATE INDEX IF NOT EXISTS idx_stage_issue_entered ON stage(issue_id, entered_at ASC)`,
+  `CREATE TABLE IF NOT EXISTS role_snail_assignment (stage_id TEXT NOT NULL REFERENCES stage(id), role_instance TEXT NOT NULL, seq INTEGER NOT NULL, snail_key TEXT NOT NULL, snail_instance_id TEXT, role_key TEXT NOT NULL, description TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(stage_id, role_instance, seq))`,
+  `CREATE INDEX IF NOT EXISTS idx_role_snail_assignment_stage ON role_snail_assignment(stage_id)`,
+  `CREATE TABLE IF NOT EXISTS stage_audit (id INTEGER PRIMARY KEY AUTOINCREMENT, stage_id TEXT NOT NULL, from_key TEXT NOT NULL, to_key TEXT NOT NULL, trigger TEXT NOT NULL, trigger_reason TEXT NOT NULL, consensus_content TEXT NOT NULL, timestamp INTEGER NOT NULL)`,
+  `CREATE INDEX IF NOT EXISTS idx_stage_audit_stage ON stage_audit(stage_id)`,
+  `CREATE TABLE IF NOT EXISTS stage_suggestion (id TEXT PRIMARY KEY, stage_id TEXT NOT NULL, target_key TEXT NOT NULL, signal_type TEXT, gate_evidence TEXT, adversarial_artifact TEXT, decision_mode TEXT, recommendation TEXT, alternatives TEXT, status TEXT NOT NULL DEFAULT 'pending', created_at INTEGER NOT NULL, processed_at INTEGER)`,
+  `CREATE INDEX IF NOT EXISTS idx_stage_suggestion_stage_status ON stage_suggestion(stage_id, status)`,
+].join(";\n") + ";";
 
 type IssueRow = {
   id: string;
@@ -157,6 +93,7 @@ type StageRow = {
   output_artifacts: string;
   entered_at: string;
   left_at: string | null;
+  status: string;
 };
 
 type RoleSnailAssignmentRow = RoleSnailAssignment;
@@ -262,8 +199,8 @@ export class SQLiteStageRepository implements StageRepository {
 
   create(stage: Stage): void {
     this.db.run(
-      `INSERT INTO stage (id, workspace_path, issue_id, key, title, description, default_role_instance, role_instances, from_stage_id, available_transitions, output_artifacts, entered_at, left_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO stage (id, workspace_path, issue_id, key, title, description, default_role_instance, role_instances, from_stage_id, available_transitions, output_artifacts, entered_at, left_at, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         stage.id,
         stage.workspace_path,
@@ -278,6 +215,7 @@ export class SQLiteStageRepository implements StageRepository {
         JSON.stringify(stage.output_artifacts),
         stage.entered_at,
         stage.left_at,
+        stage.status,
       ],
     );
   }
@@ -301,34 +239,48 @@ export class SQLiteStageRepository implements StageRepository {
     return this.transaction(() => {
       const current = this.findById(currentStageId);
       if (!current) throw new Error(`Stage not found: ${currentStageId}`);
-
-      if (!current.from_stage_id) {
-        throw new Error(`Cannot rollback: stage ${currentStageId} has no previous stage`);
-      }
-
-      const previousStage = this.findById(current.from_stage_id);
-      if (!previousStage) {
-        throw new Error(`Cannot rollback: previous stage ${current.from_stage_id} not found`);
-      }
-
-      if (previousStage.key !== targetKey) {
-        throw new Error(`Cannot rollback: previous stage key "${previousStage.key}" does not match target "${targetKey}"`);
-      }
-
-      // 清理当前 stage 的关联数据
+      if (!current.from_stage_id) throw new Error(`Cannot rollback: stage ${currentStageId} has no previous stage`);
+      const prev = this.findById(current.from_stage_id);
+      if (!prev) throw new Error(`Cannot rollback: previous stage ${current.from_stage_id} not found`);
+      if (prev.key !== targetKey) throw new Error(`Cannot rollback: previous stage key "${prev.key}" does not match target "${targetKey}"`);
       this.db.run(`DELETE FROM role_snail_assignment WHERE stage_id = ?`, [currentStageId]);
       this.db.run(`DELETE FROM stage_audit WHERE stage_id = ?`, [currentStageId]);
       this.db.run(`DELETE FROM stage WHERE id = ?`, [currentStageId]);
-
-      // 清除前一个 stage 的 left_at
-      this.db.run(`UPDATE stage SET left_at = NULL WHERE id = ?`, [previousStage.id]);
-
-      const updated = this.findById(previousStage.id);
-      if (!updated) throw new Error(`Stage not found after rollback: ${previousStage.id}`);
-
-      log.info({ fromStageId: currentStageId, toStageId: previousStage.id, targetKey }, "stage.rollback");
+      this.db.run(`UPDATE stage SET left_at = NULL WHERE id = ?`, [prev.id]);
+      const updated = this.findById(prev.id);
+      if (!updated) throw new Error(`Stage not found after rollback: ${prev.id}`);
+      log.info({ fromStageId: currentStageId, toStageId: prev.id, targetKey }, "stage.rollback");
       return updated;
     });
+  }
+
+  /** 统一转移入口：仅处理反向路径（正向走 advanceStage）。找到历史中的目标 stage，标记中间 stage 为 rolled_back。 */
+  transferStage(currentStageId: string, targetKey: string): Stage {
+    return this.transaction(() => {
+      const current = this.findById(currentStageId);
+      if (!current) throw new Error(`Stage not found: ${currentStageId}`);
+      const allStages = this.listByIssue(current.issue_id);
+      const targetStage = allStages.find(s => s.key === targetKey && s.status === "active");
+      if (!targetStage) throw new Error(`Backward target not found: ${targetKey}`);
+      return this.executeBackwardTransfer(current, targetStage, allStages);
+    });
+  }
+
+  /** 反向转移：标记中间 stage 为 rolled_back，重新激活目标 stage */
+  private executeBackwardTransfer(current: Stage, targetStage: Stage, allStages: Stage[]): Stage {
+    const now = new Date().toISOString();
+    /** current 和 targetStage 之间的中间 stage（不含 targetStage 本身） */
+    const intermediates = allStages.filter(s =>
+      s.entered_at > targetStage.entered_at && s.entered_at <= current.entered_at && s.id !== targetStage.id && s.status === "active");
+    const idsToRollback = [...intermediates.map(s => s.id), current.id];
+    for (const id of idsToRollback) {
+      this.db.run(`UPDATE stage SET status = 'rolled_back', left_at = COALESCE(left_at, ?) WHERE id = ?`, [now, id]);
+    }
+    this.db.run(`UPDATE stage SET left_at = NULL, status = 'active' WHERE id = ?`, [targetStage.id]);
+    log.info({ fromStageId: current.id, toStageId: targetStage.id, rolledBackCount: idsToRollback.length }, "stage.backward_transfer");
+    const updated = this.findById(targetStage.id);
+    if (!updated) throw new Error(`Stage not found after backward transfer: ${targetStage.id}`);
+    return updated;
   }
 
   recordAudit(audit: StageAuditRecord): void {
@@ -441,6 +393,7 @@ function mapStage(row: StageRow): Stage {
     output_artifacts: JSON.parse(row.output_artifacts),
     entered_at: row.entered_at,
     left_at: row.left_at,
+    status: (row.status as StageStatus) ?? "active",
   };
 }
 

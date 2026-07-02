@@ -53,6 +53,7 @@ function createStage(overrides: Partial<Stage> = {}): Stage {
     output_artifacts: {},
     entered_at: new Date().toISOString(),
     left_at: null,
+    status: "active",
     ...overrides,
   };
 }
@@ -81,7 +82,7 @@ function createSuggestion(overrides: Partial<StageTransitionSuggestion> = {}): S
 
 function createDeps(overrides: Partial<AutoAdvanceDeps> = {}): AutoAdvanceDeps {
   return {
-    advanceStage: vi.fn().mockResolvedValue(createStage({ key: "review" })),
+    transferStage: vi.fn().mockResolvedValue(createStage({ key: "review" })),
     recordAuditTrail: vi.fn().mockResolvedValue(undefined),
     notifyConsumers: vi.fn().mockResolvedValue(undefined),
     generateDisagreementCard: vi.fn().mockResolvedValue(undefined),
@@ -131,7 +132,7 @@ describe("AutoAdvanceEngine context validation", () => {
       const engine = new AutoAdvanceEngine(deps);
       const result = await engine.evaluate(createStage({ key: "development" }), [createSuggestion()]);
 
-      expect(deps.advanceStage).not.toHaveBeenCalled();
+      expect(deps.transferStage).not.toHaveBeenCalled();
       expect(result.action).toBe("blocked");
       expect(result.reasons[0].code).toBe("CONTEXT_MISSING");
       assertContextMissing(deps, ["worktree_path"]);
@@ -144,7 +145,7 @@ describe("AutoAdvanceEngine context validation", () => {
       const engine = new AutoAdvanceEngine(deps);
       const result = await engine.evaluate(createStage({ key: "development" }), [createSuggestion()]);
 
-      expect(deps.advanceStage).not.toHaveBeenCalled();
+      expect(deps.transferStage).not.toHaveBeenCalled();
       expect(result.action).toBe("blocked");
       expect(result.reasons[0].code).toBe("CONTEXT_MISSING");
       assertContextMissing(deps, ["branch_name"]);
@@ -157,7 +158,7 @@ describe("AutoAdvanceEngine context validation", () => {
       const engine = new AutoAdvanceEngine(deps);
       const result = await engine.evaluate(createStage({ key: "development" }), [createSuggestion()]);
 
-      expect(deps.advanceStage).not.toHaveBeenCalled();
+      expect(deps.transferStage).not.toHaveBeenCalled();
       expect(result.action).toBe("blocked");
       expect(result.reasons[0].code).toBe("CONTEXT_MISSING");
       assertContextMissing(deps, ["pr_url"]);
@@ -170,7 +171,7 @@ describe("AutoAdvanceEngine context validation", () => {
       const engine = new AutoAdvanceEngine(deps);
       const result = await engine.evaluate(createStage({ key: "development" }), [createSuggestion()]);
 
-      expect(deps.advanceStage).not.toHaveBeenCalled();
+      expect(deps.transferStage).not.toHaveBeenCalled();
       expect(result.action).toBe("blocked");
       expect(result.reasons[0].code).toBe("CONTEXT_MISSING");
       assertContextMissing(deps, ["worktree_path", "branch_name", "pr_url"]);
@@ -183,7 +184,7 @@ describe("AutoAdvanceEngine context validation", () => {
       const engine = new AutoAdvanceEngine(deps);
       const result = await engine.evaluate(createStage({ key: "development" }), [createSuggestion()]);
 
-      expect(deps.advanceStage).not.toHaveBeenCalled();
+      expect(deps.transferStage).not.toHaveBeenCalled();
       expect(result.action).toBe("blocked");
       expect(result.reasons[0].code).toBe("CONTEXT_MISSING");
       assertContextMissing(deps, ["worktree_path"]);
@@ -194,7 +195,7 @@ describe("AutoAdvanceEngine context validation", () => {
       const engine = new AutoAdvanceEngine(deps);
       const result = await engine.evaluate(createStage({ key: "development" }), [createSuggestion()]);
 
-      expect(deps.advanceStage).toHaveBeenCalled();
+      expect(deps.transferStage).toHaveBeenCalled();
       expect(result.action).toBe("auto_advanced");
       expect(result.reasons[0].code).toBe("AUTO_ADVANCED");
     });
@@ -206,7 +207,7 @@ describe("AutoAdvanceEngine context validation", () => {
         gate_evidence: { "dev-01": "implemented" }, // missing dev-02, dev-03, dev-04, dev-06
       })]);
 
-      expect(deps.advanceStage).not.toHaveBeenCalled();
+      expect(deps.transferStage).not.toHaveBeenCalled();
       expect(result.action).toBe("blocked");
       expect(result.reasons[0].code).toBe("GATE_FAILED");
     });
@@ -228,7 +229,7 @@ describe("AutoAdvanceEngine context validation", () => {
       const suggestion2 = { ...suggestion, from_speaker: "architect-2", message_id: 2 };
       const result = await engine.evaluate(createStage({ key: "design" }), [suggestion, suggestion2]);
 
-      expect(deps.advanceStage).not.toHaveBeenCalled();
+      expect(deps.transferStage).not.toHaveBeenCalled();
       expect(result.action).toBe("blocked");
       expect(result.reasons[0].code).toBe("CONTEXT_MISSING");
       assertContextMissing(deps, ["worktree_path", "branch_name"]);
@@ -273,7 +274,7 @@ describe("AutoAdvanceEngine context validation", () => {
       const suggestion2 = { ...suggestion, from_speaker: "architect-2", message_id: 2, adversarial_artifact: adversarialArtifact2 };
       const result = await engine.evaluate(createStage({ key: "design" }), [suggestion, suggestion2]);
 
-      expect(deps.advanceStage).toHaveBeenCalled();
+      expect(deps.transferStage).toHaveBeenCalled();
       expect(result.action).toBe("auto_advanced");
     });
 
@@ -303,7 +304,7 @@ describe("AutoAdvanceEngine context validation", () => {
       const suggestion2 = { ...suggestion, from_speaker: "architect-2", message_id: 2 };
       const result = await engine.evaluate(createStage({ key: "design" }), [suggestion, suggestion2]);
 
-      expect(deps.advanceStage).not.toHaveBeenCalled();
+      expect(deps.transferStage).not.toHaveBeenCalled();
       expect(result.action).toBe("blocked");
       expect(result.reasons[0].code).toBe("ADVERSARIAL_VALIDATION_FAILED");
     });
@@ -338,7 +339,7 @@ describe("AutoAdvanceEngine context validation", () => {
       const suggestion2 = { ...suggestion, from_speaker: "architect-2", message_id: 2 };
       const result = await engine.evaluate(createStage({ key: "design" }), [suggestion, suggestion2]);
 
-      expect(deps.advanceStage).not.toHaveBeenCalled();
+      expect(deps.transferStage).not.toHaveBeenCalled();
       expect(result.action).toBe("blocked");
       expect(result.reasons[0].code).toBe("ADVERSARIAL_VALIDATION_FAILED");
     });
@@ -357,7 +358,7 @@ describe("no auto_advance config", () => {
     const engine = new AutoAdvanceEngine(deps);
     const result = await engine.evaluate(createStage({ key: "merge", available_transitions: [] }), [createSuggestion()]);
 
-    expect(deps.advanceStage).not.toHaveBeenCalled();
+    expect(deps.transferStage).not.toHaveBeenCalled();
     expect(result.action).toBe("escalated");
     expect(result.reasons[0].code).toBe("NO_AUTO_ADVANCE_CONFIG");
   });
@@ -384,7 +385,7 @@ describe("blocking_rules (incompatible_tag)", () => {
     const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2 };
     const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
 
-    expect(deps.advanceStage).not.toHaveBeenCalled();
+    expect(deps.transferStage).not.toHaveBeenCalled();
     expect(result.action).toBe("blocked");
     expect(result.reasons[0].code).toBe("INCOMPATIBLE_BLOCKED");
   });
@@ -419,7 +420,7 @@ describe("adversarial artifact validation", () => {
       const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed", "rev-04": "F20260701tj92" } });
       const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2 };
       const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
-      expect(deps.advanceStage).not.toHaveBeenCalled();
+      expect(deps.transferStage).not.toHaveBeenCalled();
       expect(result.action).toBe("blocked");
       expect(result.reasons[0].code).toBe("CONTEXT_MISSING");
       assertContextMissing(deps, ["pr_url"]);
@@ -432,7 +433,7 @@ describe("adversarial artifact validation", () => {
       const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed", "rev-04": "F20260701tj92" }, adversarial_artifact: createReviewArtifact() });
       const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2, adversarial_artifact: a2 };
       const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
-      expect(deps.advanceStage).toHaveBeenCalled();
+      expect(deps.transferStage).toHaveBeenCalled();
       expect(result.action).toBe("auto_advanced");
     });
   });
@@ -444,7 +445,7 @@ describe("adversarial artifact validation", () => {
       const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed" }, adversarial_artifact: createReviewArtifact() });
       const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2 };
       const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
-      expect(deps.advanceStage).not.toHaveBeenCalled();
+      expect(deps.transferStage).not.toHaveBeenCalled();
       expect(result.action).toBe("blocked");
       expect(result.reasons[0].code).toBe("GATE_FAILED");
       expect(result.reasons[0].details?.failed_gates).toContain("rev-04");
@@ -456,7 +457,7 @@ describe("adversarial artifact validation", () => {
       const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed", "rev-04": "F2026070101" }, adversarial_artifact: createReviewArtifact() });
       const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2 };
       const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
-      expect(deps.advanceStage).not.toHaveBeenCalled();
+      expect(deps.transferStage).not.toHaveBeenCalled();
       expect(result.action).toBe("blocked");
       expect(result.reasons[0].code).toBe("GATE_FAILED");
       expect(result.reasons[0].details?.failed_gates).toContain("rev-04");
@@ -468,7 +469,7 @@ describe("adversarial artifact validation", () => {
       const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed", "rev-04": "" }, adversarial_artifact: createReviewArtifact() });
       const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2 };
       const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
-      expect(deps.advanceStage).not.toHaveBeenCalled();
+      expect(deps.transferStage).not.toHaveBeenCalled();
       expect(result.action).toBe("blocked");
       expect(result.reasons[0].code).toBe("GATE_FAILED");
       expect(result.reasons[0].details?.failed_gates).toContain("rev-04");
@@ -480,7 +481,7 @@ describe("adversarial artifact validation", () => {
       const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed", "rev-04": "F20260701tj92" }, adversarial_artifact: createReviewArtifact() });
       const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2 };
       const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
-      expect(deps.advanceStage).toHaveBeenCalled();
+      expect(deps.transferStage).toHaveBeenCalled();
       expect(result.action).toBe("auto_advanced");
     });
   });
@@ -492,7 +493,7 @@ describe("adversarial artifact validation", () => {
       const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed", "rev-04": "F20260701tj92" } });
       const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2 };
       const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
-      expect(deps.advanceStage).not.toHaveBeenCalled();
+      expect(deps.transferStage).not.toHaveBeenCalled();
       expect(result.action).toBe("blocked");
       expect(result.reasons[0].code).toBe("ADVERSARIAL_ARTIFACT_MISSING");
     });
@@ -504,7 +505,7 @@ describe("adversarial artifact validation", () => {
       const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed", "rev-04": "F20260701tj92" }, adversarial_artifact: artifact as any });
       const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2 };
       const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
-      expect(deps.advanceStage).not.toHaveBeenCalled();
+      expect(deps.transferStage).not.toHaveBeenCalled();
       expect(result.action).toBe("blocked");
       expect(result.reasons[0].code).toBe("ADVERSARIAL_VALIDATION_FAILED");
     });
@@ -516,7 +517,7 @@ describe("adversarial artifact validation", () => {
       const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed", "rev-04": "F20260701tj92" }, adversarial_artifact: artifact as any });
       const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2 };
       const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
-      expect(deps.advanceStage).not.toHaveBeenCalled();
+      expect(deps.transferStage).not.toHaveBeenCalled();
       expect(result.action).toBe("blocked");
       expect(result.reasons[0].code).toBe("ADVERSARIAL_VALIDATION_FAILED");
     });
@@ -528,7 +529,7 @@ describe("adversarial artifact validation", () => {
       const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed", "rev-04": "F20260701tj92" }, adversarial_artifact: artifact as any });
       const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2 };
       const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
-      expect(deps.advanceStage).not.toHaveBeenCalled();
+      expect(deps.transferStage).not.toHaveBeenCalled();
       expect(result.action).toBe("blocked");
       expect(result.reasons[0].code).toBe("ADVERSARIAL_VALIDATION_FAILED");
     });
@@ -542,7 +543,7 @@ describe("adversarial artifact validation", () => {
       const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed", "rev-04": "F20260701tj92" }, adversarial_artifact: artifact as any });
       const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2 };
       const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
-      expect(deps.advanceStage).not.toHaveBeenCalled();
+      expect(deps.transferStage).not.toHaveBeenCalled();
       expect(result.action).toBe("blocked");
       expect(result.reasons[0].code).toBe("ADVERSARIAL_VALIDATION_FAILED");
     });
@@ -559,7 +560,7 @@ describe("adversarial artifact validation", () => {
       const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed", "rev-04": "F20260701tj92" }, adversarial_artifact: artifact as any });
       const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2 };
       const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
-      expect(deps.advanceStage).not.toHaveBeenCalled();
+      expect(deps.transferStage).not.toHaveBeenCalled();
       expect(result.action).toBe("blocked");
       expect(result.reasons[0].code).toBe("ADVERSARIAL_VALIDATION_FAILED");
     });
@@ -574,7 +575,7 @@ describe("adversarial artifact validation", () => {
       const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed", "rev-04": "F20260701tj92" }, adversarial_artifact: artifact as any });
       const s2 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-2", message_id: 2, target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed", "rev-04": "F20260701tj92" }, adversarial_artifact: artifact as any });
       const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
-      expect(deps.advanceStage).toHaveBeenCalled();
+      expect(deps.transferStage).toHaveBeenCalled();
       expect(result.action).toBe("auto_advanced");
       expect(result.reasons.some(r => r.code === "R6_SIMILARITY_DETECTED")).toBe(true);
     });
@@ -589,7 +590,7 @@ describe("adversarial artifact validation", () => {
       const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed", "rev-04": "F20260701tj92" }, adversarial_artifact: a1 as any });
       const s2 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-2", message_id: 2, target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed", "rev-04": "F20260701tj92" }, adversarial_artifact: a2 as any });
       const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
-      expect(deps.advanceStage).toHaveBeenCalled();
+      expect(deps.transferStage).toHaveBeenCalled();
       expect(result.action).toBe("auto_advanced");
       expect(result.reasons.some(r => r.code === "R6_SIMILARITY_DETECTED")).toBe(true);
     });
@@ -604,7 +605,7 @@ describe("adversarial artifact validation", () => {
       const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed", "rev-04": "F20260701tj92" }, adversarial_artifact: a1 as any });
       const s2 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-2", message_id: 2, target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed", "rev-04": "F20260701tj92" }, adversarial_artifact: a2 as any });
       const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
-      expect(deps.advanceStage).toHaveBeenCalled();
+      expect(deps.transferStage).toHaveBeenCalled();
       expect(result.action).toBe("auto_advanced");
       expect(result.reasons.some(r => r.code === "R6_SIMILARITY_DETECTED")).toBe(false);
     });
@@ -622,7 +623,7 @@ describe("R7/R8 adversarial findings validation", () => {
       const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed", "rev-04": "F20260701tj92" }, adversarial_artifact: a1 as any });
       const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2, adversarial_artifact: a2 as any };
       const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
-      expect(deps.advanceStage).toHaveBeenCalled();
+      expect(deps.transferStage).toHaveBeenCalled();
       expect(result.action).toBe("auto_advanced");
       const r7Reasons = result.reasons.filter(r => r.code === "R7_ALL_CLEAR_WARNING");
       expect(r7Reasons.length).toBe(2);
@@ -640,7 +641,7 @@ describe("R7/R8 adversarial findings validation", () => {
       const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed", "rev-04": "F20260701tj92" }, adversarial_artifact: a1 as any });
       const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2, adversarial_artifact: a2 as any };
       const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
-      expect(deps.advanceStage).toHaveBeenCalled();
+      expect(deps.transferStage).toHaveBeenCalled();
       expect(result.action).toBe("auto_advanced");
       const r7Reasons = result.reasons.filter(r => r.code === "R7_ALL_CLEAR_WARNING");
       expect(r7Reasons.length).toBe(0);
@@ -658,7 +659,7 @@ describe("R7/R8 adversarial findings validation", () => {
       const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed", "rev-04": "F20260701tj92" }, adversarial_artifact: a1 as any });
       const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2, adversarial_artifact: a2 as any };
       const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
-      expect(deps.advanceStage).not.toHaveBeenCalled();
+      expect(deps.transferStage).not.toHaveBeenCalled();
       expect(result.action).toBe("blocked");
       expect(result.reasons[0].code).toBe("ADVERSARIAL_VALIDATION_FAILED");
       expect(result.reasons[0].details?.rule).toBe("R8");
@@ -674,7 +675,7 @@ describe("R7/R8 adversarial findings validation", () => {
       const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed", "rev-04": "F20260701tj92" }, adversarial_artifact: a1 as any });
       const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2, adversarial_artifact: a2 as any };
       const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
-      expect(deps.advanceStage).not.toHaveBeenCalled();
+      expect(deps.transferStage).not.toHaveBeenCalled();
       expect(result.action).toBe("blocked");
       expect(result.reasons[0].code).toBe("ADVERSARIAL_VALIDATION_FAILED");
       expect(result.reasons[0].details?.rule).toBe("R8");
@@ -690,7 +691,7 @@ describe("R7/R8 adversarial findings validation", () => {
       const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed", "rev-04": "F20260701tj92" }, adversarial_artifact: a1 as any });
       const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2, adversarial_artifact: a2 as any };
       const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
-      expect(deps.advanceStage).toHaveBeenCalled();
+      expect(deps.transferStage).toHaveBeenCalled();
       expect(result.action).toBe("auto_advanced");
     });
 
@@ -704,7 +705,7 @@ describe("R7/R8 adversarial findings validation", () => {
       const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed", "rev-04": "F20260701tj92" }, adversarial_artifact: a1 as any });
       const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2, adversarial_artifact: a2 as any };
       const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
-      expect(deps.advanceStage).toHaveBeenCalled();
+      expect(deps.transferStage).toHaveBeenCalled();
       expect(result.action).toBe("auto_advanced");
     });
 
@@ -718,7 +719,7 @@ describe("R7/R8 adversarial findings validation", () => {
       const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed", "rev-04": "F20260701tj92" }, adversarial_artifact: a1 as any });
       const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2, adversarial_artifact: a2 as any };
       const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
-      expect(deps.advanceStage).toHaveBeenCalled();
+      expect(deps.transferStage).toHaveBeenCalled();
       expect(result.action).toBe("auto_advanced");
     });
 
@@ -733,7 +734,7 @@ describe("R7/R8 adversarial findings validation", () => {
       const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed", "rev-04": "F20260701tj92" }, adversarial_artifact: a1 as any });
       const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2, adversarial_artifact: a2 as any };
       const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
-      expect(deps.advanceStage).not.toHaveBeenCalled();
+      expect(deps.transferStage).not.toHaveBeenCalled();
       expect(result.action).toBe("blocked");
       expect(result.reasons[0].code).toBe("ADVERSARIAL_VALIDATION_FAILED");
       expect(result.reasons[0].details?.rule).toBe("R8");
@@ -767,7 +768,7 @@ describe("R7/R8 adversarial findings validation", () => {
       const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "architect-1", target_key: "development", gate_evidence: { "design-01": "locked", "design-02": "resolved" }, adversarial_artifact: a1 as any });
       const s2 = { ...s1, from_speaker: "architect-2", message_id: 2, adversarial_artifact: a2 as any };
       const result = await engine.evaluate(createStage({ key: "design" }), [s1, s2]);
-      expect(deps.advanceStage).toHaveBeenCalled();
+      expect(deps.transferStage).toHaveBeenCalled();
       expect(result.action).toBe("auto_advanced");
     });
 
@@ -783,7 +784,7 @@ describe("R7/R8 adversarial findings validation", () => {
       const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed", "rev-04": "F20260701tj92" }, adversarial_artifact: a1 as any });
       const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2, adversarial_artifact: a2 as any };
       const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
-      expect(deps.advanceStage).not.toHaveBeenCalled();
+      expect(deps.transferStage).not.toHaveBeenCalled();
       expect(result.action).toBe("blocked");
       expect(result.reasons[0].code).toBe("ADVERSARIAL_VALIDATION_FAILED");
       expect(result.reasons[0].details?.rule).toBe("R8");
@@ -808,7 +809,7 @@ describe("R7/R8 adversarial findings validation", () => {
         },
       });
       const result = await engine.evaluate(createStage({ key: "development" }), [oldFormatSuggestion]);
-      expect(deps.advanceStage).toHaveBeenCalled();
+      expect(deps.transferStage).toHaveBeenCalled();
       expect(result.action).toBe("auto_advanced");
     });
 
@@ -828,7 +829,7 @@ describe("R7/R8 adversarial findings validation", () => {
       });
       const oldFormatSuggestion2 = { ...oldFormatSuggestion, from_speaker: "architect-2", message_id: 2 };
       const result = await engine.evaluate(createStage({ key: "design" }), [oldFormatSuggestion, oldFormatSuggestion2]);
-      expect(deps.advanceStage).not.toHaveBeenCalled();
+      expect(deps.transferStage).not.toHaveBeenCalled();
       expect(result.action).toBe("blocked");
       expect(result.reasons[0].code).toBe("ADVERSARIAL_ARTIFACT_MISSING");
     });
@@ -846,7 +847,7 @@ describe("decision_mode validation (B3)", () => {
       // recommendation is missing
     });
     const result = await engine.evaluate(createStage({ key: "development" }), [suggestion]);
-    expect(deps.advanceStage).not.toHaveBeenCalled();
+    expect(deps.transferStage).not.toHaveBeenCalled();
     expect(result.action).toBe("blocked");
     expect(result.reasons[0].code).toBe("SUGGESTIVE_MISSING_RECOMMENDATION");
   });
@@ -861,7 +862,7 @@ describe("decision_mode validation (B3)", () => {
       reason: "", // empty reason
     });
     const result = await engine.evaluate(createStage({ key: "development" }), [suggestion]);
-    expect(deps.advanceStage).not.toHaveBeenCalled();
+    expect(deps.transferStage).not.toHaveBeenCalled();
     expect(result.action).toBe("blocked");
     expect(result.reasons[0].code).toBe("SUGGESTIVE_MISSING_REASON");
   });
@@ -875,7 +876,7 @@ describe("decision_mode validation (B3)", () => {
       // alternatives is missing
     });
     const result = await engine.evaluate(createStage({ key: "development" }), [suggestion]);
-    expect(deps.advanceStage).not.toHaveBeenCalled();
+    expect(deps.transferStage).not.toHaveBeenCalled();
     expect(result.action).toBe("blocked");
     expect(result.reasons[0].code).toBe("SUGGESTIVE_MISSING_ALTERNATIVES");
   });
@@ -889,7 +890,7 @@ describe("decision_mode validation (B3)", () => {
       alternatives: [],
     });
     const result = await engine.evaluate(createStage({ key: "development" }), [suggestion]);
-    expect(deps.advanceStage).not.toHaveBeenCalled();
+    expect(deps.transferStage).not.toHaveBeenCalled();
     expect(result.action).toBe("blocked");
     expect(result.reasons[0].code).toBe("SUGGESTIVE_MISSING_ALTERNATIVES");
   });
@@ -915,7 +916,7 @@ describe("decision_mode validation (B3)", () => {
     const engine = new AutoAdvanceEngine(deps);
     const suggestion = createSuggestion({ decision_mode: "autonomous" });
     const result = await engine.evaluate(createStage({ key: "development" }), [suggestion]);
-    expect(deps.advanceStage).toHaveBeenCalled();
+    expect(deps.transferStage).toHaveBeenCalled();
     expect(result.action).toBe("auto_advanced");
   });
 
@@ -924,7 +925,7 @@ describe("decision_mode validation (B3)", () => {
     const engine = new AutoAdvanceEngine(deps);
     const suggestion = createSuggestion({ decision_mode: undefined });
     const result = await engine.evaluate(createStage({ key: "development" }), [suggestion]);
-    expect(deps.advanceStage).toHaveBeenCalled();
+    expect(deps.transferStage).toHaveBeenCalled();
     expect(result.action).toBe("auto_advanced");
   });
 
@@ -938,7 +939,7 @@ describe("decision_mode validation (B3)", () => {
       alternatives: ["stay in development", "rollback"],
     });
     const result = await engine.evaluate(createStage({ key: "development" }), [suggestion]);
-    expect(deps.advanceStage).toHaveBeenCalled();
+    expect(deps.transferStage).toHaveBeenCalled();
     expect(result.action).toBe("auto_advanced");
   });
 });
@@ -955,7 +956,7 @@ describe("evaluateAdvance (L2 manual advance gate)", () => {
     const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2, adversarial_artifact: a2 as any };
     const result = await engine.evaluateAdvance(createStage({ key: "review" }), [s1, s2]);
 
-    expect(deps.advanceStage).not.toHaveBeenCalled();
+    expect(deps.transferStage).not.toHaveBeenCalled();
     expect(result.action).toBe("blocked");
     expect(result.reasons[0].details?.rule).toBe("R8");
   });
@@ -969,7 +970,7 @@ describe("evaluateAdvance (L2 manual advance gate)", () => {
     const result = await engine.evaluateAdvance(createStage({ key: "review" }), [s1, s2]);
 
     expect(result.action).toBe("auto_advanced");
-    expect(deps.advanceStage).not.toHaveBeenCalled();
+    expect(deps.transferStage).not.toHaveBeenCalled();
   });
 
   it("returns blocked when gate_evidence is missing (gate_complete)", async () => {
@@ -979,7 +980,7 @@ describe("evaluateAdvance (L2 manual advance gate)", () => {
       gate_evidence: { "dev-01": "implemented" },
     })]);
 
-    expect(deps.advanceStage).not.toHaveBeenCalled();
+    expect(deps.transferStage).not.toHaveBeenCalled();
     expect(result.action).toBe("blocked");
     expect(result.reasons[0].code).toBe("GATE_FAILED");
   });
@@ -1003,8 +1004,51 @@ describe("evaluateAdvance (L2 manual advance gate)", () => {
     const engine = new AutoAdvanceEngine(deps);
     const result = await engine.evaluateAdvance(createStage({ key: "merge", available_transitions: [] }), [createSuggestion()]);
 
-    expect(deps.advanceStage).not.toHaveBeenCalled();
+    expect(deps.transferStage).not.toHaveBeenCalled();
     expect(result.action).toBe("escalated");
     expect(result.reasons[0].code).toBe("NO_AUTO_ADVANCE_CONFIG");
+  });
+});
+
+describe("target_key 一致性检查", () => {
+  const REVIEW_GATE_EVIDENCE = { "rev-01": "done", "rev-02": "verified", "rev-03": "signed", "rev-04": "F20260702ux98" };
+  const mkArtifact = (finding: string) => {
+    const t1 = new Date().toISOString();
+    const t2 = new Date(Date.now() + 1000).toISOString();
+    return {
+      independent_verification: [{ command: "test", actual_output: "output long enough for validation", executed_at: t1 }],
+      adversarial_findings: [{ dimension: "test", finding, disposition: "n/a" }],
+      audit_trail: { events: [{ timestamp: t1, event_type: "review_started" as const, detail: "start" }, { timestamp: t2, event_type: "cross_review_read" as const, detail: "read" }] },
+      file_coverage: { files_reviewed: 1, files_in_diff: 1, coverage_ratio: 1.0 },
+    };
+  };
+
+  it("adversarial_consensus 中两个 speaker 的 target_key 不一致时返回 escalated", async () => {
+    const deps = createDeps();
+    const engine = new AutoAdvanceEngine(deps);
+    const stage = createStage({ key: "review", available_transitions: [{ to: "merge", guard: null }, { to: "design", guard: null }] });
+    const artifact = mkArtifact("no issues");
+    const suggestions = [
+      createSuggestion({ signal_type: "adversarial_consensus", from_speaker: "reviewer-1", target_key: "merge", gate_evidence: REVIEW_GATE_EVIDENCE, adversarial_artifact: artifact }),
+      createSuggestion({ signal_type: "adversarial_consensus", from_speaker: "reviewer-2", target_key: "design", gate_evidence: REVIEW_GATE_EVIDENCE, adversarial_artifact: artifact }),
+    ];
+    const result = await engine.evaluate(stage, suggestions);
+    expect(result.action).toBe("escalated");
+    expect(result.reasons[0].code).toBe("TARGET_KEY_MISMATCH");
+  });
+
+  it("adversarial_consensus 中所有 speaker 的 target_key 一致时正常推进（含反向）", async () => {
+    const deps = createDeps();
+    const engine = new AutoAdvanceEngine(deps);
+    const stage = createStage({ key: "review", available_transitions: [{ to: "merge", guard: null }, { to: "design", guard: null }] });
+    const artifact = mkArtifact("no issues");
+    const suggestions = [
+      createSuggestion({ signal_type: "adversarial_consensus", from_speaker: "reviewer-1", target_key: "design", gate_evidence: REVIEW_GATE_EVIDENCE, adversarial_artifact: artifact }),
+      createSuggestion({ signal_type: "adversarial_consensus", from_speaker: "reviewer-2", target_key: "design", gate_evidence: REVIEW_GATE_EVIDENCE, adversarial_artifact: artifact }),
+    ];
+    const result = await engine.evaluate(stage, suggestions);
+    expect(result.action).toBe("auto_advanced");
+    expect(result.target_key).toBe("design");
+    expect(deps.transferStage).toHaveBeenCalled();
   });
 });

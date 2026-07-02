@@ -36,10 +36,50 @@ description: |
 ## 工作流程索引
 
 1. **准备与上下文加载** — 进入 worktree、确认 PR 基于最新 main、确认分支属于当前 issue、feature 文档编号合规。详见 `references/workflow.md`。
-2. **判断检视重点** — 判断 PR 语义类型和本质目标，按对应成功标准检视。
-3. **对抗性检查** — 主动寻找 bug、回归风险、边界条件、缺失验证。详见 `references/adversarial-check.md`。
-4. **交叉审视** — 两位审查者独立完成后交叉阅读对方结论。详见 `references/cross-review.md`。
-5. **问题报告与对话回传** — 问题在 PR 上评论，逐条列出处置状态。
+2. **Intake 审视** — 评估 PR 方向是否忠实于 feature 文档。详见 `cd-shared/references/intake-protocol.md`。
+3. **判断检视重点** — 判断 PR 语义类型和本质目标，按对应成功标准检视。
+4. **对抗性检查** — 主动寻找 bug、回归风险、边界条件、缺失验证。详见 `references/adversarial-check.md`。
+5. **交叉审视** — 两位审查者独立完成后交叉阅读对方结论。详见 `references/cross-review.md`。
+6. **问题报告与对话回传** — 问题在 PR 上评论，逐条列出处置状态。
+
+## Intake 审视（进入阶段后第一步）
+
+**在开始任何检视工作之前，必须先执行 intake 审视。**
+
+### 评估问题
+
+1. PR 的整体架构方向是否忠实于 feature 文档的设计意图？
+2. PR 是否引入了 feature 文档未提及的重大架构变更？
+3. 如果存在方向偏差，这是设计文档的问题还是实现的问题？
+
+### 判断与行动
+
+- **偏差是设计问题** → 立即发出早期 stage_transition 信号，target_key 指向 `design`
+- **偏差是实现问题** → review 阶段内解决，不打回
+- **无偏差** → 继续正常工作（进入判断检视重点步骤）
+
+### 信号格式
+
+```json
+{
+  "stage_transition": {
+    "signal_type": "adversarial_consensus",
+    "target_key": "design",
+    "reason": "PR 方向偏离 feature 文档设计意图，需回到设计阶段修正",
+    "guard": "intake: 架构方向偏差",
+    "gate_evidence": {
+      "intake-1": "具体偏差说明"
+    }
+  }
+}
+```
+
+### 注意
+
+- intake 信号是早期信号，与后续的 adversarial_consensus 信号互斥
+- 发出 intake sendback 信号后，不得再发出正向推进信号
+- review 是双 agent 阶段，如果一个 reviewer 发出 sendback 而另一个发出正向 → 触发 disagreement
+- 详见 `cd-shared/references/intake-protocol.md`
 
 ## 关键约束
 

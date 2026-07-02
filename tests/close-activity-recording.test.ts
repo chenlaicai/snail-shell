@@ -72,6 +72,7 @@ function createMockStagePort(): StagePort {
     setSnailInstanceId: vi.fn(),
     getRoleSnailAssignments: vi.fn(),
     getRoleSnailAssignment: vi.fn(),
+    transferStage: vi.fn(),
   };
 }
 

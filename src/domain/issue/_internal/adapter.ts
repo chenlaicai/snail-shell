@@ -177,6 +177,7 @@ export class StageAdapter implements StagePort {
       output_artifacts: {},
       entered_at: now,
       left_at: null,
+      status: "active",
     };
     this.stageRepo.create(stage);
     log.info({ stageId, key: stageDef.key, issueId: issue.id, roleInstances }, "stage.created");
@@ -232,9 +233,40 @@ export class StageAdapter implements StagePort {
     });
   }
 
-  /** @deprecated 使用 advanceStage() 代替。内部委托给 advanceStage()，保持 append-only 模型。 */
+  /**
+   * 统一转移入口：根据 targetKey 判断方向。
+   * - 正向（targetKey 在 SOP transitions 中作为正向目标）→ advanceStage
+   * - 反向（targetKey 在 stage 历史中存在）→ repository.transferStage
+   */
+  transferStage(currentStageId: string, targetKey: string): Stage {
+    const current = this.stageRepo.findById(currentStageId);
+    if (!current) throw new Error(`Stage not found: ${currentStageId}`);
+
+    const transition = current.available_transitions.find(t => t.to === targetKey);
+    if (!transition) throw new Error(`Transition to "${targetKey}" not available from stage "${current.key}"`);
+
+    // 判断方向：如果 SOP 的正向 transitions 中包含此 targetKey → 正向
+    // 否则 → 反向
+    const isForward = this.isForwardTransition(current.issue_id, current.key, targetKey);
+    if (isForward) {
+      return this.advanceStage(currentStageId, targetKey);
+    }
+    return this.stageRepo.transferStage(currentStageId, targetKey);
+  }
+
+  /** 判断 targetKey 是否为当前 stage 的正向转移目标（SOP 中 from=stage.key, to=targetKey 且不在历史中） */
+  private isForwardTransition(issueId: string, stageKey: string, targetKey: string): boolean {
+    const issue = this.issueRepo.findById(issueId);
+    if (!issue) return true; // 安全回退：默认正向
+    // 检查 SOP 中是否有 from=stageKey, to=targetKey 的正向转移定义
+    // 正向转移 = targetKey 不是已有 stage 的 key（即创建新 stage）
+    const existingStages = this.stageRepo.listByIssue(issueId);
+    const targetExists = existingStages.some(s => s.key === targetKey && s.status === "active");
+    return !targetExists;
+  }
+
   rollbackStage(currentStageId: string, targetKey: string): Stage {
-    return this.advanceStage(currentStageId, targetKey);
+    return this.stageRepo.rollbackStage(currentStageId, targetKey);
   }
 
   recordAudit(audit: StageAuditRecord): void {

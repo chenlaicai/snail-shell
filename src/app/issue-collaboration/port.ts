@@ -141,6 +141,8 @@ export interface CollaborationInput {
   listStageTransitionSuggestions(stageId: string): StageTransitionSuggestion[];
   dismissSuggestion(stageId: string, targetKey: string, createdAt: string): boolean;
   advanceStage(stageId: string, targetKey: string): Promise<Stage>;
+  /** 统一转移入口：正向走 advanceStage，反向找历史 stage 重新激活 */
+  transferStage(stageId: string, targetKey: string): Promise<Stage>;
   /** L2: 手动推进前的引擎评估（不执行自动推进） */
   evaluateAdvance(stageId: string): Promise<EvaluationResult>;
   rollbackStage(stageId: string, targetKey: string): Promise<Stage>;

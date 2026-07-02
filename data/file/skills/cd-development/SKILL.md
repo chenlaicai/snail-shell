@@ -36,9 +36,47 @@ description: |
 ## 工作流程索引
 
 1. **环境准备** — worktree 创建、origin/main 确认、feature 文档加载、issue context `sop.change_type` 设置。详见 `references/workflow.md`。
-2. **设计确认** — 对照 Feature 文档的 [design-time] 章节，确认理解无歧义。
-3. **实现** — 按设计方案编码，遵守代码仓库完美状态原则。
-4. **验证与 PR 提交** — 执行验证命令、生成 gate evidence、创建 PR。详见 `references/workflow.md`。gate evidence 生成规则见 `cd-shared/references/stage-gate.md`。
+2. **Intake 审视** — 评估 feature 文档是否足以支撑实现。详见 `cd-shared/references/intake-protocol.md`。
+3. **设计确认** — 对照 Feature 文档的 [design-time] 章节，确认理解无歧义。
+4. **实现** — 按设计方案编码，遵守代码仓库完美状态原则。
+5. **验证与 PR 提交** — 执行验证命令、生成 gate evidence、创建 PR。详见 `references/workflow.md`。gate evidence 生成规则见 `cd-shared/references/stage-gate.md`。
+
+## Intake 审视（进入阶段后第一步）
+
+**在开始任何编码工作之前，必须先执行 intake 审视。**
+
+### 评估问题
+
+1. 行为规格是否明确到可以直接实现，而不需要猜测意图？
+2. 是否存在技术上不可行或成本极高的设计约束？
+3. 预期哪些地方需要做"文档没说但必须做"的决策？
+
+### 判断与行动
+
+- **第 1 或第 2 题答案为"否"** → 立即发出早期 stage_transition 信号，target_key 指向 `design`：
+
+```json
+{
+  "stage_transition": {
+    "signal_type": "gate_complete",
+    "target_key": "design",
+    "reason": "Feature 文档存在根本性缺陷，无法基于此实现",
+    "guard": "intake: 行为规格不明确 / 技术约束不可行",
+    "gate_evidence": {
+      "intake-1": "具体缺陷说明",
+      "intake-2": "具体缺陷说明"
+    }
+  }
+}
+```
+
+- **所有题答案为"是"或"可接受"** → 继续正常工作（进入设计确认步骤）
+
+### 注意
+
+- intake 信号是早期信号，与后续的 gate_complete 信号互斥
+- 发出 intake sendback 信号后，不得再发出正向推进信号
+- 详见 `cd-shared/references/intake-protocol.md`
 
 ## 关键约束
 

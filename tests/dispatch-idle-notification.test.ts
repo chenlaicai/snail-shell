@@ -78,6 +78,7 @@ function createMockStagePort(overrides: Partial<StagePort> = {}): StagePort {
     setSnailInstanceId: vi.fn(),
     getRoleSnailAssignments: vi.fn(),
     getRoleSnailAssignment: vi.fn(),
+    transferStage: vi.fn(),
     ...overrides,
   };
 }
@@ -116,6 +117,7 @@ function createStage(overrides: Partial<Stage> = {}): Stage {
     output_artifacts: {},
     entered_at: new Date().toISOString(),
     left_at: null,
+    status: "active",
     ...overrides,
   };
 }

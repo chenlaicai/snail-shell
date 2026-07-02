@@ -77,6 +77,7 @@ function createMockStagePort(overrides: Partial<StagePort> = {}): StagePort {
     setSnailInstanceId: vi.fn(),
     getRoleSnailAssignments: vi.fn(),
     getRoleSnailAssignment: vi.fn(),
+    transferStage: vi.fn(),
     ...overrides,
   };
 }
@@ -115,6 +116,7 @@ function createNewStage(overrides: Partial<Stage> = {}): Stage {
     output_artifacts: {},
     entered_at: new Date().toISOString(),
     left_at: null,
+    status: "active",
     ...overrides,
   };
 }
@@ -318,6 +320,7 @@ describe("autoInvokeFirstStage: createIssue 后自动发送 kickoff 消息", () 
       output_artifacts: {},
       entered_at: new Date().toISOString(),
       left_at: null,
+      status: "active",
     };
   }
 
