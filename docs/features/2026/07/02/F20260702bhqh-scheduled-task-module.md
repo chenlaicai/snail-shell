@@ -47,16 +47,16 @@ Snail Shell 每天有 10-20 个 PR 合入 main 分支，代码量变化巨大。
 
 | # | 场景 | 预期行为 | 测试覆盖 |
 |---|------|----------|----------|
-| B1 | 当服务器重启且存在错失的定时任务时 | 调度器应立即评估所有活跃任务，对距上次执行超过间隔的任务补执行 | tests/scheduled-task/scheduler-test.ts |
-| B2 | 当定时任务配置了 interval_days=7 且距上次执行超过 7 天时 | 调度器应触发该任务，创建 Issue 并调用 agent | tests/scheduled-task/scheduler-test.ts |
-| B3 | 当定时任务触发但创建 Issue 失败时 | 应记录失败日志（status=failed, error），更新 executed_at，不影响其他任务的调度 | tests/scheduled-task/scheduler-test.ts |
-| B4 | 当新创建一个定时任务时 | 首次执行等待完整间隔（executed_at = created_at），不会创建即触发 | tests/scheduled-task/scheduler-test.ts |
+| B1 | 当服务器重启且存在错失的定时任务时 | 调度器应立即评估所有活跃任务，对距上次执行超过间隔的任务补执行 | tests/scheduled-task/scheduler.test.ts |
+| B2 | 当定时任务配置了 interval_days=7 且距上次执行超过 7 天时 | 调度器应触发该任务，创建 Issue 并调用 agent | tests/scheduled-task/scheduler.test.ts |
+| B3 | 当定时任务触发但创建 Issue 失败时 | 应记录失败日志（status=failed, error），更新 executed_at，不影响其他任务的调度 | tests/scheduled-task/scheduler.test.ts |
+| B4 | 当新创建一个定时任务时 | 首次执行等待完整间隔（executed_at = created_at），不会创建即触发 | tests/scheduled-task/scheduler.test.ts |
 | B5 | 当用户在前端创建定时任务时 | 应打开表单对话框，填写标题、SOP、interval_days 后提交，任务出现在列表中 | 手动验证 |
 | B6 | 当用户在前端编辑定时任务时 | 应打开预填表单对话框，修改后保存，列表实时更新 | 手动验证 |
 | B7 | 当用户切换任务启用/禁用时 | 任务状态立即更新，禁用后不再被调度器触发 | 手动验证 |
 | B8 | 当用户查看任务执行历史时 | 应显示该任务的所有执行记录，包含状态、Issue 链接、执行时间 | 手动验证 |
-| B9 | 当查询定时任务列表时 | 应返回所有任务定义及其最近一次执行状态（从 execution 表取最新一条） | tests/scheduled-task/repo-test.ts |
-| B10 | 当创建或更新任务时 interval_days 为空或 0 | 应拒绝操作，返回错误 | tests/scheduled-task/scheduler-test.ts |
+| B9 | 当查询定时任务列表时 | 应返回所有任务定义及其最近一次执行状态（从 execution 表取最新一条） | tests/scheduled-task/repo.test.ts |
+| B10 | 当创建或更新任务时 interval_days 为空或 0 | 应拒绝操作，返回错误 | tests/scheduled-task/scheduler.test.ts |
 
 ## 设计 [required]
 

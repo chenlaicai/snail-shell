@@ -79,7 +79,9 @@ export class ScheduledTaskAdapter implements ScheduledTaskPort {
     }
 
     this.repo.update(id, { ...input, updated_at: new Date().toISOString() });
-    return this.repo.findById(id)!;
+    const updated = this.repo.findById(id);
+    if (!updated) throw new Error(`Scheduled task disappeared after update: ${id}`);
+    return updated;
   }
 
   remove(id: string): void {

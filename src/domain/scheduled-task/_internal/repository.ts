@@ -53,20 +53,23 @@ export class SQLiteScheduledTaskRepository implements ScheduledTaskRepository {
   }
 
   findAll(): ScheduledTaskWithLastExecution[] {
-    const tasks = this.db.all<RawTaskRow>(
-      `SELECT id, key, title, sop_key, workspace_path, interval_days,
-              enabled as enabled_raw, created_at, updated_at
-       FROM scheduled_task ORDER BY created_at DESC`,
-    ).map(mapTask);
-
-    return tasks.map((task) => {
-      const lastExec = this.findLastExecution(task.id);
-      return {
-        ...task,
-        last_status: lastExec?.status ?? null,
-        last_issue_id: lastExec?.issue_id ?? null,
-      };
-    });
+    return this.db.all<RawTaskWithLastExecRow>(
+      `SELECT t.id, t.key, t.title, t.sop_key, t.workspace_path, t.interval_days,
+              t.enabled as enabled_raw, t.created_at, t.updated_at,
+              e.status as last_status, e.issue_id as last_issue_id
+       FROM scheduled_task t
+       LEFT JOIN scheduled_task_execution e
+         ON e.id = (
+           SELECT id FROM scheduled_task_execution
+           WHERE task_id = t.id
+           ORDER BY executed_at DESC LIMIT 1
+         )
+       ORDER BY t.created_at DESC`,
+    ).map((row) => ({
+      ...mapTask(row),
+      last_status: row.last_status ?? null,
+      last_issue_id: row.last_issue_id ?? null,
+    }));
   }
 
   findById(id: string): ScheduledTask | undefined {
@@ -168,6 +171,12 @@ interface RawTaskRow {
   enabled_raw: number;
   created_at: string;
   updated_at: string;
+}
+
+/** JOIN 查询返回的行类型（含最近执行状态） */
+interface RawTaskWithLastExecRow extends RawTaskRow {
+  last_status: ScheduledTaskExecution["status"] | null;
+  last_issue_id: string | null;
 }
 
 /** 映射 SQLite 行到 ScheduledTask（处理 boolean 转换） */

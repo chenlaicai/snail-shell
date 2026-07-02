@@ -286,6 +286,44 @@ describe("ScheduledTaskAdapter", () => {
       expect(updateCalls[0][2]).toBe("Network error");
     });
 
+    /** buildDefaultSnailPlan: SOP 未找到时记录失败 */
+    it("records failure when SOP not found", async () => {
+      const task = makeTask({ interval_days: 1, sop_key: "nonexistent-sop" });
+      task.created_at = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+      vi.mocked(repo.findPendingExecutions).mockReturnValue([task]);
+      vi.mocked(repo.findLastExecution).mockReturnValue(undefined);
+      vi.mocked(sopPort.findByKey).mockReturnValue(undefined);
+
+      adapter.start();
+      await new Promise((r) => setTimeout(r, 100));
+      adapter.stop();
+
+      expect(vi.mocked(repo.createExecution).mock.results.length).toBe(1);
+      const updateCalls = vi.mocked(repo.updateExecutionStatus).mock.calls;
+      expect(updateCalls.length).toBe(1);
+      expect(updateCalls[0][1]).toBe("failed");
+      expect(updateCalls[0][2]).toContain("SOP not found");
+    });
+
+    /** buildDefaultSnailPlan: 无 snail 时记录失败 */
+    it("records failure when no snails configured", async () => {
+      const task = makeTask({ interval_days: 1 });
+      task.created_at = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+      vi.mocked(repo.findPendingExecutions).mockReturnValue([task]);
+      vi.mocked(repo.findLastExecution).mockReturnValue(undefined);
+      vi.mocked(snailPort.list).mockReturnValue([]);
+
+      adapter.start();
+      await new Promise((r) => setTimeout(r, 100));
+      adapter.stop();
+
+      expect(vi.mocked(repo.createExecution).mock.results.length).toBe(1);
+      const updateCalls = vi.mocked(repo.updateExecutionStatus).mock.calls;
+      expect(updateCalls.length).toBe(1);
+      expect(updateCalls[0][1]).toBe("failed");
+      expect(updateCalls[0][2]).toBe("No snails configured");
+    });
+
     /** 串行执行：多个任务不并发 */
     it("executes multiple tasks serially", async () => {
       const task1 = makeTask({ id: "t1", key: "task-1", interval_days: 1 });
