@@ -23,7 +23,7 @@ import type { Hono as HonoApp } from "hono";
 const log = getLogger({ module: "http" });
 
 export interface AppDeps {
-  workspaceAdapter: WorkspacePort;
+  workspacePort: WorkspacePort;
   issuePort: IssuePort;
   stagePort: StagePort;
   messagePort: MessagePort;
@@ -68,7 +68,7 @@ export function createApp(deps: AppDeps) {
     }
   });
 
-  app.route("/", createWorkspaceRoutes(deps.workspaceAdapter));
+  app.route("/", createWorkspaceRoutes(deps.workspacePort));
   app.route("/", createIssueRoutes(deps));
   app.route("/", createMetaRoutes(deps));
   app.route("/", createKnowledgeRoutes(deps));

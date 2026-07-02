@@ -13,7 +13,7 @@ import type { Message } from "@domain/message/model";
 const log = getLogger({ module: "http" });
 
 interface IssueRoutesDeps {
-  workspaceAdapter: WorkspacePort;
+  workspacePort: WorkspacePort;
   issuePort: IssuePort;
   stagePort: StagePort;
   messagePort: MessagePort;
@@ -44,7 +44,7 @@ export function createIssueRoutes(deps: IssueRoutesDeps) {
 
   app.get("/api/workspaces/:workspaceId", (c) => {
     const workspacePath = decodeWorkspaceId(c.req.param("workspaceId"));
-    const workspace = deps.workspaceAdapter.list().find(item => item.path === workspacePath);
+    const workspace = deps.workspacePort.list().find(item => item.path === workspacePath);
     if (!workspace) return c.json(null, 404);
     const issues = deps.issuePort.listIssues(workspace.path);
     return c.json({ ...toWorkspaceDto(workspace), issues: issues.map(issue => toIssueDetail(deps, issue)) });

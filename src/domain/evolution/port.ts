@@ -3,10 +3,10 @@ import type {
   CreateEvolutionItemInput,
   EvolutionItemListFilters,
 } from "@domain/evolution/model";
-import type { CollaborationInput } from "@app/issue-collaboration/port";
+import type { CreateIssueInput, Issue, Stage } from "@domain/issue/model";
 
 /** 窄接口：仅注入 createIssue，避免 domain→app 反向依赖 */
-export type CreateIssueFn = CollaborationInput["createIssue"];
+export type CreateIssueFn = (input: CreateIssueInput) => Promise<{ issue: Issue; stage: Stage }>;
 
 /** Evolution 端口定义 */
 export interface EvolutionPort {

@@ -134,7 +134,7 @@ function startHttpServer(modules: Awaited<ReturnType<typeof initModules>>["modul
   startEventLoopMonitor();
   const mcpHandler = createMcpHandler(modules.snailMCPServer.adapter);
   const app = createApp({
-    workspaceAdapter: modules.workspace.adapter,
+    workspacePort: modules.workspace.adapter,
     issuePort: modules.issue.issueAdapter,
     stagePort: modules.issue.stageAdapter,
     messagePort: modules.message.adapter,

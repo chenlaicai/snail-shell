@@ -6,7 +6,7 @@ import { decodeWorkspaceId } from "@infra/http/workspace-id";
 
 interface KnowledgeRoutesDeps {
   knowledge: KnowledgePort;
-  workspaceAdapter: WorkspacePort;
+  workspacePort: WorkspacePort;
 }
 
 export function createKnowledgeRoutes(deps: KnowledgeRoutesDeps) {
@@ -16,7 +16,7 @@ export function createKnowledgeRoutes(deps: KnowledgeRoutesDeps) {
     const workspaceId = c.req.query("workspace_id");
     const scope = c.req.query("scope") as Scope | undefined;
     if (workspaceId) {
-      const workspace = deps.workspaceAdapter.list().find(item => item.path === decodeWorkspaceId(workspaceId));
+      const workspace = deps.workspacePort.list().find(item => item.path === decodeWorkspaceId(workspaceId));
       if (!workspace) return c.json([]);
       return c.json(deps.knowledge.findByWorkspace(workspace));
     }
