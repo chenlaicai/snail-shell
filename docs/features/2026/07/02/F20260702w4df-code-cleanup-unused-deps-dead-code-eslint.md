@@ -186,7 +186,7 @@ Feature Doc [F20260701chkr] 对代码仓进行系统性健康检视，发现 10 
 
 **处置**：✅ 确认接受。当前 per-module 规则各排除自身（如 workspace 不阻止 `@domain/workspace/_internal/*`），全局合并无法表达此语义。
 
-**修正**：保留 per-module 规则结构，不合并。新增 9 个缺失模块的 per-module 规则。
+**修正**：保留 per-module 规则结构，不合并。9 个缺失模块的 per-module 规则暂不补全，由全局 warn 规则兜底（详见 Part 4 设计取舍表）。
 
 ### 架构师-2 Finding 3：frontend-logger 必要性存疑
 
@@ -194,9 +194,9 @@ Feature Doc [F20260701chkr] 对代码仓进行系统性健康检视，发现 10 
 
 **处置**：部分接受。
 - ❌ `getWebLogger()` 是服务端 pino logger（写入 logs/web.log），无法在浏览器侧使用，前提不成立
-- ✅ "7 个调用点不值得新抽象"成立
+- ⚠️ "7 个调用点不值得新抽象"需结合 Finding 4 重新评估
 
-**修正**：Part 3 改为直接删除 console 调用 + 启用 `no-console: "warn"` ESLint 规则。不创建 frontend-logger.ts。
+**修正**：综合 Finding 4（useWorkspaceRealtime.ts 的 4 处 console 是唯一可观测性），保留 `src/web/lib/logger.ts` 薄封装（37 行），提供模块前缀 + 未来可扩展批量上报。7 处 console 全部替换为 `getLogger()`，`eslint.config.mjs` 中为 logger.ts 配置 `no-console` 豁免。
 
 ### 架构师-2 Finding 4：useWorkspaceRealtime.ts 无 perf-logger 覆盖
 

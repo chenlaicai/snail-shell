@@ -16,7 +16,7 @@ export default tseslint.config(
       "max-lines-per-function": ["error", { max: 60, skipBlankLines: true, skipComments: true }],
       "max-params": ["error", 5],
       "max-statements": ["error", 25],
-      "no-console": "off",
+      "no-console": "warn",
       "@typescript-eslint/consistent-type-imports": "error",
       "@typescript-eslint/explicit-function-return-type": "off",
       "@typescript-eslint/explicit-module-boundary-types": "off",
@@ -39,6 +39,13 @@ export default tseslint.config(
           caughtErrorsIgnorePattern: "^_"
         }
       ]
+    }
+  },
+  // logger.ts 内部需要调用 console，豁免 no-console
+  {
+    files: ["src/web/lib/logger.ts"],
+    rules: {
+      "no-console": "off"
     }
   },
   {
