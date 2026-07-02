@@ -936,3 +936,69 @@ describe("decision_mode validation (B3)", () => {
     expect(result.action).toBe("auto_advanced");
   });
 });
+
+describe("evaluateAdvance (L2 manual advance gate)", () => {
+  it("returns blocked when R8 would block (unresolved findings)", async () => {
+    const deps = createDeps();
+    const engine = new AutoAdvanceEngine(deps);
+    const a1 = createReviewArtifact({ adversarial_findings: [
+      { dimension: "completeness", finding: "found bug", disposition: "none" },
+    ] });
+    const a2 = { ...a1, independent_verification: [{ command: "npm test", actual_output: "all seventeen tests passed with no failures or skips", executed_at: new Date().toISOString() }] };
+    const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed", "rev-04": "F20260701tj92" }, adversarial_artifact: a1 as any });
+    const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2, adversarial_artifact: a2 as any };
+    const result = await engine.evaluateAdvance(createStage({ key: "review" }), [s1, s2]);
+
+    expect(deps.advanceStage).not.toHaveBeenCalled();
+    expect(result.action).toBe("blocked");
+    expect(result.reasons[0].details?.rule).toBe("R8");
+  });
+
+  it("returns auto_advanced when all checks pass but does NOT call advanceStage", async () => {
+    const deps = createDeps();
+    const engine = new AutoAdvanceEngine(deps);
+    const a2 = { ...createReviewArtifact(), independent_verification: [{ command: "npm test", actual_output: "all seventeen tests passed with no failures or skips", executed_at: new Date().toISOString() }] };
+    const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed", "rev-04": "F20260701tj92" }, adversarial_artifact: createReviewArtifact() });
+    const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2, adversarial_artifact: a2 };
+    const result = await engine.evaluateAdvance(createStage({ key: "review" }), [s1, s2]);
+
+    expect(result.action).toBe("auto_advanced");
+    expect(deps.advanceStage).not.toHaveBeenCalled();
+  });
+
+  it("returns blocked when gate_evidence is missing (gate_complete)", async () => {
+    const deps = createDeps();
+    const engine = new AutoAdvanceEngine(deps);
+    const result = await engine.evaluateAdvance(createStage({ key: "development" }), [createSuggestion({
+      gate_evidence: { "dev-01": "implemented" },
+    })]);
+
+    expect(deps.advanceStage).not.toHaveBeenCalled();
+    expect(result.action).toBe("blocked");
+    expect(result.reasons[0].code).toBe("GATE_FAILED");
+  });
+
+  it("returns blocked when suggestions are empty", async () => {
+    const deps = createDeps();
+    const engine = new AutoAdvanceEngine(deps);
+    const result = await engine.evaluateAdvance(createStage({ key: "development" }), []);
+
+    expect(result.action).toBe("blocked");
+    expect(result.reasons[0].code).toBe("NO_SIGNALS");
+  });
+
+  it("returns escalated when stage has no auto_advance config", async () => {
+    const deps = createDeps({
+      mustGetIssue: vi.fn().mockReturnValue({
+        context: {},
+        sop_snapshot: { stage_definitions: [makeStageDef("merge")] },
+      }),
+    });
+    const engine = new AutoAdvanceEngine(deps);
+    const result = await engine.evaluateAdvance(createStage({ key: "merge", available_transitions: [] }), [createSuggestion()]);
+
+    expect(deps.advanceStage).not.toHaveBeenCalled();
+    expect(result.action).toBe("escalated");
+    expect(result.reasons[0].code).toBe("NO_AUTO_ADVANCE_CONFIG");
+  });
+});

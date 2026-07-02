@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { getLogger } from "@infra/logger";
-import type { SnailMCPServerAdapter } from "@domain/snail-mcp-server/_internal/adapter";
+import type { SnailMCPServerPort } from "@domain/snail-mcp-server/port";
 import type { JsonRpcRequest } from "@domain/snail-mcp-server/model";
 
 const log = getLogger({ module: "mcp-server" });
@@ -9,12 +9,12 @@ const log = getLogger({ module: "mcp-server" });
  * MCP HTTP 处理器。
  * 为每个 MCP Server 创建独立的端点。
  */
-export function createMcpHandler(adapter: SnailMCPServerAdapter): Hono {
+export function createMcpHandler(port: SnailMCPServerPort): Hono {
   const app = new Hono();
 
   // 列出所有 MCP Server
   app.get("/", (c) => {
-    const servers = adapter.listServers();
+    const servers = port.listServers();
     return c.json({
       servers: servers.map(s => ({
         name: s.name,
@@ -28,7 +28,7 @@ export function createMcpHandler(adapter: SnailMCPServerAdapter): Hono {
   // 获取 MCP Server 信息
   app.get("/:serverName", (c) => {
     const serverName = c.req.param("serverName");
-    const server = adapter.findServer(serverName);
+    const server = port.findServer(serverName);
     if (!server) {
       return c.json({ error: "Server not found" }, 404);
     }
@@ -49,7 +49,7 @@ export function createMcpHandler(adapter: SnailMCPServerAdapter): Hono {
     const serverName = c.req.param("serverName");
     try {
       const body = await c.req.json<JsonRpcRequest>();
-      const response = await adapter.handleRequest(serverName, body);
+      const response = await port.handleRequest(serverName, body);
       return c.json(response);
     } catch (err) {
       log.warn({ err, serverName }, "mcp.handler.error");

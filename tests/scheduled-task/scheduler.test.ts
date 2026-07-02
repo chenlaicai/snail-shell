@@ -89,6 +89,7 @@ function createMockCollaboration(): CollaborationInput {
     getActivityStatus: vi.fn().mockReturnValue("needs_human"),
     resumeRoute: vi.fn(),
     restoreSuggestions: vi.fn(),
+    evaluateAdvance: vi.fn(),
   };
 }
 

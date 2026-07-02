@@ -65,9 +65,11 @@ export type SopDto = {
 export type SopDetailDto = SopDto;
 
 export type ResourceStatus = "success" | "failed" | "skipped" | "pending";
+export type PrStatus = ResourceStatus | "merged" | "closed";
 export type ResourceResultDto = { status: ResourceStatus; error?: string };
+export type PrResultDto = { status: PrStatus; error?: string };
 export type CleanupResultDto = {
-  pr: ResourceResultDto;
+  pr: PrResultDto;
   worktree: ResourceResultDto;
   localBranch: ResourceResultDto;
   remoteBranch: ResourceResultDto;

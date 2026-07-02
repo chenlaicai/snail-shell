@@ -4,7 +4,40 @@ import { useConversationStore } from "../stores/conversationStore";
 import { queryKeys } from "../queries/keys";
 import { removePendingMessage } from "../lib/pending-messages";
 import { recordWsReconnect, recordWsDisconnect } from "../lib/perf-logger";
+import { getLogger } from "../lib/logger";
 import type { IssueRealtimeMessage, IssueDetailDto, MessageDto, WsServerMessage, CleanupResultDto } from "../types";
+
+const log = getLogger("WebSocket");
+
+/** staleTime 与 client.ts 保持一致 */
+const STALE_TIME = 30_000;
+
+/**
+ * 断连后数据一致性补偿：检查相关查询的 dataUpdatedAt，
+ * 如果数据超过 staleTime 则 refetch，避免断连期间的数据变化丢失。
+ * 乐观更新会刷新 dataUpdatedAt，因此不会被覆盖。
+ */
+function refetchStaleQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+  issueId: string,
+  currentStageId: string | null,
+): void {
+  const now = Date.now();
+
+  // 检查 issue detail 查询是否过期
+  const issueQuery = queryClient.getQueryState(queryKeys.issues.detail(issueId));
+  if (issueQuery?.dataUpdatedAt && now - issueQuery.dataUpdatedAt > STALE_TIME) {
+    queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(issueId) });
+  }
+
+  // 检查当前阶段消息查询是否过期
+  if (currentStageId) {
+    const messagesQuery = queryClient.getQueryState(queryKeys.stages.messages(currentStageId));
+    if (messagesQuery?.dataUpdatedAt && now - messagesQuery.dataUpdatedAt > STALE_TIME) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.stages.messages(currentStageId) });
+    }
+  }
+}
 
 /** 创建占位 MessageDto——用于 WebSocket message_started 和乐观发送 */
 export function createPlaceholderMessage(
@@ -356,7 +389,7 @@ function createWsConnection(url: string, handlers: WsHandlers): WebSocket {
   ws.onmessage = (e) => {
     if (!handlers.mounted()) return;
     try { handlers.onMessage(JSON.parse(e.data)); }
-    catch (err) { console.warn("[WebSocket] 消息解析失败:", err, e.data); }
+    catch (err) { log.warn("消息解析失败:", err, e.data); }
   };
   ws.onclose = () => { if (handlers.mounted()) handlers.onClose(); };
   ws.onerror = () => { handlers.onError?.(); ws.close(); };
@@ -389,11 +422,12 @@ export function useIssueRealtime(issueId: string | null, currentStageId: string 
           mounted: () => mounted && activeWs === ws && wsRef.current === ws,
           onOpen: () => {
             if (t.timer) { clearTimeout(t.timer); t.timer = null; }
-            if (t.count > 0) recordWsReconnect(performance.now() - t.start, t.count);
+            if (t.count > 0) {
+              recordWsReconnect(performance.now() - t.start, t.count);
+              // 断连重连后，检查并 refetch 过期数据，避免断连期间数据变化丢失
+              refetchStaleQueries(queryClient, issueId, currentStageIdRef.current);
+            }
             t.count = 0; t.delay = 1000;
-            queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(issueId) });
-            const sid = currentStageIdRef.current;
-            if (sid) queryClient.invalidateQueries({ queryKey: queryKeys.stages.messages(sid) });
             setWsStatus("connected");
           },
           onMessage: (msg) => batcherRef.current!.add(msg),
@@ -403,7 +437,7 @@ export function useIssueRealtime(issueId: string | null, currentStageId: string 
             t.count++;
             recordWsDisconnect(`reconnect in ${t.delay}ms`, t.count);
             if (useConversationStore.getState().wsStatus !== "error") setWsStatus("disconnected");
-            console.log(`[WebSocket] 连接关闭，${t.delay}ms 后重连`);
+            log.info(`连接关闭，${t.delay}ms 后重连`);
             t.timer = setTimeout(() => { t.delay = Math.min(t.delay * 2, 30000); connect(); }, t.delay);
           },
         },

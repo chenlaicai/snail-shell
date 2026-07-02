@@ -374,3 +374,180 @@ All checks passed.
     expect(suggestion).toBeNull();
   });
 });
+
+describe("L1: Signal interception for unresolved adversarial findings", () => {
+  function createL1Collaboration(events: MessageEvent[]) {
+    const messages = new Map<number, Message>();
+    const messagePort = createMockMessagePort({
+      getMessage: (id) => messages.get(id),
+      findLatestMessage: () => messages.get(100),
+      appendEvent: (_messageId, payload) => {
+        const event: MessageEvent = {
+          id: events.length + 1,
+          message_id: 100,
+          seq: events.length + 1,
+          payload,
+          created_at: "",
+        };
+        events.push(event);
+        return event;
+      },
+      getMessageEvents: () => events,
+    });
+    const stageSuggestionRepo = createMockStageSuggestionRepo();
+    const stagePort = createMockStagePort();
+    (stagePort.findStage as ReturnType<typeof vi.fn>).mockReturnValue(createStage());
+    const issuePort = createMockIssuePort();
+    (issuePort.findIssue as ReturnType<typeof vi.fn>).mockReturnValue({
+      id: "issue-1", workspace_path: "/workspace", title: "Test", summary: null,
+      context: { pr_url: "https://github.com/pr/1" },
+      sop_snapshot: { stage_definitions: [
+        { key: "review", title: "Review", description: "", roles: [], auto_advance: {
+          required_context_fields: ["pr_url"],
+          gate_ids: ["rev-01", "rev-02", "rev-03", "rev-04"],
+          accepted_signal_types: ["adversarial_consensus"],
+          blocking_rules: [{ type: "unresolved_findings" }],
+        }},
+      ]},
+    });
+    const collaboration = new IssueCollaboration({
+      issuePort,
+      createIssue: vi.fn(),
+      stagePort,
+      messagePort,
+      snailPort: createMockSnailPort(),
+      liteAIPort: createMockLiteAIPort(),
+      mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo,
+    });
+    messages.set(100, {
+      id: 100, stage_id: "s1", from_speaker: "reviewer-1", to_speakers: [],
+      status: "streaming", created_at: "", ended_at: null,
+    });
+    return { collaboration, stageSuggestionRepo, messagePort };
+  }
+
+  it("blocks adversarial_consensus signal with unresolved findings (disposition=none)", async () => {
+    const events: MessageEvent[] = [];
+    const { collaboration, stageSuggestionRepo } = createL1Collaboration(events);
+
+    const artifact = {
+      independent_verification: [{ command: "tsc", actual_output: "compiled with zero errors", executed_at: new Date().toISOString() }],
+      adversarial_findings: [{ dimension: "completeness", finding: "found bug", disposition: "none" }],
+      audit_trail: { events: [{ timestamp: new Date().toISOString(), event_type: "review_started" as const, detail: "started" }] },
+    };
+
+    // Simulate the signal event being appended
+    events.push({
+      id: 1, message_id: 100, seq: 1,
+      payload: { type: "signal", signal: "stage_transition", stage_transition: {
+        target_key: "merge", consensus: true, signal_type: "adversarial_consensus",
+        reason: "Review complete", adversarial_artifact: artifact,
+      }},
+      created_at: "",
+    });
+
+    const stage = createStage();
+    await collaboration["detectStageTransition"](stage, "reviewer-1", 100);
+
+    // L1: suggestion should NOT be persisted
+    expect(stageSuggestionRepo.insert).not.toHaveBeenCalled();
+  });
+
+  it("blocks adversarial_consensus signal with empty string disposition", async () => {
+    const events: MessageEvent[] = [];
+    const { collaboration, stageSuggestionRepo } = createL1Collaboration(events);
+
+    const artifact = {
+      independent_verification: [{ command: "tsc", actual_output: "compiled with zero errors", executed_at: new Date().toISOString() }],
+      adversarial_findings: [{ dimension: "completeness", finding: "found bug", disposition: "" }],
+      audit_trail: { events: [{ timestamp: new Date().toISOString(), event_type: "review_started" as const, detail: "started" }] },
+    };
+
+    events.push({
+      id: 1, message_id: 100, seq: 1,
+      payload: { type: "signal", signal: "stage_transition", stage_transition: {
+        target_key: "merge", consensus: true, signal_type: "adversarial_consensus",
+        reason: "Review complete", adversarial_artifact: artifact,
+      }},
+      created_at: "",
+    });
+
+    const stage = createStage();
+    await collaboration["detectStageTransition"](stage, "reviewer-1", 100);
+
+    expect(stageSuggestionRepo.insert).not.toHaveBeenCalled();
+  });
+
+  it("allows adversarial_consensus signal when all findings are resolved", async () => {
+    const events: MessageEvent[] = [];
+    const { collaboration, stageSuggestionRepo } = createL1Collaboration(events);
+
+    const artifact = {
+      independent_verification: [{ command: "tsc", actual_output: "compiled with zero errors", executed_at: new Date().toISOString() }],
+      adversarial_findings: [{ dimension: "completeness", finding: "found bug", disposition: "fixed" }],
+      audit_trail: { events: [{ timestamp: new Date().toISOString(), event_type: "review_started" as const, detail: "started" }] },
+    };
+
+    events.push({
+      id: 1, message_id: 100, seq: 1,
+      payload: { type: "signal", signal: "stage_transition", stage_transition: {
+        target_key: "merge", consensus: true, signal_type: "adversarial_consensus",
+        reason: "Review complete", adversarial_artifact: artifact,
+      }},
+      created_at: "",
+    });
+
+    const stage = createStage();
+    await collaboration["detectStageTransition"](stage, "reviewer-1", 100);
+
+    // Should be persisted (L1 passes, engine evaluation happens next)
+    expect(stageSuggestionRepo.insert).toHaveBeenCalled();
+  });
+
+  it("allows adversarial_consensus signal when findings are 'no issues' with disposition=none", async () => {
+    const events: MessageEvent[] = [];
+    const { collaboration, stageSuggestionRepo } = createL1Collaboration(events);
+
+    const artifact = {
+      independent_verification: [{ command: "tsc", actual_output: "compiled with zero errors", executed_at: new Date().toISOString() }],
+      adversarial_findings: [{ dimension: "completeness", finding: "no issues", disposition: "none" }],
+      audit_trail: { events: [{ timestamp: new Date().toISOString(), event_type: "review_started" as const, detail: "started" }] },
+    };
+
+    events.push({
+      id: 1, message_id: 100, seq: 1,
+      payload: { type: "signal", signal: "stage_transition", stage_transition: {
+        target_key: "merge", consensus: true, signal_type: "adversarial_consensus",
+        reason: "Review complete", adversarial_artifact: artifact,
+      }},
+      created_at: "",
+    });
+
+    const stage = createStage();
+    await collaboration["detectStageTransition"](stage, "reviewer-1", 100);
+
+    // "no issues" findings are exempt from L1
+    expect(stageSuggestionRepo.insert).toHaveBeenCalled();
+  });
+
+  it("does not apply L1 to gate_complete signals", async () => {
+    const events: MessageEvent[] = [];
+    const { collaboration, stageSuggestionRepo } = createL1Collaboration(events);
+
+    events.push({
+      id: 1, message_id: 100, seq: 1,
+      payload: { type: "signal", signal: "stage_transition", stage_transition: {
+        target_key: "review", signal_type: "gate_complete",
+        reason: "All gates passed", gate_evidence: { "dev-01": "done" },
+      }},
+      created_at: "",
+    });
+
+    const stage = createStage({ key: "development", available_transitions: [{ to: "review", guard: null }] });
+    await collaboration["detectStageTransition"](stage, "dev", 100);
+
+    // gate_complete signals should NOT be blocked by L1
+    expect(stageSuggestionRepo.insert).toHaveBeenCalled();
+  });
+});

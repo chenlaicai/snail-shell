@@ -137,6 +137,8 @@ export interface CollaborationInput {
   listStageTransitionSuggestions(stageId: string): StageTransitionSuggestion[];
   dismissSuggestion(stageId: string, targetKey: string, createdAt: string): boolean;
   advanceStage(stageId: string, targetKey: string): Promise<Stage>;
+  /** L2: 手动推进前的引擎评估（不执行自动推进） */
+  evaluateAdvance(stageId: string): Promise<EvaluationResult>;
   rollbackStage(stageId: string, targetKey: string): Promise<Stage>;
   getStageAuditTrail(stageId: string): StageAuditRecord[];
   closeIssue(issueId: string): Promise<{ issue: Issue; cleanup: CleanupResult }>;

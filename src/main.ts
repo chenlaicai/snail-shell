@@ -17,6 +17,7 @@ import { init as initIssue } from "@domain/issue/_internal/initor";
 import { init as initMessage } from "@domain/message/_internal/initor";
 import { init as initEvolution } from "@domain/evolution/_internal/initor";
 import { init as initScheduledTask } from "@domain/scheduled-task/_internal/initor";
+import { init as initEvolutionApp } from "@app/evolution/initor";
 import { init as initFeatureChain } from "@domain/feature-chain/_internal/initor";
 import { init as initGuardProfile } from "@domain/guard-profile/_internal/initor";
 import { init as initSnail } from "@domain/snail/_internal/initor";
@@ -80,14 +81,20 @@ async function initModules(repoRoot: string, serverSettings: ServerSettings) {
   const liteAI = initLiteAI(dataStore);
   const snail = initSnail(dataStore, db, { registry, tenetPrompt: tenetPrompt.adapter, skill: skill.adapter, mcp: mcp.adapter, guardProfile: guardProfile.adapter }, serverSettings.maxConcurrentAgents);
   const collaboration = initIssueCollaboration({ issuePort: issue.issueAdapter, createIssue: (input) => issue.issueAdapter.createIssue(input), stagePort: issue.stageAdapter, messagePort: message.adapter, snailPort: snail.adapter, liteAIPort: liteAI.adapter, mcpMessageStore, stageSuggestionRepo: issue.stageSuggestionRepo });
-  const evolution = initEvolution(db, issue.issueAdapter, snail.adapter, collaboration.adapter);
+  const evolution = initEvolution(db);
+  const evolutionApp = initEvolutionApp({
+    evolutionPort: evolution.adapter,
+    collaboration: collaboration.adapter,
+    issuePort: issue.issueAdapter,
+    snailPort: snail.adapter,
+  });
   evolutionRef.current = evolution;
   const scheduledTask = initScheduledTask(db, sop.adapter, snail.adapter, issue.issueAdapter, collaboration.adapter);
   const im = initIM({ workspacePort: workspace.adapter, issuePort: issue.issueAdapter, stagePort: issue.stageAdapter, configStore, db });
   const imHub = initIMHub({ imAdapter: im.adapter, lobbyAdapter: im.lobbyAdapter, collaboration: collaboration.adapter, stagePort: issue.stageAdapter });
   await im.adapter.startChannels();
   scheduledTask.adapter.start();
-  return { modules: { registry, workspace, tenetPrompt, skill, sop, snailMCPServer, mcp, featureChain, snail, im, imHub, liteAI, evolution, scheduledTask, issue, message, collaboration, knowledge, configStore }, db };
+  return { modules: { registry, workspace, tenetPrompt, skill, sop, snailMCPServer, mcp, featureChain, snail, im, imHub, liteAI, evolution, evolutionApp, scheduledTask, issue, message, collaboration, knowledge, configStore }, db };
 }
 
 function logStartupSummary(modules: Awaited<ReturnType<typeof initModules>>["modules"]): void {
@@ -140,7 +147,7 @@ function startHttpServer(modules: Awaited<ReturnType<typeof initModules>>["modul
   startEventLoopMonitor();
   const mcpHandler = createMcpHandler(modules.snailMCPServer.adapter);
   const app = createApp({
-    workspaceAdapter: modules.workspace.adapter,
+    workspacePort: modules.workspace.adapter,
     issuePort: modules.issue.issueAdapter,
     stagePort: modules.issue.stageAdapter,
     messagePort: modules.message.adapter,
