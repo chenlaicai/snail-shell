@@ -261,8 +261,8 @@ describe("dispatch idle → workspace notification", () => {
     await new Promise(resolve => setTimeout(resolve, 100));
 
     /** 即使 invokeAgent 失败，finally 块应将状态从 ai_running 恢复为 needs_human */
-    const needsHuman = statusChanges.find(s => s.newStatus === "needs_human");
-    expect(needsHuman).toBeDefined();
-    expect(needsHuman!.issueId).toBe(issue.id);
+    const aiRunningToNeedsHuman = statusChanges.find(s => s.newStatus === "needs_human" && s.prevStatus === "ai_running");
+    expect(aiRunningToNeedsHuman).toBeDefined();
+    expect(aiRunningToNeedsHuman!.issueId).toBe(issue.id);
   });
 });
