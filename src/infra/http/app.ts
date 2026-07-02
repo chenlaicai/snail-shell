@@ -7,7 +7,7 @@ import { createKnowledgeRoutes } from "@infra/http/routes/knowledge.route";
 import { createEvolutionRoutes } from "@infra/http/routes/evolution.route";
 import { createFrontendLogRoutes } from "@infra/http/routes/frontend-log.route";
 import { getLogger } from "@infra/logger";
-import type { WorkspaceAdapter } from "@domain/workspace/_internal/adapter";
+import type { WorkspacePort } from "@domain/workspace/port";
 import type { IssuePort, StagePort } from "@domain/issue/port";
 import type { MessagePort } from "@domain/message/port";
 import type { CollaborationInput } from "@app/issue-collaboration/port";
@@ -23,7 +23,7 @@ import type { Hono as HonoApp } from "hono";
 const log = getLogger({ module: "http" });
 
 export interface AppDeps {
-  workspaceAdapter: WorkspaceAdapter;
+  workspacePort: WorkspacePort;
   issuePort: IssuePort;
   stagePort: StagePort;
   messagePort: MessagePort;
@@ -68,7 +68,7 @@ export function createApp(deps: AppDeps) {
     }
   });
 
-  app.route("/", createWorkspaceRoutes(deps.workspaceAdapter));
+  app.route("/", createWorkspaceRoutes(deps.workspacePort));
   app.route("/", createIssueRoutes(deps));
   app.route("/", createMetaRoutes(deps));
   app.route("/", createKnowledgeRoutes(deps));

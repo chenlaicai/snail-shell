@@ -27,7 +27,6 @@ function createMockEvolutionPort(): EvolutionPort {
         }) as EvolutionItem,
     ),
     update: vi.fn(),
-    createIssue: vi.fn(),
   };
 }
 

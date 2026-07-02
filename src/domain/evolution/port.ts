@@ -4,7 +4,7 @@ import type {
   EvolutionItemListFilters,
 } from "@domain/evolution/model";
 
-/** Evolution 端口定义 */
+/** Evolution 端口定义（纯数据操作） */
 export interface EvolutionPort {
   /** 按 ID 查找 */
   findById(id: string): EvolutionItem | undefined;
@@ -20,9 +20,6 @@ export interface EvolutionPort {
 
   /** 更新演进项（状态、结果、元数据等） */
   update(id: string, updates: UpdateEvolutionItemInput): EvolutionItem;
-
-  /** 基于 item 创建 issue（Candidate → InProgress）。item 自身提供全部信息。 */
-  createIssue(itemId: string): Promise<EvolutionItem>;
 }
 
 /** 更新演进项输入 */
@@ -33,4 +30,5 @@ export interface UpdateEvolutionItemInput {
   content?: string;
   tags?: string[];
   metadata?: unknown;
+  issue_id?: string;
 }
