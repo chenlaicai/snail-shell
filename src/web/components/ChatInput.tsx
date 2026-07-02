@@ -115,6 +115,15 @@ export function ChatInput({ onSend, disabled, placeholder = "Reply to this issue
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isMentionActive, hideSuggestions]);
 
+  /** 草稿恢复后调整 textarea 高度（useState 初始化时 DOM 尚未就绪） */
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (el && value) {
+      el.style.height = "auto";
+      el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+    }
+  }, []);
+
   /** Debounce 保存草稿到 localStorage；清空输入时立即删除旧草稿 */
   useEffect(() => {
     if (!issueId) return;
