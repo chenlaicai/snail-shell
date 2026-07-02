@@ -110,6 +110,8 @@ export class EvolutionAppAdapter implements EvolutionAppPort {
   constructor(
     private evolutionPort: EvolutionPort,
     private collaboration: CollaborationInput,
+    private issuePort: IssuePort,
+    private snailPort: SnailPort,
   ) {}
 
   async createIssueFromItem(itemId: string): Promise<EvolutionItem> {
@@ -142,7 +144,12 @@ export class EvolutionAppAdapter implements EvolutionAppPort {
 // 当前：initEvolution(db, issuePort, snailPort, collaboration.createIssue.bind(collaboration))
 // 变为：
 const evolution = initEvolution(db);                           // domain 层：纯数据
-const evolutionApp = initEvolutionApp(evolution.adapter, collaboration.adapter);  // app 层：编排
+const evolutionApp = initEvolutionApp({                        // app 层：编排
+  evolutionPort: evolution.adapter,
+  collaboration: collaboration.adapter,
+  issuePort: issue.issueAdapter,
+  snailPort: snail.adapter,
+});
 ```
 
 **依赖方向**：
@@ -162,7 +169,7 @@ domain/evolution  →  无外部依赖（纯数据）
 | `src/app/evolution/port.ts` | 新建，定义 `EvolutionAppPort` |
 | `src/app/evolution/_internal/adapter.ts` | 新建，实现 `createIssueFromItem` 编排逻辑 |
 | `src/app/evolution/initor.ts` | 新建，组合 app 层依赖 |
-| `src/main.ts` | `initEvolution` 参数简化；新增 `initEvolutionApp`；HTTP 路由使用 app 层 adapter |
+| `src/main.ts` | `initEvolution` 参数简化；新增 `initEvolutionApp`；HTTP 路由仍使用 domain 层 adapter（只读查询） |
 
 ---
 
@@ -205,7 +212,7 @@ domain/evolution  →  无外部依赖（纯数据）
 ## 不兼容更新
 
 - `EvolutionPort` 移除 `createIssue` 方法 — 该职责迁移到 `app/evolution` 的 `EvolutionAppPort.createIssueFromItem`
-- HTTP 路由中原调用 `evolution.adapter.createIssue` 改为调用 `evolutionApp.adapter.createIssueFromItem`
+- HTTP 路由中不直接调用 `createIssue`（该操作由 MCP 工具触发），HTTP 路由只使用 domain 层 adapter 进行只读查询
 - `CreateIssueFn` 类型删除 — 不再需要 DIP 窄接口
 
 ## 决策记录
