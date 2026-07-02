@@ -128,20 +128,31 @@ export function IssueConversation() {
   const [scrollPosition, setScrollPosition] = useState<'top' | 'middle' | 'bottom'>('bottom');
   const isSmoothScrollingRef = useRef(false);
 
-  /** 使用 ref 跟踪不含 padding 的原始内容高度，避免与 getTotalSize() 循环依赖 */
-  const contentHeightRef = useRef(0);
   const [paddingEnd, setPaddingEnd] = useState(0);
+  const [containerHeight, setContainerHeight] = useState(0);
 
-  /** 当消息数量变化时，计算 paddingEnd：虚拟列表总高度 < 可视区域高度时补齐空白 */
+  /** 监听容器尺寸变化（窗口 resize、PropertiesPanel 展开/折叠等） */
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setContainerHeight(el.clientHeight);
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerHeight(entry.contentRect.height);
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  /** 当消息数量或容器尺寸变化时，计算 paddingEnd：虚拟列表总高度 < 可视区域高度时补齐空白 */
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const containerHeight = el.clientHeight;
     const rawContentHeight = sorted.length * 120; // estimateSize
-    contentHeightRef.current = rawContentHeight;
-    const needed = Math.max(0, containerHeight - rawContentHeight);
+    const needed = Math.max(0, el.clientHeight - rawContentHeight);
     setPaddingEnd(needed);
-  }, [sorted.length]);
+  }, [sorted.length, containerHeight]);
 
   const virtualizer = useVirtualizer({
     count: sorted.length,
