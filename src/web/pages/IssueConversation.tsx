@@ -106,19 +106,10 @@ export function IssueConversation() {
   useEffect(() => {
     if (prevStageIdRef.current !== stageId) {
       if (prevStageIdRef.current) clearPendingMessages(prevStageIdRef.current);
-      const isInitialLoad = prevStageIdRef.current === null;
       prevStageIdRef.current = stageId;
       setOlderHistory([]);
       allHistoryLoadedRef.current = false;
-      if (isInitialLoad) {
-        /** 初始加载：滚动到底部（对话最新位置） */
-        wasAtBottomRef.current = true;
-      } else {
-        /** Stage 切换：滚动到顶部，避免新 stage 消息少时出现空白区域 */
-        wasAtBottomRef.current = false;
-        const el = scrollRef.current;
-        if (el) el.scrollTop = 0;
-      }
+      wasAtBottomRef.current = true;
     }
   }, [stageId]);
 
@@ -137,11 +128,27 @@ export function IssueConversation() {
   const [scrollPosition, setScrollPosition] = useState<'top' | 'middle' | 'bottom'>('bottom');
   const isSmoothScrollingRef = useRef(false);
 
+  /** 使用 ref 跟踪不含 padding 的原始内容高度，避免与 getTotalSize() 循环依赖 */
+  const contentHeightRef = useRef(0);
+  const [paddingEnd, setPaddingEnd] = useState(0);
+
+  /** 当消息数量变化时，计算 paddingEnd：虚拟列表总高度 < 可视区域高度时补齐空白 */
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const containerHeight = el.clientHeight;
+    const rawContentHeight = sorted.length * 120; // estimateSize
+    contentHeightRef.current = rawContentHeight;
+    const needed = Math.max(0, containerHeight - rawContentHeight);
+    setPaddingEnd(needed);
+  }, [sorted.length]);
+
   const virtualizer = useVirtualizer({
     count: sorted.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 120,
     overscan: 10,
+    paddingEnd,
   });
 
   // 只在用户已经在底部时自动滚动，避免打断用户阅读历史消息
