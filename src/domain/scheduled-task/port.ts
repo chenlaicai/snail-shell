@@ -5,6 +5,12 @@ import type {
   CreateScheduledTaskInput,
   UpdateScheduledTaskInput,
 } from "@domain/scheduled-task/model";
+import type { CreateIssueInput } from "@domain/issue/model";
+
+/** 定时任务调度器需要的最小 collaboration 端口 */
+export interface CreateIssuePort {
+  createIssue(input: CreateIssueInput): Promise<{ issue: { id: string }; stage: { id: string } }>;
+}
 
 /** 定时任务端口定义 */
 export interface ScheduledTaskPort {

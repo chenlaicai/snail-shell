@@ -6,13 +6,12 @@ import type {
   CreateScheduledTaskInput,
   UpdateScheduledTaskInput,
 } from "@domain/scheduled-task/model";
-import type { ScheduledTaskPort } from "@domain/scheduled-task/port";
+import type { ScheduledTaskPort, CreateIssuePort } from "@domain/scheduled-task/port";
 import type { ScheduledTaskRepository } from "@domain/scheduled-task/_internal/repository";
 import type { SopPort } from "@domain/sop/port";
 import type { SnailPort } from "@domain/snail/port";
 import type { IssuePort } from "@domain/issue/port";
 import type { IssueSnailAssignmentPlan } from "@domain/issue/model";
-import type { CollaborationInput } from "@app/issue-collaboration/port";
 import { getLogger } from "@infra/logger";
 
 const log = getLogger({ module: "scheduled-task" });
@@ -29,7 +28,7 @@ export class ScheduledTaskAdapter implements ScheduledTaskPort {
     private sopPort: SopPort,
     private snailPort: SnailPort,
     private issuePort: IssuePort,
-    private collaboration: CollaborationInput,
+    private collaboration: CreateIssuePort,
   ) {}
 
   list(): ScheduledTaskWithLastExecution[] {

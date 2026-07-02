@@ -4,7 +4,7 @@ import type { ScheduledTaskRepository } from "@domain/scheduled-task/_internal/r
 import type { SopPort } from "@domain/sop/port";
 import type { SnailPort } from "@domain/snail/port";
 import type { IssuePort } from "@domain/issue/port";
-import type { CollaborationInput } from "@app/issue-collaboration/port";
+import type { CreateIssuePort } from "@domain/scheduled-task/port";
 import type { ScheduledTask } from "@domain/scheduled-task/model";
 import { ScheduledTaskAdapter } from "@domain/scheduled-task/_internal/adapter";
 import { randomUUID } from "crypto";
@@ -67,29 +67,12 @@ function createMockIssuePort(): IssuePort {
   };
 }
 
-function createMockCollaboration(): CollaborationInput {
+function createMockCollaboration(): CreateIssuePort {
   return {
     createIssue: vi.fn().mockResolvedValue({
       issue: { id: "issue-1" },
       stage: { id: "stage-1" },
     }),
-    sendMessage: vi.fn(),
-    interruptMessage: vi.fn(),
-    registerIssueConsumer: vi.fn(),
-    unregisterIssueConsumer: vi.fn(),
-    registerWorkspaceConsumer: vi.fn(),
-    unregisterWorkspaceConsumer: vi.fn(),
-    listStageTransitionSuggestions: vi.fn().mockReturnValue([]),
-    dismissSuggestion: vi.fn(),
-    advanceStage: vi.fn(),
-    rollbackStage: vi.fn(),
-    getStageAuditTrail: vi.fn().mockReturnValue([]),
-    closeIssue: vi.fn(),
-    isInvoking: vi.fn().mockReturnValue(false),
-    getActivityStatus: vi.fn().mockReturnValue("needs_human"),
-    resumeRoute: vi.fn(),
-    restoreSuggestions: vi.fn(),
-    evaluateAdvance: vi.fn(),
   };
 }
 
@@ -113,7 +96,7 @@ describe("ScheduledTaskAdapter", () => {
   let sopPort: SopPort;
   let snailPort: SnailPort;
   let issuePort: IssuePort;
-  let collaboration: CollaborationInput;
+  let collaboration: CreateIssuePort;
   let adapter: ScheduledTaskPort;
 
   beforeEach(() => {

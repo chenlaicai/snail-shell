@@ -2,7 +2,7 @@ import type { SQLiteDatabase } from "@infra/database";
 import type { SopPort } from "@domain/sop/port";
 import type { SnailPort } from "@domain/snail/port";
 import type { IssuePort } from "@domain/issue/port";
-import type { CollaborationInput } from "@app/issue-collaboration/port";
+import type { CreateIssuePort } from "@domain/scheduled-task/port";
 import { SQLiteScheduledTaskRepository } from "@domain/scheduled-task/_internal/repository";
 import { ScheduledTaskAdapter } from "@domain/scheduled-task/_internal/adapter";
 
@@ -12,7 +12,7 @@ export function init(
   sopPort: SopPort,
   snailPort: SnailPort,
   issuePort: IssuePort,
-  collaboration: CollaborationInput,
+  collaboration: CreateIssuePort,
 ) {
   const repo = new SQLiteScheduledTaskRepository(db);
   const adapter = new ScheduledTaskAdapter(repo, sopPort, snailPort, issuePort, collaboration);
