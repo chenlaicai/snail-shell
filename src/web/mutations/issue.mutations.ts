@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../services/api-client";
 import { queryKeys } from "../queries/keys";
-import type { CloseIssueResultDto } from "@/types";
+import type { CloseIssueResultDto, IssueDetailDto } from "@/types";
 
 export function useCreateIssue(workspaceId: string) {
   const qc = useQueryClient();
@@ -17,9 +17,46 @@ export function useCloseIssue(workspaceId: string) {
   return useMutation({
     mutationFn: (issueId: string): Promise<CloseIssueResultDto> =>
       api("POST /api/issues/:issueId/close", { params: { issueId } }),
+
+    onMutate: async (issueId) => {
+      await qc.cancelQueries({ queryKey: queryKeys.issues.detail(issueId) });
+      await qc.cancelQueries({ queryKey: queryKeys.workspaces.issues(workspaceId) });
+
+      const prevDetail = qc.getQueryData<IssueDetailDto>(queryKeys.issues.detail(issueId));
+      const prevList = qc.getQueryData<IssueDetailDto[]>(queryKeys.workspaces.issues(workspaceId));
+
+      const closedAt = new Date().toISOString();
+      if (prevDetail) {
+        qc.setQueryData<IssueDetailDto>(queryKeys.issues.detail(issueId), {
+          ...prevDetail,
+          closed_at: closedAt,
+        });
+      }
+      if (prevList) {
+        qc.setQueryData<IssueDetailDto[]>(
+          queryKeys.workspaces.issues(workspaceId),
+          prevList.map(issue =>
+            issue.id === issueId
+              ? { ...issue, closed_at: closedAt, activity_status: "completed" as const }
+              : issue
+          ),
+        );
+      }
+
+      return { prevDetail, prevList };
+    },
+
+    onError: (_err, issueId, context) => {
+      if (context?.prevDetail) {
+        qc.setQueryData(queryKeys.issues.detail(issueId), context.prevDetail);
+      }
+      if (context?.prevList) {
+        qc.setQueryData(queryKeys.workspaces.issues(workspaceId), context.prevList);
+      }
+    },
+
     onSuccess: (data, issueId) => {
-      qc.invalidateQueries({ queryKey: queryKeys.workspaces.issues(workspaceId) });
-      qc.invalidateQueries({ queryKey: queryKeys.issues.detail(issueId) });
+      qc.setQueryData(queryKeys.issues.detail(issueId), data.issue);
     },
   });
 }

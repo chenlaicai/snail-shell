@@ -111,6 +111,23 @@ CREATE TABLE IF NOT EXISTS stage_audit (
 );
 
 CREATE INDEX IF NOT EXISTS idx_stage_audit_stage ON stage_audit(stage_id);
+
+CREATE TABLE IF NOT EXISTS stage_suggestion (
+  id TEXT PRIMARY KEY,
+  stage_id TEXT NOT NULL,
+  target_key TEXT NOT NULL,
+  signal_type TEXT,
+  gate_evidence TEXT,
+  adversarial_artifact TEXT,
+  decision_mode TEXT,
+  recommendation TEXT,
+  alternatives TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  created_at INTEGER NOT NULL,
+  processed_at INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_stage_suggestion_stage_status ON stage_suggestion(stage_id, status);
 `;
 
 type IssueRow = {
@@ -425,4 +442,70 @@ function mapStage(row: StageRow): Stage {
     entered_at: row.entered_at,
     left_at: row.left_at,
   };
+}
+
+// ── Stage Suggestion Repository ──────────────────────────────────────────
+
+export interface StageSuggestionRecord {
+  id: string;
+  stage_id: string;
+  target_key: string;
+  signal_type: string | null;
+  gate_evidence: string | null;
+  adversarial_artifact: string | null;
+  decision_mode: string | null;
+  recommendation: string | null;
+  alternatives: string | null;
+  status: "pending" | "confirmed" | "ignored";
+  created_at: number;
+  processed_at: number | null;
+}
+
+export interface StageSuggestionRepository {
+  insert(record: StageSuggestionRecord): void;
+  listPendingByStage(stageId: string): StageSuggestionRecord[];
+  /** 查询指定 stage 中同一 target_key 被忽略的次数 */
+  countIgnoredByStageAndTargetKey(stageId: string, targetKey: string): number;
+  markProcessed(id: string, status: "confirmed" | "ignored"): void;
+  deleteByStage(stageId: string): void;
+}
+
+export class SQLiteStageSuggestionRepository implements StageSuggestionRepository {
+  constructor(private db: SQLiteDatabase) {
+    db.initSchema(ISSUE_SCHEMA);
+  }
+
+  insert(record: StageSuggestionRecord): void {
+    this.db.run(
+      `INSERT OR IGNORE INTO stage_suggestion (id, stage_id, target_key, signal_type, gate_evidence, adversarial_artifact, decision_mode, recommendation, alternatives, status, created_at, processed_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [record.id, record.stage_id, record.target_key, record.signal_type, record.gate_evidence, record.adversarial_artifact, record.decision_mode, record.recommendation, record.alternatives, record.status, record.created_at, record.processed_at],
+    );
+  }
+
+  listPendingByStage(stageId: string): StageSuggestionRecord[] {
+    return this.db.all<StageSuggestionRecord>(
+      `SELECT * FROM stage_suggestion WHERE stage_id = ? AND status = 'pending' ORDER BY created_at ASC`,
+      [stageId],
+    );
+  }
+
+  countIgnoredByStageAndTargetKey(stageId: string, targetKey: string): number {
+    const row = this.db.get<{ cnt: number }>(
+      `SELECT COUNT(*) as cnt FROM stage_suggestion WHERE stage_id = ? AND status = 'ignored' AND target_key = ?`,
+      [stageId, targetKey],
+    );
+    return row?.cnt ?? 0;
+  }
+
+  markProcessed(id: string, status: "confirmed" | "ignored"): void {
+    this.db.run(
+      `UPDATE stage_suggestion SET status = ?, processed_at = ? WHERE id = ?`,
+      [status, Date.now(), id],
+    );
+  }
+
+  deleteByStage(stageId: string): void {
+    this.db.run(`DELETE FROM stage_suggestion WHERE stage_id = ?`, [stageId]);
+  }
 }

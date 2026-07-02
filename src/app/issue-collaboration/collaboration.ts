@@ -8,7 +8,8 @@ import type { SnailFirstCallRequest, SnailResumeRequest } from "@domain/snail/mo
 import type { LiteAIPort } from "@domain/lite-ai/port";
 import type { AgentEvent, InvokeOptions } from "@infra/acs/model";
 import type { McpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-message-store";
-import type { AdversarialArtifact, CollaborationConsumer, CollaborationInput, CreateIssueResult, Position, SignalType, StageTransitionSuggestion, WorkspaceConsumer } from "@app/issue-collaboration/port";
+import type { AdversarialArtifact, CollaborationConsumer, CollaborationInput, CreateIssueResult, DecisionMode, Position, SignalType, StageTransitionSuggestion, WorkspaceConsumer } from "@app/issue-collaboration/port";
+import type { StageSuggestionRepository, StageSuggestionRecord } from "@domain/issue/_internal/repository";
 import { AutoAdvanceEngine } from "@app/issue-collaboration/auto-advance";
 import { ConsumerNotifier } from "@app/issue-collaboration/consumer-notifier";
 import { MessageHandler } from "@app/issue-collaboration/message-handler";
@@ -35,12 +36,14 @@ interface CollaborationDeps {
   snailPort: SnailPort;
   liteAIPort: LiteAIPort;
   mcpMessageStore: McpMessageStore;
+  stageSuggestionRepo: StageSuggestionRepository;
   maxCollaborationRounds?: number;
+  userCallRateLimitMs?: number;
 }
 type SpeakerTarget = { speaker: string; source: "mention" | "reply" | "default" };
 type DispatchState = { status: "idle" | "invoking"; pending: boolean };
-type TransitionPayload = { targetKey: string; reason: unknown; guard: unknown; signal_type?: SignalType; consensus?: boolean; positions?: Position[]; gate_evidence?: Record<string, unknown>; adversarial_artifact?: AdversarialArtifact };
-type ParsedTransition = { target_key?: string; reason?: string; guard?: string | null; signal_type?: string; consensus?: boolean; positions?: Position[]; gate_evidence?: Record<string, unknown>; adversarial_artifact?: AdversarialArtifact };
+type TransitionPayload = { targetKey: string; reason: unknown; guard: unknown; signal_type?: SignalType; decision_mode?: DecisionMode; consensus?: boolean; positions?: Position[]; gate_evidence?: Record<string, unknown>; adversarial_artifact?: AdversarialArtifact; recommendation?: string; alternatives?: string[] };
+type ParsedTransition = { target_key?: string; reason?: string; guard?: string | null; signal_type?: string; decision_mode?: string; consensus?: boolean; positions?: Position[]; gate_evidence?: Record<string, unknown>; adversarial_artifact?: AdversarialArtifact; recommendation?: string; alternatives?: string[] };
 export class IssueCollaboration implements CollaborationInput {
   private readonly issueConsumers = new Map<string, Set<CollaborationConsumer>>();
   private readonly workspaceConsumers = new Map<string, Set<WorkspaceConsumer>>();
@@ -53,8 +56,11 @@ export class IssueCollaboration implements CollaborationInput {
   private readonly messageHandler: MessageHandler;
   private readonly helpers: CollaborationHelpers;
   private readonly dispatchStates = new Map<string, DispatchState>();
+  private readonly lastUserCallAt = new Map<string, number>();
+  private readonly userCallRateLimitMs: number;
   constructor(private readonly deps: CollaborationDeps) {
     this.maxCollaborationRounds = deps.maxCollaborationRounds ?? 30;
+    this.userCallRateLimitMs = deps.userCallRateLimitMs ?? 30_000;
     this.consumerNotifier = new ConsumerNotifier();
     this.helpers = new CollaborationHelpers(deps.issuePort, deps.stagePort, deps.messagePort);
     this.messageHandler = new MessageHandler({
@@ -123,48 +129,35 @@ export class IssueCollaboration implements CollaborationInput {
     await this.route(stageId, updatedMessage);
   }
   registerIssueConsumer(issueId: string, consumer: CollaborationConsumer): void {
-    const consumers = this.issueConsumers.get(issueId) ?? new Set<CollaborationConsumer>();
-    consumers.add(consumer);
-    this.issueConsumers.set(issueId, consumers);
+    const consumers = this.issueConsumers.get(issueId) ?? new Set<CollaborationConsumer>(); consumers.add(consumer); this.issueConsumers.set(issueId, consumers);
   }
   unregisterIssueConsumer(issueId: string, consumer: CollaborationConsumer): void {
-    const consumers = this.issueConsumers.get(issueId);
-    if (!consumers) return;
-    consumers.delete(consumer);
-    if (consumers.size === 0) this.issueConsumers.delete(issueId);
+    const consumers = this.issueConsumers.get(issueId); if (!consumers) return; consumers.delete(consumer); if (consumers.size === 0) this.issueConsumers.delete(issueId);
   }
   registerWorkspaceConsumer(workspaceId: string, consumer: WorkspaceConsumer): void {
-    const consumers = this.workspaceConsumers.get(workspaceId) ?? new Set<WorkspaceConsumer>();
-    consumers.add(consumer);
-    this.workspaceConsumers.set(workspaceId, consumers);
+    const consumers = this.workspaceConsumers.get(workspaceId) ?? new Set<WorkspaceConsumer>(); consumers.add(consumer); this.workspaceConsumers.set(workspaceId, consumers);
   }
   unregisterWorkspaceConsumer(workspaceId: string, consumer: WorkspaceConsumer): void {
-    const consumers = this.workspaceConsumers.get(workspaceId);
-    if (!consumers) return;
-    consumers.delete(consumer);
-    if (consumers.size === 0) this.workspaceConsumers.delete(workspaceId);
+    const consumers = this.workspaceConsumers.get(workspaceId); if (!consumers) return; consumers.delete(consumer); if (consumers.size === 0) this.workspaceConsumers.delete(workspaceId);
   }
   listStageTransitionSuggestions(stageId: string): StageTransitionSuggestion[] {
     const suggestions = this.suggestions.get(stageId) ?? [];
     const seen = new Set<string>();
-    return suggestions.filter(s => {
-      if (seen.has(s.target_key)) return false;
-      seen.add(s.target_key);
-      return true;
-    });
+    return suggestions.filter(s => { if (seen.has(s.target_key)) return false; seen.add(s.target_key); return true; })
+      .map(s => { const c = this.deps.stageSuggestionRepo.countIgnoredByStageAndTargetKey(stageId, s.target_key); return c > 0 ? { ...s, dismiss_count: c } : s; });
   }
   dismissSuggestion(stageId: string, targetKey: string, createdAt: string): boolean {
-    const suggestions = this.suggestions.get(stageId);
-    if (!suggestions) return false;
+    const suggestions = this.suggestions.get(stageId); if (!suggestions) return false;
     const remaining = suggestions.filter(s => !(s.target_key === targetKey && s.created_at === createdAt));
     if (remaining.length === suggestions.length) return false;
-    if (remaining.length === 0) this.suggestions.delete(stageId);
-    else this.suggestions.set(stageId, remaining);
+    for (const s of suggestions) { if (s.target_key === targetKey && s.created_at === createdAt) this.deps.stageSuggestionRepo.markProcessed(s.message_id.toString(), "ignored"); }
+    if (remaining.length === 0) this.suggestions.delete(stageId); else this.suggestions.set(stageId, remaining);
     return true;
   }
   async advanceStage(stageId: string, targetKey: string): Promise<Stage> {
     const stage = this.deps.stagePort.advanceStage(stageId, targetKey);
     this.cleanupDispatchStates(stageId);
+    for (const s of (this.suggestions.get(stageId) ?? [])) this.deps.stageSuggestionRepo.markProcessed(s.message_id.toString(), "confirmed");
     this.suggestions.delete(stageId);
     this.helpers.initStageCursors(stage);
     this.autoInvokeNewStage(stage);
@@ -173,23 +166,35 @@ export class IssueCollaboration implements CollaborationInput {
   async closeIssue(issueId: string): Promise<{ issue: Issue; cleanup: CleanupResult }> {
     const existingIssue = this.deps.issuePort.findIssue(issueId);
     if (existingIssue?.closed_at) {
-      // 已关闭的 Issue 幂等返回，不执行 cleanup，不覆盖 close_summary
-      const prevStatus = this.lastActivityStatus.get(issueId) ?? "needs_human";
-      this.lastActivityStatus.delete(issueId);
-      const consumers = this.workspaceConsumers.get(existingIssue.workspace_path);
-      if (consumers) for (const c of consumers) c.onActivityStatusChanged(issueId, "completed", prevStatus);
-      // domain CloseSummary 与 app CleanupResult 结构相同，此处显式转换标记层边界
+      this.notifyWorkspaceClose(issueId, existingIssue.workspace_path);
       const cleanup: CleanupResult = existingIssue.close_summary as CleanupResult ?? { pr: { status: "skipped" }, worktree: { status: "skipped" }, localBranch: { status: "skipped" }, remoteBranch: { status: "skipped" } };
       return { issue: existingIssue, cleanup };
     }
     const issue = this.deps.issuePort.closeIssue(issueId);
+    this.notifyWorkspaceClose(issueId, issue.workspace_path);
+    this.cleanupResourcesAsync(issueId, issue.context, issue.workspace_path).catch((err) => { log.error({ issueId, err }, "closeIssue: cleanupResourcesAsync unhandled rejection"); });
+    const pending = { pr: { status: "pending" }, worktree: { status: "pending" }, localBranch: { status: "pending" }, remoteBranch: { status: "pending" } };
+    return { issue, cleanup: pending as unknown as CleanupResult };
+  }
+  private notifyWorkspaceClose(issueId: string, workspacePath: string): void {
     const prevStatus = this.lastActivityStatus.get(issueId) ?? "needs_human";
     this.lastActivityStatus.delete(issueId);
-    const consumers = this.workspaceConsumers.get(issue.workspace_path);
-    if (consumers) for (const c of consumers) c.onActivityStatusChanged(issueId, "completed", prevStatus);
-    const cleanup = await cleanupResources(issue.context, issue.workspace_path);
+    for (const c of this.workspaceConsumers.get(workspacePath) ?? []) c.onActivityStatusChanged(issueId, "completed", prevStatus);
+  }
+
+  private async cleanupResourcesAsync(issueId: string, context: Record<string, string>, workspacePath: string): Promise<void> {
+    let cleanup: CleanupResult | undefined;
+    try { cleanup = await cleanupResources(context, workspacePath); } catch (err) {
+      log.error({ issueId, err }, "cleanupResourcesAsync failed");
+      const e = String(err);
+      cleanup = { pr: { status: "failed", error: e }, worktree: { status: "failed", error: e }, localBranch: { status: "failed", error: e }, remoteBranch: { status: "failed", error: e } };
+    }
     try { this.deps.issuePort.updateCloseSummary(issueId, cleanup); } catch (err) { log.error({ issueId, err }, "closeIssue: updateCloseSummary failed"); }
-    return { issue, cleanup };
+    this.notifyCleanupCompleted(issueId, cleanup);
+  }
+
+  private notifyCleanupCompleted(issueId: string, cleanup: CleanupResult): void {
+    for (const c of this.issueConsumers.get(issueId) ?? []) { try { c.onCleanupCompleted?.(issueId, cleanup); } catch (err) { log.warn({ issueId, err }, "notifyCleanupCompleted failed"); } }
   }
   async resumeRoute(stageId: string, message: Message): Promise<void> {
     try {
@@ -199,9 +204,7 @@ export class IssueCollaboration implements CollaborationInput {
     }
   }
   isInvoking(stageId: string): boolean {
-    for (const [key, state] of this.dispatchStates) {
-      if (key.startsWith(`${stageId}:`) && state.status === "invoking") return true;
-    }
+    for (const [key, state] of this.dispatchStates) { if (key.startsWith(`${stageId}:`) && state.status === "invoking") return true; }
     return false;
   }
   getActivityStatus(stageId: string, issueClosedAt?: string | null): "ai_running" | "needs_human" | "completed" {
@@ -213,9 +216,7 @@ export class IssueCollaboration implements CollaborationInput {
   }
   private cleanupDispatchStates(stageId: string): void {
     const prefix = `${stageId}:`;
-    for (const key of this.dispatchStates.keys()) {
-      if (key.startsWith(prefix)) this.dispatchStates.delete(key);
-    }
+    for (const key of this.dispatchStates.keys()) { if (key.startsWith(prefix)) this.dispatchStates.delete(key); }
   }
   private async route(stageId: string, message: Message): Promise<void> {
     const targets = message.to_speakers;
@@ -225,9 +226,16 @@ export class IssueCollaboration implements CollaborationInput {
     const uniqueTargets = [...new Set(targets)];
     await Promise.all(uniqueTargets.map(speaker => this.dispatch(stageId, speaker)));
   }
+  private isUserCallRateLimited(stageId: string): boolean {
+    const now = Date.now(), last = this.lastUserCallAt.get(stageId);
+    if (last !== undefined && now - last < this.userCallRateLimitMs) { log.debug({ stageId, elapsed: now - last }, "dispatch: user call rate limited"); return true; }
+    this.lastUserCallAt.set(stageId, now);
+    return false;
+  }
   private async dispatch(stageId: string, speaker: string): Promise<void> {
     const key = `${stageId}:${speaker}`;
     if (speaker === "user") {
+      if (this.isUserCallRateLimited(stageId)) return;
       const latest = this.deps.messagePort.findLatestMessage(stageId);
       if (latest) await this.notifyConsumers(stageId, "onUserCalled", latest);
       return;
@@ -245,24 +253,10 @@ export class IssueCollaboration implements CollaborationInput {
       if (!state) return;
       state.pending = false;
       const unread = this.deps.messagePort.getUnreadMessages(stageId, speaker);
-      if (unread.length === 0) {
-        this.dispatchStates.set(key, { status: "idle", pending: false });
-        return;
-      }
-      try {
-        await this.invokeAgent(stageId, speaker, unread);
-        this.deps.messagePort.advanceCursor(stageId, speaker, unread[unread.length - 1].id);
-      } catch {
-        // 不推进 cursor，保留 unread 消息供下次 dispatch 重试；立即退出避免烧尽 rounds
-        this.dispatchStates.set(key, { status: "idle", pending: false });
-        return;
-      }
+      if (unread.length === 0) { this.dispatchStates.set(key, { status: "idle", pending: false }); return; }
+      try { await this.invokeAgent(stageId, speaker, unread); this.deps.messagePort.advanceCursor(stageId, speaker, unread[unread.length - 1].id); } catch { this.dispatchStates.set(key, { status: "idle", pending: false }); return; }
       const current = this.dispatchStates.get(key);
-      if (!current) return;
-      if (!current.pending) {
-        this.dispatchStates.set(key, { status: "idle", pending: false });
-        return;
-      }
+      if (!current || !current.pending) { this.dispatchStates.set(key, { status: "idle", pending: false }); return; }
       remainingRounds--;
     }
     log.warn({ stageId, speaker }, "dispatch: max rounds reached");
@@ -380,6 +374,7 @@ export class IssueCollaboration implements CollaborationInput {
   private async detectStageTransition(stage: Stage, roleInstance: string, messageId: number): Promise<void> {
     const suggestion = this.extractStageTransitionSuggestion(stage, roleInstance, messageId);
     if (!suggestion) return;
+    this.persistSuggestion(suggestion);
     const suggestions = this.suggestions.get(stage.id) ?? [];
     suggestions.push(suggestion);
     this.suggestions.set(stage.id, suggestions);
@@ -394,9 +389,29 @@ export class IssueCollaboration implements CollaborationInput {
     const options = (suggestion.positions ?? []).map(p => ({ label: `${p.speaker}: ${p.stance}`, description: p.argument }));
     await this.notifyConsumers(stageId, "onDisagreement", { ...suggestion, question: { text: suggestion.reason, options } });
   }
+  private persistSuggestion(s: StageTransitionSuggestion): void {
+    this.deps.stageSuggestionRepo.insert({
+      id: s.message_id.toString(), stage_id: s.stage_id, target_key: s.target_key, signal_type: s.signal_type ?? null,
+      gate_evidence: s.gate_evidence ? JSON.stringify(s.gate_evidence) : null, adversarial_artifact: s.adversarial_artifact ? JSON.stringify(s.adversarial_artifact) : null,
+      decision_mode: s.decision_mode ?? null, recommendation: s.recommendation ?? null, alternatives: s.alternatives ? JSON.stringify(s.alternatives) : null,
+      status: "pending", created_at: Date.now(), processed_at: null,
+    });
+  }
+  restoreSuggestions(stageId: string, records: StageSuggestionRecord[]): void {
+    if (records.length === 0) return;
+    this.suggestions.set(stageId, records.map(r => ({
+      stage_id: r.stage_id, message_id: parseInt(r.id, 10), from_speaker: "recovered", target_key: r.target_key,
+      reason: "", guard: null, artifacts: {}, created_at: new Date(r.created_at).toISOString(),
+      signal_type: r.signal_type as SignalType | undefined, gate_evidence: r.gate_evidence ? JSON.parse(r.gate_evidence) : undefined,
+      adversarial_artifact: r.adversarial_artifact ? JSON.parse(r.adversarial_artifact) : undefined,
+      decision_mode: r.decision_mode as DecisionMode | undefined, recommendation: r.recommendation ?? undefined,
+      alternatives: r.alternatives ? JSON.parse(r.alternatives) as string[] : undefined,
+    })));
+  }
   async rollbackStage(stageId: string, targetKey: string): Promise<Stage> {
     const stage = this.deps.stagePort.rollbackStage(stageId, targetKey);
     this.cleanupDispatchStates(stageId);
+    this.deps.stageSuggestionRepo.deleteByStage(stageId);
     this.suggestions.delete(stageId);
     this.helpers.initStageCursors(stage);
     this.autoInvokeNewStage(stage);
@@ -432,9 +447,7 @@ export class IssueCollaboration implements CollaborationInput {
   private extractStageTransitionSuggestion(stage: Stage, roleInstance: string, messageId: number): StageTransitionSuggestion | null {
     for (const event of this.deps.messagePort.getMessageEvents(messageId)) {
       const payload = this.extractSignalPayload(event, stage);
-      if (payload) return this.makeStageTransitionSuggestion({ stage, roleInstance, messageId, targetKey: payload.targetKey,
-        reason: payload.reason, guard: payload.guard, signal_type: payload.signal_type, consensus: payload.consensus, positions: payload.positions, gate_evidence: payload.gate_evidence,
-        adversarial_artifact: payload.adversarial_artifact });
+      if (payload) return this.makeStageTransitionSuggestion({ stage, roleInstance, messageId, ...payload });
     }
     return null;
   }
@@ -449,30 +462,34 @@ export class IssueCollaboration implements CollaborationInput {
   }
   private extractFromSignalPayload(payload: Record<string, unknown>, stage: Stage): TransitionPayload | null {
     const targetKey = String(payload.target_key ?? payload.to ?? "");
-    if (!targetKey || !stage.available_transitions.some(transition => transition.to === targetKey)) return null;
-    const signalType = typeof payload.signal_type === "string" ? payload.signal_type as SignalType : undefined;
-    return { targetKey, reason: payload.reason, guard: payload.guard, signal_type: signalType,
-      consensus: typeof payload.consensus === "boolean" ? payload.consensus : undefined,
-      positions: Array.isArray(payload.positions) ? payload.positions as Position[] : undefined,
-      gate_evidence: typeof payload.gate_evidence === "object" ? payload.gate_evidence as Record<string, unknown> : undefined,
-      adversarial_artifact: typeof payload.adversarial_artifact === "object" ? payload.adversarial_artifact as AdversarialArtifact : undefined };
+    if (!targetKey || !stage.available_transitions.some(t => t.to === targetKey)) return null;
+    return { targetKey, ...this.buildTransitionPayload(payload) };
   }
   private extractFromTextPayload(text: string, stage: Stage): TransitionPayload | null {
     const parsed = this.tryParseStageTransition(text);
-    if (!parsed?.target_key || !stage.available_transitions.some(transition => transition.to === parsed.target_key)) return null;
-    const signalType = typeof parsed.signal_type === "string" ? parsed.signal_type as SignalType : undefined;
-    return { targetKey: parsed.target_key, reason: parsed.reason, guard: parsed.guard, signal_type: signalType,
-      consensus: typeof parsed.consensus === "boolean" ? parsed.consensus : undefined,
-      positions: Array.isArray(parsed.positions) ? parsed.positions as Position[] : undefined,
-      gate_evidence: typeof parsed.gate_evidence === "object" ? parsed.gate_evidence as Record<string, unknown> : undefined,
-      adversarial_artifact: typeof parsed.adversarial_artifact === "object" ? parsed.adversarial_artifact as AdversarialArtifact : undefined };
+    if (!parsed?.target_key || !stage.available_transitions.some(t => t.to === parsed.target_key)) return null;
+    return { targetKey: parsed.target_key, ...this.buildTransitionPayload(parsed as Record<string, unknown>) };
+  }
+  private buildTransitionPayload(raw: Record<string, unknown>): Omit<TransitionPayload, "targetKey"> {
+    return {
+      reason: raw.reason, guard: raw.guard,
+      signal_type: typeof raw.signal_type === "string" ? raw.signal_type as SignalType : undefined,
+      decision_mode: typeof raw.decision_mode === "string" ? raw.decision_mode as DecisionMode : undefined,
+      consensus: typeof raw.consensus === "boolean" ? raw.consensus : undefined,
+      positions: Array.isArray(raw.positions) ? raw.positions as Position[] : undefined,
+      gate_evidence: typeof raw.gate_evidence === "object" ? raw.gate_evidence as Record<string, unknown> : undefined,
+      adversarial_artifact: typeof raw.adversarial_artifact === "object" ? raw.adversarial_artifact as AdversarialArtifact : undefined,
+      recommendation: typeof raw.recommendation === "string" ? raw.recommendation : undefined,
+      alternatives: Array.isArray(raw.alternatives) ? raw.alternatives as string[] : undefined,
+    };
   }
   private makeStageTransitionSuggestion(input: { stage: Stage; roleInstance: string; messageId: number } & TransitionPayload): StageTransitionSuggestion {
-    const { stage, roleInstance, messageId, targetKey, reason, guard, signal_type, consensus, positions, gate_evidence, adversarial_artifact } = input;
+    const { stage, roleInstance, messageId, targetKey, reason, guard, signal_type, decision_mode, consensus, positions, gate_evidence, adversarial_artifact, recommendation, alternatives } = input;
     const transition = stage.available_transitions.find(item => item.to === targetKey);
     return { stage_id: stage.id, message_id: messageId, from_speaker: roleInstance, target_key: targetKey,
       reason: typeof reason === "string" ? reason : "", guard: typeof guard === "string" ? guard : transition?.guard ?? null,
-      artifacts: { ...stage.output_artifacts }, created_at: new Date().toISOString(), signal_type, consensus, positions, gate_evidence, adversarial_artifact };
+      artifacts: { ...stage.output_artifacts }, created_at: new Date().toISOString(),
+      signal_type, decision_mode, consensus, positions, gate_evidence, adversarial_artifact, recommendation, alternatives };
   }
   private tryParseStageTransition(text: string): ParsedTransition | null {
     try {

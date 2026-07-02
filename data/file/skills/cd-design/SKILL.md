@@ -70,6 +70,7 @@ description: |
 | design-01 | Feature 文档的 [design-time] 章节已锁定 | ✅ |
 | design-02 | 无未解决的设计争议 | ✅ |
 | design-03 | 关键设计取舍有正反两面论述记录 | |
+| design-04 | 所有 `[required]` 章节已填写且内容非空 | ✅ |
 | design-ctx | worktree_path 和 branch_name 已通过 set_context 写入 Issue.context | ✅ |
 
 ### 执行步骤
@@ -84,6 +85,7 @@ description: |
 - design-01 ✅ [证据：Feature 文档路径 + 锁定确认]
 - design-02 ✅ [证据：所有争议已解决的记录]
 - design-03 ✅ [证据：关键决策表位置]
+- design-04 ✅ [证据：所有 required 章节已填写，逐项列出章节名和内容摘要]
 - design-ctx ✅ [证据：set_context 调用记录]
 
 所有 required 项通过，可以提议推进。

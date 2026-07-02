@@ -64,7 +64,7 @@ export type SopDto = {
 };
 export type SopDetailDto = SopDto;
 
-export type ResourceStatus = "success" | "failed" | "skipped";
+export type ResourceStatus = "success" | "failed" | "skipped" | "pending";
 export type ResourceResultDto = { status: ResourceStatus; error?: string };
 export type CleanupResultDto = {
   pr: ResourceResultDto;
@@ -98,6 +98,11 @@ export type StageSuggestion = {
   guard: string | null;
   artifacts: Record<string, string>;
   created_at: string;
+  signal_type?: "gate_complete" | "adversarial_consensus" | "disagreement";
+  gate_evidence?: Record<string, unknown>;
+  adversarial_artifact?: Record<string, unknown>;
+  /** 建议被忽略的次数（用于 B5：重复建议提示） */
+  dismiss_count?: number;
 };
 
 export type IssueRealtimeMessage = {
@@ -110,7 +115,8 @@ export type IssueRealtimeMessage = {
     | { type: "message_status_changed"; stage_id: string; message_id: number; status: MessageStatus; context: MessageContext | null; ended_at?: string | null }
     | { type: "user_called"; stage_id: string; message_id: number; role: MessageRole; role_name: string | null; client_id: string | null; status: MessageStatus; content?: string }
     | { type: "stage_transition_suggested"; stage_id: string; suggestion: StageSuggestion }
-    | { type: "stage_changed"; stage_id: string; new_stage_id: string; from_key: string; to_key: string };
+    | { type: "stage_changed"; stage_id: string; new_stage_id: string; from_key: string; to_key: string }
+    | { type: "cleanup_completed"; issue_id: string; cleanup: CleanupResultDto };
 };
 
 export type WsHeartbeatMessage = { type: "heartbeat"; issue_id: string; ts: number };

@@ -6,6 +6,7 @@ import type { MessagePort } from "@domain/message/port";
 import type { SnailPort } from "@domain/snail/port";
 import type { LiteAIPort } from "@domain/lite-ai/port";
 import type { McpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-message-store";
+import type { StageSuggestionRepository } from "@domain/issue/_internal/repository";
 import type { Issue, CloseSummary } from "@domain/issue/model";
 import type { CleanupResult } from "@app/issue-collaboration/resource-cleanup";
 
@@ -109,6 +110,16 @@ function createMockMcpMessageStore(): McpMessageStore {
   return { getMcpRoutingTargets: vi.fn(), setMcpRoutingTargets: vi.fn(), deleteMcpRoutingTargets: vi.fn() };
 }
 
+function createMockStageSuggestionRepo(): StageSuggestionRepository {
+  return {
+    insert: vi.fn(),
+    listPendingByStage: vi.fn().mockReturnValue([]),
+    countIgnoredByStageAndTargetKey: vi.fn().mockReturnValue(0),
+    markProcessed: vi.fn(),
+    deleteByStage: vi.fn(),
+  };
+}
+
 /** 从 mock 调用记录中提取 updateCloseSummary 的第一个参数（CloseSummary） */
 function getCapturedSummary(issuePort: { updateCloseSummary: ReturnType<typeof vi.fn> }): CloseSummary | null {
   const calls = issuePort.updateCloseSummary.mock.calls;
@@ -120,7 +131,7 @@ describe("closeIssue activity recording", () => {
     vi.clearAllMocks();
   });
 
-  /** B1: 关闭 Issue 时应设置 close_summary */
+  /** B1: 关闭 Issue 时应设置 close_summary（cleanup 异步执行） */
   it("B1: 关闭 Issue 时记录清理结果到 close_summary", async () => {
     const issue = createIssue();
     const issuePort = createMockIssuePort(issue);
@@ -140,11 +151,14 @@ describe("closeIssue activity recording", () => {
       snailPort: createMockSnailPort(),
       liteAIPort: createMockLiteAIPort(),
       mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
     });
 
-    await collaboration.closeIssue("issue-1");
-
-    expect(issuePort.updateCloseSummary).toHaveBeenCalled();
+    const result = await collaboration.closeIssue("issue-1");
+    // API 立即返回 pending 状态
+    expect(result.cleanup.pr.status).toBe("pending");
+    // 等待异步 cleanup 完成
+    await vi.waitFor(() => expect(issuePort.updateCloseSummary).toHaveBeenCalled());
     const summary = getCapturedSummary(issuePort);
     expect(summary).toEqual(cleanupResult);
   });
@@ -173,6 +187,7 @@ describe("closeIssue activity recording", () => {
       snailPort: createMockSnailPort(),
       liteAIPort: createMockLiteAIPort(),
       mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
     });
 
     const result = await collaboration.closeIssue("issue-1");
@@ -202,9 +217,11 @@ describe("closeIssue activity recording", () => {
       snailPort: createMockSnailPort(),
       liteAIPort: createMockLiteAIPort(),
       mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
     });
 
     await collaboration.closeIssue("issue-1");
+    await vi.waitFor(() => expect(issuePort.updateCloseSummary).toHaveBeenCalled());
 
     const summary = getCapturedSummary(issuePort)!;
     expect(summary.pr.status).toBe("success");
@@ -232,9 +249,11 @@ describe("closeIssue activity recording", () => {
       snailPort: createMockSnailPort(),
       liteAIPort: createMockLiteAIPort(),
       mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
     });
 
     await collaboration.closeIssue("issue-1");
+    await vi.waitFor(() => expect(issuePort.updateCloseSummary).toHaveBeenCalled());
 
     const summary = getCapturedSummary(issuePort)!;
     expect(summary.localBranch.status).toBe("failed");
@@ -260,9 +279,11 @@ describe("closeIssue activity recording", () => {
       snailPort: createMockSnailPort(),
       liteAIPort: createMockLiteAIPort(),
       mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
     });
 
     await collaboration.closeIssue("issue-1");
+    await vi.waitFor(() => expect(issuePort.updateCloseSummary).toHaveBeenCalled());
 
     const summary = getCapturedSummary(issuePort)!;
     expect(summary.pr.status).toBe("skipped");
@@ -293,10 +314,14 @@ describe("closeIssue activity recording", () => {
       snailPort: createMockSnailPort(),
       liteAIPort: createMockLiteAIPort(),
       mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
     });
 
     const result = await collaboration.closeIssue("issue-1");
+    // API 立即返回，不阻塞
     expect(result.issue.closed_at).toBeTruthy();
     expect(result.cleanup).toBeDefined();
+    // 异步 cleanup 中 updateCloseSummary 失败不应抛出
+    await vi.waitFor(() => expect(mockCleanupResources).toHaveBeenCalled());
   });
 });
