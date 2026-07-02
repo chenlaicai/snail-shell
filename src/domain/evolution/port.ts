@@ -3,12 +3,8 @@ import type {
   CreateEvolutionItemInput,
   EvolutionItemListFilters,
 } from "@domain/evolution/model";
-import type { CreateIssueInput, Issue, Stage } from "@domain/issue/model";
 
-/** 窄接口：仅注入 createIssue，避免 domain→app 反向依赖 */
-export type CreateIssueFn = (input: CreateIssueInput) => Promise<{ issue: Issue; stage: Stage }>;
-
-/** Evolution 端口定义 */
+/** Evolution 端口定义（纯数据操作） */
 export interface EvolutionPort {
   /** 按 ID 查找 */
   findById(id: string): EvolutionItem | undefined;
@@ -24,9 +20,6 @@ export interface EvolutionPort {
 
   /** 更新演进项（状态、结果、元数据等） */
   update(id: string, updates: UpdateEvolutionItemInput): EvolutionItem;
-
-  /** 基于 item 创建 issue（Candidate → InProgress）。item 自身提供全部信息。 */
-  createIssue(itemId: string): Promise<EvolutionItem>;
 }
 
 /** 更新演进项输入 */
@@ -37,4 +30,5 @@ export interface UpdateEvolutionItemInput {
   content?: string;
   tags?: string[];
   metadata?: unknown;
+  issue_id?: string;
 }
