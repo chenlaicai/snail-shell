@@ -1,7 +1,6 @@
 import { useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useCallback, useEffect, useMemo } from "react";
 import { api } from "@/services/api-client";
 import { queryKeys } from "@/queries/keys";
 import { TopBar } from "@/components/TopBar";
@@ -10,13 +9,13 @@ import { ChatMessage } from "@/components/ChatMessage";
 import { ChatInput } from "@/components/ChatInput";
 import { PropertiesPanel } from "@/components/PropertiesPanel";
 import { StageSuggestionCard } from "@/components/StageSuggestionCard";
-import { useIssueRealtime, createPlaceholderMessage } from "@/hooks/useWebSocket";
+import { useIssueRealtime } from "@/hooks/useWebSocket";
+import { useMessages } from "@/hooks/useMessages";
+import { useChatScroll } from "@/hooks/useChatScroll";
 import { useSendMessage } from "@/mutations/conversation.mutations";
 import { useConversationStore } from "@/stores/conversationStore";
-import { getPendingMessages, clearPendingMessages, removePendingMessage } from "@/lib/pending-messages";
+import { removePendingMessage } from "@/lib/pending-messages";
 import type { IssueDetailDto, StageDetailDto, MessageDto } from "@/types";
-
-const SCROLL_THRESHOLD = 80;
 
 export function IssueConversation() {
   const { workspaceId, issueId } = useParams();
@@ -54,205 +53,10 @@ export function IssueConversation() {
     setSearchParams({ stage: stageId }, { replace: true });
   }, [stageId, selectedStageId, setSearchParams]);
 
-  const { data: messages = [] } = useQuery({
-    queryKey: queryKeys.stages.messages(stageId ?? ""),
-    queryFn: () => api("GET /api/stages/:stageId/messages", { params: { stageId: stageId! } }) as Promise<MessageDto[]>,
-    enabled: !!stageId,
-    /** 页面加载时恢复 pending 消息，去重后按 createdAt 降序合并 */
-    select: (serverData) => {
-      if (!stageId) return serverData;
-      const pending = getPendingMessages(stageId);
-      if (pending.length === 0) return serverData;
-
-      /** 去重：如果 pending 消息的 content 与 server 消息匹配，说明 POST 实际成功了 */
-      const serverContents = new Set(serverData.map((m) => m.content?.trim()));
-      const uniquePending = pending
-        .filter((p) => !serverContents.has(p.content?.trim()))
-        .map((p) =>
-          createPlaceholderMessage(stageId, {
-            id: p.id,
-            role: "user",
-            status: p.status, // "sending" or "failed"
-            content: p.content,
-            createdAt: p.createdAt,
-          }),
-        )
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-      /** 按 created_at 降序合并（serverData 已是降序） */
-      const merged: MessageDto[] = [];
-      let pi = 0;
-      let si = 0;
-      while (pi < uniquePending.length && si < serverData.length) {
-        if (new Date(uniquePending[pi].created_at).getTime() >= new Date(serverData[si].created_at).getTime()) {
-          merged.push(uniquePending[pi++]);
-        } else {
-          merged.push(serverData[si++]);
-        }
-      }
-      while (pi < uniquePending.length) merged.push(uniquePending[pi++]);
-      while (si < serverData.length) merged.push(serverData[si++]);
-      return merged;
-    },
+  const { sorted, setOlderHistory, isLoadingHistoryRef, allHistoryLoadedRef } = useMessages({ stageId });
+  const { scrollRef, virtualizer, scrollPosition, handleScroll, scrollToTop, scrollToBottom } = useChatScroll({
+    sorted, stageId, setOlderHistory, isLoadingHistoryRef, allHistoryLoadedRef,
   });
-
-  // 上拉加载更早的历史消息
-  const [olderHistory, setOlderHistory] = useState<MessageDto[]>([]);
-  const isLoadingHistoryRef = useRef(false);
-  const allHistoryLoadedRef = useRef(false);
-  const prevStageIdRef = useRef<string | null>(null);
-
-  /** 当 stageId 切换时，清空旧 stage 的 pending 消息、已加载的历史并设置滚动策略 */
-  useEffect(() => {
-    if (prevStageIdRef.current !== stageId) {
-      if (prevStageIdRef.current) clearPendingMessages(prevStageIdRef.current);
-      prevStageIdRef.current = stageId;
-      setOlderHistory([]);
-      allHistoryLoadedRef.current = false;
-      wasAtBottomRef.current = true;
-    }
-  }, [stageId]);
-
-  // 后端返回 DESC（最新在前），前端反转为正序（最早在前）显示
-  const sorted = useMemo(() => {
-    const latestAsc = [...messages].reverse();
-    if (olderHistory.length === 0) return latestAsc;
-    // 去重：olderHistory 中可能包含与 latestAsc 重叠的消息
-    const latestIds = new Set(latestAsc.map(m => m.id));
-    const uniqueOlder = olderHistory.filter(m => !latestIds.has(m.id));
-    return [...uniqueOlder, ...latestAsc];
-  }, [messages, olderHistory]);
-
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const wasAtBottomRef = useRef(true);
-  const [scrollPosition, setScrollPosition] = useState<'top' | 'middle' | 'bottom'>('bottom');
-  const isSmoothScrollingRef = useRef(false);
-
-  const [paddingEnd, setPaddingEnd] = useState(0);
-  const [containerHeight, setContainerHeight] = useState(0);
-
-  /** 监听容器尺寸变化（窗口 resize、PropertiesPanel 展开/折叠等） */
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    setContainerHeight(el.clientHeight);
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setContainerHeight(entry.contentRect.height);
-      }
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  /** 当消息数量或容器尺寸变化时，计算 paddingEnd：虚拟列表总高度 < 可视区域高度时补齐空白 */
-  useLayoutEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const rawContentHeight = sorted.length * 120; // estimateSize
-    const needed = Math.max(0, el.clientHeight - rawContentHeight);
-    setPaddingEnd(needed);
-  }, [sorted.length, containerHeight]);
-
-  const virtualizer = useVirtualizer({
-    count: sorted.length,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => 120,
-    overscan: 10,
-    paddingEnd,
-  });
-
-  // 只在用户已经在底部时自动滚动，避免打断用户阅读历史消息
-  // useLayoutEffect + totalSize 双依赖：虚拟器先用 estimateSize 估算高度渲染，再通过
-  // ref 回调测量实际 DOM 高度并触发 re-render。如果只依赖 sorted，滚动在测量前执行，
-  // scrollHeight 基于估算值；测量后 translateY 位置修正了但滚动位置未更新 → 消息重叠。
-  // 加入 totalSize 依赖后，测量完成引起的 re-render 会再次触发滚动，用实际高度修正位置。
-  const totalSize = virtualizer.getTotalSize();
-  useLayoutEffect(() => {
-    const el = scrollRef.current;
-    if (!el || sorted.length === 0) return;
-    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < SCROLL_THRESHOLD;
-    if (atBottom || wasAtBottomRef.current) {
-      virtualizer.scrollToIndex(sorted.length - 1, { align: 'end' });
-    }
-  }, [sorted, totalSize]);
-
-  /** 加载更早的历史消息：cursor-based 翻页，加载后保持滚动位置不变 */
-  const loadMoreHistory = useCallback(async () => {
-    if (isLoadingHistoryRef.current || allHistoryLoadedRef.current || !stageId || sorted.length === 0) return;
-    isLoadingHistoryRef.current = true;
-    try {
-      const earliestId = sorted[0].id;
-      const older = await api("GET /api/stages/:stageId/messages", {
-        params: { stageId },
-        query: { before_id: earliestId },
-      }) as MessageDto[];
-      if (older.length === 0) {
-        allHistoryLoadedRef.current = true;
-        return;
-      }
-      // 记录当前滚动位置，加载后恢复
-      const el = scrollRef.current;
-      const prevScrollHeight = el?.scrollHeight ?? 0;
-      const prevScrollTop = el?.scrollTop ?? 0;
-      setOlderHistory(prev => [...older.reverse(), ...prev]);
-      // DOM 更新后恢复滚动位置，避免列表跳动
-      requestAnimationFrame(() => {
-        if (!el) return;
-        const newScrollHeight = el.scrollHeight;
-        el.scrollTop = prevScrollTop + (newScrollHeight - prevScrollHeight);
-      });
-    } finally {
-      isLoadingHistoryRef.current = false;
-    }
-  }, [stageId, sorted]);
-
-  /** 更新滚动状态 + 滚动到顶部时触发加载更早消息 */
-  const handleScroll = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < SCROLL_THRESHOLD;
-    wasAtBottomRef.current = atBottom;
-
-    // smooth scroll 动画期间忽略中间位置，避免按钮闪烁
-    if (isSmoothScrollingRef.current) return;
-
-    // 更新滚动位置状态
-    if (el.scrollTop < SCROLL_THRESHOLD) {
-      setScrollPosition('top');
-    } else if (atBottom) {
-      setScrollPosition('bottom');
-    } else {
-      setScrollPosition('middle');
-    }
-
-    // 滚动到顶部时自动加载更早的历史消息
-    if (el.scrollTop < SCROLL_THRESHOLD) {
-      loadMoreHistory();
-    }
-  }, [loadMoreHistory]);
-
-  /** 一键到顶：滚动到第一条消息，禁用粘性底部 */
-  const scrollToTop = useCallback(() => {
-    if (sorted.length === 0) return;
-    isSmoothScrollingRef.current = true;
-    virtualizer.scrollToIndex(0, { align: 'start', behavior: 'smooth' });
-    wasAtBottomRef.current = false;
-    setScrollPosition('top');
-    // 动画结束后恢复滚动事件处理
-    setTimeout(() => { isSmoothScrollingRef.current = false; }, 500);
-  }, [sorted.length, virtualizer]);
-
-  /** 一键到底：滚动到最后一条消息，恢复粘性底部 */
-  const scrollToBottom = useCallback(() => {
-    if (sorted.length === 0) return;
-    isSmoothScrollingRef.current = true;
-    virtualizer.scrollToIndex(sorted.length - 1, { align: 'end', behavior: 'smooth' });
-    wasAtBottomRef.current = true;
-    setScrollPosition('bottom');
-    // 动画结束后恢复滚动事件处理
-    setTimeout(() => { isSmoothScrollingRef.current = false; }, 500);
-  }, [sorted.length, virtualizer]);
 
   const wsStatus = useConversationStore((state) => state.wsStatus);
 

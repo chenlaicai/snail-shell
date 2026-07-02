@@ -211,7 +211,7 @@ describe("Signal chain: set_final_body → detectStageTransition → autoAdvance
     // 2. Verify the signal can be extracted by detectStageTransition
     // Note: detectStageTransition is private, so we test indirectly through the public API
     // The signal event should be extractable by extractStageTransitionSuggestion
-    const suggestion = collaboration["extractStageTransitionSuggestion"](createStage(), "reviewer-1", 100);
+    const suggestion = collaboration["signalParser"].extract(createStage(), "reviewer-1", 100);
     expect(suggestion).toMatchObject({
       stage_id: "s1",
       message_id: 100,
@@ -303,7 +303,7 @@ All checks passed.
     });
 
     // 2. Verify the signal can be extracted
-    const suggestion = collaboration["extractStageTransitionSuggestion"](createStage(), "reviewer-1", 200);
+    const suggestion = collaboration["signalParser"].extract(createStage(), "reviewer-1", 200);
     expect(suggestion).toMatchObject({
       stage_id: "s1",
       message_id: 200,
@@ -370,7 +370,7 @@ All checks passed.
     expect(events).toHaveLength(0);
 
     // 2. Verify no suggestion can be extracted
-    const suggestion = collaboration["extractStageTransitionSuggestion"](createStage(), "reviewer-1", 300);
+    const suggestion = collaboration["signalParser"].extract(createStage(), "reviewer-1", 300);
     expect(suggestion).toBeNull();
   });
 });
