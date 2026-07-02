@@ -196,6 +196,9 @@ function CloseSummaryDetail({ summary }: { summary: CleanupResultDto }) {
     if (item.status === "closed") {
       return <span key={key} className="text-status-green">{label}: closed</span>;
     }
+    if (item.status === "success") {
+      return <span key={key} className="text-status-green">{label}: ok</span>;
+    }
     if (item.status === "skipped") {
       return <span key={key} className="text-text-muted">{label}: skipped</span>;
     }
@@ -206,7 +209,7 @@ function CloseSummaryDetail({ summary }: { summary: CleanupResultDto }) {
         </span>
       );
     }
-    return <span key={key} className="text-status-green">{label}: ok</span>;
+    return <span key={key} className="text-status-red">{label}: {item.status}</span>;
   });
 
   return (

@@ -86,7 +86,8 @@ export function StageActionBar({
       else if (r.status === "closed") lines.push(`- ${label}: 已关闭`);
       else if (r.status === "success") lines.push(`- ${label}: 已清理`);
       else if (r.status === "skipped") lines.push(`- ${label}: 跳过${r.error ? `（${r.error}）` : ""}`);
-      else lines.push(`- ${label}: 失败${r.error ? `（${r.error}）` : ""}`);
+      else if (r.status === "failed") lines.push(`- ${label}: 失败${r.error ? `（${r.error}）` : ""}`);
+      else lines.push(`- ${label}: ${r.status}`);
     }
     return lines.join("\n");
   }

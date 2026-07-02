@@ -4,15 +4,21 @@ import { getLogger } from "@infra/logger";
 
 const log = getLogger({ module: "resource-cleanup" });
 
-export type ResourceStatus = "success" | "failed" | "skipped" | "merged" | "closed";
+export type ResourceStatus = "success" | "failed" | "skipped";
+export type PrStatus = ResourceStatus | "merged" | "closed";
 
 export interface ResourceResult {
   status: ResourceStatus;
   error?: string;
 }
 
+export interface PrResult {
+  status: PrStatus;
+  error?: string;
+}
+
 export interface CleanupResult {
-  pr: ResourceResult;
+  pr: PrResult;
   worktree: ResourceResult;
   localBranch: ResourceResult;
   remoteBranch: ResourceResult;
@@ -150,7 +156,7 @@ async function queryPrState(prUrl: string): Promise<string | null> {
 }
 
 /** 对已合入 PR 执行 gh pr close 的安全回退：GitHub 容忍此操作，无副作用 */
-async function closePr(prUrl: string): Promise<ResourceResult> {
+async function closePr(prUrl: string): Promise<PrResult> {
   // 1. 先查询 PR 状态
   const state = await queryPrState(prUrl);
 
