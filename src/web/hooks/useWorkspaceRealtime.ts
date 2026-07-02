@@ -55,7 +55,6 @@ export function useWorkspaceRealtime(workspaceId: string | null): WsStatus {
         if (!guard(ws)) return;
         console.log("[WorkspaceWebSocket] connected", workspaceId);
         clearTimer(reconnectTimer);
-        queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.issues(workspaceId) });
         reconnectDelay.current = 1000;
         setStatus("connected");
       };

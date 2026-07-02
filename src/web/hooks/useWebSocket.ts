@@ -391,9 +391,6 @@ export function useIssueRealtime(issueId: string | null, currentStageId: string 
             if (t.timer) { clearTimeout(t.timer); t.timer = null; }
             if (t.count > 0) recordWsReconnect(performance.now() - t.start, t.count);
             t.count = 0; t.delay = 1000;
-            queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(issueId) });
-            const sid = currentStageIdRef.current;
-            if (sid) queryClient.invalidateQueries({ queryKey: queryKeys.stages.messages(sid) });
             setWsStatus("connected");
           },
           onMessage: (msg) => batcherRef.current!.add(msg),
