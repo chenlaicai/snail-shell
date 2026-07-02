@@ -82,7 +82,9 @@ export function StageActionBar({
     };
     for (const [key, label] of Object.entries(labels)) {
       const r = cleanup[key as keyof CleanupResultDto] as ResourceResultDto;
-      if (r.status === "success") lines.push(`- ${label}: 已清理`);
+      if (r.status === "merged") lines.push(`- ${label}: 已合入`);
+      else if (r.status === "closed") lines.push(`- ${label}: 已关闭`);
+      else if (r.status === "success") lines.push(`- ${label}: 已清理`);
       else if (r.status === "skipped") lines.push(`- ${label}: 跳过${r.error ? `（${r.error}）` : ""}`);
       else lines.push(`- ${label}: 失败${r.error ? `（${r.error}）` : ""}`);
     }

@@ -6,10 +6,10 @@ export type IssueSnailAssignmentPlan = Record<string, StageSnailAssignmentPlan>;
 // ── Issue ─────────────────────────────────────────────────────────────
 
 export interface CloseSummary {
-  pr: { status: "success" | "failed" | "skipped"; error?: string };
-  worktree: { status: "success" | "failed" | "skipped"; error?: string };
-  localBranch: { status: "success" | "failed" | "skipped"; error?: string };
-  remoteBranch: { status: "success" | "failed" | "skipped"; error?: string };
+  pr: { status: "success" | "failed" | "skipped" | "merged" | "closed"; error?: string };
+  worktree: { status: "success" | "failed" | "skipped" | "merged" | "closed"; error?: string };
+  localBranch: { status: "success" | "failed" | "skipped" | "merged" | "closed"; error?: string };
+  remoteBranch: { status: "success" | "failed" | "skipped" | "merged" | "closed"; error?: string };
 }
 
 export interface Issue {

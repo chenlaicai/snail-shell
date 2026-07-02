@@ -33,6 +33,54 @@ function mockExecFail(exitCode: number, stderr: string) {
   });
 }
 
+/** mock gh pr view 返回指定 PR 状态，后续 gh pr close 返回成功 */
+function mockPrStateThenClose(state: string) {
+  mockExecFile
+    // gh pr view --json state
+    .mockImplementationOnce((_cmd, _args, _opts, cb) => {
+      cb?.(null, JSON.stringify({ state }), "");
+      return {} as any;
+    })
+    // gh pr close
+    .mockImplementationOnce((_cmd, _args, _opts, cb) => {
+      cb?.(null, "", "");
+      return {} as any;
+    });
+}
+
+/** mock gh pr view 失败（查询不到状态），后续 gh pr close 返回成功 */
+function mockPrStateFailThenClose() {
+  mockExecFile
+    // gh pr view --json state → 失败
+    .mockImplementationOnce((_cmd, _args, _opts, cb) => {
+      const err = Object.assign(new Error("Command failed"), { code: 1 });
+      cb?.(err, "", "Could not resolve");
+      return {} as any;
+    })
+    // gh pr close → 成功
+    .mockImplementationOnce((_cmd, _args, _opts, cb) => {
+      cb?.(null, "", "");
+      return {} as any;
+    });
+}
+
+/** mock gh pr view 失败，gh pr close 也失败 */
+function mockPrStateFailThenCloseFail(closeStderr: string) {
+  mockExecFile
+    // gh pr view --json state → 失败
+    .mockImplementationOnce((_cmd, _args, _opts, cb) => {
+      const err = Object.assign(new Error("Command failed"), { code: 1 });
+      cb?.(err, "", "Could not resolve");
+      return {} as any;
+    })
+    // gh pr close → 失败
+    .mockImplementationOnce((_cmd, _args, _opts, cb) => {
+      const err = Object.assign(new Error("Command failed"), { code: 1 });
+      cb?.(err, "", closeStderr);
+      return {} as any;
+    });
+}
+
 // ── validateBranchName ────────────────────────────────────────────────
 
 describe("validateBranchName", () => {
@@ -169,14 +217,49 @@ describe("cleanupResources", () => {
     });
   });
 
-  it("成功关闭 PR", async () => {
-    mockExecSuccess();
+  it("PR 状态为 OPEN 时执行关闭，返回 closed", async () => {
+    mockPrStateThenClose("OPEN");
     const result = await cleanupResources({ pr_url: "https://github.com/owner/repo/pull/42" }, "/workspace");
-    expect(result.pr.status).toBe("success");
+    expect(result.pr.status).toBe("closed");
   });
 
-  it("PR 不存在时 skipped", async () => {
-    mockExecFail(1, "Could not resolve to a pull request");
+  it("PR 状态为 MERGED 时跳过关闭，返回 merged", async () => {
+    // gh pr view 返回 MERGED，不需要 close 调用
+    mockExecFile.mockImplementationOnce((_cmd, _args, _opts, cb) => {
+      cb?.(null, JSON.stringify({ state: "MERGED" }), "");
+      return {} as any;
+    });
+    const result = await cleanupResources({ pr_url: "https://github.com/owner/repo/pull/42" }, "/workspace");
+    expect(result.pr.status).toBe("merged");
+    // 只调用了 gh pr view，没有调用 gh pr close
+    expect(mockExecFile).toHaveBeenCalledOnce();
+  });
+
+  it("PR 状态为 CLOSED 时跳过关闭，返回 skipped", async () => {
+    // gh pr view 返回 CLOSED，不需要 close 调用
+    mockExecFile.mockImplementationOnce((_cmd, _args, _opts, cb) => {
+      cb?.(null, JSON.stringify({ state: "CLOSED" }), "");
+      return {} as any;
+    });
+    const result = await cleanupResources({ pr_url: "https://github.com/owner/repo/pull/42" }, "/workspace");
+    expect(result.pr.status).toBe("skipped");
+    expect(mockExecFile).toHaveBeenCalledOnce();
+  });
+
+  it("PR 状态查询失败时回退到直接关闭，返回 closed", async () => {
+    mockPrStateFailThenClose();
+    const result = await cleanupResources({ pr_url: "https://github.com/owner/repo/pull/42" }, "/workspace");
+    expect(result.pr.status).toBe("closed");
+  });
+
+  it("PR 状态查询失败且 close 也失败时返回 failed", async () => {
+    mockPrStateFailThenCloseFail("some error");
+    const result = await cleanupResources({ pr_url: "https://github.com/owner/repo/pull/42" }, "/workspace");
+    expect(result.pr.status).toBe("failed");
+  });
+
+  it("PR 不存在时 skipped（回退路径）", async () => {
+    mockPrStateFailThenCloseFail("Could not resolve to a pull request");
     const result = await cleanupResources({ pr_url: "https://github.com/owner/repo/pull/999" }, "/workspace");
     expect(result.pr.status).toBe("skipped");
   });
@@ -263,26 +346,37 @@ describe("cleanupResources", () => {
   });
 
   it("完整清理流程：PR → worktree → local branch → remote branch", async () => {
-    mockExecSuccess();
+    // gh pr view → OPEN, gh pr close → 成功, 3 个 git 命令 → 成功
+    mockPrStateThenClose("OPEN");
+    // worktree remove, branch -d, push --delete
+    mockExecFile
+      .mockImplementationOnce((_cmd, _args, _opts, cb) => { cb?.(null, "", ""); return {} as any; })
+      .mockImplementationOnce((_cmd, _args, _opts, cb) => { cb?.(null, "", ""); return {} as any; })
+      .mockImplementationOnce((_cmd, _args, _opts, cb) => { cb?.(null, "", ""); return {} as any; });
     const result = await cleanupResources({
       pr_url: "https://github.com/owner/repo/pull/42",
       worktree_path: "/workspace/.snail/worktrees/feature-x",
       branch_name: "feature/x",
     }, "/workspace");
-    expect(result.pr.status).toBe("success");
+    expect(result.pr.status).toBe("closed");
     expect(result.worktree.status).toBe("success");
     expect(result.localBranch.status).toBe("success");
     expect(result.remoteBranch.status).toBe("success");
   });
 
   it("stage-prefixed key 能正确解析（agent 通过 set_context 写入的格式）", async () => {
-    mockExecSuccess();
+    // gh pr view → OPEN, gh pr close → 成功, 3 个 git 命令 → 成功
+    mockPrStateThenClose("OPEN");
+    mockExecFile
+      .mockImplementationOnce((_cmd, _args, _opts, cb) => { cb?.(null, "", ""); return {} as any; })
+      .mockImplementationOnce((_cmd, _args, _opts, cb) => { cb?.(null, "", ""); return {} as any; })
+      .mockImplementationOnce((_cmd, _args, _opts, cb) => { cb?.(null, "", ""); return {} as any; });
     const result = await cleanupResources({
       "design.worktree_path": "/workspace/.snail/worktrees/feature-x",
       "design.branch_name": "feature-x",
       "development.pr_url": "https://github.com/owner/repo/pull/42",
     }, "/workspace");
-    expect(result.pr.status).toBe("success");
+    expect(result.pr.status).toBe("closed");
     expect(result.worktree.status).toBe("success");
     expect(result.localBranch.status).toBe("success");
     expect(result.remoteBranch.status).toBe("success");

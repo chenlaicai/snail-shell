@@ -4,7 +4,7 @@ import { getLogger } from "@infra/logger";
 
 const log = getLogger({ module: "resource-cleanup" });
 
-export type ResourceStatus = "success" | "failed" | "skipped";
+export type ResourceStatus = "success" | "failed" | "skipped" | "merged" | "closed";
 
 export interface ResourceResult {
   status: ResourceStatus;
@@ -134,22 +134,53 @@ function execCommand(command: string, args: string[], timeoutMs = 30_000): Promi
   });
 }
 
+/**
+ * 查询 PR 状态。
+ * 返回 "MERGED" | "OPEN" | "CLOSED" | null（查询失败或 PR 不存在）。
+ */
+async function queryPrState(prUrl: string): Promise<string | null> {
+  try {
+    const { stdout, exitCode } = await execCommand("gh", ["pr", "view", prUrl, "--json", "state"]);
+    if (exitCode !== 0) return null;
+    const parsed = JSON.parse(stdout) as { state?: string };
+    return parsed.state ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** 对已合入 PR 执行 gh pr close 的安全回退：GitHub 容忍此操作，无副作用 */
 async function closePr(prUrl: string): Promise<ResourceResult> {
+  // 1. 先查询 PR 状态
+  const state = await queryPrState(prUrl);
+
+  if (state === "MERGED") {
+    log.info({ prUrl }, "cleanup.pr.merged");
+    return { status: "merged" };
+  }
+
+  if (state === "CLOSED") {
+    log.info({ prUrl }, "cleanup.pr.already_closed");
+    return { status: "skipped" };
+  }
+
+  // 2. OPEN 状态或查询失败 → 执行关闭
+  const isFallback = state === null;
   try {
     const { stderr, exitCode } = await execCommand("gh", ["pr", "close", prUrl]);
     if (exitCode === 0) {
-      log.info({ prUrl }, "cleanup.pr.closed");
-      return { status: "success" };
+      log.info({ prUrl }, isFallback ? "cleanup.pr.closed_fallback" : "cleanup.pr.closed");
+      return { status: "closed" };
     }
-    // PR 不存在或已关闭
+    // PR 不存在
     if (stderr.includes("not found") || stderr.includes("Could not resolve")) {
       log.info({ prUrl }, "cleanup.pr.not_found");
       return { status: "skipped", error: "PR 不存在" };
     }
-    log.warn({ prUrl, stderr }, "cleanup.pr.failed");
+    log.warn({ prUrl, stderr }, isFallback ? "cleanup.pr.failed_fallback" : "cleanup.pr.failed");
     return { status: "failed", error: stderr };
   } catch (err) {
-    log.error({ prUrl, err }, "cleanup.pr.error");
+    log.error({ prUrl, err }, isFallback ? "cleanup.pr.failed_fallback" : "cleanup.pr.error");
     return { status: "failed", error: String(err) };
   }
 }

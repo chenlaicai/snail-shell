@@ -190,6 +190,12 @@ function CloseSummaryDetail({ summary }: { summary: CleanupResultDto }) {
   const entries = (["pr", "worktree", "localBranch", "remoteBranch"] as const).map((key) => {
     const item = summary[key];
     const label = RESOURCE_LABELS[key];
+    if (item.status === "merged") {
+      return <span key={key} className="text-status-green">{label}: merged</span>;
+    }
+    if (item.status === "closed") {
+      return <span key={key} className="text-status-green">{label}: closed</span>;
+    }
     if (item.status === "skipped") {
       return <span key={key} className="text-text-muted">{label}: skipped</span>;
     }

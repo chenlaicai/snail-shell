@@ -64,7 +64,7 @@ export type SopDto = {
 };
 export type SopDetailDto = SopDto;
 
-export type ResourceStatus = "success" | "failed" | "skipped" | "pending";
+export type ResourceStatus = "success" | "failed" | "skipped" | "pending" | "merged" | "closed";
 export type ResourceResultDto = { status: ResourceStatus; error?: string };
 export type CleanupResultDto = {
   pr: ResourceResultDto;
