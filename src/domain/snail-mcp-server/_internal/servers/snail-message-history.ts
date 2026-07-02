@@ -2,7 +2,7 @@ import type { MCPServerConfig, MCPTool } from "@domain/snail-mcp-server/model";
 import type { StagePort } from "@domain/issue/port";
 import type { MessagePort } from "@domain/message/port";
 import type { Message, MessageContext } from "@domain/message/model";
-import { buildStageChain, isStageReEntry } from "@domain/issue/_internal/stage-chain";
+import { buildStageChain } from "@domain/issue/_internal/stage-chain";
 
 /**
  * snail-message-history MCP Server。
@@ -252,8 +252,14 @@ function createGetStageHistoryTool(stagePort: StagePort, messagePort: MessagePor
 
       const chain = buildStageChain(allStages, currentStage.id);
 
+      /** 在已构建的 chain 上 O(n) 检测重新进入：同一 key 出现过更早的实例 */
+      const keyFirstSeen = new Map<string, string>();
+      for (const s of chain) {
+        if (!keyFirstSeen.has(s.key)) keyFirstSeen.set(s.key, s.id);
+      }
+
       const stages = chain.map(s => {
-        const isReEntry = isStageReEntry(allStages, s.id);
+        const isReEntry = keyFirstSeen.get(s.key) !== s.id;
         const entry: Record<string, unknown> = {
           stage_id: s.id,
           key: s.key,

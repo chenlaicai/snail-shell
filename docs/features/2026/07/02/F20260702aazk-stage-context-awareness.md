@@ -252,11 +252,13 @@ Stage 推进时，`autoInvokeNewStage()` 向新阶段的默认角色发送 `"开
 4. **不要假设"开始执行"意味着从零开始**：前序阶段可能已经完成了大量工作，你需要在已有基础上继续
 ```
 
-#### C5: conversation-history skill 清理
+#### C5: conversation-history skill 清理（本地清理步骤，非 PR 变更）
 
 **文件**：`.claude/skills/conversation-history` 符号链接
 
 **变更**：删除无效的符号链接（目标目录 `data/file/skills/conversation-history` 不存在）。`snail-message-history` MCP server 已完全替代旧的 conversation-history skill。
+
+**注意**：`.claude/` 目录被 `.gitignore` 排除，此变更无法纳入 PR，需在本地手动执行。
 
 ### 不兼容更新
 
@@ -285,4 +287,4 @@ Stage 推进时，`autoInvokeNewStage()` 向新阶段的默认角色发送 `"开
 | AC-5 | 重新进入的 kickoff 消息标注"重新进入" | 同 AC-4，检查 kickoff 消息内容 |
 | AC-6 | `get_stage_history` MCP 工具返回正确的阶段链 | 调用工具 → 验证返回的 stages 数组和 `is_re_entry` 标记 |
 | AC-7 | role skill 包含情境感知段落 | 检查 cd-design/cd-development/cd-review/cd-merge 的 SKILL.md |
-| AC-8 | 无效的 conversation-history 符号链接已删除 | `ls -la .claude/skills/conversation-history` 返回 not found |
+| AC-8 | 无效的 conversation-history 符号链接已删除 | 手动验证：`ls -la .claude/skills/conversation-history` 返回 not found（`.claude/` 被 gitignore 排除，无法通过 PR 验证） |
