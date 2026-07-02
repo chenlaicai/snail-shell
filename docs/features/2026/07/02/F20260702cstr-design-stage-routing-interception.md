@@ -45,7 +45,7 @@ created_at: 2026-07-02
 
 ## 非目标
 
-- 不修改 `collaboration.ts` 的路由逻辑
+- 不修改 `collaboration.ts` 的路由代码逻辑（仅更新路由目标声明的 prompt 文本）
 - 不实现路由拦截或自动路由
 - 不修改 `set_final_body` 的 MCP 接口
 - 不实现 cross_review_completed 标记
