@@ -220,7 +220,7 @@ export class AutoAdvanceEngine {
     await this.deps.notifyConsumers(stageId, "onContextMissing", { missing_fields: missingFields });
   }
 
-  /** 配置驱动的阻断规则检查 */
+  /** 配置驱动的阻断规则检查（unresolved_findings 由 validateAdversarialArtifactWithConfig 中的 R8 处理） */
   private checkBlockingRules(stage: Stage, config: AutoAdvanceConfig): string | null {
     if (!config.blocking_rules) return null;
     const issue = this.deps.mustGetIssue(stage.issue_id);
@@ -232,6 +232,7 @@ export class AutoAdvanceEngine {
           return "INCOMPATIBLE_BLOCKED";
         }
       }
+      // unresolved_findings 在 validateAdversarialArtifactWithConfig 的 R8 中按 config.blocking_rules 驱动
     }
     return null;
   }
@@ -337,29 +338,39 @@ export class AutoAdvanceEngine {
     return null;
   }
 
-  /** R4/R5: 通过 artifact 字段存在性推断，不依赖 stage.key */
+  /**
+   * R4/R5: 通过 artifact 字段存在性推断。
+   * 设计阶段：若 artifact 缺少 critique_obligation 或 items < 4 → R4 失败。
+   * 审查阶段：若 artifact 缺少 file_coverage 或 coverage_ratio ≠ 1.0 → R5 失败。
+   */
   private validateStageSpecificFields(
     artifact: AdversarialArtifact | DesignAdversarialArtifact | ReviewAdversarialArtifact,
   ): { valid: boolean; reason?: string; rule?: string } | null {
-    // R4: 如果 artifact 包含 critique_obligation，校验 items >= 4
-    if ("critique_obligation" in artifact && !this.hasDesignFields(artifact)) {
-      return { valid: false, reason: "design stage requires critique_obligation.items >= 4", rule: "R4" };
+    const isDesignArtifact = "critique_obligation" in artifact || "independent_analysis" in artifact || "scenario_coverage" in artifact;
+    if (isDesignArtifact) {
+      if (!this.isValidDesignArtifact(artifact)) {
+        return { valid: false, reason: "design stage requires critique_obligation.items >= 4", rule: "R4" };
+      }
     }
-    // R5: 如果 artifact 包含 file_coverage，校验 coverage_ratio = 1.0
-    if ("file_coverage" in artifact && !this.hasReviewFields(artifact)) {
-      return { valid: false, reason: "review stage requires file_coverage.coverage_ratio = 1.0", rule: "R5" };
+
+    const isReviewArtifact = "file_coverage" in artifact || "file_dispositions" in artifact || "cross_review" in artifact || "ci_independence" in artifact;
+    if (isReviewArtifact) {
+      if (!this.isValidReviewArtifact(artifact)) {
+        return { valid: false, reason: "review stage requires file_coverage.coverage_ratio = 1.0", rule: "R5" };
+      }
     }
+
     return null;
   }
 
-  private hasDesignFields(artifact: AdversarialArtifact | DesignAdversarialArtifact): artifact is DesignAdversarialArtifact {
+  private isValidDesignArtifact(artifact: AdversarialArtifact | DesignAdversarialArtifact): boolean {
     return "critique_obligation" in artifact &&
       !!artifact.critique_obligation &&
       Array.isArray(artifact.critique_obligation.items) &&
       artifact.critique_obligation.items.length >= 4;
   }
 
-  private hasReviewFields(artifact: AdversarialArtifact | ReviewAdversarialArtifact): artifact is ReviewAdversarialArtifact {
+  private isValidReviewArtifact(artifact: AdversarialArtifact | ReviewAdversarialArtifact): boolean {
     return "file_coverage" in artifact &&
       !!artifact.file_coverage &&
       typeof artifact.file_coverage.coverage_ratio === "number" &&
