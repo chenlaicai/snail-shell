@@ -2,6 +2,7 @@ import type { Message, MessageContext, MessageEvent } from "@domain/message/mode
 import type { CreateIssueInput, Issue, Stage } from "@domain/issue/model";
 import type { StageAuditRecord } from "@domain/issue/port";
 import type { CleanupResult } from "@app/issue-collaboration/resource-cleanup";
+import type { StageSuggestionRecord } from "@domain/issue/_internal/repository";
 
 export interface CreateIssueResult {
   issue: Issue;
@@ -10,6 +11,9 @@ export interface CreateIssueResult {
 
 /** 信号类型：显式声明信号语义，引擎按类型路由 */
 export type SignalType = "gate_complete" | "adversarial_consensus" | "disagreement";
+
+/** 决策模式：autonomous（自主决策）、suggestive（建议层）、requires_human（必须人类决策） */
+export type DecisionMode = "autonomous" | "suggestive" | "requires_human";
 
 export interface Position {
   speaker: string;
@@ -89,11 +93,19 @@ export interface StageTransitionSuggestion {
   created_at: string;
   /** 显式信号类型。缺失时引擎按字段推断（向后兼容） */
   signal_type?: SignalType;
+  /** 决策模式。缺失时默认 autonomous（向后兼容） */
+  decision_mode?: DecisionMode;
   consensus?: boolean;
   positions?: Position[];
   review_round?: number;
   gate_evidence?: Record<string, unknown>;
   adversarial_artifact?: AdversarialArtifact;
+  /** suggest 模式必填字段 */
+  recommendation?: string;
+  /** suggest 模式必填字段 */
+  alternatives?: string[];
+  /** 建议被忽略的次数（用于 B5：重复建议提示） */
+  dismiss_count?: number;
 }
 
 /** 引擎评估结果的动作 */
@@ -134,6 +146,8 @@ export interface CollaborationInput {
   getActivityStatus(stageId: string, issueClosedAt?: string | null): "ai_running" | "needs_human" | "completed";
   /** 启动恢复：重新路由已完成消息的 to_speakers */
   resumeRoute(stageId: string, message: Message): Promise<void>;
+  /** 启动恢复：从 DB 恢复未处理的 suggestions 到内存缓存 */
+  restoreSuggestions(stageId: string, records: StageSuggestionRecord[]): void;
 }
 
 export interface CollaborationConsumer {

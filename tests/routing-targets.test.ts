@@ -4,6 +4,7 @@ import { CONTEXT_KEYS } from "@infra/acs/context-keys";
 import { Scope } from "@domain/workspace/model";
 import type { MessagePort } from "@domain/message/port";
 import type { McpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-message-store";
+import type { StageSuggestionRepository } from "@domain/issue/_internal/repository";
 import type { Message } from "@domain/message/model";
 import type { IssuePort, StagePort } from "@domain/issue/port";
 import type { SnailPort } from "@domain/snail/port";
@@ -40,6 +41,16 @@ function createMockMcpMessageStore(): McpMessageStore {
     getMcpRoutingTargets: () => undefined,
     setMcpRoutingTargets: () => {},
     deleteMcpRoutingTargets: () => {},
+  };
+}
+
+function createMockStageSuggestionRepo(): StageSuggestionRepository {
+  return {
+    insert: vi.fn(),
+    listPendingByStage: vi.fn().mockReturnValue([]),
+    countIgnoredByStageAndTargetKey: vi.fn().mockReturnValue(0),
+    markProcessed: vi.fn(),
+    deleteByStage: vi.fn(),
   };
 }
 
@@ -180,6 +191,7 @@ describe("buildContextBlock routing targets", () => {
       snailPort,
       liteAIPort: createMockLiteAIPort(),
       mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
     });
 
     // Mock the issue port to return our test issue
@@ -254,6 +266,7 @@ describe("buildContextBlock routing targets", () => {
       snailPort,
       liteAIPort: createMockLiteAIPort(),
       mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
     });
 
     // Mock the issue port to return our test issue
@@ -323,6 +336,7 @@ describe("executeAgentInvocation CONTEXT_KEYS usage", () => {
       snailPort,
       liteAIPort: createMockLiteAIPort(),
       mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
     });
 
     // Mock the issue port to return our test issue
@@ -401,6 +415,7 @@ describe("executeAgentInvocation CONTEXT_KEYS usage", () => {
       snailPort,
       liteAIPort: createMockLiteAIPort(),
       mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
     });
 
     // Mock the issue port to return our test issue

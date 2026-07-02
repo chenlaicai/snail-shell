@@ -1,6 +1,7 @@
 import type { Message } from "@domain/message/model";
 import type { MessagePort } from "@domain/message/port";
 import type { StagePort } from "@domain/issue/port";
+import type { StageSuggestionRepository } from "@domain/issue/_internal/repository";
 import type { IssueCollaboration } from "@app/issue-collaboration/collaboration";
 import { getLogger } from "@infra/logger";
 
@@ -9,7 +10,7 @@ const log = getLogger({ module: "startup-recovery" });
 /**
  * 启动恢复：收敛孤儿 streaming 消息，然后从 open stages 的最新消息 to_speakers 重新路由。
  */
-export function startupRecovery(messagePort: MessagePort, stagePort: StagePort, collaboration: IssueCollaboration): void {
+export function startupRecovery(messagePort: MessagePort, stagePort: StagePort, collaboration: IssueCollaboration, stageSuggestionRepo?: StageSuggestionRepository): void {
   // 1. 收敛孤儿 streaming 消息（服务重启后 activeInvocations 丢失）
   const streamingMessages = messagePort.listMessagesByStatus("streaming");
   const orphanMessages = streamingMessages.filter(m => m.from_speaker !== "user");
@@ -32,6 +33,20 @@ export function startupRecovery(messagePort: MessagePort, stagePort: StagePort, 
 
     log.info({ stageId, messageId: latest.id, targets: latest.to_speakers }, "resuming stage routing");
     void collaboration.resumeRoute(stageId, latest);
+  }
+
+  // 3. 恢复未处理的 stage suggestions（从 DB 恢复到内存缓存）
+  if (stageSuggestionRepo) {
+    let recoveredCount = 0;
+    for (const stageId of openStages) {
+      const pendingRecords = stageSuggestionRepo.listPendingByStage(stageId);
+      if (pendingRecords.length === 0) continue;
+      collaboration.restoreSuggestions(stageId, pendingRecords);
+      recoveredCount += pendingRecords.length;
+    }
+    if (recoveredCount > 0) {
+      log.info({ recoveredCount }, "stage suggestions recovered from DB");
+    }
   }
 }
 

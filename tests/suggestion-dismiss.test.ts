@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { IssueCollaboration } from "@app/issue-collaboration/collaboration";
 import type { MessagePort } from "@domain/message/port";
 import type { McpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-message-store";
+import type { StageSuggestionRepository } from "@domain/issue/_internal/repository";
 import type { IssuePort, StagePort } from "@domain/issue/port";
 import type { SnailPort } from "@domain/snail/port";
 import type { LiteAIPort } from "@domain/lite-ai/port";
@@ -37,6 +38,16 @@ function createMockMcpMessageStore(): McpMessageStore {
     getMcpRoutingTargets: () => undefined,
     setMcpRoutingTargets: () => {},
     deleteMcpRoutingTargets: () => {},
+  };
+}
+
+function createMockStageSuggestionRepo(): StageSuggestionRepository {
+  return {
+    insert: vi.fn(),
+    listPendingByStage: vi.fn().mockReturnValue([]),
+    countIgnoredByStageAndTargetKey: vi.fn().mockReturnValue(0),
+    markProcessed: vi.fn(),
+    deleteByStage: vi.fn(),
   };
 }
 
@@ -135,6 +146,7 @@ function createCollaboration() {
     snailPort: createMockSnailPort(),
     liteAIPort: createMockLiteAIPort(),
     mcpMessageStore: createMockMcpMessageStore(),
+    stageSuggestionRepo: createMockStageSuggestionRepo(),
   });
 }
 

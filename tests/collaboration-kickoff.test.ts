@@ -6,6 +6,7 @@ import type { IssuePort, StagePort } from "@domain/issue/port";
 import type { SnailPort } from "@domain/snail/port";
 import type { LiteAIPort } from "@domain/lite-ai/port";
 import type { Stage, Issue } from "@domain/issue/model";
+import type { StageSuggestionRepository } from "@domain/issue/_internal/repository";
 import { Scope } from "@domain/workspace/model";
 
 function createMockMessagePort(overrides: Partial<MessagePort> = {}): MessagePort {
@@ -38,6 +39,10 @@ function createMockMcpMessageStore(): McpMessageStore {
     setMcpRoutingTargets: () => {},
     deleteMcpRoutingTargets: () => {},
   };
+}
+
+function createMockStageSuggestionRepo(): StageSuggestionRepository {
+  return { insert: vi.fn(), listPendingByStage: vi.fn().mockReturnValue([]), countIgnoredByStageAndTargetKey: vi.fn().mockReturnValue(0), markProcessed: vi.fn(), deleteByStage: vi.fn() };
 }
 
 function createMockIssuePort(overrides: Partial<IssuePort> = {}): IssuePort {
@@ -198,6 +203,7 @@ describe("autoInvokeNewStage: advanceStage/rollbackStage 后自动发送 kickoff
       snailPort,
       liteAIPort: createMockLiteAIPort(),
       mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
     });
   }
 
@@ -364,6 +370,7 @@ describe("autoInvokeFirstStage: createIssue 后自动发送 kickoff 消息", () 
       snailPort,
       liteAIPort: createMockLiteAIPort(),
       mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
     });
 
     return { collaboration, firstStage };
@@ -473,6 +480,7 @@ describe("autoInvokeFirstStage: createIssue 后自动发送 kickoff 消息", () 
       snailPort: createMockSnailPort(),
       liteAIPort: createMockLiteAIPort(),
       mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
     });
 
     await collaboration.createIssue({
