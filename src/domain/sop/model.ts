@@ -20,6 +20,26 @@ export interface Sop {
   workspace?: Workspace;
 }
 
+/** 阻断规则类型 */
+export type BlockingRuleType = "incompatible_tag" | "unresolved_findings";
+
+/** 阻断规则 */
+export interface BlockingRule {
+  type: BlockingRuleType;
+}
+
+/** stage 自动推进配置 */
+export interface AutoAdvanceConfig {
+  /** 推进前置：Issue.context 必须存在的 key 列表 */
+  required_context_fields: string[];
+  /** 推进前置：gate_evidence 必须通过的 gate ID 列表 */
+  gate_ids: string[];
+  /** 信号路由：本 stage 接受的 signal_type 列表（排他过滤器） */
+  accepted_signal_types: string[];
+  /** 阻断规则：额外的阻断条件 */
+  blocking_rules?: BlockingRule[];
+}
+
 /** 阶段定义 */
 export interface StageDefinition {
   /** 阶段标识符 */
@@ -30,6 +50,8 @@ export interface StageDefinition {
   description: string;
   /** 角色定义 */
   roles: RoleDefinition[];
+  /** 自动推进配置。有值 → 该 stage 参与自动推进；无值 → 不参与 */
+  auto_advance?: AutoAdvanceConfig;
 }
 
 /** 角色定义 */

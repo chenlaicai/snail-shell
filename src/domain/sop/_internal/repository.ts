@@ -1,7 +1,7 @@
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import type { Workspace } from "@domain/workspace/model";
 import { Scope } from "@domain/workspace/model";
-import type { Sop, StageDefinition, RoleDefinition, Transition } from "@domain/sop/model";
+import type { Sop, StageDefinition, RoleDefinition, Transition, AutoAdvanceConfig, BlockingRule } from "@domain/sop/model";
 import type { FileDataStore } from "@infra/file-data-store";
 import { getLogger } from "@infra/logger";
 
@@ -190,6 +190,20 @@ export class FileSopRepository implements SopRepository {
       title: data.title as string,
       description: (data.description as string) ?? "",
       roles,
+      auto_advance: data.auto_advance ? this.parseAutoAdvance(data.auto_advance as Record<string, unknown>) : undefined,
+    };
+  }
+
+  private parseAutoAdvance(data: Record<string, unknown>): AutoAdvanceConfig {
+    return {
+      required_context_fields: Array.isArray(data.required_context_fields)
+        ? (data.required_context_fields as string[]) : [],
+      gate_ids: Array.isArray(data.gate_ids)
+        ? (data.gate_ids as string[]) : [],
+      accepted_signal_types: Array.isArray(data.accepted_signal_types)
+        ? (data.accepted_signal_types as string[]) : [],
+      blocking_rules: Array.isArray(data.blocking_rules)
+        ? (data.blocking_rules as BlockingRule[]) : undefined,
     };
   }
 
@@ -230,6 +244,14 @@ export class FileSopRepository implements SopRepository {
     data.stage_definitions = sop.stage_definitions.map(sd => {
       const stage: Record<string, unknown> = { key: sd.key, title: sd.title };
       if (sd.description != null) stage.description = sd.description;
+      if (sd.auto_advance) {
+        const aa: Record<string, unknown> = {};
+        if (sd.auto_advance.required_context_fields.length > 0) aa.required_context_fields = sd.auto_advance.required_context_fields;
+        if (sd.auto_advance.gate_ids.length > 0) aa.gate_ids = sd.auto_advance.gate_ids;
+        if (sd.auto_advance.accepted_signal_types.length > 0) aa.accepted_signal_types = sd.auto_advance.accepted_signal_types;
+        if (sd.auto_advance.blocking_rules && sd.auto_advance.blocking_rules.length > 0) aa.blocking_rules = sd.auto_advance.blocking_rules;
+        if (Object.keys(aa).length > 0) stage.auto_advance = aa;
+      }
       stage.roles = sd.roles.map(r => {
         const role: Record<string, unknown> = { key: r.key, name: r.name };
         if (r.description != null) role.description = r.description;

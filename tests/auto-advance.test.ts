@@ -2,7 +2,41 @@ import { describe, it, expect, vi } from "vitest";
 import { AutoAdvanceEngine } from "@app/issue-collaboration/auto-advance";
 import type { AutoAdvanceDeps } from "@app/issue-collaboration/auto-advance";
 import type { Stage } from "@domain/issue/model";
+import type { AutoAdvanceConfig, StageDefinition } from "@domain/sop/model";
 import type { StageTransitionSuggestion } from "@app/issue-collaboration/port";
+
+const DESIGN_CONFIG: AutoAdvanceConfig = {
+  required_context_fields: ["worktree_path", "branch_name"],
+  gate_ids: ["design-01", "design-02"],
+  accepted_signal_types: ["adversarial_consensus"],
+};
+
+const DEVELOPMENT_CONFIG: AutoAdvanceConfig = {
+  required_context_fields: ["worktree_path", "branch_name", "pr_url"],
+  gate_ids: ["dev-01", "dev-02", "dev-03", "dev-04", "dev-06"],
+  accepted_signal_types: ["gate_complete"],
+};
+
+const REVIEW_CONFIG: AutoAdvanceConfig = {
+  required_context_fields: ["pr_url"],
+  gate_ids: ["rev-01", "rev-02", "rev-03", "rev-04"],
+  accepted_signal_types: ["adversarial_consensus"],
+  blocking_rules: [
+    { type: "incompatible_tag" },
+    { type: "unresolved_findings" },
+  ],
+};
+
+function makeStageDef(key: string, config?: AutoAdvanceConfig): StageDefinition {
+  return { key, title: key, description: "", roles: [], auto_advance: config };
+}
+
+const ALL_STAGE_DEFS: StageDefinition[] = [
+  makeStageDef("design", DESIGN_CONFIG),
+  makeStageDef("development", DEVELOPMENT_CONFIG),
+  makeStageDef("review", REVIEW_CONFIG),
+  makeStageDef("merge"),
+];
 
 function createStage(overrides: Partial<Stage> = {}): Stage {
   return {
@@ -53,9 +87,18 @@ function createDeps(overrides: Partial<AutoAdvanceDeps> = {}): AutoAdvanceDeps {
     generateDisagreementCard: vi.fn().mockResolvedValue(undefined),
     mustGetIssue: vi.fn().mockReturnValue({
       context: { worktree_path: "/wt", branch_name: "feature-x", pr_url: "https://github.com/pr/1" },
+      sop_snapshot: { stage_definitions: ALL_STAGE_DEFS },
     }),
     ...overrides,
   };
+}
+
+/** 构造 mustGetIssue mock，支持自定义 context 但保留 sop_snapshot */
+function mustGetIssueWithContext(context: Record<string, string>): AutoAdvanceDeps["mustGetIssue"] {
+  return vi.fn().mockReturnValue({
+    context,
+    sop_snapshot: { stage_definitions: ALL_STAGE_DEFS },
+  });
 }
 
 /** 从 notifyConsumers spy 中提取 onContextMissing 事件的 missing_fields */
@@ -83,9 +126,7 @@ describe("AutoAdvanceEngine context validation", () => {
   describe("development stage", () => {
     it("blocks auto-advance when worktree_path is missing", async () => {
       const deps = createDeps({
-        mustGetIssue: vi.fn().mockReturnValue({
-          context: { branch_name: "feature-x", pr_url: "https://github.com/pr/1" },
-        }),
+        mustGetIssue: mustGetIssueWithContext({ branch_name: "feature-x", pr_url: "https://github.com/pr/1" }),
       });
       const engine = new AutoAdvanceEngine(deps);
       const result = await engine.evaluate(createStage({ key: "development" }), [createSuggestion()]);
@@ -98,9 +139,7 @@ describe("AutoAdvanceEngine context validation", () => {
 
     it("blocks auto-advance when branch_name is missing", async () => {
       const deps = createDeps({
-        mustGetIssue: vi.fn().mockReturnValue({
-          context: { worktree_path: "/wt", pr_url: "https://github.com/pr/1" },
-        }),
+        mustGetIssue: mustGetIssueWithContext({ worktree_path: "/wt", pr_url: "https://github.com/pr/1" }),
       });
       const engine = new AutoAdvanceEngine(deps);
       const result = await engine.evaluate(createStage({ key: "development" }), [createSuggestion()]);
@@ -113,9 +152,7 @@ describe("AutoAdvanceEngine context validation", () => {
 
     it("blocks auto-advance when pr_url is missing", async () => {
       const deps = createDeps({
-        mustGetIssue: vi.fn().mockReturnValue({
-          context: { worktree_path: "/wt", branch_name: "feature-x" },
-        }),
+        mustGetIssue: mustGetIssueWithContext({ worktree_path: "/wt", branch_name: "feature-x" }),
       });
       const engine = new AutoAdvanceEngine(deps);
       const result = await engine.evaluate(createStage({ key: "development" }), [createSuggestion()]);
@@ -128,7 +165,7 @@ describe("AutoAdvanceEngine context validation", () => {
 
     it("blocks auto-advance when all context fields are missing", async () => {
       const deps = createDeps({
-        mustGetIssue: vi.fn().mockReturnValue({ context: {} }),
+        mustGetIssue: mustGetIssueWithContext({}),
       });
       const engine = new AutoAdvanceEngine(deps);
       const result = await engine.evaluate(createStage({ key: "development" }), [createSuggestion()]);
@@ -141,9 +178,7 @@ describe("AutoAdvanceEngine context validation", () => {
 
     it("blocks auto-advance when context field is empty string", async () => {
       const deps = createDeps({
-        mustGetIssue: vi.fn().mockReturnValue({
-          context: { worktree_path: "", branch_name: "feature-x", pr_url: "https://github.com/pr/1" },
-        }),
+        mustGetIssue: mustGetIssueWithContext({ worktree_path: "", branch_name: "feature-x", pr_url: "https://github.com/pr/1" }),
       });
       const engine = new AutoAdvanceEngine(deps);
       const result = await engine.evaluate(createStage({ key: "development" }), [createSuggestion()]);
@@ -180,7 +215,7 @@ describe("AutoAdvanceEngine context validation", () => {
   describe("design stage", () => {
     it("blocks auto-advance when context fields are missing", async () => {
       const deps = createDeps({
-        mustGetIssue: vi.fn().mockReturnValue({ context: {} }),
+        mustGetIssue: mustGetIssueWithContext({}),
       });
       const engine = new AutoAdvanceEngine(deps);
       const suggestion = createSuggestion({
@@ -308,6 +343,50 @@ describe("AutoAdvanceEngine context validation", () => {
 
 });
 
+describe("no auto_advance config", () => {
+  it("escalates when stage has no auto_advance config (B8)", async () => {
+    const deps = createDeps({
+      mustGetIssue: vi.fn().mockReturnValue({
+        context: {},
+        sop_snapshot: { stage_definitions: [makeStageDef("merge")] },
+      }),
+    });
+    const engine = new AutoAdvanceEngine(deps);
+    const result = await engine.evaluate(createStage({ key: "merge", available_transitions: [] }), [createSuggestion()]);
+
+    expect(deps.advanceStage).not.toHaveBeenCalled();
+    expect(result.action).toBe("escalated");
+    expect(result.reasons[0].code).toBe("NO_AUTO_ADVANCE_CONFIG");
+  });
+});
+
+describe("blocking_rules (incompatible_tag)", () => {
+  it("blocks when pr_title contains [Incompatible] via blocking_rules", async () => {
+    const deps = createDeps({
+      mustGetIssue: mustGetIssueWithContext({ pr_url: "https://github.com/pr/1", pr_title: "[Incompatible] Breaking change" }),
+    });
+    const engine = new AutoAdvanceEngine(deps);
+    const now = new Date().toISOString();
+    const later = new Date(Date.now() + 1000).toISOString();
+    const artifact = {
+      independent_verification: [{ command: "tsc", actual_output: "compiled successfully with zero type errors in the project", executed_at: now }],
+      adversarial_findings: [{ dimension: "completeness", finding: "found issue", disposition: "fixed" }],
+      audit_trail: { events: [
+        { timestamp: now, event_type: 'review_started' as const, detail: "started" },
+        { timestamp: later, event_type: 'cross_review_read' as const, detail: "read" },
+      ] },
+      file_coverage: { files_reviewed: 1, files_in_diff: 1, coverage_ratio: 1.0 },
+    };
+    const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed", "rev-04": "F20260701tj92" }, adversarial_artifact: artifact as any });
+    const s2 = { ...s1, from_speaker: "reviewer-2", message_id: 2 };
+    const result = await engine.evaluate(createStage({ key: "review" }), [s1, s2]);
+
+    expect(deps.advanceStage).not.toHaveBeenCalled();
+    expect(result.action).toBe("blocked");
+    expect(result.reasons[0].code).toBe("INCOMPATIBLE_BLOCKED");
+  });
+});
+
 /** 构造带有效对抗产物的 review 阶段建议 */
 function createReviewArtifact(overrides: Record<string, unknown> = {}) {
   const now = new Date().toISOString();
@@ -331,7 +410,7 @@ describe("adversarial artifact validation", () => {
   describe("review stage context", () => {
     it("blocks when pr_url is missing", async () => {
       const deps = createDeps({
-        mustGetIssue: vi.fn().mockReturnValue({ context: { worktree_path: "/wt", branch_name: "feature-x" } }),
+        mustGetIssue: mustGetIssueWithContext({ worktree_path: "/wt", branch_name: "feature-x" }),
       });
       const engine = new AutoAdvanceEngine(deps);
       const s1 = createSuggestion({ signal_type: "adversarial_consensus", consensus: true, from_speaker: "reviewer-1", target_key: "merge", gate_evidence: { "rev-01": "done", "rev-02": "verified", "rev-03": "signed", "rev-04": "F20260701tj92" } });

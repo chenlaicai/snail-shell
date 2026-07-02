@@ -570,7 +570,7 @@ export class IssueCollaboration implements CollaborationInput {
       roleDef?.skill ? `- \`${roleDef.skill}\` — ${roleDef.name}工作流程` : null,
     ].filter(Boolean).join("\n");
     /** Issue 上下文：只读视图，Agent 应使用 MCP 工具读写。基础设施字段缺失时标注警告 */
-    const missingInfra = ["worktree_path", "branch_name"].filter(f => !resolveContextValue(issue.context, f));
+    const missingInfra = (issue.sop_snapshot.stage_definitions.find(d => d.key === stage.key)?.auto_advance?.required_context_fields ?? []).filter(f => !resolveContextValue(issue.context, f));
     const ctxLines = Object.entries(issue.context).map(([k, v]) => `- **${k}**: ${v}`).join("\n") || "无";
     const issueContext = missingInfra.length > 0 ? `${ctxLines}\n> ⚠️ 以下基础设施字段未记录：${missingInfra.join(", ")}` : ctxLines;
     return `<context>
