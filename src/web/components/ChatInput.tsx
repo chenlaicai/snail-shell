@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useMention } from "@/hooks/useMention";
 import { MentionDropdown } from "@/components/MentionDropdown";
+import { saveDraft, getDraft, removeDraft } from "@/lib/input-drafts";
 
 /**
  * 从文本中提取匹配 role_instances 的 @mention 目标
@@ -27,10 +28,14 @@ interface ChatInputProps {
   disabled?: boolean;
   placeholder?: string;
   roleInstances?: string[];
+  issueId?: string;
 }
 
-export function ChatInput({ onSend, disabled, placeholder = "Reply to this issue...", roleInstances = [] }: ChatInputProps) {
-  const [value, setValue] = useState("");
+export function ChatInput({ onSend, disabled, placeholder = "Reply to this issue...", roleInstances = [], issueId }: ChatInputProps) {
+  const [value, setValue] = useState(() => {
+    if (issueId) return getDraft(issueId) ?? "";
+    return "";
+  });
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const {
@@ -73,7 +78,8 @@ export function ChatInput({ onSend, disabled, placeholder = "Reply to this issue
     setValue("");
     hideSuggestions();
     if (textareaRef.current) textareaRef.current.style.height = "auto";
-  }, [value, disabled, onSend, roleInstances, hideSuggestions]);
+    if (issueId) removeDraft(issueId);
+  }, [value, disabled, onSend, roleInstances, hideSuggestions, issueId]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     /** 补全列表激活时，优先处理 mention 键盘事件 */
@@ -108,6 +114,26 @@ export function ChatInput({ onSend, disabled, placeholder = "Reply to this issue
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isMentionActive, hideSuggestions]);
+
+  /** 草稿恢复后调整 textarea 高度（useState 初始化时 DOM 尚未就绪） */
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (el && value) {
+      el.style.height = "auto";
+      el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+    }
+  }, []);
+
+  /** Debounce 保存草稿到 localStorage；清空输入时立即删除旧草稿 */
+  useEffect(() => {
+    if (!issueId) return;
+    if (!value) {
+      removeDraft(issueId);
+      return;
+    }
+    const timer = setTimeout(() => saveDraft(issueId, value), 300);
+    return () => clearTimeout(timer);
+  }, [issueId, value]);
 
   return (
     <div className="bg-surface-2 rounded-2xl border border-white/6 overflow-visible focus-within:border-shell-600/40 focus-within:ring-1 focus-within:ring-shell-600/15 transition-all relative">
