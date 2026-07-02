@@ -9,7 +9,6 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { ChatMessage } from "@/components/ChatMessage";
 import { ChatInput } from "@/components/ChatInput";
 import { PropertiesPanel } from "@/components/PropertiesPanel";
-import { StageActionBar } from "@/components/StageActionBar";
 import { StageSuggestionCard } from "@/components/StageSuggestionCard";
 import { useIssueRealtime, createPlaceholderMessage } from "@/hooks/useWebSocket";
 import { useSendMessage } from "@/mutations/conversation.mutations";
@@ -345,9 +344,6 @@ export function IssueConversation() {
                 </div>
               </div>
 
-              <StageSuggestionCard stageId={stageId} onAccepted={handleStageChanged} />
-              <StageActionBar issue={issue} currentStage={stage} onStageChanged={handleStageChanged} />
-
               {wsStatus !== "connected" && (
                 <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] ${
                   wsStatus === "reconnecting"
@@ -388,6 +384,9 @@ export function IssueConversation() {
                   })}
                 </div>
               )}
+
+              {/* StageSuggestionCard 放在对话流末尾，用户在底部可直接看到 */}
+              <StageSuggestionCard stageId={stageId} onAccepted={handleStageChanged} />
 
             </div>
 
@@ -438,7 +437,7 @@ export function IssueConversation() {
           </div>
         </div>
 
-        <PropertiesPanel issue={issue} stage={stage} />
+        <PropertiesPanel issue={issue} stage={stage} onStageChanged={handleStageChanged} />
       </div>
     </div>
   );

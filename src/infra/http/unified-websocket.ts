@@ -86,11 +86,11 @@ function createRouteHandler(routeInfo: RouteInfo, collaboration: CollaborationIn
   return {
     onOpen(_event: unknown, socket: Socket) {
       if (routeInfo.isIssueRoute) {
-        issueConsumer = handleIssueOpen(routeInfo.issueId, socket, collaboration, issueConsumer);
+        issueConsumer = handleIssueOpen(routeInfo.issueId, socket, collaboration, issueConsumer, cleanup);
         if (!issueConsumer) return;
       }
       if (routeInfo.isWorkspaceRoute) {
-        workspaceConsumer = handleWorkspaceOpen(routeInfo.workspaceId, socket, collaboration, workspaceConsumer);
+        workspaceConsumer = handleWorkspaceOpen(routeInfo.workspaceId, socket, collaboration, workspaceConsumer, cleanup);
         if (!workspaceConsumer) return;
       }
       heartbeatTimer = startHeartbeat(socket, routeInfo, cleanup);
@@ -104,6 +104,7 @@ function handleIssueOpen(
   socket: Socket,
   collaboration: CollaborationInput,
   existing: CollaborationConsumer | null,
+  cleanup: () => void,
 ): CollaborationConsumer | null {
   if (existing) return existing;
   if (!issueId) {
@@ -112,7 +113,7 @@ function handleIssueOpen(
     return null;
   }
   log.info({ issueId }, "issue-events connected");
-  const consumer = createIssueConsumer(issueId, socket, collaboration);
+  const consumer = createIssueConsumer(issueId, socket, collaboration, cleanup);
   collaboration.registerIssueConsumer(issueId, consumer);
   return consumer;
 }
@@ -122,6 +123,7 @@ function handleWorkspaceOpen(
   socket: Socket,
   collaboration: CollaborationInput,
   existing: WorkspaceConsumer | null,
+  cleanup: () => void,
 ): WorkspaceConsumer | null {
   if (existing) return existing;
   if (!workspaceId) {
@@ -131,7 +133,7 @@ function handleWorkspaceOpen(
   }
   const decodedWorkspacePath = decodeWorkspaceId(workspaceId);
   log.info({ workspaceId, workspacePath: decodedWorkspacePath }, "workspace-events connected");
-  const consumer = createWorkspaceConsumer(socket);
+  const consumer = createWorkspaceConsumer(socket, cleanup);
   collaboration.registerWorkspaceConsumer(decodedWorkspacePath, consumer);
   return consumer;
 }
@@ -151,7 +153,7 @@ function startHeartbeat(socket: Socket, routeInfo: RouteInfo, onFail: () => void
   }, 30_000);
 }
 
-function createIssueConsumer(issueId: string, socket: Socket, collaboration: CollaborationInput): CollaborationConsumer {
+function createIssueConsumer(issueId: string, socket: Socket, collaboration: CollaborationInput, cleanup: () => void): CollaborationConsumer {
   return {
     onMessageStarted(stageId, message) {
       send(socket, {
@@ -159,7 +161,7 @@ function createIssueConsumer(issueId: string, socket: Socket, collaboration: Col
         issue_id: issueId,
         activity_status: collaboration.getActivityStatus(stageId),
         event: { type: "message_started", stage_id: stageId, ...toMessageEventBase(message) },
-      });
+      }, cleanup);
     },
     onEvent(stageId, event) {
       send(socket, {
@@ -167,7 +169,7 @@ function createIssueConsumer(issueId: string, socket: Socket, collaboration: Col
         issue_id: issueId,
         activity_status: collaboration.getActivityStatus(stageId),
         event: { type: "message_event_appended", stage_id: stageId, message_id: event.message_id, event },
-      });
+      }, cleanup);
     },
     onMessageCompleted(stageId, message, context) {
       send(socket, {
@@ -175,7 +177,7 @@ function createIssueConsumer(issueId: string, socket: Socket, collaboration: Col
         issue_id: issueId,
         activity_status: collaboration.getActivityStatus(stageId),
         event: { type: "message_status_changed", stage_id: stageId, message_id: message.id, status: message.status, context, ended_at: message.ended_at },
-      });
+      }, cleanup);
     },
     onUserCalled(stageId, message) {
       send(socket, {
@@ -183,7 +185,7 @@ function createIssueConsumer(issueId: string, socket: Socket, collaboration: Col
         issue_id: issueId,
         activity_status: collaboration.getActivityStatus(stageId),
         event: { type: "user_called", stage_id: stageId, ...toMessageEventBase(message) },
-      });
+      }, cleanup);
     },
     onStageTransitionSuggested(stageId, suggestion) {
       send(socket, {
@@ -191,12 +193,28 @@ function createIssueConsumer(issueId: string, socket: Socket, collaboration: Col
         issue_id: issueId,
         activity_status: collaboration.getActivityStatus(stageId),
         event: { type: "stage_transition_suggested", stage_id: stageId, suggestion: toSuggestionPayload(suggestion) },
+      }, cleanup);
+    },
+    onAutoAdvanced(stageId, data) {
+      send(socket, {
+        type: "issue_event",
+        issue_id: issueId,
+        activity_status: collaboration.getActivityStatus(data.to),
+        event: { type: "stage_changed", stage_id: stageId, new_stage_id: data.to, from_key: data.from_key, to_key: data.to_key },
       });
+    },
+    onCleanupCompleted(cleanupIssueId, cleanupResult) {
+      send(socket, {
+        type: "issue_event",
+        issue_id: cleanupIssueId,
+        activity_status: "completed",
+        event: { type: "cleanup_completed", issue_id: cleanupIssueId, cleanup: cleanupResult },
+      }, cleanup);
     },
   };
 }
 
-function createWorkspaceConsumer(socket: Socket): WorkspaceConsumer {
+function createWorkspaceConsumer(socket: Socket, cleanup: () => void): WorkspaceConsumer {
   return {
     onActivityStatusChanged(issueId, activityStatus, previousStatus) {
       send(socket, {
@@ -204,7 +222,7 @@ function createWorkspaceConsumer(socket: Socket): WorkspaceConsumer {
         issue_id: issueId,
         activity_status: activityStatus,
         previous_status: previousStatus,
-      });
+      }, cleanup);
     },
   };
 }
@@ -232,10 +250,12 @@ function toSuggestionPayload(suggestion: StageTransitionSuggestion) {
   };
 }
 
-function send(socket: Socket, payload: unknown): void {
+function send(socket: Socket, payload: unknown, cleanup?: () => void): void {
   try {
     socket.send(JSON.stringify(payload));
   } catch (error) {
-    log.warn({ err: error, event: (payload as { type?: string })?.type }, "ws.send failed — socket likely closed");
+    log.warn({ err: error, event: (payload as { type?: string })?.type }, "ws.send failed — triggering cleanup");
+    cleanup?.();
+    socket.close();
   }
 }

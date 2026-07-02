@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "@/services/api-client";
 import { queryKeys } from "@/queries/keys";
@@ -10,13 +10,28 @@ import { groupByActivityStatus, activityStatusColumns } from "@/lib/issue-utils"
 import { useWorkspaceRealtime } from "@/hooks/useWorkspaceRealtime";
 import type { IssueDetailDto } from "@/types";
 
+/** 根据 WebSocket 状态返回连接指示器样式和文案 */
+function getWsIndicator(status: string) {
+  switch (status) {
+    case "connecting":
+      return { color: "bg-gray-400", text: "Connecting..." };
+    case "disconnected":
+      return { color: "bg-yellow-400", text: "Disconnected \u2014 reconnecting..." };
+    case "error":
+      return { color: "bg-red-400", text: "Connection error" };
+    default:
+      return null;
+  }
+}
+
 export function IssueBoard() {
   const { workspaceId } = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [showNewIssue, setShowNewIssue] = useState(false);
 
-  // Workspace 级实时订阅：单个 WebSocket 连接覆盖整个 workspace 的 issue 状态变化
-  useWorkspaceRealtime(workspaceId ?? null);
+  const wsStatus = useWorkspaceRealtime(workspaceId ?? null);
+  const wsIndicator = getWsIndicator(wsStatus);
 
   const { data: workspace, isLoading: wsLoading } = useQuery({
     queryKey: queryKeys.workspaces.detail(workspaceId ?? ""),
@@ -28,6 +43,8 @@ export function IssueBoard() {
     queryKey: queryKeys.workspaces.issues(workspaceId ?? ""),
     queryFn: () => api("GET /api/workspaces/:workspaceId/issues", { params: { workspaceId: workspaceId! } }) as Promise<IssueDetailDto[]>,
     enabled: !!workspaceId,
+    refetchOnWindowFocus: true,
+    refetchInterval: wsStatus !== "connected" ? 10_000 : false,
   });
 
   const grouped = groupByActivityStatus(issues);
@@ -40,6 +57,19 @@ export function IssueBoard() {
         { label: wsLoading ? "Loading..." : (workspace?.summary || workspace?.path || workspaceId || ""), to: `/workspaces/${workspaceId}/board` },
         { label: "Board" },
       ]} />
+
+      {wsIndicator && (
+        <div className="flex items-center gap-2 px-6 py-2 bg-surface-1 border-b border-white/4 text-xs text-text-secondary shrink-0">
+          <div className={`w-2 h-2 rounded-full ${wsIndicator.color}`} />
+          <span>{wsIndicator.text}</span>
+          <button
+            onClick={() => workspaceId && queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.issues(workspaceId) })}
+            className="ml-auto px-2 py-0.5 rounded bg-white/8 hover:bg-white/12 text-xs transition-colors"
+          >
+            Refresh
+          </button>
+        </div>
+      )}
 
       <div className="flex items-center px-6 py-3 gap-3 border-b border-white/4 shrink-0">
         <div className="flex items-center bg-surface-2 rounded-md border border-white/6 p-0.5">
@@ -59,15 +89,15 @@ export function IssueBoard() {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-hidden px-6 py-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 h-full">
+      <div className="flex-1 min-h-0 overflow-y-hidden px-6 py-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 h-full min-h-0">
           {issues.length === 0 ? (
             <div className="col-span-full text-center text-text-muted text-sm py-16">No issues in this workspace</div>
           ) : (
             activityStatusColumns.map((col) => {
               const colIssues = grouped[col.status] ?? [];
               return (
-                <div key={col.status} className="flex flex-col">
+                <div key={col.status} className="flex flex-col min-h-0">
                   <div className="flex items-center gap-2 px-2 py-2 mb-2">
                     <div className={`w-2.5 h-2.5 rounded-full ${col.dot}`} />
                     <span className="text-xs font-medium text-text-secondary">{col.label}</span>

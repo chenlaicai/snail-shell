@@ -142,6 +142,7 @@ describe("Signal chain: set_final_body → detectStageTransition → autoAdvance
     const events: MessageEvent[] = [];
     const messagePort = createMockMessagePort({
       getMessage: (id) => messages.get(id),
+      findLatestMessage: () => messages.get(100),
       appendEvent: (_messageId, payload) => {
         const event: MessageEvent = {
           id: events.length + 1,
@@ -240,6 +241,7 @@ describe("Signal chain: set_final_body → detectStageTransition → autoAdvance
 
     const messagePort = createMockMessagePort({
       getMessage: (id) => messages.get(id),
+      findLatestMessage: () => messages.get(200),
       appendEvent: (_messageId, payload) => {
         const event: MessageEvent = {
           id: events.length + 1,
@@ -331,6 +333,7 @@ All checks passed.
 
     const messagePort = createMockMessagePort({
       getMessage: (id) => messages.get(id),
+      findLatestMessage: () => messages.get(300),
       appendEvent: (_messageId, payload) => {
         const event: MessageEvent = {
           id: events.length + 1,

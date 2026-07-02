@@ -131,7 +131,7 @@ describe("closeIssue activity recording", () => {
     vi.clearAllMocks();
   });
 
-  /** B1: 关闭 Issue 时应设置 close_summary */
+  /** B1: 关闭 Issue 时应设置 close_summary（cleanup 异步执行） */
   it("B1: 关闭 Issue 时记录清理结果到 close_summary", async () => {
     const issue = createIssue();
     const issuePort = createMockIssuePort(issue);
@@ -154,9 +154,11 @@ describe("closeIssue activity recording", () => {
       stageSuggestionRepo: createMockStageSuggestionRepo(),
     });
 
-    await collaboration.closeIssue("issue-1");
-
-    expect(issuePort.updateCloseSummary).toHaveBeenCalled();
+    const result = await collaboration.closeIssue("issue-1");
+    // API 立即返回 pending 状态
+    expect(result.cleanup.pr.status).toBe("pending");
+    // 等待异步 cleanup 完成
+    await vi.waitFor(() => expect(issuePort.updateCloseSummary).toHaveBeenCalled());
     const summary = getCapturedSummary(issuePort);
     expect(summary).toEqual(cleanupResult);
   });
@@ -219,6 +221,7 @@ describe("closeIssue activity recording", () => {
     });
 
     await collaboration.closeIssue("issue-1");
+    await vi.waitFor(() => expect(issuePort.updateCloseSummary).toHaveBeenCalled());
 
     const summary = getCapturedSummary(issuePort)!;
     expect(summary.pr.status).toBe("success");
@@ -250,6 +253,7 @@ describe("closeIssue activity recording", () => {
     });
 
     await collaboration.closeIssue("issue-1");
+    await vi.waitFor(() => expect(issuePort.updateCloseSummary).toHaveBeenCalled());
 
     const summary = getCapturedSummary(issuePort)!;
     expect(summary.localBranch.status).toBe("failed");
@@ -279,6 +283,7 @@ describe("closeIssue activity recording", () => {
     });
 
     await collaboration.closeIssue("issue-1");
+    await vi.waitFor(() => expect(issuePort.updateCloseSummary).toHaveBeenCalled());
 
     const summary = getCapturedSummary(issuePort)!;
     expect(summary.pr.status).toBe("skipped");
@@ -313,7 +318,10 @@ describe("closeIssue activity recording", () => {
     });
 
     const result = await collaboration.closeIssue("issue-1");
+    // API 立即返回，不阻塞
     expect(result.issue.closed_at).toBeTruthy();
     expect(result.cleanup).toBeDefined();
+    // 异步 cleanup 中 updateCloseSummary 失败不应抛出
+    await vi.waitFor(() => expect(mockCleanupResources).toHaveBeenCalled());
   });
 });

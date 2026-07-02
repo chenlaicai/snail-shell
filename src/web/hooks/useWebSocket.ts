@@ -4,7 +4,7 @@ import { useConversationStore } from "../stores/conversationStore";
 import { queryKeys } from "../queries/keys";
 import { removePendingMessage } from "../lib/pending-messages";
 import { recordWsReconnect, recordWsDisconnect } from "../lib/perf-logger";
-import type { IssueRealtimeMessage, IssueDetailDto, MessageDto, WsServerMessage } from "../types";
+import type { IssueRealtimeMessage, IssueDetailDto, MessageDto, WsServerMessage, CleanupResultDto } from "../types";
 
 /** 创建占位 MessageDto——用于 WebSocket message_started 和乐观发送 */
 export function createPlaceholderMessage(
@@ -56,8 +56,11 @@ function createEmptyBatch(): StageBatch {
 class EventBatcher {
   private batch = new Map<string, StageBatch>();
   private pendingStageTransitions: Array<{ issueId: string; stageId: string }> = [];
+  private pendingStageChanges: Array<{ issueId: string; newStageId: string }> = [];
   /** 每个 issue 只保留最新的 activity_status，flush 时一次性更新 */
   private pendingActivityStatus = new Map<string, IssueDetailDto["activity_status"]>();
+  /** cleanup_completed 结果，flush 时更新 issue detail cache */
+  private pendingCleanupResults = new Map<string, CleanupResultDto>();
   private scheduled = false;
 
   constructor(private queryClient: ReturnType<typeof useQueryClient>) {}
@@ -65,6 +68,14 @@ class EventBatcher {
   add(msg: WsServerMessage): void {
     if (msg.type === "heartbeat") return;
     const { event } = msg;
+
+    /** cleanup_completed 是 issue-level 事件，不经过 stage batch */
+    if (event.type === "cleanup_completed") {
+      this.pendingCleanupResults.set(event.issue_id, event.cleanup);
+      this.schedule();
+      return;
+    }
+
     const stageId = event.stage_id;
 
     /** 收集 activity_status 到 batch，不立即 setQueryData */
@@ -72,6 +83,13 @@ class EventBatcher {
 
     if (event.type === "stage_transition_suggested") {
       this.pendingStageTransitions.push({ issueId: msg.issue_id, stageId });
+      this.schedule();
+      return;
+    }
+
+    /** auto-advance 后切换到新阶段 */
+    if (event.type === "stage_changed") {
+      this.pendingStageChanges.push({ issueId: msg.issue_id, newStageId: event.new_stage_id });
       this.schedule();
       return;
     }
@@ -115,6 +133,17 @@ class EventBatcher {
       );
     }
     this.pendingActivityStatus.clear();
+  }
+
+  /** 更新 issue detail cache 中的 close_summary 字段 */
+  private applyCleanupResults(): void {
+    for (const [issueId, cleanup] of this.pendingCleanupResults) {
+      this.queryClient.setQueryData(
+        queryKeys.issues.detail(issueId),
+        (old: IssueDetailDto | null | undefined) => old ? { ...old, close_summary: cleanup } : old,
+      );
+    }
+    this.pendingCleanupResults.clear();
   }
 
   private schedule(): void {
@@ -266,8 +295,9 @@ class EventBatcher {
   private flush(): void {
     this.scheduled = false;
 
-    /** 先处理 activity_status 批量更新，再处理消息 batch */
+    /** 先处理 activity_status 批量更新，再处理 cleanup 结果，最后处理消息 batch */
     this.applyActivityStatus();
+    this.applyCleanupResults();
 
     for (const [stageId, batch] of this.batch) {
       this.queryClient.setQueryData(
@@ -285,11 +315,28 @@ class EventBatcher {
       this.queryClient.invalidateQueries({ queryKey: queryKeys.stages.messages(stageId) });
     }
     this.pendingStageTransitions = [];
+
+    // Stage changed 事件：更新 issue 缓存的 current_stage 并切换视图
+    for (const { issueId, newStageId } of this.pendingStageChanges) {
+      /** 先查询新阶段详情，更新缓存后组件通过 current_stage 自动切换 */
+      this.queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(issueId) });
+      this.queryClient.invalidateQueries({ queryKey: queryKeys.stages.messages(newStageId) });
+      /** 直接更新 issue 缓存的 current_stage，避免等待 refetch 完成 */
+      this.queryClient.setQueryData(
+        queryKeys.issues.detail(issueId),
+        (old: IssueDetailDto | null | undefined) => {
+          if (!old) return old;
+          const newStage = old.stages.find((s) => s.id === newStageId);
+          return newStage ? { ...old, current_stage: newStage } : old;
+        },
+      );
+    }
+    this.pendingStageChanges = [];
   }
 
   /** 组件卸载时调用，确保 pending 事件不丢失 */
   dispose(): void {
-    if (this.batch.size > 0 || this.pendingStageTransitions.length > 0 || this.pendingActivityStatus.size > 0) {
+    if (this.batch.size > 0 || this.pendingStageTransitions.length > 0 || this.pendingStageChanges.length > 0 || this.pendingActivityStatus.size > 0 || this.pendingCleanupResults.size > 0) {
       this.flush();
     }
   }
@@ -300,6 +347,7 @@ interface WsHandlers {
   onOpen: () => void;
   onMessage: (msg: WsServerMessage) => void;
   onClose: () => void;
+  onError?: () => void;
 }
 
 function createWsConnection(url: string, handlers: WsHandlers): WebSocket {
@@ -311,7 +359,7 @@ function createWsConnection(url: string, handlers: WsHandlers): WebSocket {
     catch (err) { console.warn("[WebSocket] 消息解析失败:", err, e.data); }
   };
   ws.onclose = () => { if (handlers.mounted()) handlers.onClose(); };
-  ws.onerror = () => ws.close();
+  ws.onerror = () => { handlers.onError?.(); ws.close(); };
   return ws;
 }
 
@@ -349,11 +397,12 @@ export function useIssueRealtime(issueId: string | null, currentStageId: string 
             setWsStatus("connected");
           },
           onMessage: (msg) => batcherRef.current!.add(msg),
+          onError: () => { if (mounted && activeWs === ws && wsRef.current === ws) setWsStatus("error"); },
           onClose: () => {
             if (!mounted || activeWs !== ws || wsRef.current !== ws) return;
             t.count++;
             recordWsDisconnect(`reconnect in ${t.delay}ms`, t.count);
-            setWsStatus("disconnected");
+            if (useConversationStore.getState().wsStatus !== "error") setWsStatus("disconnected");
             console.log(`[WebSocket] 连接关闭，${t.delay}ms 后重连`);
             t.timer = setTimeout(() => { t.delay = Math.min(t.delay * 2, 30000); connect(); }, t.delay);
           },

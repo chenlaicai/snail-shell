@@ -64,7 +64,7 @@ export type SopDto = {
 };
 export type SopDetailDto = SopDto;
 
-export type ResourceStatus = "success" | "failed" | "skipped";
+export type ResourceStatus = "success" | "failed" | "skipped" | "pending";
 export type ResourceResultDto = { status: ResourceStatus; error?: string };
 export type CleanupResultDto = {
   pr: ResourceResultDto;
@@ -114,7 +114,9 @@ export type IssueRealtimeMessage = {
     | { type: "message_event_appended"; stage_id: string; message_id: number; event: MessageEvent }
     | { type: "message_status_changed"; stage_id: string; message_id: number; status: MessageStatus; context: MessageContext | null; ended_at?: string | null }
     | { type: "user_called"; stage_id: string; message_id: number; role: MessageRole; role_name: string | null; client_id: string | null; status: MessageStatus; content?: string }
-    | { type: "stage_transition_suggested"; stage_id: string; suggestion: StageSuggestion };
+    | { type: "stage_transition_suggested"; stage_id: string; suggestion: StageSuggestion }
+    | { type: "stage_changed"; stage_id: string; new_stage_id: string; from_key: string; to_key: string }
+    | { type: "cleanup_completed"; issue_id: string; cleanup: CleanupResultDto };
 };
 
 export type WsHeartbeatMessage = { type: "heartbeat"; issue_id: string; ts: number };

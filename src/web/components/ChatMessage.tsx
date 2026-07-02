@@ -138,6 +138,12 @@ function ChatMessageInner({ message, onInterrupt, onRetry }: { message: MessageD
             </svg>
           </div>
         )}
+        {/* 发送中 spinner：气泡外部左侧，作为气泡的兄弟元素，避免气泡内布局跳动 */}
+        {isUser && isSending && (
+          <svg className="w-3.5 h-3.5 animate-spin text-shell-400 shrink-0 self-start" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M12 2v4m0 12v4m-8-10H2m20 0h-2m-2.93-7.07l-1.41 1.41M7.05 16.95l-1.41 1.41m0-13.41l1.41 1.41m9.9 9.9l1.41 1.41" />
+          </svg>
+        )}
 
         <div className="flex-1 min-w-0">
           <div className={`flex items-center gap-2 mb-1 px-1 ${isUser ? "justify-end" : "flex-wrap"}`}>
@@ -171,17 +177,6 @@ function ChatMessageInner({ message, onInterrupt, onRetry }: { message: MessageD
               </>
             )}
           </div>
-          {/* 发送状态指示器：独立行，避免状态变化时头部元素位移 */}
-          {isUser && isSending && (
-            <div className="flex justify-end px-1 mb-1">
-              <span className="inline-flex items-center gap-1 text-[10px] text-shell-400">
-                <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 2v4m0 12v4m-8-10H2m20 0h-2m-2.93-7.07l-1.41 1.41M7.05 16.95l-1.41 1.41m0-13.41l1.41 1.41m9.9 9.9l1.41 1.41" />
-                </svg>
-                发送中
-              </span>
-            </div>
-          )}
           {isUser && isFailed && (
             <div className="flex justify-end px-1 mb-1">
               <span className="inline-flex items-center gap-1 text-[10px] text-status-red">
