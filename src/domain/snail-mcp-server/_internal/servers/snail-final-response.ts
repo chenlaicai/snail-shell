@@ -12,6 +12,47 @@ const log = getLogger({ module: "snail-final-response" });
 export function createFinalResponseServer(messagePort: MessagePort, mcpMessageStore: McpMessageStore, stagePort: StagePort): MCPServerConfig {
   /** 已提交 final body 的 message ID 集合，用于幂等防护（进程级生命周期） */
   const submittedMessages = new Set<number>();
+
+  /** 处理 set_final_body 调用 */
+  async function handleSetFinalBody(params: Record<string, unknown>) {
+    const text = typeof params.text === "string" ? params.text : "";
+    if (!text) throw new Error("text is required");
+    const rawMessageId = params.message_id as string;
+    if (!rawMessageId) throw new Error("message_id is required");
+    const messageId = Number(rawMessageId);
+    if (!Number.isInteger(messageId) || messageId <= 0) throw new Error("message_id must be a positive integer");
+    const stageId = params.stage_id as string;
+    /** 归属校验：保留参数校验，即使重复调用也不静默吞掉错误 */
+    const message = verifyStageOwnership(messagePort, messageId, stageId);
+    /** 时效性校验：message_id 必须指向 stage 中最新的 streaming 消息 */
+    verifyMessageFreshness(messagePort, messageId, stageId);
+    /** 幂等防护：同一 message 重复调用时跳过所有写入，返回区分性响应 */
+    if (submittedMessages.has(messageId)) {
+      return { ok: true, already_submitted: true, hint: "final body already recorded for this message; your response is complete" };
+    }
+    messagePort.setContext(messageId, "mcp_final_body", text);
+    /** 自动从 text 中提取 stage_transition 信号，注入为 signal 事件 */
+    const stageTransition = extractStageTransition(text);
+    if (stageTransition) {
+      messagePort.appendEvent(messageId, {
+        type: "signal",
+        signal: "stage_transition",
+        stage_transition: stageTransition,
+      });
+    }
+    /** to_speakers 非空数组时写入 store；空数组视为"未指定"，不写入 */
+    let warning: string | null = null;
+    if (Array.isArray(params.to_speakers) && params.to_speakers.length > 0) {
+      const targets = (params.to_speakers as unknown[]).filter((t): t is string => typeof t === "string");
+      if (targets.length > 0) {
+        warning = validateToSpeakers(targets, stageId, stagePort, message?.from_speaker ?? null);
+        mcpMessageStore.setMcpRoutingTargets(messageId, targets);
+      }
+    }
+    submittedMessages.add(messageId);
+    return { ok: true, proceed: "end_turn", ...(warning ? { warning } : {}) };
+  }
+
   return {
     name: "snail-final-response",
     version: "1.0.0",
@@ -33,49 +74,11 @@ export function createFinalResponseServer(messagePort: MessagePort, mcpMessageSt
           },
           required: ["text", "message_id", "stage_id"],
         },
-        handler: async (params) => {
-          const text = typeof params.text === "string" ? params.text : "";
-          if (!text) throw new Error("text is required");
-          const rawMessageId = params.message_id as string;
-          if (!rawMessageId) throw new Error("message_id is required");
-          const messageId = Number(rawMessageId);
-          if (!Number.isInteger(messageId) || messageId <= 0) throw new Error("message_id must be a positive integer");
-          const stageId = params.stage_id as string;
-          /** 归属校验：保留参数校验，即使重复调用也不静默吞掉错误 */
-          const message = verifyStageOwnership(messagePort, messageId, stageId);
-          /** 时效性校验：message_id 必须指向 stage 中最新的 streaming 消息 */
-          verifyMessageFreshness(messagePort, messageId, stageId);
-          /** 幂等防护：同一 message 重复调用时跳过所有写入，返回区分性响应 */
-          if (submittedMessages.has(messageId)) {
-            return { ok: true, already_submitted: true, hint: "final body already recorded for this message; your response is complete" };
-          }
-          messagePort.setContext(messageId, "mcp_final_body", text);
-          /** 自动从 text 中提取 stage_transition 信号，注入为 signal 事件 */
-          const stageTransition = extractStageTransition(text);
-          if (stageTransition) {
-            messagePort.appendEvent(messageId, {
-              type: "signal",
-              signal: "stage_transition",
-              stage_transition: stageTransition,
-            });
-          }
-          /** to_speakers 非空数组时写入 store；空数组视为"未指定"，不写入 */
-          if (Array.isArray(params.to_speakers) && params.to_speakers.length > 0) {
-            const targets = (params.to_speakers as unknown[]).filter((t): t is string => typeof t === "string");
-            if (targets.length > 0) {
-              validateToSpeakers(targets, stageId, stagePort, message?.from_speaker ?? null);
-              mcpMessageStore.setMcpRoutingTargets(messageId, targets);
-            }
-          }
-          submittedMessages.add(messageId);
-          return { ok: true, proceed: "end_turn" };
-        },
+        handler: handleSetFinalBody,
       },
       {
         name: "get_current_message_id",
-        description:
-          "查询当前 stage 中正在 streaming 的消息 ID。" +
-          "在调用 set_final_body 前必须先调用此工具获取 message_id。",
+        description: "查询当前 stage 中正在 streaming 的消息 ID。在调用 set_final_body 前必须先调用此工具获取 message_id。",
         inputSchema: {
           type: "object",
           properties: {
@@ -138,16 +141,18 @@ function verifyMessageFreshness(
  * 校验 to_speakers 中的目标是否合法。
  * 合法值："user" + stage.role_instances 中排除当前发言者。
  * findStage 返回 undefined 时跳过校验（异常路径降级，下游 isValidReplyMention 兜底）。
+ *
+ * 设计阶段软提醒：当架构师在设计阶段路由给 user 时，返回警告信息（不拦截）。
  */
 function validateToSpeakers(
   targets: string[],
   stageId: string,
   stagePort: StagePort,
   currentSpeaker: string | null,
-): void {
-  if (!stageId) return;
+): string | null {
+  if (!stageId) return null;
   const stage = stagePort.findStage(stageId);
-  if (!stage) return;
+  if (!stage) return null;
   const validTargets = stage.role_instances.filter(i => i !== currentSpeaker);
   const invalid = targets.filter(t => t !== "user" && !validTargets.includes(t));
   if (invalid.length > 0) {
@@ -155,6 +160,14 @@ function validateToSpeakers(
       `Invalid to_speakers: [${invalid.join(", ")}]. Valid targets: [${validTargets.join(", ")}] or "user".`
     );
   }
+  /** 设计阶段软提醒：架构师路由给 user 时提示是否已完成交叉审视 */
+  if (stage.key === "design" && targets.includes("user")) {
+    const isArchitect = currentSpeaker && (currentSpeaker.includes("架构师") || currentSpeaker.includes("architect"));
+    if (isArchitect) {
+      return "Design阶段提醒：您的草稿方案是否已经过对方架构师审视？建议先路由给对方架构师进行对抗审视。";
+    }
+  }
+  return null;
 }
 
 /**
