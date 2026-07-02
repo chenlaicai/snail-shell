@@ -58,17 +58,20 @@ doc_kind: spec
 |------|--------|--------|------|------|
 | 窄接口定义位置 | domain/evolution/port.ts | domain/evolution/model.ts | port.ts | 函数类型属于端口契约，与 `EvolutionPort` 同层 |
 | 接口形式 | `type CreateIssueFn` | `interface CreateIssuePort` | type | 单方法函数类型，type 更简洁 |
+| 类型来源 | 内联定义（`@domain/issue/model`） | 类型提取（`@app/.../port`） | 内联定义 | 彻底消除 domain→app 依赖，保持层级单向 |
 | 注入方式 | main.ts 传 `.bind()` | main.ts 传 lambda | `.bind()` | 保持 `this` 上下文，更安全 |
 
 **设计详情**：
 
 ```typescript
 // src/domain/evolution/port.ts — 新增
+import type { CreateIssueInput, Issue, Stage } from "@domain/issue/model";
+
 /** 窄接口：仅注入 createIssue，避免 domain→app 反向依赖 */
-export type CreateIssueFn = CollaborationInput["createIssue"];
+export type CreateIssueFn = (input: CreateIssueInput) => Promise<{ issue: Issue; stage: Stage }>;
 ```
 
-> 注意：这里仍需从 `@app/issue-collaboration/port` 导入 `CollaborationInput` 用于类型提取。这是 TypeScript 的类型级引用，不会产生运行时依赖。如果需要完全消除类型级引用，可以手动复制 `createIssue` 的签名，但这会引入维护负担（签名变更时需要同步）。**选择类型提取方式**，因为：(1) 它是类型级的，不影响运行时依赖图 (2) 签名变更时 TypeScript 编译器会自动报错 (3) 避免了手动复制带来的维护风险。
+> 注意：选择**内联定义**而非从 `@app/` 类型提取，因为：(1) 彻底消除 domain→app 的类型级引用，保持层级依赖单向 (2) `CreateIssueInput`、`Issue`、`Stage` 均来自 `@domain/issue/model`，属于同层引用 (3) 签名变更时 TypeScript 编译器会自动报错（`main.ts` 的 `.bind()` 调用点会类型不匹配）。
 
 **变更范围**：
 
