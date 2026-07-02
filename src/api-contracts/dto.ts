@@ -177,3 +177,43 @@ export type PromptDto = { id: string; title: string; content: string; tags: stri
 export type SkillDto = { name: string; description: string; content: string; scope: string; dir_path: string };
 export type SnailDenTemplateDto = { key: string; name: string; agent_name: string; model: string; context_window?: number; invocation_timeout_ms?: number };
 export type McpConfigDto = { name: string; command?: string; args?: string[]; env?: Record<string, string>; url?: string; scope: string; source?: 'builtin' | 'platform' | 'workspace'; workspace_path?: string };
+
+export type ScheduledTaskDto = {
+  id: string;
+  key: string;
+  title: string;
+  sop_key: string;
+  workspace_path: string;
+  interval_days: number;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+  last_status: "pending" | "success" | "failed" | null;
+  last_issue_id: string | null;
+};
+
+export type ScheduledTaskExecutionDto = {
+  id: string;
+  task_id: string;
+  issue_id: string | null;
+  status: "pending" | "success" | "failed";
+  error: string | null;
+  executed_at: string;
+};
+
+export type CreateScheduledTaskBody = {
+  key: string;
+  title: string;
+  sop_key: string;
+  workspace_path: string;
+  interval_days: number;
+  enabled?: boolean;
+};
+
+export type UpdateScheduledTaskBody = {
+  title?: string;
+  sop_key?: string;
+  workspace_path?: string;
+  interval_days?: number;
+  enabled?: boolean;
+};

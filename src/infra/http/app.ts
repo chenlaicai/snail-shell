@@ -5,6 +5,7 @@ import { createIssueRoutes } from "@infra/http/routes/issue.route";
 import { createMetaRoutes } from "@infra/http/routes/meta.route";
 import { createKnowledgeRoutes } from "@infra/http/routes/knowledge.route";
 import { createEvolutionRoutes } from "@infra/http/routes/evolution.route";
+import { createScheduledTaskRoutes } from "@infra/http/routes/scheduled-task.route";
 import { createFrontendLogRoutes } from "@infra/http/routes/frontend-log.route";
 import { getLogger } from "@infra/logger";
 import type { WorkspaceAdapter } from "@domain/workspace/_internal/adapter";
@@ -18,6 +19,7 @@ import type { SnailPort } from "@domain/snail/port";
 import type { MCPPort } from "@domain/mcp-config/port";
 import type { KnowledgePort } from "@domain/knowledge/port";
 import type { EvolutionPort } from "@domain/evolution/port";
+import type { ScheduledTaskPort } from "@domain/scheduled-task/port";
 import type { Hono as HonoApp } from "hono";
 
 const log = getLogger({ module: "http" });
@@ -35,6 +37,7 @@ export interface AppDeps {
   mcp: MCPPort;
   knowledge: KnowledgePort;
   evolution: EvolutionPort;
+  scheduledTask: ScheduledTaskPort;
   mcpHandler?: HonoApp;
 }
 
@@ -73,6 +76,7 @@ export function createApp(deps: AppDeps) {
   app.route("/", createMetaRoutes(deps));
   app.route("/", createKnowledgeRoutes(deps));
   app.route("/", createEvolutionRoutes(deps));
+  app.route("/", createScheduledTaskRoutes(deps));
   app.route("/", createFrontendLogRoutes());
 
   if (deps.mcpHandler) {

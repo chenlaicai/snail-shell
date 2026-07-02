@@ -41,4 +41,9 @@ export type ApiEndpoints = {
   "GET /api/knowledge/items/summary": EndpointDef<never, never, never, Record<string, number>>;
   "GET /api/evolution/items": EndpointDef<never, { workspace_id?: string; issue_id?: string; query?: string; limit?: number; offset?: number }, never, Dto.EvolutionItemDto[]>;
   "GET /api/evolution/items/:itemId": EndpointDef<{ itemId: string }, never, never, Dto.EvolutionItemDto | null>;
+  "GET /api/scheduled-tasks": EndpointDef<never, never, never, Dto.ScheduledTaskDto[]>;
+  "POST /api/scheduled-tasks": EndpointDef<never, never, Dto.CreateScheduledTaskBody, Dto.ScheduledTaskDto>;
+  "PUT /api/scheduled-tasks/:id": EndpointDef<{ id: string }, never, Dto.UpdateScheduledTaskBody, Dto.ScheduledTaskDto>;
+  "DELETE /api/scheduled-tasks/:id": EndpointDef<{ id: string }, never, never, { ok: true }>;
+  "GET /api/scheduled-tasks/:id/executions": EndpointDef<{ id: string }, never, never, Dto.ScheduledTaskExecutionDto[]>;
 };

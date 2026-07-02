@@ -5,6 +5,7 @@ import { sopQueries } from "./queries/sop.queries";
 import { evolutionQueries } from "./queries/evolution.queries";
 import { knowledgeQueries } from "./queries/knowledge.queries";
 import { metaQueries } from "./queries/meta.queries";
+import { scheduledTaskQueries } from "./queries/scheduled-task.queries";
 import { recordPageLoad } from "./lib/perf-logger";
 import { AppShell } from "./layouts/AppShell";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -22,6 +23,7 @@ import { PromptCenter } from "./pages/PromptCenter";
 import { SkillCenter } from "./pages/SkillCenter";
 import { McpServers } from "./pages/McpServers";
 import { McpConfig } from "./pages/McpConfig";
+import { ScheduledTasks } from "./pages/ScheduledTasks";
 import { Lobby } from "./pages/Lobby";
 import { NotFound } from "./pages/NotFound";
 
@@ -124,6 +126,14 @@ export const router = createBrowserRouter([
         element: <SopCenter />,
         loader: timedLoader("/sops", async () => {
           await queryClient.ensureQueryData(sopQueries.list());
+          return null;
+        }),
+      },
+      {
+        path: "scheduled-tasks",
+        element: <ScheduledTasks />,
+        loader: timedLoader("/scheduled-tasks", async () => {
+          await queryClient.ensureQueryData(scheduledTaskQueries.list());
           return null;
         }),
       },

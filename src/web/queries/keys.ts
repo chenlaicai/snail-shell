@@ -65,5 +65,11 @@ export const queryKeys = {
     mcpServers: ["meta", "mcp-servers"] as const,
     snailDen: ["meta", "snail-den"] as const,
   },
+  scheduledTasks: {
+    all: ["scheduled-tasks"] as const,
+    list: ["scheduled-tasks"] as const,
+    detail: (id: string) => ["scheduled-tasks", id] as const,
+    executions: (id: string) => ["scheduled-tasks", id, "executions"] as const,
+  },
   roles: ["roles"] as const,
 };

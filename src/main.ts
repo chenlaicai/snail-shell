@@ -16,6 +16,7 @@ import { init as initKnowledge } from "@domain/knowledge/_internal/initor";
 import { init as initIssue } from "@domain/issue/_internal/initor";
 import { init as initMessage } from "@domain/message/_internal/initor";
 import { init as initEvolution } from "@domain/evolution/_internal/initor";
+import { init as initScheduledTask } from "@domain/scheduled-task/_internal/initor";
 import { init as initFeatureChain } from "@domain/feature-chain/_internal/initor";
 import { init as initGuardProfile } from "@domain/guard-profile/_internal/initor";
 import { init as initSnail } from "@domain/snail/_internal/initor";
@@ -81,10 +82,12 @@ async function initModules(repoRoot: string, serverSettings: ServerSettings) {
   const collaboration = initIssueCollaboration({ issuePort: issue.issueAdapter, createIssue: (input) => issue.issueAdapter.createIssue(input), stagePort: issue.stageAdapter, messagePort: message.adapter, snailPort: snail.adapter, liteAIPort: liteAI.adapter, mcpMessageStore, stageSuggestionRepo: issue.stageSuggestionRepo });
   const evolution = initEvolution(db, issue.issueAdapter, snail.adapter, collaboration.adapter);
   evolutionRef.current = evolution;
+  const scheduledTask = initScheduledTask(db, sop.adapter, snail.adapter, issue.issueAdapter, collaboration.adapter);
   const im = initIM({ workspacePort: workspace.adapter, issuePort: issue.issueAdapter, stagePort: issue.stageAdapter, configStore, db });
   const imHub = initIMHub({ imAdapter: im.adapter, lobbyAdapter: im.lobbyAdapter, collaboration: collaboration.adapter, stagePort: issue.stageAdapter });
   await im.adapter.startChannels();
-  return { modules: { registry, workspace, tenetPrompt, skill, sop, snailMCPServer, mcp, featureChain, snail, im, imHub, liteAI, evolution, issue, message, collaboration, knowledge, configStore }, db };
+  scheduledTask.adapter.start();
+  return { modules: { registry, workspace, tenetPrompt, skill, sop, snailMCPServer, mcp, featureChain, snail, im, imHub, liteAI, evolution, scheduledTask, issue, message, collaboration, knowledge, configStore }, db };
 }
 
 function logStartupSummary(modules: Awaited<ReturnType<typeof initModules>>["modules"]): void {
@@ -100,6 +103,7 @@ function logStartupSummary(modules: Awaited<ReturnType<typeof initModules>>["mod
   log.info({ ready: Boolean(modules.imHub.adapter) }, "IM Hub");
   log.info({ status: modules.liteAI.adapter.getConfig() ? "configured" : "not configured" }, "Lite AI");
   log.info({ status: "ready" }, "Evolution");
+  log.info({ count: modules.scheduledTask.adapter.list().length }, "Scheduled Tasks");
   log.info({ names: modules.registry.listAgentRuntimes() }, "Registered agents");
 }
 
@@ -108,6 +112,8 @@ function registerShutdownHooks(modules: Awaited<ReturnType<typeof initModules>>[
   const shutdown = () => {
     if (closed) return;
     closed = true;
+    log.info("Stopping scheduled task scheduler...");
+    modules.scheduledTask.adapter.stop();
     log.info("Closing database...");
     db.close();
   };
@@ -146,6 +152,7 @@ function startHttpServer(modules: Awaited<ReturnType<typeof initModules>>["modul
     mcp: modules.mcp.adapter,
     knowledge: modules.knowledge.adapter,
     evolution: modules.evolution.adapter,
+    scheduledTask: modules.scheduledTask.adapter,
     mcpHandler,
   });
   app.route("/im", modules.im.app);
