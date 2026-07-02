@@ -16,7 +16,8 @@ import { MessageHandler } from "@app/issue-collaboration/message-handler";
 import { CollaborationHelpers } from "@app/issue-collaboration/helpers";
 import { cleanupResources, resolveContextValue, type CleanupResult } from "@app/issue-collaboration/resource-cleanup";
 import { buildIdentityBlock } from "@app/issue-collaboration/_internal/identity-block";
-import { buildStageHistoryBlock, isStageReEntry } from "@app/issue-collaboration/_internal/stage-history-block";
+import { buildStageHistoryBlock } from "@app/issue-collaboration/_internal/stage-history-block";
+import { isStageReEntry } from "@domain/issue/_internal/stage-chain";
 import { CONTEXT_KEYS } from "@infra/acs/context-keys";
 import { getLogger } from "@infra/logger";
 const log = getLogger({ module: "collaboration" });
@@ -421,7 +422,7 @@ export class IssueCollaboration implements CollaborationInput {
   /** 阶段推进后自动向新阶段发送 kickoff 消息，触发默认 agent 开始工作 */
   private autoInvokeNewStage(stage: Stage): void {
     if (!stage.default_role_instance) return;
-    const reEntry = isStageReEntry(this.deps.stagePort, stage);
+    const reEntry = isStageReEntry(this.deps.stagePort.listStages(stage.issue_id) ?? [], stage.id);
     const text = reEntry
       ? `重新进入 [${stage.key}] 阶段。请先了解前序阶段的情况和变更，再开始工作。`
       : "开始执行。";
