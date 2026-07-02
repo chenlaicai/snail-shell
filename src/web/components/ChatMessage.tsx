@@ -2,7 +2,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { formatDateTime, formatDuration } from "@/lib/utils";
 import { RichTextRenderer } from "@/components/RichTextRenderer";
 import { showToast } from "@/components/Toast";
+import { getLogger } from "@/lib/logger";
 import type { MessageDto, MessageEvent } from "@/types";
+
+const log = getLogger("StuckDetector");
 
 /** streaming 超时阈值：超过此时间无新事件视为 stuck（ms） */
 const STUCK_THRESHOLD_MS = 90_000;
@@ -115,7 +118,7 @@ function ChatMessageInner({ message, onInterrupt, onRetry }: { message: MessageD
       const elapsed = Date.now() - lastActivity;
       if (elapsed >= STUCK_THRESHOLD_MS) {
         setIsStuck(true);
-        console.warn(`[StuckDetector] message #${message.id} stuck in streaming for ${Math.round(elapsed / 1000)}s`, {
+        log.warn(`message #${message.id} stuck in streaming for ${Math.round(elapsed / 1000)}s`, {
           messageId: message.id, status: message.status, eventCount: message.events.length,
           lastEventAt: message._lastEventAt, createdAt: message.created_at,
         });

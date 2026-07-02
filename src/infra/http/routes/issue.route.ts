@@ -99,8 +99,14 @@ export function createIssueRoutes(deps: IssueRoutesDeps) {
   });
 
   app.post("/api/stages/:stageId/advance", zValidator("json", advanceStageBody), async (c) => {
+    const stageId = c.req.param("stageId");
     const body = c.req.valid("json");
-    const stage = await deps.collaboration.advanceStage(c.req.param("stageId"), body.target_key);
+    /** L2: 手动推进前引擎评估，blocked 时拒绝推进 */
+    const evaluation = await deps.collaboration.evaluateAdvance(stageId);
+    if (evaluation.action === "blocked") {
+      return c.json({ error: "Advance blocked by engine", evaluation }, 409);
+    }
+    const stage = await deps.collaboration.advanceStage(stageId, body.target_key);
     return c.json(toStageDto(deps, stage), 201);
   });
 
