@@ -18,6 +18,20 @@ export class AutoAdvanceEngine {
   constructor(private readonly deps: AutoAdvanceDeps) {}
 
   async evaluate(stage: Stage, suggestions: StageTransitionSuggestion[]): Promise<EvaluationResult> {
+    const result = await this.evaluateAdvance(stage, suggestions);
+    if (result.action === "auto_advanced" && result.target_key) {
+      const suggestion = suggestions.find(s => s.target_key === result.target_key);
+      if (suggestion) await this.executeAutoAdvance(stage, suggestion);
+    }
+    return result;
+  }
+
+  /**
+   * L2: 仅评估，不执行自动推进。用于手动推进前的门控检查。
+   * 与 evaluate() 共享全部校验逻辑（信号过滤、R1-R8、gate 检查），
+   * 但不调用 executeAutoAdvance。
+   */
+  async evaluateAdvance(stage: Stage, suggestions: StageTransitionSuggestion[]): Promise<EvaluationResult> {
     if (suggestions.length === 0) {
       return { action: "blocked", reasons: [{ code: "NO_SIGNALS", severity: "info", message: "无信号" }] };
     }
@@ -43,7 +57,6 @@ export class AutoAdvanceEngine {
     // 无 auto_advance 配置 → 不参与自动推进，升级到人工
     const config = this.getAutoAdvanceConfig(stage);
     if (!config) {
-      await this.deps.notifyConsumers(stage.id, "onManualAdvanceRequired", { suggestions });
       return { action: "escalated", reasons: [{ code: "NO_AUTO_ADVANCE_CONFIG", severity: "info", message: "该阶段未配置自动推进" }] };
     }
 
@@ -129,7 +142,6 @@ export class AutoAdvanceEngine {
     if (failedGates.length > 0) {
       return { action: "blocked", reasons: [{ code: "GATE_FAILED", severity: "error", message: `Gate 自检未通过：${failedGates.join(", ")}`, details: { failed_gates: failedGates } }] };
     }
-    await this.executeAutoAdvance(stage, latest);
     return { action: "auto_advanced", target_key: latest.target_key, reasons: [{ code: "AUTO_ADVANCED", severity: "info", message: "自动推进成功" }] };
   }
 
@@ -160,7 +172,6 @@ export class AutoAdvanceEngine {
     }
 
     const latest = consensusSignals[consensusSignals.length - 1];
-    await this.executeAutoAdvance(stage, latest);
     const reasons: EvaluationReason[] = [{ code: "AUTO_ADVANCED", severity: "info", message: "自动推进成功" }];
     if (r6Warning) {
       reasons.push({ code: "R6_SIMILARITY_DETECTED", severity: "warning", message: "两位 agent 的独立验证输出高度相似（>80%），可能存在抄袭" });
