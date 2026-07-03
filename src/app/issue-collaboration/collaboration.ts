@@ -15,6 +15,7 @@ import { MessageHandler } from "@app/issue-collaboration/message-handler";
 import { CollaborationHelpers } from "@app/issue-collaboration/helpers";
 import { cleanupResources, resolveContextValue, type CleanupResult } from "@app/issue-collaboration/resource-cleanup";
 import { buildIdentityBlock } from "@app/issue-collaboration/_internal/identity-block";
+import { buildContextBlock as buildContextBlockTemplate } from "@app/issue-collaboration/_internal/context-block";
 import { CONTEXT_KEYS } from "@infra/acs/context-keys";
 import { getLogger } from "@infra/logger";
 const log = getLogger({ module: "collaboration" });
@@ -563,8 +564,7 @@ export class IssueCollaboration implements CollaborationInput {
     const fallback = status === "interrupted" ? `用户中断了本次回复${r}` : status === "failed" ? `任务执行失败${r}` : "（无文本输出）";
     return { message_id: messageId, kind: "event_summary", context: fallback, created_at: new Date().toISOString() };
   }
-  private buildSystemReminder(input: { issue: Issue; stage: Stage; roleInstance: string; roleKey: string; snailKey: string }): string {
-    const { issue, stage, roleInstance, roleKey, snailKey } = input;
+  private buildSystemReminder({ issue, stage, roleInstance, roleKey, snailKey }: { issue: Issue; stage: Stage; roleInstance: string; roleKey: string; snailKey: string }): string {
     const stageDef = issue.sop_snapshot.stage_definitions.find(d => d.key === stage.key);
     const roleDef = stageDef?.roles.find(r => r.key === roleKey);
     return [buildIdentityBlock(roleDef?.name ?? roleInstance, roleInstance, roleDef, this.deps.snailPort.findByKey(snailKey)), this.buildContextBlock(issue, stage, roleDef, roleInstance)].join("\n\n");
@@ -577,9 +577,7 @@ export class IssueCollaboration implements CollaborationInput {
     const ctxLines = Object.entries(issue.context).map(([k, v]) => `- **${k}**: ${v}`).join("\n") || "无";
     const issueContext = missingInfra.length > 0 ? `${ctxLines}\n> ⚠️ 以下基础设施字段未记录：${missingInfra.join(", ")}` : ctxLines;
     const targets = ["user", ...stage.role_instances.filter(i => i !== roleInstance)].map(t => `\`${t}\``).join("、");
-    const rules = ["- 你可以通过 @角色实例 请求其他角色回应", "- 你是当前阶段的守门人，不是推进者。建议 stage_transition 前，必须先完成所在 SKILL.md 中的 Stage Gate 自检并呈现完整证据。", "- 通过信号表达阶段工作结果：signal_type: gate_complete（单人完成）、adversarial_consensus（多人共识）、disagreement（分歧）"].join("\n");
-    const finalRules = [`**必须使用 \`set_final_body\` MCP 设置最终答复**。每次发言结束前必须调用此工具，传入你希望展示给用户的完整 Markdown 内容。调用后本轮发言结束，不得再调用任何其他工具。`, `**路由目标声明**：如果需要其他角色继续处理，必须在 \`set_final_body\` 的 \`to_speakers\` 参数中声明目标角色。`, `**可用路由目标**：${targets}`, `**格式要求**：必须使用上述精确名称。不要使用 snail key、role key 或英文翻译。`, `**必选参数**：调用 \`set_final_body\` 前必须先调用 \`get_current_message_id\` 获取 \`message_id\`；\`stage_id\` 从环境变量 \`SNAIL_CTX_STAGE_ID\` 获取。`].join("\n");
-    return `<context>\n## 项目上下文\n**Issue**：${issue.title}\n**Issue ID**：${issue.id} | **工作区**：${issue.workspace_path}\n**Issue 摘要**：${issue.summary ?? "无"}\n## Issue 上下文（只读视图）\n${issueContext}\n> **注意**：这是只读视图。Agent 应使用 MCP 工具 \`set_context\` 和 \`get_context\` 读写 Issue 上下文。Issue 上下文也会通过环境变量 \`SNAIL_CTX_*\` 注入，可通过 \`process.env\` 读取。\n## 当前阶段\n**阶段**：${stage.title} (${stage.key}) — ${stage.description}\n## 可用 Skills\n${skillList}\n使用 skill tool 触发对应的 skill，获取详细工作流程和规则。\n## 可用流转\n${transitions || "无"}\n## 协作规则\n${rules}\n## 最终答复规则\n${finalRules}\n</context>`;
+    return buildContextBlockTemplate({ issueTitle: issue.title, issueId: issue.id, workspacePath: issue.workspace_path, issueSummary: issue.summary ?? "无", issueContext, stageTitle: stage.title, stageKey: stage.key, stageDescription: stage.description, skillList, transitions, targets });
   }
   private async notifyConsumers(stageId: string, method: keyof CollaborationConsumer, ...args: unknown[]): Promise<void> {
     const stage = this.helpers.mustGetStage(stageId);
