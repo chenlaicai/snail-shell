@@ -5,6 +5,7 @@ import { loadServerSettings, type ServerSettings } from "@infra/server-config";
 import { SQLiteDatabase } from "@infra/database";
 import { createApp } from "@infra/http/app";
 import { getLogger } from "@infra/logger";
+import blocked from "blocked-at";
 import { init as initAcs } from "@infra/acs/_internal/initor";
 import { init as initWorkspace } from "@domain/workspace/_internal/initor";
 import { init as initTenetPrompt } from "@domain/tenet-prompt/_internal/initor";
@@ -123,18 +124,30 @@ function registerShutdownHooks(modules: Awaited<ReturnType<typeof initModules>>[
   process.on("SIGTERM", () => { shutdown(); process.exit(0); });
 }
 
-/** 事件循环延迟监控：每 10s 检测一次，超过 200ms 告警 */
+/**
+ * 事件循环阻塞监控：使用 blocked-at 自动捕获阻塞源调用栈。
+ * 默认启用，通过 BLOCKED_AT_ENABLED=false 显式关闭。
+ * 超过 5 秒的阻塞记录完整调用栈（截断到前 20 帧）。
+ */
 function startEventLoopMonitor(): void {
-  let lastCheck = process.hrtime.bigint();
-  setInterval(() => {
-    const now = process.hrtime.bigint();
-    const elapsedMs = Number(now - lastCheck) / 1e6;
-    const delayMs = Math.max(0, elapsedMs - 10_000);
-    lastCheck = now;
-    if (delayMs > 200) {
-      log.warn({ delayMs: Math.round(delayMs) }, "event_loop.blocked");
+  if (process.env.BLOCKED_AT_ENABLED === "false") {
+    log.info("event_loop.blocked_at disabled by BLOCKED_AT_ENABLED=false");
+    return;
+  }
+
+  const MAX_STACK_FRAMES = 20;
+  const cleanup = blocked((time, stack) => {
+    if (time > 5_000) {
+      /** 截断调用栈到前 MAX_STACK_FRAMES 帧，避免日志过大 */
+      const truncatedStack = stack
+        .split("\n")
+        .slice(0, MAX_STACK_FRAMES)
+        .join("\n");
+      log.warn({ delayMs: Math.round(time), stack: truncatedStack }, "event_loop.blocked_at");
     }
-  }, 10_000).unref();
+  }, { threshold: 200 });
+
+  process.on("exit", () => cleanup());
 }
 
 function startHttpServer(modules: Awaited<ReturnType<typeof initModules>>["modules"], serverSettings: ServerSettings): void {
