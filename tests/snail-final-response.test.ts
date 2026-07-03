@@ -14,17 +14,16 @@ function createMockStagePort(overrides: Partial<StagePort> = {}): StagePort {
     previewStage: () => ({ key: "", title: "", description: "", available_transitions: [], role_instances: [] }),
     getStageSnailAssignmentPlan: () => ({}),
     transaction: (fn) => fn(),
-    createStage: () => ({ id: "", workspace_path: "", issue_id: "", key: "", title: "", description: "", default_role_instance: "", role_instances: [], from_stage_id: null, available_transitions: [], output_artifacts: {}, entered_at: "", left_at: null, status: "active" }),
+    createStage: () => ({ id: "", workspace_path: "", issue_id: "", key: "", title: "", description: "", default_role_instance: "", role_instances: [], from_stage_id: null, available_transitions: [], output_artifacts: {}, entered_at: "", left_at: null }),
     addOutputArtifacts: () => {},
-    advanceStage: () => ({ id: "", workspace_path: "", issue_id: "", key: "", title: "", description: "", default_role_instance: "", role_instances: [], from_stage_id: null, available_transitions: [], output_artifacts: {}, entered_at: "", left_at: null, status: "active" }),
-    rollbackStage: () => ({ id: "", workspace_path: "", issue_id: "", key: "", title: "", description: "", default_role_instance: "", role_instances: [], from_stage_id: null, available_transitions: [], output_artifacts: {}, entered_at: "", left_at: null, status: "active" }),
+    advanceStage: () => ({ id: "", workspace_path: "", issue_id: "", key: "", title: "", description: "", default_role_instance: "", role_instances: [], from_stage_id: null, available_transitions: [], output_artifacts: {}, entered_at: "", left_at: null }),
+    rollbackStage: () => ({ id: "", workspace_path: "", issue_id: "", key: "", title: "", description: "", default_role_instance: "", role_instances: [], from_stage_id: null, available_transitions: [], output_artifacts: {}, entered_at: "", left_at: null }),
     recordAudit: () => {},
     getAuditTrail: () => [],
     switchSnail: () => {},
     setSnailInstanceId: () => {},
     getRoleSnailAssignments: () => [],
     getRoleSnailAssignment: () => null,
-    transferStage: () => ({ id: "", workspace_path: "", issue_id: "", key: "", title: "", description: "", default_role_instance: "", role_instances: [], from_stage_id: null, available_transitions: [], output_artifacts: {}, entered_at: "", left_at: null, status: "active" }),
     ...overrides,
   };
 }
@@ -176,7 +175,6 @@ describe("set_final_body to_speakers validation", () => {
         output_artifacts: {},
         entered_at: "",
         left_at: null,
-        status: "active",
       }),
     });
   }

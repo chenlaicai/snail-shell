@@ -39,9 +39,6 @@ export interface CreateIssueInput {
 
 // ── Stage ─────────────────────────────────────────────────────────────
 
-/** Stage 生命周期状态 */
-export type StageStatus = "active" | "rolled_back";
-
 /** 从 SOP Transition 筛选出的当前 Stage 可用转换 */
 export interface StageTransition {
   to: string;
@@ -82,9 +79,6 @@ export interface Stage {
 
   /** 离开时间（推进到下一个 Stage 时设置） */
   left_at: string | null;
-
-  /** 生命周期状态：active=活跃, rolled_back=被反向转移标记 */
-  status: StageStatus;
 }
 
 export interface CreateStageInput {

@@ -7,7 +7,7 @@ import { getLogger } from "@infra/logger";
 const log = getLogger({ module: "auto-advance" });
 
 export interface AutoAdvanceDeps {
-  transferStage(stageId: string, targetKey: string): Promise<Stage>;
+  advanceStage(stageId: string, targetKey: string): Promise<Stage>;
   recordAuditTrail(fromStage: Stage, toStage: Stage, suggestion: StageTransitionSuggestion): Promise<void>;
   notifyConsumers(stageId: string, method: string, ...args: unknown[]): Promise<void>;
   generateDisagreementCard(stageId: string, suggestion: StageTransitionSuggestion): Promise<void>;
@@ -166,17 +166,12 @@ export class AutoAdvanceEngine {
     const speakerValidation = this.validateAllSpeakers(stage, config, latestBySpeaker);
     if (speakerValidation.result) return speakerValidation.result;
 
-    // target_key 一致性检查：所有 speaker 的 target_key 必须一致
-    const targetKeyCheck = this.checkTargetKeyConsistency(latestBySpeaker);
-    if (targetKeyCheck) return targetKeyCheck;
-
     const r6Warning = this.checkR6Similarity(latestBySpeaker);
     if (r6Warning) {
       log.warn({ stageId: stage.id }, "R6: cross-speaker verification outputs are suspiciously similar (>80%)");
     }
 
-    // 使用一致的 target_key（所有 speaker 相同）
-    const consensusTargetKey = [...latestBySpeaker.values()][0].target_key;
+    const latest = consensusSignals[consensusSignals.length - 1];
     const reasons: EvaluationReason[] = [{ code: "AUTO_ADVANCED", severity: "info", message: "自动推进成功" }];
     if (r6Warning) {
       reasons.push({ code: "R6_SIMILARITY_DETECTED", severity: "warning", message: "两位 agent 的独立验证输出高度相似（>80%），可能存在抄袭" });
@@ -184,22 +179,7 @@ export class AutoAdvanceEngine {
     for (const speaker of speakerValidation.r7Warnings) {
       reasons.push({ code: "R7_ALL_CLEAR_WARNING", severity: "warning", message: `${speaker} 的 adversarial_findings 全部为"无问题"` });
     }
-    return { action: "auto_advanced", target_key: consensusTargetKey, reasons };
-  }
-
-  /** 检查所有 speaker 的 target_key 是否一致。不一致时返回 escalation 结果，一致时返回 null */
-  private checkTargetKeyConsistency(latestBySpeaker: Map<string, StageTransitionSuggestion>): EvaluationResult | null {
-    const targetKeys = new Set([...latestBySpeaker.values()].map(s => s.target_key));
-    if (targetKeys.size <= 1) return null;
-    return {
-      action: "escalated",
-      reasons: [{
-        code: "TARGET_KEY_MISMATCH",
-        severity: "warning",
-        message: `各 speaker 的 target_key 不一致，需人工决策`,
-        details: { target_keys: Object.fromEntries([...latestBySpeaker.entries()].map(([k, v]) => [k, v.target_key])) },
-      }],
-    };
+    return { action: "auto_advanced", target_key: latest.target_key, reasons };
   }
 
   private getLatestBySpeaker(consensusSignals: StageTransitionSuggestion[], uniqueSpeakers: Set<string>): Map<string, StageTransitionSuggestion> {
@@ -270,7 +250,7 @@ export class AutoAdvanceEngine {
 
   private async executeAutoAdvance(stage: Stage, suggestion: StageTransitionSuggestion): Promise<void> {
     const targetKey = suggestion.target_key;
-    const newStage = await this.deps.transferStage(stage.id, targetKey);
+    const newStage = await this.deps.advanceStage(stage.id, targetKey);
     await this.deps.recordAuditTrail(stage, newStage, suggestion);
     // 使用新 stage.id 通知——确保 board 在新阶段的 agent 调用前正确反映状态
     await this.deps.notifyConsumers(newStage.id, "onAutoAdvanced", {

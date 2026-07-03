@@ -40,7 +40,7 @@ function createMockStagePort(overrides: Partial<StagePort> = {}): StagePort {
     previewStage: vi.fn(), getStageSnailAssignmentPlan: vi.fn(), transaction: vi.fn((fn) => fn()), createStage: vi.fn(),
     addOutputArtifacts: vi.fn(), advanceStage: vi.fn(), rollbackStage: vi.fn(), recordAudit: vi.fn(), getAuditTrail: vi.fn(),
     switchSnail: vi.fn(), setSnailInstanceId: vi.fn(), getRoleSnailAssignments: vi.fn(), getRoleSnailAssignment: vi.fn(),
-    transferStage: vi.fn(), ...overrides,
+    ...overrides,
   };
 }
 
@@ -55,7 +55,7 @@ function createStage(overrides: Partial<Stage> = {}): Stage {
     id: "review-stage", workspace_path: "/workspace", issue_id: "issue-1", key: "review", title: "Review",
     description: "Review stage", default_role_instance: "reviewer-1", role_instances: ["reviewer-1", "reviewer-2"],
     from_stage_id: "dev-stage", available_transitions: [{ to: "merge", guard: null }, { to: "development", guard: null }],
-    output_artifacts: {}, entered_at: "2026-07-02T12:00:00Z", left_at: null, status: "active", ...overrides,
+    output_artifacts: {}, entered_at: "2026-07-02T12:00:00Z", left_at: null, ...overrides,
   };
 }
 
@@ -64,7 +64,7 @@ function createDevStage(): Stage {
     id: "dev-stage", workspace_path: "/workspace", issue_id: "issue-1", key: "development", title: "Development",
     description: "Development stage", default_role_instance: "developer", role_instances: ["developer"],
     from_stage_id: null, available_transitions: [{ to: "review", guard: null }],
-    output_artifacts: {}, entered_at: "2026-07-02T10:00:00Z", left_at: null, status: "active",
+    output_artifacts: {}, entered_at: "2026-07-02T10:00:00Z", left_at: null,
   };
 }
 
@@ -77,36 +77,28 @@ function createOpenIssue(): Issue {
   };
 }
 
-function createBackwardCollaboration(opts: { reviewStage?: Stage; devStage?: Stage } = {}) {
-  const reviewStage = opts.reviewStage ?? createStage();
-  const devStage = opts.devStage ?? createDevStage();
-  const stageSuggestionRepo = createMockStageSuggestionRepo();
-
-  const collab = new IssueCollaboration({
-    issuePort: createMockIssuePort({ findIssue: vi.fn().mockReturnValue(createOpenIssue()) }),
-    createIssue: vi.fn(),
-    stagePort: createMockStagePort({
-      findStage: vi.fn().mockReturnValue(reviewStage),
-      listStages: vi.fn().mockReturnValue([devStage, reviewStage]),
-    }),
-    messagePort: createMockMessagePort(),
-    snailPort: createMockSnailPort(),
-    liteAIPort: createMockLiteAIPort(),
-    mcpMessageStore: createMockMcpMessageStore(),
-    stageSuggestionRepo,
-  });
-
-  return { collab, reviewStage, devStage, stageSuggestionRepo };
-}
-
 describe("detectStageTransition → backward signal stores suggestion", () => {
   it("stores backward signal suggestion with correct target_key and reason", async () => {
     const events: MessageEvent[] = [];
-    const { collab, reviewStage } = createBackwardCollaboration();
+    const reviewStage = createStage();
+    const devStage = createDevStage();
+    const stageSuggestionRepo = createMockStageSuggestionRepo();
 
-    collab["deps"].messagePort = createMockMessagePort({
-      getMessageEvents: () => events,
-      findLatestMessage: () => ({ id: 100, stage_id: "review-stage", from_speaker: "reviewer-1", to_speakers: [], status: "completed" as const, created_at: "", ended_at: null }),
+    const collab = new IssueCollaboration({
+      issuePort: createMockIssuePort({ findIssue: vi.fn().mockReturnValue(createOpenIssue()) }),
+      createIssue: vi.fn(),
+      stagePort: createMockStagePort({
+        findStage: vi.fn().mockReturnValue(reviewStage),
+        listStages: vi.fn().mockReturnValue([devStage, reviewStage]),
+      }),
+      messagePort: createMockMessagePort({
+        getMessageEvents: () => events,
+        findLatestMessage: () => ({ id: 100, stage_id: "review-stage", from_speaker: "reviewer-1", to_speakers: [], status: "completed" as const, created_at: "", ended_at: null }),
+      }),
+      snailPort: createMockSnailPort(),
+      liteAIPort: createMockLiteAIPort(),
+      mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo,
     });
 
     events.push({
@@ -128,44 +120,42 @@ describe("detectStageTransition → backward signal stores suggestion", () => {
   });
 });
 
-describe("checkDirectionConflict", () => {
-  it("detects conflict when backward signal coexists with forward signal", async () => {
-    const events: MessageEvent[] = [];
-    const { collab, reviewStage } = createBackwardCollaboration();
-
-    collab["deps"].messagePort = createMockMessagePort({
-      getMessageEvents: () => events,
+describe("isBackwardTarget", () => {
+  it("returns true when target key exists in stage history without left_at", () => {
+    const reviewStage = createStage();
+    const devStage = createDevStage();
+    const collab = new IssueCollaboration({
+      issuePort: createMockIssuePort({ findIssue: vi.fn().mockReturnValue(createOpenIssue()) }),
+      createIssue: vi.fn(),
+      stagePort: createMockStagePort({
+        listStages: vi.fn().mockReturnValue([devStage, reviewStage]),
+      }),
+      messagePort: createMockMessagePort(),
+      snailPort: createMockSnailPort(),
+      liteAIPort: createMockLiteAIPort(),
+      mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
     });
 
-    // First: forward signal (review → merge)
-    events.push({
-      id: 1, message_id: 100, seq: 1,
-      payload: { type: "signal", signal: "stage_transition", stage_transition: {
-        target_key: "merge", signal_type: "adversarial_consensus", reason: "Review passed",
-      }},
-      created_at: "",
-    });
-    await collab["detectStageTransition"](reviewStage, "reviewer-1", 100);
+    expect(collab["isBackwardTarget"]("issue-1", "development")).toBe(true);
+  });
 
-    // Second: backward signal (review → development)
-    const events2: MessageEvent[] = [{
-      id: 2, message_id: 101, seq: 1,
-      payload: { type: "signal", signal: "stage_transition", stage_transition: {
-        target_key: "development", signal_type: "gate_complete", reason: "Found critical bugs",
-      }},
-      created_at: "",
-    }];
-    collab["deps"].messagePort = createMockMessagePort({
-      getMessageEvents: (messageId: number) => messageId === 101 ? events2 : events,
+  it("returns false when target key does not exist in stage history", () => {
+    const reviewStage = createStage();
+    const collab = new IssueCollaboration({
+      issuePort: createMockIssuePort({ findIssue: vi.fn().mockReturnValue(createOpenIssue()) }),
+      createIssue: vi.fn(),
+      stagePort: createMockStagePort({
+        listStages: vi.fn().mockReturnValue([reviewStage]),
+      }),
+      messagePort: createMockMessagePort(),
+      snailPort: createMockSnailPort(),
+      liteAIPort: createMockLiteAIPort(),
+      mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
     });
 
-    await collab["detectStageTransition"](reviewStage, "reviewer-2", 101);
-
-    const suggestions = collab["suggestions"].get("review-stage");
-    expect(suggestions!.length).toBeGreaterThanOrEqual(2);
-    const disagreement = suggestions!.find(s => s.signal_type === "disagreement");
-    expect(disagreement).toBeDefined();
-    expect(disagreement!.positions).toHaveLength(2);
+    expect(collab["isBackwardTarget"]("issue-1", "development")).toBe(false);
   });
 });
 
@@ -178,7 +168,7 @@ describe("autoInvokeBackwardStage preserves reason and evidence", () => {
     setContextSpy = vi.fn();
   });
 
-  function createTransferCollaboration() {
+  it("kickoff message contains correct reason and evidence after backward transfer", async () => {
     const reviewStage = createStage();
     const devStage = createDevStage();
     const messageStore = new Map<number, any>();
@@ -200,7 +190,7 @@ describe("autoInvokeBackwardStage preserves reason and evidence", () => {
       stagePort: createMockStagePort({
         findStage: vi.fn().mockReturnValue(reviewStage),
         listStages: vi.fn().mockReturnValue([devStage, reviewStage]),
-        transferStage: vi.fn().mockReturnValue(devStage),
+        advanceStage: vi.fn().mockReturnValue(devStage),
         getRoleSnailAssignment: vi.fn().mockReturnValue({ snail_key: "test-snail", snail_instance_id: "test-instance", role_key: "developer" }),
       }),
       messagePort,
@@ -209,11 +199,6 @@ describe("autoInvokeBackwardStage preserves reason and evidence", () => {
       mcpMessageStore: createMockMcpMessageStore(),
       stageSuggestionRepo: createMockStageSuggestionRepo(),
     });
-    return { collab, reviewStage, devStage };
-  }
-
-  it("kickoff message contains correct reason and evidence after backward transfer", async () => {
-    const { collab } = createTransferCollaboration();
 
     // Pre-populate suggestions with a backward signal
     collab["suggestions"].set("review-stage", [{
@@ -223,7 +208,7 @@ describe("autoInvokeBackwardStage preserves reason and evidence", () => {
       gate_evidence: { "rev-01": "SQL injection in login endpoint", "rev-02": "XSS in user profile" },
     }]);
 
-    await collab.transferStage("review-stage", "development");
+    await collab.advanceStage("review-stage", "development");
     await new Promise(resolve => setTimeout(resolve, 10));
 
     expect(createMessageSpy).toHaveBeenCalled();
@@ -239,9 +224,38 @@ describe("autoInvokeBackwardStage preserves reason and evidence", () => {
   });
 
   it("kickoff uses defaults when no suggestions exist for backward transfer", async () => {
-    const { collab } = createTransferCollaboration();
+    const reviewStage = createStage();
+    const devStage = createDevStage();
+    const messageStore = new Map<number, any>();
+    messageStore.set(1, { id: 1, stage_id: "review-stage", from_speaker: "user", to_speakers: [], status: "completed", created_at: "", ended_at: null });
 
-    await collab.transferStage("review-stage", "development");
+    const messagePort = createMockMessagePort({
+      createMessage: createMessageSpy as unknown as MessagePort["createMessage"],
+      setContext: setContextSpy as unknown as MessagePort["setContext"],
+      appendEvent: vi.fn().mockReturnValue({ id: 1, message_id: 1, seq: 1, payload: { type: "text", text: "" }, created_at: "" }),
+      completeMessage: vi.fn(),
+      getMessage: (id) => messageStore.get(id),
+      updateMessageTargets: vi.fn((id: number, toSpeakers: string[]) => { const msg = messageStore.get(id); if (msg) msg.to_speakers = toSpeakers; }),
+      getUnreadMessages: () => { const unread = []; for (const msg of messageStore.values()) { if (msg.from_speaker === "user" && msg.status === "completed") unread.push(msg); } return unread; },
+    });
+
+    const collab = new IssueCollaboration({
+      issuePort: createMockIssuePort({ findIssue: vi.fn().mockReturnValue(createOpenIssue()) }),
+      createIssue: vi.fn(),
+      stagePort: createMockStagePort({
+        findStage: vi.fn().mockReturnValue(reviewStage),
+        listStages: vi.fn().mockReturnValue([devStage, reviewStage]),
+        advanceStage: vi.fn().mockReturnValue(devStage),
+        getRoleSnailAssignment: vi.fn().mockReturnValue({ snail_key: "test-snail", snail_instance_id: "test-instance", role_key: "developer" }),
+      }),
+      messagePort,
+      snailPort: { ...createMockSnailPort(), invokeResume: vi.fn().mockResolvedValue({ snail_instance_id: "test-instance" }) },
+      liteAIPort: createMockLiteAIPort(),
+      mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
+    });
+
+    await collab.advanceStage("review-stage", "development");
     await new Promise(resolve => setTimeout(resolve, 10));
 
     expect(createMessageSpy).toHaveBeenCalled();

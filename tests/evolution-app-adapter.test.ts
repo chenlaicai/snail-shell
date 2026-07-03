@@ -38,7 +38,6 @@ function createMockCollaborationInput(overrides: Partial<CollaborationInput> = {
     resumeRoute: vi.fn(),
     restoreSuggestions: vi.fn(),
     evaluateAdvance: vi.fn(),
-    transferStage: vi.fn(),
     ...overrides,
   };
 }

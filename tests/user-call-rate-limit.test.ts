@@ -36,7 +36,7 @@ function createMockStagePort(overrides: Partial<StagePort> = {}): StagePort {
     findStage: vi.fn().mockReturnValue({
       id: "s1", workspace_path: "/ws", issue_id: "i1", key: "development", title: "Dev", description: "",
       default_role_instance: "dev", role_instances: ["dev"], from_stage_id: null,
-      available_transitions: [{ to: "review", guard: null }], output_artifacts: {}, entered_at: "", left_at: null, status: "active",
+      available_transitions: [{ to: "review", guard: null }], output_artifacts: {}, entered_at: "", left_at: null,
     }),
     listStages: vi.fn().mockReturnValue([]),
     listOpenStageIds: vi.fn().mockReturnValue([]),
@@ -54,7 +54,6 @@ function createMockStagePort(overrides: Partial<StagePort> = {}): StagePort {
     setSnailInstanceId: vi.fn(),
     getRoleSnailAssignments: vi.fn().mockReturnValue([]),
     getRoleSnailAssignment: vi.fn().mockReturnValue({ snail_key: "test-snail", snail_instance_id: "inst-1", role_key: "developer" }),
-    transferStage: vi.fn(),
     ...overrides,
   };
 }
