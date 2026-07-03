@@ -10,7 +10,7 @@ import { getLogger } from "@infra/logger";
 import type { WorkspacePort } from "@domain/workspace/port";
 import type { IssuePort, StagePort } from "@domain/issue/port";
 import type { MessagePort } from "@domain/message/port";
-import type { CollaborationInput } from "@app/issue-collaboration/port";
+import type { CollaborationPort } from "@domain/collaboration/port";
 import type { TenetPromptPort } from "@domain/tenet-prompt/port";
 import type { SkillPort } from "@domain/skill/port";
 import type { SopPort } from "@domain/sop/port";
@@ -27,7 +27,7 @@ export interface AppDeps {
   issuePort: IssuePort;
   stagePort: StagePort;
   messagePort: MessagePort;
-  collaboration: CollaborationInput;
+  collaboration: CollaborationPort;
   tenetPrompt: TenetPromptPort;
   skill: SkillPort;
   sop: SopPort;

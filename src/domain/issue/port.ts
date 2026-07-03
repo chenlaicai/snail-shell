@@ -1,6 +1,8 @@
 import type { Issue, Stage, CreateStageInput, RoleSnailAssignment, StagePreview, IssueSnailAssignmentPlan, StageSnailAssignmentPlan, CloseSummary } from "@domain/issue/model";
 import type { Sop } from "@domain/sop/model";
 
+export { buildStageChain, MAX_CHAIN_DEPTH } from "@domain/issue/_internal/stage-chain";
+
 export interface StageAuditRecord {
   stage_id: string;
   from_key: string;
