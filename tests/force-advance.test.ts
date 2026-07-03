@@ -32,6 +32,7 @@ function createMockMessagePort(overrides: Partial<MessagePort> = {}): MessagePor
     initCursor: () => {},
     findLatestRespondingSpeaker: () => null,
     findLatestMessage: () => undefined,
+    findLatestMessageBySpeaker: () => undefined,
     ...overrides,
   };
 }
