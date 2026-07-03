@@ -1,10 +1,10 @@
 ---
-id: F20260702ux98
+id: F20260703jh7v
 title: stage-transition-direction-consensus
 tags: [issue-collaboration, stage, transfer, intake, incompatible]
 ---
 
-# F20260702ux98 — Stage Transition 方向共识机制
+# F20260703jh7v — Stage Transition 方向共识机制
 
 ## 元信息
 
