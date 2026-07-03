@@ -2,7 +2,7 @@ import type { MCPServerConfig, MCPTool } from "@domain/snail-mcp-server/model";
 import type { StagePort } from "@domain/issue/port";
 import type { MessagePort } from "@domain/message/port";
 import type { Message, MessageContext } from "@domain/message/model";
-import { buildStageChain } from "@domain/issue/_internal/stage-chain";
+import { buildStageChain } from "@domain/issue/port";
 
 /**
  * snail-message-history MCP Server。

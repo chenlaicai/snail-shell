@@ -3,11 +3,11 @@ import { upgradeWebSocket } from "@hono/node-server";
 import { WebSocketServer } from "ws";
 import { getLogger } from "@infra/logger";
 import type {
-  CollaborationInput,
+  CollaborationPort,
   CollaborationConsumer,
   WorkspaceConsumer,
   StageTransitionSuggestion,
-} from "@app/issue-collaboration/port";
+} from "@domain/collaboration/port";
 import type { Message } from "@domain/message/model";
 import { decodeWorkspaceId } from "@infra/http/workspace-id";
 
@@ -31,7 +31,7 @@ interface RouteInfo {
 }
 
 /** 统一 WebSocket bridge，单个 WSS 处理 /issue-events 和 /workspace-events 两个路由 */
-export function createUnifiedWebSocketBridge(collaboration: CollaborationInput): UnifiedWebSocketBridge {
+export function createUnifiedWebSocketBridge(collaboration: CollaborationPort): UnifiedWebSocketBridge {
   const wss = new WebSocketServer({ noServer: true });
 
   return {
@@ -60,7 +60,7 @@ function parseRoute(url: string): RouteInfo {
   };
 }
 
-function createRouteHandler(routeInfo: RouteInfo, collaboration: CollaborationInput) {
+function createRouteHandler(routeInfo: RouteInfo, collaboration: CollaborationPort) {
   let issueConsumer: CollaborationConsumer | null = null;
   let workspaceConsumer: WorkspaceConsumer | null = null;
   let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
@@ -102,7 +102,7 @@ function createRouteHandler(routeInfo: RouteInfo, collaboration: CollaborationIn
 function handleIssueOpen(
   issueId: string | null,
   socket: Socket,
-  collaboration: CollaborationInput,
+  collaboration: CollaborationPort,
   existing: CollaborationConsumer | null,
   cleanup: () => void,
 ): CollaborationConsumer | null {
@@ -121,7 +121,7 @@ function handleIssueOpen(
 function handleWorkspaceOpen(
   workspaceId: string | null,
   socket: Socket,
-  collaboration: CollaborationInput,
+  collaboration: CollaborationPort,
   existing: WorkspaceConsumer | null,
   cleanup: () => void,
 ): WorkspaceConsumer | null {
@@ -153,7 +153,7 @@ function startHeartbeat(socket: Socket, routeInfo: RouteInfo, onFail: () => void
   }, 30_000);
 }
 
-function createIssueConsumer(issueId: string, socket: Socket, collaboration: CollaborationInput, cleanup: () => void): CollaborationConsumer {
+function createIssueConsumer(issueId: string, socket: Socket, collaboration: CollaborationPort, cleanup: () => void): CollaborationConsumer {
   const emit = (stageId: string, event: Record<string, unknown>, statusStageId?: string, noCleanup?: boolean) =>
     send(socket, { type: "issue_event", issue_id: issueId, activity_status: collaboration.getActivityStatus(statusStageId ?? stageId), event: { ...event, stage_id: stageId } }, noCleanup ? undefined : cleanup);
   return {
