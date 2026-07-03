@@ -25,6 +25,7 @@ interface SignalSuggestion {
     audit_trail: { events: { timestamp: string; event_type: string; detail: string }[] };
     critique_obligation?: { items: { type: string; content: string }[] };
     scenario_coverage?: { constructed_scenarios: { scenario: string; question: string }[] };
+    independent_analysis?: { my_conclusion: string; comparison_with_peer: string; points_of_agreement: string[]; points_of_disagreement: string[] };
     file_coverage?: { coverage_ratio: number };
   };
   recommendation?: string;
@@ -201,7 +202,7 @@ function checkAuditTrail(artifact: NonNullable<SignalSuggestion["adversarial_art
 }
 
 function checkStageFields(artifact: NonNullable<SignalSuggestion["adversarial_artifact"]>): string | null {
-  if (artifact.critique_obligation || artifact.scenario_coverage) {
+  if (artifact.critique_obligation || artifact.scenario_coverage || artifact.independent_analysis) {
     if (!artifact.critique_obligation?.items || artifact.critique_obligation.items.length < 4) return "design stage requires critique_obligation.items >= 4";
     if (!artifact.scenario_coverage?.constructed_scenarios || artifact.scenario_coverage.constructed_scenarios.length < 2) return "design stage requires scenario_coverage.constructed_scenarios >= 2";
   }

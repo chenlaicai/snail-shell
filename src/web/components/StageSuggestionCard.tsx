@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { api } from "@/services/api-client";
+import { api, BlockedError } from "@/services/api-client";
 import { showToast } from "@/components/Toast";
 import type { StageDetailDto, StageSuggestion } from "@/types";
 
@@ -52,7 +52,12 @@ export function StageSuggestionCard({
       onAccepted(stage);
       refetch();
     } catch (err: unknown) {
-      showToast(`推进失败：${err instanceof Error ? err.message : String(err)}`, true);
+      if (err instanceof BlockedError && err.evaluation.reasons.length > 0) {
+        const details = err.evaluation.reasons.map((r) => r.message).join("\n");
+        showToast(`推进被阻断：\n${details}`, true);
+      } else {
+        showToast(`推进失败：${err instanceof Error ? err.message : String(err)}`, true);
+      }
     } finally {
       setSubmitting(false);
     }

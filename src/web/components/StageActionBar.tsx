@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { api } from "@/services/api-client";
+import { api, BlockedError } from "@/services/api-client";
 import { showToast } from "@/components/Toast";
 import { CloseIssueDialog } from "@/components/CloseIssueDialog";
 import { useCloseIssue } from "@/mutations/issue.mutations";
@@ -68,7 +68,12 @@ export function StageActionBar({
       onStageChanged(stage);
       setSelectedTarget("");
     } catch (err: unknown) {
-      showToast(`推进失败：${err instanceof Error ? err.message : String(err)}`, true);
+      if (err instanceof BlockedError && err.evaluation.reasons.length > 0) {
+        const details = err.evaluation.reasons.map((r) => r.message).join("\n");
+        showToast(`推进被阻断：\n${details}`, true);
+      } else {
+        showToast(`推进失败：${err instanceof Error ? err.message : String(err)}`, true);
+      }
     } finally {
       setAdvancing(false);
     }
