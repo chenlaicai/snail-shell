@@ -103,6 +103,7 @@ export interface CollaborationPort {
   listStageTransitionSuggestions(stageId: string): StageTransitionSuggestion[];
   dismissSuggestion(stageId: string, targetKey: string, createdAt: string): boolean;
   advanceStage(stageId: string, targetKey: string): Promise<Stage>;
+  forceAdvance(stageId: string, targetKey: string): Promise<{ stage: Stage; evaluation: EvaluationResult }>;
   evaluateAdvance(stageId: string): Promise<EvaluationResult>;
   rollbackStage(stageId: string, targetKey: string): Promise<Stage>;
   getStageAuditTrail(stageId: string): StageAuditRecord[];
