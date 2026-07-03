@@ -14,6 +14,7 @@ import { ConsumerNotifier } from "@app/issue-collaboration/consumer-notifier";
 import { MessageHandler } from "@app/issue-collaboration/message-handler";
 import { CollaborationHelpers } from "@app/issue-collaboration/helpers";
 import { cleanupResources, type CleanupResult } from "@app/issue-collaboration/resource-cleanup";
+import { isStageReEntry } from "@domain/issue/_internal/stage-chain";
 import { StageTransitionSignalParser } from "@app/issue-collaboration/_internal/signal-parser";
 import { SystemPromptBuilder } from "@app/issue-collaboration/_internal/system-prompt-builder";
 import { CONTEXT_KEYS } from "@infra/acs/context-keys";
@@ -71,6 +72,7 @@ export class IssueCollaboration implements CollaborationInput {
     this.systemPromptBuilder = new SystemPromptBuilder({
       messagePort: this.deps.messagePort,
       snailPort: this.deps.snailPort,
+      stagePort: this.deps.stagePort,
     });
   }
   async createIssue(input: CreateIssueInput): Promise<CreateIssueResult> {
@@ -408,18 +410,16 @@ export class IssueCollaboration implements CollaborationInput {
       alternatives: r.alternatives ? JSON.parse(r.alternatives) as string[] : undefined })));
   }
   async rollbackStage(stageId: string, targetKey: string): Promise<Stage> {
-    const stage = this.deps.stagePort.rollbackStage(stageId, targetKey);
-    this.cleanupDispatchStates(stageId);
-    this.deps.stageSuggestionRepo.deleteByStage(stageId);
-    this.suggestions.delete(stageId);
-    this.helpers.initStageCursors(stage);
-    this.autoInvokeNewStage(stage);
-    return stage;
+    return this.advanceStage(stageId, targetKey);
   }
   /** 阶段推进后自动向新阶段发送 kickoff 消息，触发默认 agent 开始工作 */
   private autoInvokeNewStage(stage: Stage): void {
     if (!stage.default_role_instance) return;
-    this.sendMessage(stage.id, "开始执行。", "").catch((err) => {
+    const reEntry = isStageReEntry(this.deps.stagePort.listStages(stage.issue_id) ?? [], stage.id);
+    const text = reEntry
+      ? `重新进入 [${stage.key}] 阶段。请先了解前序阶段的情况和变更，再开始工作。`
+      : "开始执行。";
+    this.sendMessage(stage.id, text, "").catch((err) => {
       log.error({ stageId: stage.id, err }, "autoInvokeNewStage failed");
     });
   }

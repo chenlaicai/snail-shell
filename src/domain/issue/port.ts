@@ -45,7 +45,7 @@ export interface StagePort {
   /** 流转到下一个 Stage：设置当前 left_at + 创建新 Stage */
   advanceStage(currentStageId: string, targetKey: string): Stage;
 
-  /** 回退到指定 Stage */
+  /** @deprecated 使用 advanceStage() 代替。stage chain 是 append-only 的，不存在"回滚"概念，只有"推进到某个 stage key"。 */
   rollbackStage(currentStageId: string, targetKey: string): Stage;
 
   /** 记录审计轨迹 */

@@ -1,14 +1,17 @@
 import type { MessageContext } from "@domain/message/model";
 import type { MessagePort } from "@domain/message/port";
 import type { SnailPort } from "@domain/snail/port";
+import type { StagePort } from "@domain/issue/port";
 import type { Issue, Stage } from "@domain/issue/model";
 import type { RoleDefinition } from "@domain/sop/model";
 import { buildIdentityBlock } from "@app/issue-collaboration/_internal/identity-block";
+import { buildStageHistoryBlock } from "@app/issue-collaboration/_internal/stage-history-block";
 import { resolveContextValue } from "@app/issue-collaboration/resource-cleanup";
 
 export interface SystemPromptBuilderDeps {
-  messagePort: Pick<MessagePort, "getMessageEvents" | "getContext">;
+  messagePort: MessagePort;
   snailPort: Pick<SnailPort, "findByKey">;
+  stagePort: StagePort;
 }
 
 /** 检测 format=blocks JSON payload，提取 fallback_text；非 blocks 格式返回 null */
@@ -66,6 +69,8 @@ export class SystemPromptBuilder {
     const missingInfra = (issue.sop_snapshot.stage_definitions.find(d => d.key === stage.key)?.auto_advance?.required_context_fields ?? []).filter(f => !resolveContextValue(issue.context, f));
     const ctxLines = Object.entries(issue.context).map(([k, v]) => `- **${k}**: ${v}`).join("\n") || "无";
     const issueContext = missingInfra.length > 0 ? `${ctxLines}\n> ⚠️ 以下基础设施字段未记录：${missingInfra.join(", ")}` : ctxLines;
+    /** 阶段历史：通过 from_stage_id 回溯构建链路，展示前序阶段的最近消息 */
+    const stageHistory = buildStageHistoryBlock(this.deps.stagePort, this.deps.messagePort, stage);
     return `<context>
 ## 项目上下文
 **Issue**：${issue.title}
@@ -74,6 +79,7 @@ export class SystemPromptBuilder {
 ## Issue 上下文（只读视图）
 ${issueContext}
 > **注意**：这是只读视图。Agent 应使用 MCP 工具 \`set_context\` 和 \`get_context\` 读写 Issue 上下文。Issue 上下文也会通过环境变量 \`SNAIL_CTX_*\` 注入，可通过 \`process.env\` 读取。
+${stageHistory}
 ## 当前阶段
 **阶段**：${stage.title} (${stage.key}) — ${stage.description}
 ## 可用 Skills

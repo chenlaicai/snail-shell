@@ -2,6 +2,7 @@ import type { MCPServerConfig, MCPTool } from "@domain/snail-mcp-server/model";
 import type { StagePort } from "@domain/issue/port";
 import type { MessagePort } from "@domain/message/port";
 import type { Message, MessageContext } from "@domain/message/model";
+import { buildStageChain } from "@domain/issue/_internal/stage-chain";
 
 /**
  * snail-message-history MCP Server。
@@ -19,6 +20,7 @@ export function createMessageHistoryServer(
       createListMessagesTool(stagePort, messagePort),
       createGetMessageTool(messagePort),
       createGetMessageWindowTool(stagePort, messagePort),
+      createGetStageHistoryTool(stagePort, messagePort),
     ],
   };
 }
@@ -218,6 +220,70 @@ function createGetMessageWindowTool(stagePort: StagePort, messagePort: MessagePo
           is_anchor: msg.id === message_id,
         })),
       };
+    },
+  };
+}
+
+/** 获取 Issue 的完整阶段历史链 */
+function createGetStageHistoryTool(stagePort: StagePort, messagePort: MessagePort): MCPTool {
+  return {
+    name: "get_stage_history",
+    description: "获取 Issue 的完整阶段历史链，包含每个阶段的元信息和最近消息。用于了解整体进展和前序阶段的关键决策。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        issue_id: { type: "string", description: "Issue ID" },
+        include_messages: { type: "boolean", description: "是否包含每个阶段的最近消息，默认 true" },
+        messages_per_stage: { type: "number", description: "每个阶段返回的消息数量，默认 3" },
+      },
+      required: ["issue_id"],
+    },
+    handler: async (params) => {
+      const { issue_id, include_messages = true, messages_per_stage = 3 } = params as {
+        issue_id: string; include_messages?: boolean; messages_per_stage?: number;
+      };
+
+      const allStages = stagePort.listStages(issue_id);
+      /** 找到当前 stage（left_at === null）作为回溯起点 */
+      const currentStage = allStages.find(s => s.left_at === null);
+      if (!currentStage) {
+        return { stages: [], total_stages: 0 };
+      }
+
+      const chain = buildStageChain(allStages, currentStage.id);
+
+      /** 在已构建的 chain 上 O(n) 检测重新进入：同一 key 出现过更早的实例 */
+      const keyFirstSeen = new Map<string, string>();
+      for (const s of chain) {
+        if (!keyFirstSeen.has(s.key)) keyFirstSeen.set(s.key, s.id);
+      }
+
+      const stages = chain.map(s => {
+        const isReEntry = keyFirstSeen.get(s.key) !== s.id;
+        const entry: Record<string, unknown> = {
+          stage_id: s.id,
+          key: s.key,
+          title: s.title,
+          description: s.description,
+          entered_at: s.entered_at,
+          left_at: s.left_at,
+          is_current: s.left_at === null,
+          is_re_entry: isReEntry,
+          output_artifacts: s.output_artifacts,
+        };
+        if (include_messages) {
+          const messages = messagePort.listMessages(s.id, messages_per_stage);
+          entry.messages = messages.map(msg => ({
+            message_id: msg.id,
+            from_speaker: msg.from_speaker,
+            content: messagePort.getContext(msg.id)?.context ?? null,
+            created_at: msg.created_at,
+          }));
+        }
+        return entry;
+      });
+
+      return { stages, total_stages: chain.length };
     },
   };
 }
