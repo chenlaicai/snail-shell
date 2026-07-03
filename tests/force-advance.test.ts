@@ -249,4 +249,68 @@ describe("forceAdvance", () => {
     expect(result.evaluation.action).toBe("blocked");
     expect(result.evaluation.reasons[0].code).toBe("EVALUATE_FAILED");
   });
+
+  it("backward 场景保留打回原因和 gate_evidence", async () => {
+    /** 捕获 setContext 中的 final_text（kickoff 消息文本） */
+    const finalTexts: string[] = [];
+    const messagePort = createMockMessagePort({
+      createMessage: vi.fn().mockReturnValue({ id: 1, stage_id: "stage-2", from_speaker: "", to_speakers: [], status: "completed", created_at: "", ended_at: null }),
+      setContext: vi.fn((_messageId: number, key: string, value: string) => {
+        if (key === "final_text") finalTexts.push(value);
+      }),
+    });
+
+    const oldStage = createStage({ id: "stage-1", key: "development" });
+    const backwardStage = createStage({ id: "stage-2", key: "design", from_stage_id: "stage-1" });
+    const stagePort = createMockStagePort({
+      findStage: vi.fn().mockReturnValue(oldStage),
+      advanceStage: vi.fn().mockReturnValue(backwardStage),
+      listStages: vi.fn().mockReturnValue([
+        { ...backwardStage, left_at: null },
+      ]),
+      recordAudit: vi.fn((record: typeof auditRecords[number]) => { auditRecords.push(record); }),
+      getRoleSnailAssignment: vi.fn().mockReturnValue({ snail_key: "test-snail", snail_instance_id: null, role_key: "developer" }),
+    });
+
+    const issue = createOpenIssue();
+    const issuePort = createMockIssuePort({
+      findIssue: vi.fn().mockReturnValue(issue),
+    });
+
+    const collaboration = new IssueCollaboration({
+      issuePort,
+      createIssue: vi.fn(),
+      stagePort,
+      messagePort,
+      snailPort: createMockSnailPort(),
+      liteAIPort: createMockLiteAIPort(),
+      mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
+    });
+
+    /** 注入一个 suggestion，包含打回原因和 gate_evidence */
+    const backwardReason = "Gate 自检未通过：dev-02";
+    const backwardEvidence = { "dev-02": "npm run check 失败" };
+    const suggestions = collaboration["suggestions"];
+    suggestions.set("stage-1", [{
+      stage_id: "stage-1",
+      message_id: 1,
+      from_speaker: "reviewer",
+      target_key: "design",
+      reason: backwardReason,
+      guard: null,
+      artifacts: {},
+      created_at: new Date().toISOString(),
+      signal_type: "disagreement",
+      gate_evidence: backwardEvidence,
+    }]);
+
+    await collaboration.forceAdvance("stage-1", "design");
+
+    /** kickoff 消息应包含原始打回原因和 gate_evidence */
+    const kickoff = finalTexts.find(t => t.includes("打回原因"));
+    expect(kickoff).toBeDefined();
+    expect(kickoff!).toContain(backwardReason);
+    expect(kickoff!).toContain("dev-02");
+  });
 });

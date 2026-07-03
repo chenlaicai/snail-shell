@@ -183,6 +183,8 @@ export class IssueCollaboration implements CollaborationInput {
       evaluation = { action: "blocked", reasons: [{ code: "EVALUATE_FAILED", severity: "error", message: `评估失败：${err instanceof Error ? err.message : String(err)}` }] };
     }
     const oldStage = this.deps.stagePort.findStage(stageId);
+    /** 在清除 suggestions 之前提取反向转移的打回原因和证据（与 advanceStage 一致） */
+    const backwardContext = oldStage ? this.extractBackwardContext(stageId, targetKey) : null;
     const newStage = this.deps.stagePort.advanceStage(stageId, targetKey);
     this.cleanupDispatchStates(stageId);
     for (const s of (this.suggestions.get(stageId) ?? [])) this.deps.stageSuggestionRepo.markProcessed(s.message_id.toString(), "confirmed");
@@ -201,7 +203,7 @@ export class IssueCollaboration implements CollaborationInput {
       from: stageId, to: newStage.id, from_key: oldStage?.key ?? "", to_key: newStage.key, reason: `[forced] 用户强制推进`,
     });
     if (oldStage && this.isBackwardTarget(oldStage.issue_id, targetKey)) {
-      this.autoInvokeBackwardStage(newStage, oldStage, { reason: `[forced] 用户强制推进`, gate_evidence: {} });
+      this.autoInvokeBackwardStage(newStage, oldStage, backwardContext ?? { reason: `[forced] 用户强制推进`, gate_evidence: {} });
     } else {
       this.autoInvokeNewStage(newStage);
     }
