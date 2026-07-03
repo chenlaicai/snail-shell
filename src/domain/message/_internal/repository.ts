@@ -84,6 +84,8 @@ export interface MessageRepository {
   findLatestRespondingSpeaker(stageId: string): string | null;
   /** 查询 stageId 中最新一条消息（按 id DESC LIMIT 1） */
   findLatestMessage(stageId: string): Message | undefined;
+  /** 查询 stageId 中指定 from_speaker 的最新一条消息（按 id DESC LIMIT 1） */
+  findLatestMessageBySpeaker(stageId: string, fromSpeaker: string): Message | undefined;
   create(message: Message): Message;
   update(id: number, updates: Partial<Message>): void;
   transaction<T>(fn: () => T): T;
@@ -173,6 +175,14 @@ export class SQLiteMessageRepository implements MessageRepository {
     const row = this.db.get<MessageRow>(
       `SELECT * FROM message WHERE stage_id = ? ORDER BY id DESC LIMIT 1`,
       [stageId],
+    );
+    return row ? mapMessage(row) : undefined;
+  }
+
+  findLatestMessageBySpeaker(stageId: string, fromSpeaker: string): Message | undefined {
+    const row = this.db.get<MessageRow>(
+      `SELECT * FROM message WHERE stage_id = ? AND from_speaker = ? ORDER BY id DESC LIMIT 1`,
+      [stageId, fromSpeaker],
     );
     return row ? mapMessage(row) : undefined;
   }

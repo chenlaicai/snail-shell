@@ -30,6 +30,7 @@ function createMockMessagePort(overrides: Partial<MessagePort> = {}): MessagePor
     initCursor: () => {},
     findLatestRespondingSpeaker: () => null,
     findLatestMessage: () => undefined,
+    findLatestMessageBySpeaker: () => undefined,
     ...overrides,
   };
 }
@@ -142,7 +143,7 @@ describe("Signal chain: set_final_body → detectStageTransition → autoAdvance
     const events: MessageEvent[] = [];
     const messagePort = createMockMessagePort({
       getMessage: (id) => messages.get(id),
-      findLatestMessage: () => messages.get(100),
+      findLatestMessageBySpeaker: () => messages.get(100),
       appendEvent: (_messageId, payload) => {
         const event: MessageEvent = {
           id: events.length + 1,
@@ -192,7 +193,7 @@ describe("Signal chain: set_final_body → detectStageTransition → autoAdvance
       },
     });
 
-    await handler({ text: signalJson, message_id: "100", stage_id: "s1" });
+    await handler({ text: signalJson, message_id: "100", stage_id: "s1", from_speaker: "reviewer-1" });
 
     // Assert
     // 1. Verify signal event was appended
@@ -241,7 +242,7 @@ describe("Signal chain: set_final_body → detectStageTransition → autoAdvance
 
     const messagePort = createMockMessagePort({
       getMessage: (id) => messages.get(id),
-      findLatestMessage: () => messages.get(200),
+      findLatestMessageBySpeaker: () => messages.get(200),
       appendEvent: (_messageId, payload) => {
         const event: MessageEvent = {
           id: events.length + 1,
@@ -286,7 +287,7 @@ All checks passed.
 }
 \`\`\``;
 
-    await handler({ text: markdownText, message_id: "200", stage_id: "s1" });
+    await handler({ text: markdownText, message_id: "200", stage_id: "s1", from_speaker: "reviewer-1" });
 
     // Assert
     // 1. Verify signal event was appended
@@ -333,7 +334,7 @@ All checks passed.
 
     const messagePort = createMockMessagePort({
       getMessage: (id) => messages.get(id),
-      findLatestMessage: () => messages.get(300),
+      findLatestMessageBySpeaker: () => messages.get(300),
       appendEvent: (_messageId, payload) => {
         const event: MessageEvent = {
           id: events.length + 1,
@@ -363,7 +364,7 @@ All checks passed.
     const server = createFinalResponseServer(messagePort, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
-    await handler({ text: "Just a regular message without signal", message_id: "300", stage_id: "s1" });
+    await handler({ text: "Just a regular message without signal", message_id: "300", stage_id: "s1", from_speaker: "reviewer-1" });
 
     // Assert
     // 1. Verify no signal event was appended
@@ -380,7 +381,7 @@ describe("L1: Signal interception for unresolved adversarial findings", () => {
     const messages = new Map<number, Message>();
     const messagePort = createMockMessagePort({
       getMessage: (id) => messages.get(id),
-      findLatestMessage: () => messages.get(100),
+      findLatestMessageBySpeaker: () => messages.get(100),
       appendEvent: (_messageId, payload) => {
         const event: MessageEvent = {
           id: events.length + 1,

@@ -44,4 +44,7 @@ export interface MessagePort {
 
   /** 查找 stage 中最新一条消息 */
   findLatestMessage(stageId: string): Message | undefined;
+
+  /** 查找 stage 中指定 speaker 的最新一条消息（并发安全） */
+  findLatestMessageBySpeaker(stageId: string, fromSpeaker: string): Message | undefined;
 }

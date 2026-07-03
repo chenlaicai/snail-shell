@@ -48,6 +48,7 @@ function createMockMessagePort(overrides: Partial<MessagePort> = {}): MessagePor
     initCursor: () => {},
     findLatestRespondingSpeaker: () => null,
     findLatestMessage: () => undefined,
+    findLatestMessageBySpeaker: () => undefined,
     ...overrides,
   };
 }
@@ -70,14 +71,14 @@ describe("set_final_body handler", () => {
 
     const port = createMockMessagePort({
       getMessage: (id) => messages.get(id),
-      findLatestMessage: () => messages.get(100),
+      findLatestMessageBySpeaker: () => messages.get(100),
       setContext: (id, kind, ctx) => { writtenId = id; writtenKind = kind; writtenCtx = ctx; },
     });
 
     const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
-    const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a" });
+    const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a", from_speaker: "dev" });
     expect(result).toEqual({ ok: true, proceed: "end_turn" });
     expect(writtenId).toBe(100);
     expect(writtenKind).toBe("mcp_final_body");
@@ -95,7 +96,7 @@ describe("set_final_body handler", () => {
     const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
-    await expect(handler({ text: "hello", message_id: "100", stage_id: "stage-b" }))
+    await expect(handler({ text: "hello", message_id: "100", stage_id: "stage-b", from_speaker: "dev" }))
       .rejects.toThrow("message_id 100 does not belong to stage stage-b (actual: stage-a)");
   });
 
@@ -107,7 +108,7 @@ describe("set_final_body handler", () => {
     const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
-    await expect(handler({ text: "hello", message_id: "999", stage_id: "stage-a" }))
+    await expect(handler({ text: "hello", message_id: "999", stage_id: "stage-a", from_speaker: "dev" }))
       .rejects.toThrow("message_id 999 not found");
   });
 
@@ -124,7 +125,7 @@ describe("set_final_body handler", () => {
     const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
-    const result = await handler({ text: "hello", message_id: "100" });
+    const result = await handler({ text: "hello", message_id: "100", from_speaker: "dev" });
     expect(result).toEqual({ ok: true, proceed: "end_turn" });
     expect(writtenId).toBe(100);
   });
@@ -143,7 +144,7 @@ describe("set_final_body handler", () => {
     const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
-    await expect(handler({ text: "hello", message_id: "0", stage_id: "stage-a" }))
+    await expect(handler({ text: "hello", message_id: "0", stage_id: "stage-a", from_speaker: "dev" }))
       .rejects.toThrow("message_id must be a positive integer");
   });
 
@@ -152,8 +153,110 @@ describe("set_final_body handler", () => {
     const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
-    await expect(handler({ text: "hello", message_id: "abc", stage_id: "stage-a" }))
+    await expect(handler({ text: "hello", message_id: "abc", stage_id: "stage-a", from_speaker: "dev" }))
       .rejects.toThrow("message_id must be a positive integer");
+  });
+
+  it("rejects missing from_speaker", async () => {
+    const port = createMockMessagePort();
+    const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
+    const handler = server.tools[0].handler;
+
+    await expect(handler({ text: "hello", message_id: "100", stage_id: "stage-a" }))
+      .rejects.toThrow("from_speaker is required");
+  });
+});
+
+describe("set_final_body speaker ownership (B-1, B-3)", () => {
+  it("B-3: rejects when from_speaker does not match message.from_speaker", async () => {
+    const messages = new Map<number, Message>();
+    messages.set(100, { id: 100, stage_id: "s1", from_speaker: "架构师-1", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
+
+    const port = createMockMessagePort({
+      getMessage: (id) => messages.get(id),
+      findLatestMessageBySpeaker: (stageId, speaker) => {
+        if (speaker === "架构师-1") return messages.get(100);
+        return undefined;
+      },
+    });
+    const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
+    const handler = server.tools[0].handler;
+
+    /** 架构师-2 尝试写入架构师-1 的消息 */
+    await expect(handler({ text: "hello", message_id: "100", stage_id: "s1", from_speaker: "架构师-2" }))
+      .rejects.toThrow("message 100 belongs to 架构师-1, not 架构师-2");
+  });
+
+  it("B-1: accepts when from_speaker matches message.from_speaker", async () => {
+    const messages = new Map<number, Message>();
+    messages.set(100, { id: 100, stage_id: "s1", from_speaker: "架构师-1", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
+
+    const port = createMockMessagePort({
+      getMessage: (id) => messages.get(id),
+      findLatestMessageBySpeaker: () => messages.get(100),
+    });
+    const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
+    const handler = server.tools[0].handler;
+
+    const result = await handler({ text: "hello", message_id: "100", stage_id: "s1", from_speaker: "架构师-1" });
+    expect(result).toEqual({ ok: true, proceed: "end_turn" });
+  });
+});
+
+describe("set_final_body concurrent safety (B-2)", () => {
+  it("B-2: two agents get各自的消息 ID，互不干扰", async () => {
+    const messages = new Map<number, Message>();
+    messages.set(3636, { id: 3636, stage_id: "s1", from_speaker: "架构师-1", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
+    messages.set(3637, { id: 3637, stage_id: "s1", from_speaker: "架构师-2", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
+
+    const port = createMockMessagePort({
+      getMessage: (id) => messages.get(id),
+      findLatestMessageBySpeaker: (_stageId, speaker) => {
+        if (speaker === "架构师-1") return messages.get(3636);
+        if (speaker === "架构师-2") return messages.get(3637);
+        return undefined;
+      },
+    });
+    const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
+
+    /** 架构师-1 获取自己的消息 ID */
+    const getMsgTool = server.tools[1];
+    const result1 = await getMsgTool.handler({ stage_id: "s1", from_speaker: "架构师-1" });
+    expect(result1).toEqual({ message_id: "3636", from_speaker: "架构师-1" });
+
+    /** 架构师-2 获取自己的消息 ID */
+    const result2 = await getMsgTool.handler({ stage_id: "s1", from_speaker: "架构师-2" });
+    expect(result2).toEqual({ message_id: "3637", from_speaker: "架构师-2" });
+
+    /** 架构师-1 写入自己的消息成功 */
+    const setFinalTool = server.tools[0];
+    const write1 = await setFinalTool.handler({ text: "架构师-1的回复", message_id: "3636", stage_id: "s1", from_speaker: "架构师-1" });
+    expect(write1).toEqual({ ok: true, proceed: "end_turn" });
+
+    /** 架构师-2 写入自己的消息成功 */
+    const write2 = await setFinalTool.handler({ text: "架构师-2的回复", message_id: "3637", stage_id: "s1", from_speaker: "架构师-2" });
+    expect(write2).toEqual({ ok: true, proceed: "end_turn" });
+  });
+
+  it("B-2: 架构师-1 不能写入架构师-2 的消息（即使 ID 更大）", async () => {
+    const messages = new Map<number, Message>();
+    messages.set(3636, { id: 3636, stage_id: "s1", from_speaker: "架构师-1", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
+    messages.set(3637, { id: 3637, stage_id: "s1", from_speaker: "架构师-2", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
+
+    const port = createMockMessagePort({
+      getMessage: (id) => messages.get(id),
+      findLatestMessageBySpeaker: (_stageId, speaker) => {
+        if (speaker === "架构师-1") return messages.get(3636);
+        if (speaker === "架构师-2") return messages.get(3637);
+        return undefined;
+      },
+    });
+    const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
+    const handler = server.tools[0].handler;
+
+    /** 架构师-1 尝试写入架构师-2 的消息 → 被 speaker 归属校验拦截 */
+    await expect(handler({ text: "串台内容", message_id: "3637", stage_id: "s1", from_speaker: "架构师-1" }))
+      .rejects.toThrow("message 3637 belongs to 架构师-2, not 架构师-1");
   });
 });
 
@@ -183,7 +286,7 @@ describe("set_final_body to_speakers validation", () => {
     const messages = new Map<number, Message>();
     messages.set(100, { id: 100, stage_id: "stage-a", from_speaker: "开发者", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
     let capturedTargets: string[] | undefined;
-    const port = createMockMessagePort({ getMessage: (id) => messages.get(id), findLatestMessage: () => messages.get(100) });
+    const port = createMockMessagePort({ getMessage: (id) => messages.get(id), findLatestMessageBySpeaker: () => messages.get(100) });
     const store: McpMessageStore = {
       getMcpRoutingTargets: () => undefined,
       setMcpRoutingTargets: (_id, targets) => { capturedTargets = targets; },
@@ -192,7 +295,7 @@ describe("set_final_body to_speakers validation", () => {
     const server = createFinalResponseServer(port, store, stagePortWithInstances(["开发者", "架构师-2"]));
     const handler = server.tools[0].handler;
 
-    const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a", to_speakers: ["架构师-2"] });
+    const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a", from_speaker: "开发者", to_speakers: ["架构师-2"] });
     expect(result).toEqual({ ok: true, proceed: "end_turn" });
     expect(capturedTargets).toEqual(["架构师-2"]);
   });
@@ -201,7 +304,7 @@ describe("set_final_body to_speakers validation", () => {
     const messages = new Map<number, Message>();
     messages.set(100, { id: 100, stage_id: "stage-a", from_speaker: "开发者", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
     let capturedTargets: string[] | undefined;
-    const port = createMockMessagePort({ getMessage: (id) => messages.get(id), findLatestMessage: () => messages.get(100) });
+    const port = createMockMessagePort({ getMessage: (id) => messages.get(id), findLatestMessageBySpeaker: () => messages.get(100) });
     const store: McpMessageStore = {
       getMcpRoutingTargets: () => undefined,
       setMcpRoutingTargets: (_id, targets) => { capturedTargets = targets; },
@@ -210,7 +313,7 @@ describe("set_final_body to_speakers validation", () => {
     const server = createFinalResponseServer(port, store, stagePortWithInstances(["开发者", "架构师-2"]));
     const handler = server.tools[0].handler;
 
-    const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a", to_speakers: ["user"] });
+    const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a", from_speaker: "开发者", to_speakers: ["user"] });
     expect(result).toEqual({ ok: true, proceed: "end_turn" });
     expect(capturedTargets).toEqual(["user"]);
   });
@@ -218,55 +321,55 @@ describe("set_final_body to_speakers validation", () => {
   it("B3: rejects invalid value (snail key)", async () => {
     const messages = new Map<number, Message>();
     messages.set(100, { id: 100, stage_id: "stage-a", from_speaker: "开发者", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
-    const port = createMockMessagePort({ getMessage: (id) => messages.get(id), findLatestMessage: () => messages.get(100) });
+    const port = createMockMessagePort({ getMessage: (id) => messages.get(id), findLatestMessageBySpeaker: () => messages.get(100) });
     const server = createFinalResponseServer(port, createMockMcpMessageStore(), stagePortWithInstances(["开发者", "架构师-2"]));
     const handler = server.tools[0].handler;
 
-    await expect(handler({ text: "hello", message_id: "100", stage_id: "stage-a", to_speakers: ["claude-code-stateful"] }))
+    await expect(handler({ text: "hello", message_id: "100", stage_id: "stage-a", from_speaker: "开发者", to_speakers: ["claude-code-stateful"] }))
       .rejects.toThrow('Invalid to_speakers: [claude-code-stateful]. Valid targets: [架构师-2] or "user".');
   });
 
   it("B4: rejects when mixed valid and invalid values", async () => {
     const messages = new Map<number, Message>();
     messages.set(100, { id: 100, stage_id: "stage-a", from_speaker: "开发者", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
-    const port = createMockMessagePort({ getMessage: (id) => messages.get(id), findLatestMessage: () => messages.get(100) });
+    const port = createMockMessagePort({ getMessage: (id) => messages.get(id), findLatestMessageBySpeaker: () => messages.get(100) });
     const server = createFinalResponseServer(port, createMockMcpMessageStore(), stagePortWithInstances(["开发者", "架构师-2"]));
     const handler = server.tools[0].handler;
 
-    await expect(handler({ text: "hello", message_id: "100", stage_id: "stage-a", to_speakers: ["架构师-2", "claude-code-stateful"] }))
+    await expect(handler({ text: "hello", message_id: "100", stage_id: "stage-a", from_speaker: "开发者", to_speakers: ["架构师-2", "claude-code-stateful"] }))
       .rejects.toThrow('Invalid to_speakers: [claude-code-stateful]. Valid targets: [架构师-2] or "user".');
   });
 
   it("B5: skips validation for empty to_speakers array", async () => {
     const messages = new Map<number, Message>();
     messages.set(100, { id: 100, stage_id: "stage-a", from_speaker: "开发者", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
-    const port = createMockMessagePort({ getMessage: (id) => messages.get(id), findLatestMessage: () => messages.get(100) });
+    const port = createMockMessagePort({ getMessage: (id) => messages.get(id), findLatestMessageBySpeaker: () => messages.get(100) });
     const server = createFinalResponseServer(port, createMockMcpMessageStore(), stagePortWithInstances(["开发者", "架构师-2"]));
     const handler = server.tools[0].handler;
 
-    const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a", to_speakers: [] });
+    const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a", from_speaker: "开发者", to_speakers: [] });
     expect(result).toEqual({ ok: true, proceed: "end_turn" });
   });
 
   it("rejects self-routing (to_speakers contains current speaker)", async () => {
     const messages = new Map<number, Message>();
     messages.set(100, { id: 100, stage_id: "stage-a", from_speaker: "开发者", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
-    const port = createMockMessagePort({ getMessage: (id) => messages.get(id), findLatestMessage: () => messages.get(100) });
+    const port = createMockMessagePort({ getMessage: (id) => messages.get(id), findLatestMessageBySpeaker: () => messages.get(100) });
     const server = createFinalResponseServer(port, createMockMcpMessageStore(), stagePortWithInstances(["开发者", "架构师-2"]));
     const handler = server.tools[0].handler;
 
-    await expect(handler({ text: "hello", message_id: "100", stage_id: "stage-a", to_speakers: ["开发者"] }))
+    await expect(handler({ text: "hello", message_id: "100", stage_id: "stage-a", from_speaker: "开发者", to_speakers: ["开发者"] }))
       .rejects.toThrow('Invalid to_speakers: [开发者]. Valid targets: [架构师-2] or "user".');
   });
 
   it("skips validation when to_speakers is not provided", async () => {
     const messages = new Map<number, Message>();
     messages.set(100, { id: 100, stage_id: "stage-a", from_speaker: "开发者", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
-    const port = createMockMessagePort({ getMessage: (id) => messages.get(id), findLatestMessage: () => messages.get(100) });
+    const port = createMockMessagePort({ getMessage: (id) => messages.get(id), findLatestMessageBySpeaker: () => messages.get(100) });
     const server = createFinalResponseServer(port, createMockMcpMessageStore(), stagePortWithInstances(["开发者", "架构师-2"]));
     const handler = server.tools[0].handler;
 
-    const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a" });
+    const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a", from_speaker: "开发者" });
     expect(result).toEqual({ ok: true, proceed: "end_turn" });
   });
 
@@ -274,7 +377,7 @@ describe("set_final_body to_speakers validation", () => {
     const messages = new Map<number, Message>();
     messages.set(100, { id: 100, stage_id: "stage-a", from_speaker: "开发者", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
     let capturedTargets: string[] | undefined;
-    const port = createMockMessagePort({ getMessage: (id) => messages.get(id), findLatestMessage: () => messages.get(100) });
+    const port = createMockMessagePort({ getMessage: (id) => messages.get(id), findLatestMessageBySpeaker: () => messages.get(100) });
     const store: McpMessageStore = {
       getMcpRoutingTargets: () => undefined,
       setMcpRoutingTargets: (_id, targets) => { capturedTargets = targets; },
@@ -284,7 +387,7 @@ describe("set_final_body to_speakers validation", () => {
     const server = createFinalResponseServer(port, store, createMockStagePort());
     const handler = server.tools[0].handler;
 
-    const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a", to_speakers: ["anyone"] });
+    const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a", from_speaker: "开发者", to_speakers: ["anyone"] });
     expect(result).toEqual({ ok: true, proceed: "end_turn" });
     expect(capturedTargets).toEqual(["anyone"]);
   });
@@ -293,7 +396,7 @@ describe("set_final_body to_speakers validation", () => {
     const messages = new Map<number, Message>();
     messages.set(100, { id: 100, stage_id: "stage-a", from_speaker: "开发者", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
     let capturedTargets: string[] | undefined;
-    const port = createMockMessagePort({ getMessage: (id) => messages.get(id), findLatestMessage: () => messages.get(100) });
+    const port = createMockMessagePort({ getMessage: (id) => messages.get(id), findLatestMessageBySpeaker: () => messages.get(100) });
     const store: McpMessageStore = {
       getMcpRoutingTargets: () => undefined,
       setMcpRoutingTargets: (_id, targets) => { capturedTargets = targets; },
@@ -302,7 +405,7 @@ describe("set_final_body to_speakers validation", () => {
     const server = createFinalResponseServer(port, store, stagePortWithInstances(["开发者", "架构师-2", "审查者-1"]));
     const handler = server.tools[0].handler;
 
-    const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a", to_speakers: ["架构师-2", "审查者-1", "user"] });
+    const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a", from_speaker: "开发者", to_speakers: ["架构师-2", "审查者-1", "user"] });
     expect(result).toEqual({ ok: true, proceed: "end_turn" });
     expect(capturedTargets).toEqual(["架构师-2", "审查者-1", "user"]);
   });
@@ -315,7 +418,7 @@ describe("set_final_body stage_transition signal extraction", () => {
     messages.set(100, { id: 100, stage_id: "s1", from_speaker: "dev", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
     const port = createMockMessagePort({
       getMessage: (id) => messages.get(id),
-      findLatestMessage: () => messages.get(100),
+      findLatestMessageBySpeaker: () => messages.get(100),
       appendEvent: (messageId, payload) => {
         events.push({ messageId, payload });
         return { id: events.length, message_id: messageId, seq: events.length, payload, created_at: "" } as MessageEvent;
@@ -338,7 +441,7 @@ describe("set_final_body stage_transition signal extraction", () => {
         gate_evidence: { "dev-01": "done", "dev-02": "passed" },
       },
     });
-    await handler({ text: signalJson, message_id: "100", stage_id: "s1" });
+    await handler({ text: signalJson, message_id: "100", stage_id: "s1", from_speaker: "dev" });
 
     expect(events).toHaveLength(1);
     expect(events[0].messageId).toBe(100);
@@ -372,7 +475,7 @@ Implementation complete.
   }
 }
 \`\`\``;
-    await handler({ text, message_id: "100", stage_id: "s1" });
+    await handler({ text, message_id: "100", stage_id: "s1", from_speaker: "dev" });
 
     expect(events).toHaveLength(1);
     expect(events[0].payload).toMatchObject({
@@ -391,7 +494,7 @@ Implementation complete.
     const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
-    await handler({ text: "Just a regular message", message_id: "100", stage_id: "s1" });
+    await handler({ text: "Just a regular message", message_id: "100", stage_id: "s1", from_speaker: "dev" });
 
     expect(events).toHaveLength(0);
   });
@@ -401,7 +504,7 @@ Implementation complete.
     const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
-    await handler({ text: '{"stage_transition": {broken json', message_id: "100", stage_id: "s1" });
+    await handler({ text: '{"stage_transition": {broken json', message_id: "100", stage_id: "s1", from_speaker: "dev" });
 
     expect(events).toHaveLength(0);
   });
@@ -415,7 +518,7 @@ Implementation complete.
     const handler = server.tools[0].handler;
 
     const signalJson = JSON.stringify({ stage_transition: { target_key: "review", consensus: true } });
-    await handler({ text: signalJson, message_id: "100", stage_id: "s1" });
+    await handler({ text: signalJson, message_id: "100", stage_id: "s1", from_speaker: "dev" });
 
     expect(writtenKind).toBe("mcp_final_body");
     expect(events).toHaveLength(1);
@@ -434,7 +537,7 @@ Implementation complete.
         positions: [{ speaker: "architect-1", stance: "against", argument: "Too risky" }],
       },
     });
-    await handler({ text: signalJson, message_id: "100", stage_id: "s1" });
+    await handler({ text: signalJson, message_id: "100", stage_id: "s1", from_speaker: "dev" });
 
     expect(events).toHaveLength(1);
     expect(events[0].payload).toMatchObject({
@@ -464,7 +567,7 @@ describe("set_final_body idempotent guard (B2)", () => {
     messages.set(100, { id: 100, stage_id: "s1", from_speaker: "dev", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
     const port = createMockMessagePort({
       getMessage: (id) => messages.get(id),
-      findLatestMessage: () => messages.get(100),
+      findLatestMessageBySpeaker: () => messages.get(100),
       setContext: (id, kind, ctx) => { contextWrites.push({ id, kind, ctx }); },
       appendEvent: (messageId, payload) => {
         events.push({ messageId, payload });
@@ -485,13 +588,13 @@ describe("set_final_body idempotent guard (B2)", () => {
     const handler = server.tools[0].handler;
 
     /** 首次调用 */
-    const first = await handler({ text: "body v1", message_id: "100", stage_id: "s1", to_speakers: ["reviewer"] });
+    const first = await handler({ text: "body v1", message_id: "100", stage_id: "s1", from_speaker: "dev", to_speakers: ["reviewer"] });
     expect(first).toEqual({ ok: true, proceed: "end_turn" });
     expect(contextWrites).toHaveLength(1);
     expect(routingWrites).toHaveLength(1);
 
     /** 重复调用：即使传入不同 text，也不覆写 */
-    const second = await handler({ text: "body v2", message_id: "100", stage_id: "s1", to_speakers: ["other"] });
+    const second = await handler({ text: "body v2", message_id: "100", stage_id: "s1", from_speaker: "dev", to_speakers: ["other"] });
     expect(second).toEqual({ ok: true, already_submitted: true, hint: "final body already recorded for this message; your response is complete" });
     /** 无新增写入 */
     expect(contextWrites).toHaveLength(1);
@@ -507,12 +610,12 @@ describe("set_final_body idempotent guard (B2)", () => {
 
     const signalJson = JSON.stringify({ stage_transition: { target_key: "review", consensus: true } });
     /** 首次调用带 signal */
-    await handler({ text: signalJson, message_id: "100", stage_id: "s1" });
+    await handler({ text: signalJson, message_id: "100", stage_id: "s1", from_speaker: "dev" });
     expect(events).toHaveLength(1);
 
     /** 重复调用带不同 signal */
     const signalJson2 = JSON.stringify({ stage_transition: { target_key: "merge", consensus: true } });
-    await handler({ text: signalJson2, message_id: "100", stage_id: "s1" });
+    await handler({ text: signalJson2, message_id: "100", stage_id: "s1", from_speaker: "dev" });
     /** 事件数不变 */
     expect(events).toHaveLength(1);
   });
@@ -525,24 +628,24 @@ describe("set_final_body idempotent guard (B2)", () => {
     let latestId = 100;
     const port = createMockMessagePort({
       getMessage: (id) => messages.get(id),
-      findLatestMessage: () => messages.get(latestId),
+      findLatestMessageBySpeaker: () => messages.get(latestId),
       setContext: (id, kind, ctx) => { contextWrites.push({ id, kind, ctx }); },
     });
     const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
     /** 第一轮：message 100 */
-    await handler({ text: "body 100", message_id: "100", stage_id: "s1" });
+    await handler({ text: "body 100", message_id: "100", stage_id: "s1", from_speaker: "dev" });
     expect(contextWrites).toHaveLength(1);
 
     /** 第二轮：message 200 成为最新 */
     messages.set(200, { id: 200, stage_id: "s1", from_speaker: "dev", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
     latestId = 200;
-    await handler({ text: "body 200", message_id: "200", stage_id: "s1" });
+    await handler({ text: "body 200", message_id: "200", stage_id: "s1", from_speaker: "dev" });
     expect(contextWrites).toHaveLength(2);
 
     /** 重复调用 message 200 */
-    const result = await handler({ text: "body 200 v2", message_id: "200", stage_id: "s1" });
+    const result = await handler({ text: "body 200 v2", message_id: "200", stage_id: "s1", from_speaker: "dev" });
     expect(result).toMatchObject({ already_submitted: true });
     expect(contextWrites).toHaveLength(2);
   });
@@ -552,17 +655,17 @@ describe("set_final_body idempotent guard (B2)", () => {
     messages.set(100, { id: 100, stage_id: "s1", from_speaker: "dev", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
     const port = createMockMessagePort({
       getMessage: (id) => messages.get(id),
-      findLatestMessage: () => messages.get(100),
+      findLatestMessageBySpeaker: () => messages.get(100),
     });
     const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
     /** 首次调用 */
-    await handler({ text: "body", message_id: "100", stage_id: "s1" });
+    await handler({ text: "body", message_id: "100", stage_id: "s1", from_speaker: "dev" });
     /** 重复调用时参数错误仍应报错 */
-    await expect(handler({ text: "", message_id: "100", stage_id: "s1" }))
+    await expect(handler({ text: "", message_id: "100", stage_id: "s1", from_speaker: "dev" }))
       .rejects.toThrow("text is required");
-    await expect(handler({ text: "body", message_id: "100", stage_id: "s2" }))
+    await expect(handler({ text: "body", message_id: "100", stage_id: "s2", from_speaker: "dev" }))
       .rejects.toThrow("message_id 100 does not belong to stage s2");
   });
 });
@@ -582,12 +685,12 @@ describe("set_final_body freshness validation (AC-1, AC-2)", () => {
     messages.set(100, { id: 100, stage_id: "s1", from_speaker: "dev", to_speakers: [], status: "completed", created_at: "", ended_at: null });
     const port = createMockMessagePort({
       getMessage: (id) => messages.get(id),
-      findLatestMessage: () => messages.get(100),
+      findLatestMessageBySpeaker: () => messages.get(100),
     });
     const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
-    await expect(handler({ text: "hello", message_id: "100", stage_id: "s1" }))
+    await expect(handler({ text: "hello", message_id: "100", stage_id: "s1", from_speaker: "dev" }))
       .rejects.toThrow("message 100 is not streaming (actual: completed)");
   });
 
@@ -596,43 +699,43 @@ describe("set_final_body freshness validation (AC-1, AC-2)", () => {
     messages.set(100, { id: 100, stage_id: "s1", from_speaker: "dev", to_speakers: [], status: "failed", created_at: "", ended_at: null });
     const port = createMockMessagePort({
       getMessage: (id) => messages.get(id),
-      findLatestMessage: () => messages.get(100),
+      findLatestMessageBySpeaker: () => messages.get(100),
     });
     const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
-    await expect(handler({ text: "hello", message_id: "100", stage_id: "s1" }))
+    await expect(handler({ text: "hello", message_id: "100", stage_id: "s1", from_speaker: "dev" }))
       .rejects.toThrow("message 100 is not streaming (actual: failed)");
   });
 
-  it("AC-2: rejects when message_id is not the latest streaming message", async () => {
+  it("AC-2: rejects when message_id is not the latest streaming message for speaker", async () => {
     const messages = new Map<number, Message>();
     messages.set(100, { id: 100, stage_id: "s1", from_speaker: "dev", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
     messages.set(200, { id: 200, stage_id: "s1", from_speaker: "dev", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
     const port = createMockMessagePort({
       getMessage: (id) => messages.get(id),
-      findLatestMessage: () => messages.get(200),
+      findLatestMessageBySpeaker: () => messages.get(200),
     });
     const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
     /** 传入旧的 message_id 100，但最新 streaming 是 200 */
-    await expect(handler({ text: "hello", message_id: "100", stage_id: "s1" }))
-      .rejects.toThrow("message 100 is not the active streaming message for stage s1 (latest streaming: 200)");
+    await expect(handler({ text: "hello", message_id: "100", stage_id: "s1", from_speaker: "dev" }))
+      .rejects.toThrow("message 100 is not the active streaming message for dev in stage s1 (latest streaming: 200)");
   });
 
-  it("AC-2b: rejects when findLatestMessage returns undefined (freshness path)", async () => {
+  it("AC-2b: rejects when findLatestMessageBySpeaker returns undefined (freshness path)", async () => {
     const messages = new Map<number, Message>();
     messages.set(100, { id: 100, stage_id: "s1", from_speaker: "dev", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
     const port = createMockMessagePort({
       getMessage: (id) => messages.get(id),
-      findLatestMessage: () => undefined,
+      findLatestMessageBySpeaker: () => undefined,
     });
     const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
-    await expect(handler({ text: "hello", message_id: "100", stage_id: "s1" }))
-      .rejects.toThrow("no message found for stage s1 (message_id: 100)");
+    await expect(handler({ text: "hello", message_id: "100", stage_id: "s1", from_speaker: "dev" }))
+      .rejects.toThrow("no message found for stage s1 and speaker dev (message_id: 100)");
   });
 });
 
@@ -641,12 +744,12 @@ describe("get_current_message_id tool (AC-3)", () => {
     const messages = new Map<number, Message>();
     messages.set(42, { id: 42, stage_id: "s1", from_speaker: "架构师-2", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
     const port = createMockMessagePort({
-      findLatestMessage: () => messages.get(42),
+      findLatestMessageBySpeaker: () => messages.get(42),
     });
     const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const tool = server.tools[1];
 
-    const result = await tool.handler({ stage_id: "s1" });
+    const result = await tool.handler({ stage_id: "s1", from_speaker: "架构师-2" });
     expect(result).toEqual({ message_id: "42", from_speaker: "架构师-2" });
   });
 
@@ -654,24 +757,24 @@ describe("get_current_message_id tool (AC-3)", () => {
     const messages = new Map<number, Message>();
     messages.set(42, { id: 42, stage_id: "s1", from_speaker: "dev", to_speakers: [], status: "completed", created_at: "", ended_at: null });
     const port = createMockMessagePort({
-      findLatestMessage: () => messages.get(42),
+      findLatestMessageBySpeaker: () => messages.get(42),
     });
     const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const tool = server.tools[1];
 
-    await expect(tool.handler({ stage_id: "s1" }))
-      .rejects.toThrow("no active streaming message found for stage s1 (latest: 42, status: completed)");
+    await expect(tool.handler({ stage_id: "s1", from_speaker: "dev" }))
+      .rejects.toThrow("no active streaming message found for stage s1 and speaker dev (latest: 42, status: completed)");
   });
 
-  it("AC-3c: throws when no message found for stage", async () => {
+  it("AC-3c: throws when no message found for stage and speaker", async () => {
     const port = createMockMessagePort({
-      findLatestMessage: () => undefined,
+      findLatestMessageBySpeaker: () => undefined,
     });
     const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const tool = server.tools[1];
 
-    await expect(tool.handler({ stage_id: "s1" }))
-      .rejects.toThrow("no message found for stage s1");
+    await expect(tool.handler({ stage_id: "s1", from_speaker: "dev" }))
+      .rejects.toThrow("no message found for stage s1 and speaker dev");
   });
 
   it("AC-3d: throws when stage_id is missing", async () => {
@@ -679,8 +782,17 @@ describe("get_current_message_id tool (AC-3)", () => {
     const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const tool = server.tools[1];
 
-    await expect(tool.handler({}))
+    await expect(tool.handler({ from_speaker: "dev" }))
       .rejects.toThrow("stage_id is required");
+  });
+
+  it("AC-3e: throws when from_speaker is missing", async () => {
+    const port = createMockMessagePort();
+    const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
+    const tool = server.tools[1];
+
+    await expect(tool.handler({ stage_id: "s1" }))
+      .rejects.toThrow("from_speaker is required");
   });
 });
 
@@ -709,7 +821,7 @@ describe("set_final_body design stage soft reminder", () => {
   it("design阶段+架构师路由给user→返回warning", async () => {
     const messages = new Map<number, Message>();
     messages.set(100, { id: 100, stage_id: "design-stage", from_speaker: "架构师-1", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
-    const port = createMockMessagePort({ getMessage: (id) => messages.get(id), findLatestMessage: () => messages.get(100) });
+    const port = createMockMessagePort({ getMessage: (id) => messages.get(id), findLatestMessageBySpeaker: () => messages.get(100) });
     const store: McpMessageStore = {
       getMcpRoutingTargets: () => undefined,
       setMcpRoutingTargets: () => {},
@@ -718,14 +830,14 @@ describe("set_final_body design stage soft reminder", () => {
     const server = createFinalResponseServer(port, store, designStagePortWithInstances(["架构师-1", "架构师-2"]));
     const handler = server.tools[0].handler;
 
-    const result = await handler({ text: "hello", message_id: "100", stage_id: "design-stage", to_speakers: ["user"] });
+    const result = await handler({ text: "hello", message_id: "100", stage_id: "design-stage", from_speaker: "架构师-1", to_speakers: ["user"] });
     expect(result).toEqual({ ok: true, proceed: "end_turn", warning: "Design阶段提醒：您的草稿方案是否已经过对方架构师审视？建议先路由给对方架构师进行对抗审视。" });
   });
 
   it("design阶段+非架构师路由给user→无warning", async () => {
     const messages = new Map<number, Message>();
     messages.set(100, { id: 100, stage_id: "design-stage", from_speaker: "开发者", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
-    const port = createMockMessagePort({ getMessage: (id) => messages.get(id), findLatestMessage: () => messages.get(100) });
+    const port = createMockMessagePort({ getMessage: (id) => messages.get(id), findLatestMessageBySpeaker: () => messages.get(100) });
     const store: McpMessageStore = {
       getMcpRoutingTargets: () => undefined,
       setMcpRoutingTargets: () => {},
@@ -734,14 +846,14 @@ describe("set_final_body design stage soft reminder", () => {
     const server = createFinalResponseServer(port, store, designStagePortWithInstances(["开发者", "架构师-1"]));
     const handler = server.tools[0].handler;
 
-    const result = await handler({ text: "hello", message_id: "100", stage_id: "design-stage", to_speakers: ["user"] });
+    const result = await handler({ text: "hello", message_id: "100", stage_id: "design-stage", from_speaker: "开发者", to_speakers: ["user"] });
     expect(result).toEqual({ ok: true, proceed: "end_turn" });
   });
 
   it("非design阶段+架构师路由给user→无warning", async () => {
     const messages = new Map<number, Message>();
     messages.set(100, { id: 100, stage_id: "stage-a", from_speaker: "架构师-1", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
-    const port = createMockMessagePort({ getMessage: (id) => messages.get(id), findLatestMessage: () => messages.get(100) });
+    const port = createMockMessagePort({ getMessage: (id) => messages.get(id), findLatestMessageBySpeaker: () => messages.get(100) });
     const store: McpMessageStore = {
       getMcpRoutingTargets: () => undefined,
       setMcpRoutingTargets: () => {},
@@ -767,7 +879,7 @@ describe("set_final_body design stage soft reminder", () => {
     const server = createFinalResponseServer(port, store, nonDesignStagePort);
     const handler = server.tools[0].handler;
 
-    const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a", to_speakers: ["user"] });
+    const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a", from_speaker: "架构师-1", to_speakers: ["user"] });
     expect(result).toEqual({ ok: true, proceed: "end_turn" });
   });
 });

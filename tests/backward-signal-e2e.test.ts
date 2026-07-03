@@ -18,7 +18,7 @@ function createMockMessagePort(overrides: Partial<MessagePort> = {}): MessagePor
     appendEvent: () => ({ id: 1, message_id: 1, seq: 1, payload: { type: "text", text: "" }, created_at: "" }),
     getMessageEvents: () => [], getContext: () => null, setContext: () => {}, getCursor: () => 0,
     advanceCursor: () => {}, getUnreadMessages: () => [], initCursor: () => {},
-    findLatestRespondingSpeaker: () => null, findLatestMessage: () => undefined, ...overrides,
+    findLatestRespondingSpeaker: () => null, findLatestMessage: () => undefined, findLatestMessageBySpeaker: () => undefined, ...overrides,
   };
 }
 
