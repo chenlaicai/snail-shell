@@ -19,6 +19,7 @@ description: |
 - **测试失败不等于回退业务代码**：先判断是测试未适配新设计，还是实现偏离了设计。详见 `references/testing-rules.md`。
 - **commit message 格式严格**：按 `cd-shared/references/feature-numbering.md` 中的编号格式和 PR 标题模板。
 - **不兼容更新必须标注**：commit 和 PR title 中的 `[Incompatible]` 标记不可省略。
+- **视觉/空间类变更必须附截图**：当 Feature 文档的意图锚中包含视觉/空间/动画类修饰语时，PR 描述中必须附带关键状态的截图或录屏，标注与意图锚描述的对应关系。纯逻辑变更不强制。
 
 ## 情境感知
 
@@ -84,6 +85,7 @@ description: |
 - 测试的规格来源必须是 spec 中的核心业务行为，不是从代码实现反推
 - 断言的是外部可观测行为，不是内部实现；禁止 `toHaveBeenCalledWith` / `toBeCalledTimes`（绑定实现），允许 `toHaveBeenCalled()`（验证副作用触发）、`toBe` / `toEqual` / `toMatchObject` / `toContain`（验证返回值和状态）
 - 代码中的非显而易见逻辑必须有 `/** ... */` 注释说明设计意图
+- 当行为条目有 `← UA-n` 追溯且意图锚含视觉/空间修饰语时，PR 描述必须附截图/录屏证据
 
 ## Stage Gate 自检（必须）
 
