@@ -230,9 +230,9 @@ AI 生成有微妙问题的代码
 },
 ```
 
-**变更 1c**：补齐所有 15 个 domain 模块的专属 error 规则
+**变更 1c**：补齐所有 16 个 domain 模块的专属 error 规则
 
-**现状**：domain 层共 15 个模块，仅 6 个有专属 error 规则（workspace, tenet-prompt, skill, sop, im, knowledge），其余 9 个（evolution, feature-chain, guard-profile, issue, lite-ai, mcp-config, message, snail, snail-mcp-server）仅受通用 warn 约束。
+**现状**：domain 层共 16 个模块（含新增的 collaboration），仅 6 个有专属 error 规则（workspace, tenet-prompt, skill, sop, im, knowledge），其余 10 个（evolution, feature-chain, guard-profile, issue, lite-ai, mcp-config, message, snail, snail-mcp-server, collaboration）仅受通用 warn 约束。
 
 **额外发现（架构师-2）**：现有 6 个模块的 `_internal` 约束列表中存在两个**幽灵模块名**：
 - `@domain/mcp-server/_internal/*` — 实际模块名为 `snail-mcp-server`（`src/domain/snail-mcp-server/`）
@@ -246,7 +246,7 @@ AI 生成有微妙问题的代码
 
 2. **为剩余 9 个模块添加专属 error 规则**（格式与已有模块一致）
 
-3. **所有 15 个模块的 `_internal` 约束列表完整为**（互相排除自身）：
+3. **所有 16 个模块的 `_internal` 约束列表完整为**（互相排除自身）：
 ```
 @domain/workspace/_internal/*
 @domain/tenet-prompt/_internal/*
@@ -263,13 +263,13 @@ AI 生成有微妙问题的代码
 @domain/message/_internal/*
 @domain/snail/_internal/*
 @domain/snail-mcp-server/_internal/*
-@domain/scheduled-task/_internal/*
+@domain/collaboration/_internal/*
 ```
 
-每个模块的规则块格式为（以 scheduled-task 为例）：
+每个模块的规则块格式为（以 collaboration 为例）：
 ```javascript
 {
-  files: ["src/domain/scheduled-task/**/*.ts"],
+  files: ["src/domain/collaboration/**/*.ts"],
   rules: {
     "@typescript-eslint/no-restricted-imports": ["error", {
       patterns: [
@@ -294,7 +294,7 @@ AI 生成有微妙问题的代码
 | 模块 | 变更类型 |
 |------|----------|
 | workspace, tenet-prompt, skill, sop, im, knowledge | 修正幽灵模块名 + 补齐缺失的 _internal 条目 |
-| evolution, scheduled-task | 新增专属 error 规则 |
+| evolution, collaboration | 新增专属 error 规则 |
 | feature-chain, guard-profile, issue, lite-ai, mcp-config, message, snail, snail-mcp-server | 新增专属 error 规则 |
 
 ### 变更 2：cd-review skill 反破窗指令
@@ -331,7 +331,7 @@ ESLint 规则从 `warn` 升级为 `error` 后，任何现有代码中的 `domain
 |----|----------|----------|
 | AC-1 | 通用 `src/domain/**/*.ts` 规则已移除（所有模块有专属规则后冗余） | `eslint.config.mjs` 中无 `files: ["src/domain/**/*.ts"]` 的 warn 规则块 |
 | AC-2 | `src/infra/**/*.ts` 的 `@app/*` 规则为 `error` 级别 | `grep -A2 'src/infra/\*\*/\*\.ts' eslint.config.mjs` 确认无 `warn` |
-| AC-3 | 所有 15 个 domain 模块均有专属 error 规则块 | 对每个模块名 grep `eslint.config.mjs`，确认存在且为 `error` |
+| AC-3 | 所有 16 个 domain 模块均有专属 error 规则块 | 对每个模块名 grep `eslint.config.mjs`，确认存在且为 `error` |
 | AC-4 | 无幽灵模块名 | `eslint.config.mjs` 中无 `mcp-server/_internal`（应为 `snail-mcp-server/_internal`）和 `mcp-client/_internal` |
 | AC-5 | `npm run check` 完整通过（无 error 输出） | CI 绿灯，不局限于 grep 特定模式 |
 | AC-6 | cd-review skill 包含反破窗规则 | `grep '反破窗' data/file/skills/cd-review/references/adversarial-check.md` 有输出 |
