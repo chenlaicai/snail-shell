@@ -13,6 +13,36 @@ interface UseChatScrollOptions {
   allHistoryLoadedRef: React.MutableRefObject<boolean>;
 }
 
+/** 计算虚拟列表底部填充：消息少时填充底部避免大面积空白 */
+function usePaddingEnd(scrollRef: React.RefObject<HTMLDivElement | null>, itemCount: number) {
+  const [paddingEnd, setPaddingEnd] = useState(0);
+  const [containerHeight, setContainerHeight] = useState(0);
+
+  /** 监听容器尺寸变化（窗口 resize、PropertiesPanel 展开/折叠等） */
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setContainerHeight(el.clientHeight);
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerHeight(entry.contentRect.height);
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [scrollRef]);
+
+  /** 当消息数量或容器尺寸变化时，计算 paddingEnd */
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const rawContentHeight = itemCount * 120;
+    setPaddingEnd(Math.max(0, el.clientHeight - rawContentHeight));
+  }, [itemCount, containerHeight, scrollRef]);
+
+  return paddingEnd;
+}
+
 /** 滚动管理 hook：虚拟化、auto-scroll、历史加载触发、滚动按钮。stage 切换时自行重置滚动（DR-1）。 */
 export function useChatScroll({ sorted, stageId, setOlderHistory, isLoadingHistoryRef, allHistoryLoadedRef }: UseChatScrollOptions) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -20,15 +50,14 @@ export function useChatScroll({ sorted, stageId, setOlderHistory, isLoadingHisto
   const [scrollPosition, setScrollPosition] = useState<'top' | 'middle' | 'bottom'>('bottom');
   const isSmoothScrollingRef = useRef(false);
   const prevStageIdForScrollRef = useRef<string | null>(null);
-  const virtualizer = useVirtualizer({ count: sorted.length, getScrollElement: () => scrollRef.current, estimateSize: () => 120, overscan: 10 });
+  const paddingEnd = usePaddingEnd(scrollRef, sorted.length);
+  const virtualizer = useVirtualizer({ count: sorted.length, getScrollElement: () => scrollRef.current, estimateSize: () => 120, overscan: 10, paddingEnd });
 
-  /** stage 切换时滚动重置（DR-1） */
+  /** stage 切换时滚动重置（DR-1）— 进入 issue / stage 切换时应滚动到底部 */
   useEffect(() => {
     if (prevStageIdForScrollRef.current !== stageId) {
       prevStageIdForScrollRef.current = stageId;
-      wasAtBottomRef.current = false;
-      const el = scrollRef.current;
-      if (el) el.scrollTop = 0;
+      wasAtBottomRef.current = true;
     }
   }, [stageId]);
 
