@@ -258,11 +258,12 @@ export class StageAdapter implements StagePort {
   private isForwardTransition(issueId: string, stageKey: string, targetKey: string): boolean {
     const issue = this.issueRepo.findById(issueId);
     if (!issue) return true; // 安全回退：默认正向
-    // 检查 SOP 中是否有 from=stageKey, to=targetKey 的正向转移定义
-    // 正向转移 = targetKey 不是已有 stage 的 key（即创建新 stage）
+    // 正向转移 = targetKey 在 stage 历史中无 active 实例（即创建新 stage）
+    // 反向转移 = targetKey 在 stage 历史中有 active 实例（即重新激活旧 stage）
+    // 必须检查 status === "active"，与 repository.transferStage 和 checkDirectionConflict 保持一致
+    // rolled_back 的 stage 不是有效的反向目标
     const existingStages = this.stageRepo.listByIssue(issueId);
-    const targetExists = existingStages.some(s => s.key === targetKey && s.status === "active");
-    return !targetExists;
+    return !existingStages.some(s => s.key === targetKey && s.status === "active");
   }
 
   rollbackStage(currentStageId: string, targetKey: string): Stage {

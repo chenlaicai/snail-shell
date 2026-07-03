@@ -156,19 +156,26 @@ export class IssueCollaboration implements CollaborationInput {
     this.autoInvokeNewStage(stage);
     return stage;
   }
-
   /** 统一转移入口：正向走 advanceStage，反向走 stagePort.transferStage + 自定义 kickoff */
   async transferStage(stageId: string, targetKey: string): Promise<Stage> {
     const oldStage = this.deps.stagePort.findStage(stageId);
+    /** 在清除 suggestions 之前提取反向转移的打回原因和证据 */
+    const backwardContext = oldStage ? this.extractBackwardContext(stageId, oldStage, targetKey) : null;
     const stage = this.deps.stagePort.transferStage(stageId, targetKey);
     this.cleanupDispatchStates(stageId);
     for (const s of (this.suggestions.get(stageId) ?? [])) this.deps.stageSuggestionRepo.markProcessed(s.message_id.toString(), "confirmed");
     this.suggestions.delete(stageId);
     this.helpers.initStageCursors(stage);
     /** 反向转移时 oldStage.entered_at > stage.entered_at（目标 stage 更早） */
-    if (oldStage && stage.entered_at < oldStage.entered_at) this.autoInvokeBackwardStage(stage, oldStage);
+    if (oldStage && stage.entered_at < oldStage.entered_at) this.autoInvokeBackwardStage(stage, oldStage, backwardContext);
     else this.autoInvokeNewStage(stage);
     return stage;
+  }
+  /** 在 suggestions 被清除前提取打回原因和证据 */
+  private extractBackwardContext(fromStageId: string, fromStage: Stage, targetKey: string): { reason: string; gate_evidence?: Record<string, unknown> } | null {
+    const s = (this.suggestions.get(fromStageId) ?? []).find(s => s.target_key === targetKey);
+    if (!s) return null;
+    return { reason: s.reason, gate_evidence: s.gate_evidence };
   }
   /** L2: 手动推进前的引擎评估（不执行自动推进）。内存缓存为空时从 DB 回读 */
   async evaluateAdvance(stageId: string): Promise<EvaluationResult> {
@@ -211,11 +218,7 @@ export class IssueCollaboration implements CollaborationInput {
     for (const c of this.issueConsumers.get(issueId) ?? []) { try { c.onCleanupCompleted?.(issueId, cleanup); } catch (err) { log.warn({ issueId, err }, "notifyCleanupCompleted failed"); } }
   }
   async resumeRoute(stageId: string, message: Message): Promise<void> {
-    try {
-      await this.route(stageId, message);
-    } catch (error) {
-      log.error({ stageId, messageId: message.id, err: error }, "resumeRoute failed");
-    }
+    try { await this.route(stageId, message); } catch (error) { log.error({ stageId, messageId: message.id, err: error }, "resumeRoute failed"); }
   }
   isInvoking(stageId: string): boolean {
     for (const [key, state] of this.dispatchStates) { if (key.startsWith(`${stageId}:`) && state.status === "invoking") return true; }
@@ -224,9 +227,7 @@ export class IssueCollaboration implements CollaborationInput {
   getActivityStatus(stageId: string, issueClosedAt?: string | null): "ai_running" | "needs_human" | "completed" {
     if (issueClosedAt) return "completed";
     if (this.isInvoking(stageId)) return "ai_running";
-    const latest = this.deps.messagePort.findLatestMessage(stageId);
-    if (latest?.status === "streaming") return "ai_running";
-    return "needs_human";
+    return this.deps.messagePort.findLatestMessage(stageId)?.status === "streaming" ? "ai_running" : "needs_human";
   }
   private cleanupDispatchStates(stageId: string): void {
     const prefix = `${stageId}:`;
@@ -374,7 +375,6 @@ export class IssueCollaboration implements CollaborationInput {
     }
     this.persistSuggestion(suggestion);
     const suggestions = this.suggestions.get(stage.id) ?? [];
-
     /** 互斥约束：方向冲突时转为 disagreement 信号 */
     if (this.checkDirectionConflict(stage, suggestions, suggestion)) {
       log.warn({ stageId: stage.id, newTarget: suggestion.target_key }, "direction conflict with existing signals");
@@ -435,13 +435,11 @@ export class IssueCollaboration implements CollaborationInput {
       log.error({ stageId: stage.id, err }, "autoInvokeNewStage failed");
     });
   }
-
   /** 反向转移后，向 reactivated stage 发送包含打回原因的 kickoff 消息 */
-  private autoInvokeBackwardStage(stage: Stage, fromStage: Stage): void {
+  private autoInvokeBackwardStage(stage: Stage, fromStage: Stage, backwardContext: { reason: string; gate_evidence?: Record<string, unknown> } | null): void {
     if (!stage.default_role_instance) return;
-    const s = (this.suggestions.get(fromStage.id) ?? []).find(s => s.target_key === stage.key);
-    const reason = s?.reason ?? "未指定原因";
-    const evidence = s?.gate_evidence ? JSON.stringify(s.gate_evidence, null, 2) : "无";
+    const reason = backwardContext?.reason ?? "未指定原因";
+    const evidence = backwardContext?.gate_evidence ? JSON.stringify(backwardContext.gate_evidence, null, 2) : "无";
     const kickoff = `阶段 ${stage.key} 被重新激活。\n\n打回来源：${fromStage.key} 阶段\n打回原因：${reason}\n下游发现的问题：\n${evidence}\n\n请针对以上问题修复后重新推进。`;
     this.sendMessage(stage.id, kickoff, "").catch((err) => { log.error({ stageId: stage.id, err }, "autoInvokeBackwardStage failed"); });
   }
@@ -510,7 +508,6 @@ export class IssueCollaboration implements CollaborationInput {
       return null;
     }
   }
-
   /** 互斥约束：新信号方向与已有信号冲突时返回 true（反向 = target_key 指向历史中已有 stage） */
   private checkDirectionConflict(stage: Stage, existing: StageTransitionSuggestion[], newSig: StageTransitionSuggestion): boolean {
     if (existing.length === 0) return false;
@@ -580,7 +577,9 @@ export class IssueCollaboration implements CollaborationInput {
     const ctxLines = Object.entries(issue.context).map(([k, v]) => `- **${k}**: ${v}`).join("\n") || "无";
     const issueContext = missingInfra.length > 0 ? `${ctxLines}\n> ⚠️ 以下基础设施字段未记录：${missingInfra.join(", ")}` : ctxLines;
     const targets = ["user", ...stage.role_instances.filter(i => i !== roleInstance)].map(t => `\`${t}\``).join("、");
-    return `<context>\n## 项目上下文\n**Issue**：${issue.title}\n**Issue ID**：${issue.id} | **工作区**：${issue.workspace_path}\n**Issue 摘要**：${issue.summary ?? "无"}\n## Issue 上下文（只读视图）\n${issueContext}\n> **注意**：这是只读视图。Agent 应使用 MCP 工具 \`set_context\` 和 \`get_context\` 读写 Issue 上下文。Issue 上下文也会通过环境变量 \`SNAIL_CTX_*\` 注入，可通过 \`process.env\` 读取。\n## 当前阶段\n**阶段**：${stage.title} (${stage.key}) — ${stage.description}\n## 可用 Skills\n${skillList}\n使用 skill tool 触发对应的 skill，获取详细工作流程和规则。\n## 可用流转\n${transitions || "无"}\n## 协作规则\n- 你可以通过 @角色实例 请求其他角色回应\n- 你是当前阶段的守门人，不是推进者。建议 stage_transition 前，必须先完成所在 SKILL.md 中的 Stage Gate 自检并呈现完整证据。\n- 通过信号表达阶段工作结果：signal_type: gate_complete（单人完成）、adversarial_consensus（多人共识）、disagreement（分歧）\n## 最终答复规则\n**必须使用 \`set_final_body\` MCP 设置最终答复**。每次发言结束前必须调用此工具，传入你希望展示给用户的完整 Markdown 内容。调用后本轮发言结束，不得再调用任何其他工具。\n**路由目标声明**：如果需要其他角色继续处理，必须在 \`set_final_body\` 的 \`to_speakers\` 参数中声明目标角色。\n**可用路由目标**：${targets}\n**格式要求**：必须使用上述精确名称。不要使用 snail key、role key 或英文翻译。\n**必选参数**：调用 \`set_final_body\` 前必须先调用 \`get_current_message_id\` 获取 \`message_id\`；\`stage_id\` 从环境变量 \`SNAIL_CTX_STAGE_ID\` 获取。\n</context>`;
+    const rules = ["- 你可以通过 @角色实例 请求其他角色回应", "- 你是当前阶段的守门人，不是推进者。建议 stage_transition 前，必须先完成所在 SKILL.md 中的 Stage Gate 自检并呈现完整证据。", "- 通过信号表达阶段工作结果：signal_type: gate_complete（单人完成）、adversarial_consensus（多人共识）、disagreement（分歧）"].join("\n");
+    const finalRules = [`**必须使用 \`set_final_body\` MCP 设置最终答复**。每次发言结束前必须调用此工具，传入你希望展示给用户的完整 Markdown 内容。调用后本轮发言结束，不得再调用任何其他工具。`, `**路由目标声明**：如果需要其他角色继续处理，必须在 \`set_final_body\` 的 \`to_speakers\` 参数中声明目标角色。`, `**可用路由目标**：${targets}`, `**格式要求**：必须使用上述精确名称。不要使用 snail key、role key 或英文翻译。`, `**必选参数**：调用 \`set_final_body\` 前必须先调用 \`get_current_message_id\` 获取 \`message_id\`；\`stage_id\` 从环境变量 \`SNAIL_CTX_STAGE_ID\` 获取。`].join("\n");
+    return `<context>\n## 项目上下文\n**Issue**：${issue.title}\n**Issue ID**：${issue.id} | **工作区**：${issue.workspace_path}\n**Issue 摘要**：${issue.summary ?? "无"}\n## Issue 上下文（只读视图）\n${issueContext}\n> **注意**：这是只读视图。Agent 应使用 MCP 工具 \`set_context\` 和 \`get_context\` 读写 Issue 上下文。Issue 上下文也会通过环境变量 \`SNAIL_CTX_*\` 注入，可通过 \`process.env\` 读取。\n## 当前阶段\n**阶段**：${stage.title} (${stage.key}) — ${stage.description}\n## 可用 Skills\n${skillList}\n使用 skill tool 触发对应的 skill，获取详细工作流程和规则。\n## 可用流转\n${transitions || "无"}\n## 协作规则\n${rules}\n## 最终答复规则\n${finalRules}\n</context>`;
   }
   private async notifyConsumers(stageId: string, method: keyof CollaborationConsumer, ...args: unknown[]): Promise<void> {
     const stage = this.helpers.mustGetStage(stageId);
@@ -596,7 +595,6 @@ export class IssueCollaboration implements CollaborationInput {
     const prev = this.lastActivityStatus.get(stage.issue_id);
     if (prev === newStatus) return;
     this.lastActivityStatus.set(stage.issue_id, newStatus);
-    const wsConsumers = this.workspaceConsumers.get(issue.workspace_path);
-    if (wsConsumers) for (const c of wsConsumers) c.onActivityStatusChanged(stage.issue_id, newStatus, prev ?? "needs_human");
+    for (const c of this.workspaceConsumers.get(issue.workspace_path) ?? []) c.onActivityStatusChanged(stage.issue_id, newStatus, prev ?? "needs_human");
   }
 }
