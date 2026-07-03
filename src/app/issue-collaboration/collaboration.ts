@@ -174,8 +174,14 @@ export class IssueCollaboration implements CollaborationInput {
   /** 用户强制推进：跳过引擎阻断，执行推进并写审计日志 */
   async forceAdvance(stageId: string, targetKey: string): Promise<{ stage: Stage; evaluation: EvaluationResult }> {
     this.helpers.mustGetStage(stageId);
-    /** 仍然执行评估，获取阻断原因供前端展示 */
-    const evaluation = await this.evaluateAdvance(stageId);
+    /** 仍然执行评估，获取阻断原因供前端展示。评估失败不阻塞强制推进。 */
+    let evaluation: EvaluationResult;
+    try {
+      evaluation = await this.evaluateAdvance(stageId);
+    } catch (err) {
+      log.error({ stageId, err }, "force advance: evaluateAdvance failed, proceeding with empty evaluation");
+      evaluation = { action: "blocked", reasons: [{ code: "EVALUATE_FAILED", severity: "error", message: `评估失败：${err instanceof Error ? err.message : String(err)}` }] };
+    }
     const oldStage = this.deps.stagePort.findStage(stageId);
     const newStage = this.deps.stagePort.advanceStage(stageId, targetKey);
     this.cleanupDispatchStates(stageId);
