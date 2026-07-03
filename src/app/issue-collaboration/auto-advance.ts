@@ -6,6 +6,33 @@ import { getLogger } from "@infra/logger";
 
 const log = getLogger({ module: "auto-advance" });
 
+/** Gate 元数据：为错误反馈提供可操作的修复指引 */
+const GATE_METADATA: Record<string, { description: string; check: string; doc_ref: string }> = {
+  "design-01": { description: "Feature 文档的 [design-time] 章节必须已锁定", check: "确认 Feature 文档中所有标记 [design-time] 的章节已填写完成且内容非空", doc_ref: "cd-design/SKILL.md" },
+  "design-02": { description: "无未解决的设计争议", check: "确认交叉审视中的所有发现已达成共识或已记录分歧信号", doc_ref: "cd-design/SKILL.md" },
+  "design-04": { description: "所有 [required] 章节已填写且内容非空", check: "确认 Feature 文档中所有标记 [required] 的章节已填写", doc_ref: "cd-design/SKILL.md" },
+  "design-05": { description: "用户意图锚已填写，逐字引用、修饰语完整", check: "确认用户意图锚表已填写，用户原话为逐字引用，来源有消息 ID", doc_ref: "cd-design/SKILL.md" },
+  "dev-01": { description: "代码已在 worktree 中完整实现", check: "确认所有计划的代码修改已在 worktree 中完成", doc_ref: "cd-development/SKILL.md" },
+  "dev-02": { description: "自检通过：业务代码按设计意图实现；测试、构建无报错", check: "运行 npm run check 确认测试和构建均通过", doc_ref: "cd-development/SKILL.md" },
+  "dev-03": { description: "Feature 文档已同步更新", check: "确认 Feature 文档的 development-time 章节已更新实现记录", doc_ref: "cd-development/SKILL.md" },
+  "dev-04": { description: "PR 已创建且包含完整改动摘要", check: "确认 PR 已推送到远端且描述包含改动摘要", doc_ref: "cd-development/SKILL.md" },
+  "dev-06": { description: "变更完整性已验证", check: "根据 change_type 执行对应验证命令（如 npm run check），确认输出无报错", doc_ref: "cd-development/SKILL.md" },
+  "rev-01": { description: "两位审查者均完成独立检视", check: "确认两位审查者的 adversarial_artifact 均已提交", doc_ref: "cd-review/SKILL.md" },
+  "rev-02": { description: "所有发现项已逐条处置", check: "确认 adversarial_findings 中每项 disposition 已填写且不为 'none'", doc_ref: "cd-review/SKILL.md" },
+  "rev-03": { description: "复检覆盖完整 PR diff", check: "确认 file_coverage.coverage_ratio = 1.0", doc_ref: "cd-review/SKILL.md" },
+  "rev-04": { description: "特性编号格式正确", check: "确认 gate_evidence['rev-04'] 为合法特性编号（F + 8位日期 + 4位随机码）", doc_ref: "cd-shared/references/feature-numbering.md" },
+};
+
+/** 为失败的 gate ID 列表生成修复指引 */
+function buildGateFixGuidance(failedGates: string[]): Record<string, { description: string; check: string; doc_ref: string }> {
+  const guidance: Record<string, { description: string; check: string; doc_ref: string }> = {};
+  for (const gate of failedGates) {
+    const meta = GATE_METADATA[gate];
+    guidance[gate] = meta ?? { description: `Gate ${gate} 未通过`, check: `确认 gate_evidence["${gate}"] 为非空字符串`, doc_ref: "cd-shared/references/adversarial-artifact-protocol.md" };
+  }
+  return guidance;
+}
+
 export interface AutoAdvanceDeps {
   advanceStage(stageId: string, targetKey: string): Promise<Stage>;
   recordAuditTrail(fromStage: Stage, toStage: Stage, suggestion: StageTransitionSuggestion): Promise<void>;
@@ -135,12 +162,12 @@ export class AutoAdvanceEngine {
     const missingContext = this.getMissingContextFields(stage, config);
     if (missingContext.length > 0) {
       await this.notifyMissingContext(stage.id, missingContext);
-      return { action: "blocked", reasons: [{ code: "CONTEXT_MISSING", severity: "error", message: "Issue 上下文缺少必要字段", details: { missing_fields: missingContext } }] };
+      return { action: "blocked", reasons: [{ code: "CONTEXT_MISSING", severity: "error", message: "Issue 上下文缺少必要字段", details: { missing_fields: missingContext, fix_guidance: Object.fromEntries(missingContext.map(f => [f, { description: `Issue 上下文缺少必要字段 "${f}"`, check: `通过 set_context 工具设置 "${f}" 的值`, doc_ref: "cd-shared/references/stage-gate.md" }])) } }] };
     }
     const latest = suggestions[suggestions.length - 1];
     const failedGates = this.getFailedGates(config, latest);
     if (failedGates.length > 0) {
-      return { action: "blocked", reasons: [{ code: "GATE_FAILED", severity: "error", message: `Gate 自检未通过：${failedGates.join(", ")}`, details: { failed_gates: failedGates } }] };
+      return { action: "blocked", reasons: [{ code: "GATE_FAILED", severity: "error", message: `Gate 自检未通过：${failedGates.join(", ")}`, details: { failed_gates: failedGates, fix_guidance: buildGateFixGuidance(failedGates) } }] };
     }
     return { action: "auto_advanced", target_key: latest.target_key, reasons: [{ code: "AUTO_ADVANCED", severity: "info", message: "自动推进成功" }] };
   }
@@ -154,7 +181,7 @@ export class AutoAdvanceEngine {
     const missingContext = this.getMissingContextFields(stage, config);
     if (missingContext.length > 0) {
       await this.notifyMissingContext(stage.id, missingContext);
-      return { action: "blocked", reasons: [{ code: "CONTEXT_MISSING", severity: "error", message: "Issue 上下文缺少必要字段", details: { missing_fields: missingContext } }] };
+      return { action: "blocked", reasons: [{ code: "CONTEXT_MISSING", severity: "error", message: "Issue 上下文缺少必要字段", details: { missing_fields: missingContext, fix_guidance: Object.fromEntries(missingContext.map(f => [f, { description: `Issue 上下文缺少必要字段 "${f}"`, check: `通过 set_context 工具设置 "${f}" 的值`, doc_ref: "cd-shared/references/stage-gate.md" }])) } }] };
     }
 
     const blockingResult = this.checkBlockingRules(stage, config);
@@ -197,7 +224,7 @@ export class AutoAdvanceEngine {
     for (const [speaker, latest] of latestBySpeaker) {
       const failedGates = this.getFailedGates(config, latest);
       if (failedGates.length > 0) {
-        return { result: { action: "blocked", reasons: [{ code: "GATE_FAILED", severity: "error", message: `Gate 自检未通过（${speaker}）：${failedGates.join(", ")}`, details: { failed_gates: failedGates, speaker } }] }, r7Warnings };
+        return { result: { action: "blocked", reasons: [{ code: "GATE_FAILED", severity: "error", message: `Gate 自检未通过（${speaker}）：${failedGates.join(", ")}`, details: { failed_gates: failedGates, speaker, fix_guidance: buildGateFixGuidance(failedGates) } }] }, r7Warnings };
       }
       const validation = this.validateAdversarialArtifactWithConfig(stage, config, latest);
       if (!validation.valid) {

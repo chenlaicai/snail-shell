@@ -13,6 +13,7 @@ description: |
 
 ## Gotchas（必读）
 
+- **[HARD] 信号预校验**：在调用 `set_final_body` 包含 `stage_transition` JSON 之前，必须先调用 `validate_stage_signal` 工具并通过校验。未预校验直接发信号 = 违规。
 - **[HARD] Stage Gate 自检**：你是开发阶段的守门人，不是推进者。在建议 stage_transition 之前，必须逐项完成下方 Stage Gate 自检章节，呈现完整证据。禁用"代码写完了"、"测试通过了"、"PR 提了"等笼统陈述——每项必须附带具体验证输出或 PR 链接。未完成自检直接建议推进 = 违规。
 - **业务代码是主体，测试是仆从**：测试验证的是外部可观测行为，不是内部实现。mock 仅作为隔离手段，不作为断言依据（禁止断言调用次数/调用参数）。
 - **代码仓库不允许存在兼容性桥接代码**：没有 `if oldFormat then migrate`。数据库 schema 只允许 `CREATE TABLE IF NOT EXISTS`，不允许 ALTER TABLE。

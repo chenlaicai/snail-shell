@@ -171,6 +171,36 @@ export class IssueCollaboration implements CollaborationInput {
     else this.autoInvokeNewStage(stage);
     return stage;
   }
+  /** 用户强制推进：跳过引擎阻断，执行推进并写审计日志 */
+  async forceAdvance(stageId: string, targetKey: string): Promise<{ stage: Stage; evaluation: EvaluationResult }> {
+    this.helpers.mustGetStage(stageId);
+    /** 仍然执行评估，获取阻断原因供前端展示 */
+    const evaluation = await this.evaluateAdvance(stageId);
+    const oldStage = this.deps.stagePort.findStage(stageId);
+    const newStage = this.deps.stagePort.advanceStage(stageId, targetKey);
+    this.cleanupDispatchStates(stageId);
+    for (const s of (this.suggestions.get(stageId) ?? [])) this.deps.stageSuggestionRepo.markProcessed(s.message_id.toString(), "confirmed");
+    this.suggestions.delete(stageId);
+    this.helpers.initStageCursors(newStage);
+    /** 审计日志：标记为 forced，让后续审查者知道这是用户手动强制推进 */
+    const reasons = evaluation.reasons.map(r => r.code).join(", ");
+    this.deps.stagePort.recordAudit({
+      stage_id: stageId, from_key: oldStage?.key ?? "", to_key: newStage.key,
+      trigger: "manual", trigger_reason: `[forced] 用户强制推进，绕过阻断：${reasons}`,
+      consensus_content: "", timestamp: Date.now(),
+    });
+    log.warn({ stageId, targetKey, reasons }, "force advance: user bypassed engine block");
+    /** 通知消费者（与自动推进一致） */
+    await this.notifyConsumers(newStage.id, "onAutoAdvanced", {
+      from: stageId, to: newStage.id, from_key: oldStage?.key ?? "", to_key: newStage.key, reason: `[forced] 用户强制推进`,
+    });
+    if (oldStage && this.isBackwardTarget(oldStage.issue_id, targetKey)) {
+      this.autoInvokeBackwardStage(newStage, oldStage, { reason: `[forced] 用户强制推进`, gate_evidence: {} });
+    } else {
+      this.autoInvokeNewStage(newStage);
+    }
+    return { stage: newStage, evaluation };
+  }
   /** 在 suggestions 被清除前提取打回原因和证据 */
   private extractBackwardContext(fromStageId: string, targetKey: string): { reason: string; gate_evidence?: Record<string, unknown> } | null {
     const s = (this.suggestions.get(fromStageId) ?? []).find(s => s.target_key === targetKey);
