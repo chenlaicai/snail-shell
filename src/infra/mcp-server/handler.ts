@@ -49,6 +49,12 @@ export function createMcpHandler(port: SnailMCPServerPort): Hono {
   // 处理 JSON-RPC 请求（每个 MCP Server 独立端点）
   app.post("/:serverName", async (c) => {
     const serverName = c.req.param("serverName");
+    const server = port.findServer(serverName);
+    if (!server) {
+      const registeredEndpoints = port.listServers().map(s => s.name);
+      log.warn({ path: c.req.path, method: c.req.method, registeredEndpoints }, "mcp.endpoint.not_found");
+      return c.json({ jsonrpc: "2.0", error: { code: -32601, message: "Server not found" } }, 404);
+    }
     try {
       const body = await c.req.json<JsonRpcRequest>();
       const response = await port.handleRequest(serverName, body);
