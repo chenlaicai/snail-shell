@@ -81,23 +81,11 @@ export default tseslint.config(
   },
 
   // ========== 层级方向约束 ==========
-  // domain（最内层）禁止反向依赖 app 层（warn，待 F-1 修复后升级为 error）
-  {
-    files: ["src/domain/**/*.ts"],
-    rules: {
-      "@typescript-eslint/no-restricted-imports": ["warn", {
-        patterns: [{
-          group: ["@app/*"],
-          message: "domain 层禁止反向依赖 app 层；如需 app 层能力，应通过 port 注入"
-        }]
-      }]
-    }
-  },
-  // infra 层禁止依赖 app 层（warn，待 F-2 修复后升级为 error）
+  // infra 层禁止依赖 app 层
   {
     files: ["src/infra/**/*.ts"],
     rules: {
-      "@typescript-eslint/no-restricted-imports": ["warn", {
+      "@typescript-eslint/no-restricted-imports": ["error", {
         patterns: [{
           group: ["@app/*"],
           message: "infra 层禁止依赖 app 层；adapter 通过 DI 接收 app 层实例"
@@ -106,8 +94,9 @@ export default tseslint.config(
     }
   },
 
-  // ========== _internal 私有性约束 ==========
-  // 禁止跨模块 import _internal 目录
+  // ========== domain 模块专属约束 ==========
+  // 每个模块同时约束 @app/* 反向依赖和 _internal 跨模块访问
+  // 通用 @app/* 约束已移除——所有模块均有专属 error 规则，通用 warn 规则冗余且可能掩盖遗漏
   {
     files: ["src/domain/workspace/**/*.ts"],
     rules: {
@@ -118,7 +107,7 @@ export default tseslint.config(
             message: "domain 层禁止反向依赖 app 层；如需 app 层能力，应通过 port 注入"
           },
           {
-            group: ["@domain/tenet-prompt/_internal/*", "@domain/skill/_internal/*", "@domain/sop/_internal/*", "@domain/mcp-server/_internal/*", "@domain/mcp-client/_internal/*", "@domain/im/_internal/*", "@domain/knowledge/_internal/*"],
+            group: ["@domain/tenet-prompt/_internal/*", "@domain/skill/_internal/*", "@domain/sop/_internal/*", "@domain/im/_internal/*", "@domain/knowledge/_internal/*", "@domain/evolution/_internal/*", "@domain/feature-chain/_internal/*", "@domain/guard-profile/_internal/*", "@domain/issue/_internal/*", "@domain/lite-ai/_internal/*", "@domain/mcp-config/_internal/*", "@domain/message/_internal/*", "@domain/snail/_internal/*", "@domain/snail-mcp-server/_internal/*", "@domain/scheduled-task/_internal/*"],
             message: "_internal 是模块私有目录，不能跨模块 import"
           }
         ]
@@ -135,7 +124,7 @@ export default tseslint.config(
             message: "domain 层禁止反向依赖 app 层；如需 app 层能力，应通过 port 注入"
           },
           {
-            group: ["@domain/workspace/_internal/*", "@domain/skill/_internal/*", "@domain/sop/_internal/*", "@domain/mcp-server/_internal/*", "@domain/mcp-client/_internal/*", "@domain/im/_internal/*", "@domain/knowledge/_internal/*"],
+            group: ["@domain/workspace/_internal/*", "@domain/skill/_internal/*", "@domain/sop/_internal/*", "@domain/im/_internal/*", "@domain/knowledge/_internal/*", "@domain/evolution/_internal/*", "@domain/feature-chain/_internal/*", "@domain/guard-profile/_internal/*", "@domain/issue/_internal/*", "@domain/lite-ai/_internal/*", "@domain/mcp-config/_internal/*", "@domain/message/_internal/*", "@domain/snail/_internal/*", "@domain/snail-mcp-server/_internal/*", "@domain/scheduled-task/_internal/*"],
             message: "_internal 是模块私有目录，不能跨模块 import"
           }
         ]
@@ -152,7 +141,7 @@ export default tseslint.config(
             message: "domain 层禁止反向依赖 app 层；如需 app 层能力，应通过 port 注入"
           },
           {
-            group: ["@domain/workspace/_internal/*", "@domain/tenet-prompt/_internal/*", "@domain/sop/_internal/*", "@domain/mcp-server/_internal/*", "@domain/mcp-client/_internal/*", "@domain/im/_internal/*", "@domain/knowledge/_internal/*"],
+            group: ["@domain/workspace/_internal/*", "@domain/tenet-prompt/_internal/*", "@domain/sop/_internal/*", "@domain/im/_internal/*", "@domain/knowledge/_internal/*", "@domain/evolution/_internal/*", "@domain/feature-chain/_internal/*", "@domain/guard-profile/_internal/*", "@domain/issue/_internal/*", "@domain/lite-ai/_internal/*", "@domain/mcp-config/_internal/*", "@domain/message/_internal/*", "@domain/snail/_internal/*", "@domain/snail-mcp-server/_internal/*", "@domain/scheduled-task/_internal/*"],
             message: "_internal 是模块私有目录，不能跨模块 import"
           }
         ]
@@ -169,7 +158,7 @@ export default tseslint.config(
             message: "domain 层禁止反向依赖 app 层；如需 app 层能力，应通过 port 注入"
           },
           {
-            group: ["@domain/workspace/_internal/*", "@domain/tenet-prompt/_internal/*", "@domain/skill/_internal/*", "@domain/mcp-server/_internal/*", "@domain/mcp-client/_internal/*", "@domain/im/_internal/*", "@domain/knowledge/_internal/*"],
+            group: ["@domain/workspace/_internal/*", "@domain/tenet-prompt/_internal/*", "@domain/skill/_internal/*", "@domain/im/_internal/*", "@domain/knowledge/_internal/*", "@domain/evolution/_internal/*", "@domain/feature-chain/_internal/*", "@domain/guard-profile/_internal/*", "@domain/issue/_internal/*", "@domain/lite-ai/_internal/*", "@domain/mcp-config/_internal/*", "@domain/message/_internal/*", "@domain/snail/_internal/*", "@domain/snail-mcp-server/_internal/*", "@domain/scheduled-task/_internal/*"],
             message: "_internal 是模块私有目录，不能跨模块 import"
           }
         ]
@@ -186,7 +175,7 @@ export default tseslint.config(
             message: "domain 层禁止反向依赖 app 层；如需 app 层能力，应通过 port 注入"
           },
           {
-            group: ["@domain/workspace/_internal/*", "@domain/tenet-prompt/_internal/*", "@domain/skill/_internal/*", "@domain/sop/_internal/*", "@domain/mcp-server/_internal/*", "@domain/mcp-client/_internal/*", "@domain/knowledge/_internal/*"],
+            group: ["@domain/workspace/_internal/*", "@domain/tenet-prompt/_internal/*", "@domain/skill/_internal/*", "@domain/sop/_internal/*", "@domain/knowledge/_internal/*", "@domain/evolution/_internal/*", "@domain/feature-chain/_internal/*", "@domain/guard-profile/_internal/*", "@domain/issue/_internal/*", "@domain/lite-ai/_internal/*", "@domain/mcp-config/_internal/*", "@domain/message/_internal/*", "@domain/snail/_internal/*", "@domain/snail-mcp-server/_internal/*", "@domain/scheduled-task/_internal/*"],
             message: "_internal 是模块私有目录，不能跨模块 import"
           }
         ]
@@ -203,7 +192,160 @@ export default tseslint.config(
             message: "domain 层禁止反向依赖 app 层；如需 app 层能力，应通过 port 注入"
           },
           {
-            group: ["@domain/workspace/_internal/*", "@domain/tenet-prompt/_internal/*", "@domain/skill/_internal/*", "@domain/sop/_internal/*", "@domain/mcp-server/_internal/*", "@domain/mcp-client/_internal/*", "@domain/im/_internal/*"],
+            group: ["@domain/workspace/_internal/*", "@domain/tenet-prompt/_internal/*", "@domain/skill/_internal/*", "@domain/sop/_internal/*", "@domain/im/_internal/*", "@domain/evolution/_internal/*", "@domain/feature-chain/_internal/*", "@domain/guard-profile/_internal/*", "@domain/issue/_internal/*", "@domain/lite-ai/_internal/*", "@domain/mcp-config/_internal/*", "@domain/message/_internal/*", "@domain/snail/_internal/*", "@domain/snail-mcp-server/_internal/*", "@domain/scheduled-task/_internal/*"],
+            message: "_internal 是模块私有目录，不能跨模块 import"
+          }
+        ]
+      }]
+    }
+  },
+  {
+    files: ["src/domain/evolution/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": ["error", {
+        patterns: [
+          {
+            group: ["@app/*"],
+            message: "domain 层禁止反向依赖 app 层；如需 app 层能力，应通过 port 注入"
+          },
+          {
+            group: ["@domain/workspace/_internal/*", "@domain/tenet-prompt/_internal/*", "@domain/skill/_internal/*", "@domain/sop/_internal/*", "@domain/im/_internal/*", "@domain/knowledge/_internal/*", "@domain/feature-chain/_internal/*", "@domain/guard-profile/_internal/*", "@domain/issue/_internal/*", "@domain/lite-ai/_internal/*", "@domain/mcp-config/_internal/*", "@domain/message/_internal/*", "@domain/snail/_internal/*", "@domain/snail-mcp-server/_internal/*", "@domain/scheduled-task/_internal/*"],
+            message: "_internal 是模块私有目录，不能跨模块 import"
+          }
+        ]
+      }]
+    }
+  },
+  {
+    files: ["src/domain/feature-chain/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": ["error", {
+        patterns: [
+          {
+            group: ["@app/*"],
+            message: "domain 层禁止反向依赖 app 层；如需 app 层能力，应通过 port 注入"
+          },
+          {
+            group: ["@domain/workspace/_internal/*", "@domain/tenet-prompt/_internal/*", "@domain/skill/_internal/*", "@domain/sop/_internal/*", "@domain/im/_internal/*", "@domain/knowledge/_internal/*", "@domain/evolution/_internal/*", "@domain/guard-profile/_internal/*", "@domain/issue/_internal/*", "@domain/lite-ai/_internal/*", "@domain/mcp-config/_internal/*", "@domain/message/_internal/*", "@domain/snail/_internal/*", "@domain/snail-mcp-server/_internal/*", "@domain/scheduled-task/_internal/*"],
+            message: "_internal 是模块私有目录，不能跨模块 import"
+          }
+        ]
+      }]
+    }
+  },
+  {
+    files: ["src/domain/guard-profile/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": ["error", {
+        patterns: [
+          {
+            group: ["@app/*"],
+            message: "domain 层禁止反向依赖 app 层；如需 app 层能力，应通过 port 注入"
+          },
+          {
+            group: ["@domain/workspace/_internal/*", "@domain/tenet-prompt/_internal/*", "@domain/skill/_internal/*", "@domain/sop/_internal/*", "@domain/im/_internal/*", "@domain/knowledge/_internal/*", "@domain/evolution/_internal/*", "@domain/feature-chain/_internal/*", "@domain/issue/_internal/*", "@domain/lite-ai/_internal/*", "@domain/mcp-config/_internal/*", "@domain/message/_internal/*", "@domain/snail/_internal/*", "@domain/snail-mcp-server/_internal/*", "@domain/scheduled-task/_internal/*"],
+            message: "_internal 是模块私有目录，不能跨模块 import"
+          }
+        ]
+      }]
+    }
+  },
+  {
+    files: ["src/domain/issue/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": ["error", {
+        patterns: [
+          {
+            group: ["@app/*"],
+            message: "domain 层禁止反向依赖 app 层；如需 app 层能力，应通过 port 注入"
+          },
+          {
+            group: ["@domain/workspace/_internal/*", "@domain/tenet-prompt/_internal/*", "@domain/skill/_internal/*", "@domain/sop/_internal/*", "@domain/im/_internal/*", "@domain/knowledge/_internal/*", "@domain/evolution/_internal/*", "@domain/feature-chain/_internal/*", "@domain/guard-profile/_internal/*", "@domain/lite-ai/_internal/*", "@domain/mcp-config/_internal/*", "@domain/message/_internal/*", "@domain/snail/_internal/*", "@domain/snail-mcp-server/_internal/*", "@domain/scheduled-task/_internal/*"],
+            message: "_internal 是模块私有目录，不能跨模块 import"
+          }
+        ]
+      }]
+    }
+  },
+  {
+    files: ["src/domain/lite-ai/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": ["error", {
+        patterns: [
+          {
+            group: ["@app/*"],
+            message: "domain 层禁止反向依赖 app 层；如需 app 层能力，应通过 port 注入"
+          },
+          {
+            group: ["@domain/workspace/_internal/*", "@domain/tenet-prompt/_internal/*", "@domain/skill/_internal/*", "@domain/sop/_internal/*", "@domain/im/_internal/*", "@domain/knowledge/_internal/*", "@domain/evolution/_internal/*", "@domain/feature-chain/_internal/*", "@domain/guard-profile/_internal/*", "@domain/issue/_internal/*", "@domain/mcp-config/_internal/*", "@domain/message/_internal/*", "@domain/snail/_internal/*", "@domain/snail-mcp-server/_internal/*", "@domain/scheduled-task/_internal/*"],
+            message: "_internal 是模块私有目录，不能跨模块 import"
+          }
+        ]
+      }]
+    }
+  },
+  {
+    files: ["src/domain/mcp-config/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": ["error", {
+        patterns: [
+          {
+            group: ["@app/*"],
+            message: "domain 层禁止反向依赖 app 层；如需 app 层能力，应通过 port 注入"
+          },
+          {
+            group: ["@domain/workspace/_internal/*", "@domain/tenet-prompt/_internal/*", "@domain/skill/_internal/*", "@domain/sop/_internal/*", "@domain/im/_internal/*", "@domain/knowledge/_internal/*", "@domain/evolution/_internal/*", "@domain/feature-chain/_internal/*", "@domain/guard-profile/_internal/*", "@domain/issue/_internal/*", "@domain/lite-ai/_internal/*", "@domain/message/_internal/*", "@domain/snail/_internal/*", "@domain/snail-mcp-server/_internal/*", "@domain/scheduled-task/_internal/*"],
+            message: "_internal 是模块私有目录，不能跨模块 import"
+          }
+        ]
+      }]
+    }
+  },
+  {
+    files: ["src/domain/message/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": ["error", {
+        patterns: [
+          {
+            group: ["@app/*"],
+            message: "domain 层禁止反向依赖 app 层；如需 app 层能力，应通过 port 注入"
+          },
+          {
+            group: ["@domain/workspace/_internal/*", "@domain/tenet-prompt/_internal/*", "@domain/skill/_internal/*", "@domain/sop/_internal/*", "@domain/im/_internal/*", "@domain/knowledge/_internal/*", "@domain/evolution/_internal/*", "@domain/feature-chain/_internal/*", "@domain/guard-profile/_internal/*", "@domain/issue/_internal/*", "@domain/lite-ai/_internal/*", "@domain/mcp-config/_internal/*", "@domain/snail/_internal/*", "@domain/snail-mcp-server/_internal/*", "@domain/scheduled-task/_internal/*"],
+            message: "_internal 是模块私有目录，不能跨模块 import"
+          }
+        ]
+      }]
+    }
+  },
+  {
+    files: ["src/domain/snail/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": ["error", {
+        patterns: [
+          {
+            group: ["@app/*"],
+            message: "domain 层禁止反向依赖 app 层；如需 app 层能力，应通过 port 注入"
+          },
+          {
+            group: ["@domain/workspace/_internal/*", "@domain/tenet-prompt/_internal/*", "@domain/skill/_internal/*", "@domain/sop/_internal/*", "@domain/im/_internal/*", "@domain/knowledge/_internal/*", "@domain/evolution/_internal/*", "@domain/feature-chain/_internal/*", "@domain/guard-profile/_internal/*", "@domain/issue/_internal/*", "@domain/lite-ai/_internal/*", "@domain/mcp-config/_internal/*", "@domain/message/_internal/*", "@domain/snail-mcp-server/_internal/*", "@domain/scheduled-task/_internal/*"],
+            message: "_internal 是模块私有目录，不能跨模块 import"
+          }
+        ]
+      }]
+    }
+  },
+  {
+    files: ["src/domain/snail-mcp-server/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": ["error", {
+        patterns: [
+          {
+            group: ["@app/*"],
+            message: "domain 层禁止反向依赖 app 层；如需 app 层能力，应通过 port 注入"
+          },
+          {
+            group: ["@domain/workspace/_internal/*", "@domain/tenet-prompt/_internal/*", "@domain/skill/_internal/*", "@domain/sop/_internal/*", "@domain/im/_internal/*", "@domain/knowledge/_internal/*", "@domain/evolution/_internal/*", "@domain/feature-chain/_internal/*", "@domain/guard-profile/_internal/*", "@domain/issue/_internal/*", "@domain/lite-ai/_internal/*", "@domain/mcp-config/_internal/*", "@domain/message/_internal/*", "@domain/snail/_internal/*", "@domain/scheduled-task/_internal/*"],
             message: "_internal 是模块私有目录，不能跨模块 import"
           }
         ]

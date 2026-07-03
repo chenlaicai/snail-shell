@@ -6,7 +6,7 @@ import { getLogger } from "@infra/logger";
 import type { WorkspacePort } from "@domain/workspace/port";
 import type { IssuePort, StagePort } from "@domain/issue/port";
 import type { MessagePort } from "@domain/message/port";
-import type { CollaborationInput } from "@app/issue-collaboration/port";
+import type { CollaborationPort } from "@domain/collaboration/port";
 import type { Issue, Stage } from "@domain/issue/model";
 import type { Message } from "@domain/message/model";
 
@@ -17,7 +17,7 @@ interface IssueRoutesDeps {
   issuePort: IssuePort;
   stagePort: StagePort;
   messagePort: MessagePort;
-  collaboration: CollaborationInput;
+  collaboration: CollaborationPort;
 }
 
 const snailAssignmentPlanSchema = z.record(z.string(), z.record(z.string(), z.string()));
