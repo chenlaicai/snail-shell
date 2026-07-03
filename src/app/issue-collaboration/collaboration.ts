@@ -10,6 +10,7 @@ import type { McpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-mes
 import type { CollaborationConsumer, CollaborationInput, CreateIssueResult, DecisionMode, EvaluationResult, SignalType, StageTransitionSuggestion, WorkspaceConsumer } from "@app/issue-collaboration/port";
 import type { StageSuggestionRepository, StageSuggestionRecord } from "@domain/issue/_internal/repository";
 import { AutoAdvanceEngine } from "@app/issue-collaboration/auto-advance";
+import { validateSingleSignal } from "@app/issue-collaboration/signal-validation";
 import { ConsumerNotifier } from "@app/issue-collaboration/consumer-notifier";
 import { MessageHandler } from "@app/issue-collaboration/message-handler";
 import { CollaborationHelpers } from "@app/issue-collaboration/helpers";
@@ -388,15 +389,19 @@ export class IssueCollaboration implements CollaborationInput {
   private async detectStageTransition(stage: Stage, roleInstance: string, messageId: number): Promise<void> {
     const suggestion = this.signalParser.extract(stage, roleInstance, messageId);
     if (!suggestion) return;
-    /** L1 信号拦截：adversarial_consensus 含未解决 findings 时不持久化（SOP 合规性强制执行，与 R8 逻辑一致） */
-    if (suggestion.signal_type === "adversarial_consensus") {
-      const af = suggestion.adversarial_artifact?.adversarial_findings;
-      const unresolved = af?.filter(f => f.finding !== "no issues" && (f.disposition === "none" || (f.disposition ?? "").trim() === ""));
-      if (unresolved && unresolved.length > 0) {
-        log.warn({ stageId: stage.id, roleInstance, messageId, count: unresolved.length }, "L1: blocked adversarial_consensus with unresolved findings");
-        await this.notifyConsumers(stage.id, "onEvaluationResult", { action: "blocked", reasons: [{ code: "L1_UNRESOLVED_FINDINGS", severity: "error", message: `存在 ${unresolved.length} 个未解决的 findings，拦截推进信号`, details: { unresolved_count: unresolved.length } }] });
-        return;
-      }
+    /** L1 信号拦截：单条信号校验（decision_mode、context、gate、artifact、blocking_rules），不持久化阻断信号 */
+    const typedSuggestion = {
+      ...suggestion,
+      signal_type: suggestion.signal_type ?? this.autoAdvanceEngine.inferSignalType(suggestion, stage.key),
+      decision_mode: suggestion.decision_mode ?? "autonomous",
+    };
+    const issue = this.deps.issuePort.findIssue(stage.issue_id);
+    const config = issue?.sop_snapshot?.stage_definitions?.find(d => d.key === stage.key)?.auto_advance;
+    const l1Result = validateSingleSignal(stage, typedSuggestion, config, issue?.context ?? {});
+    if (l1Result && l1Result.action === "blocked") {
+      log.warn({ stageId: stage.id, roleInstance, messageId, codes: l1Result.reasons.map(r => r.code) }, "L1: signal blocked by validation");
+      await this.notifyConsumers(stage.id, "onEvaluationResult", l1Result);
+      return;
     }
     this.persistSuggestion(suggestion);
     const suggestions = this.suggestions.get(stage.id) ?? [];

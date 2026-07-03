@@ -154,63 +154,17 @@ function startHeartbeat(socket: Socket, routeInfo: RouteInfo, onFail: () => void
 }
 
 function createIssueConsumer(issueId: string, socket: Socket, collaboration: CollaborationInput, cleanup: () => void): CollaborationConsumer {
+  const emit = (stageId: string, event: Record<string, unknown>, statusStageId?: string, noCleanup?: boolean) =>
+    send(socket, { type: "issue_event", issue_id: issueId, activity_status: collaboration.getActivityStatus(statusStageId ?? stageId), event: { ...event, stage_id: stageId } }, noCleanup ? undefined : cleanup);
   return {
-    onMessageStarted(stageId, message) {
-      send(socket, {
-        type: "issue_event",
-        issue_id: issueId,
-        activity_status: collaboration.getActivityStatus(stageId),
-        event: { type: "message_started", stage_id: stageId, ...toMessageEventBase(message) },
-      }, cleanup);
-    },
-    onEvent(stageId, event) {
-      send(socket, {
-        type: "issue_event",
-        issue_id: issueId,
-        activity_status: collaboration.getActivityStatus(stageId),
-        event: { type: "message_event_appended", stage_id: stageId, message_id: event.message_id, event },
-      }, cleanup);
-    },
-    onMessageCompleted(stageId, message, context) {
-      send(socket, {
-        type: "issue_event",
-        issue_id: issueId,
-        activity_status: collaboration.getActivityStatus(stageId),
-        event: { type: "message_status_changed", stage_id: stageId, message_id: message.id, status: message.status, context, ended_at: message.ended_at },
-      }, cleanup);
-    },
-    onUserCalled(stageId, message) {
-      send(socket, {
-        type: "issue_event",
-        issue_id: issueId,
-        activity_status: collaboration.getActivityStatus(stageId),
-        event: { type: "user_called", stage_id: stageId, ...toMessageEventBase(message) },
-      }, cleanup);
-    },
-    onStageTransitionSuggested(stageId, suggestion) {
-      send(socket, {
-        type: "issue_event",
-        issue_id: issueId,
-        activity_status: collaboration.getActivityStatus(stageId),
-        event: { type: "stage_transition_suggested", stage_id: stageId, suggestion: toSuggestionPayload(suggestion) },
-      }, cleanup);
-    },
-    onAutoAdvanced(stageId, data) {
-      send(socket, {
-        type: "issue_event",
-        issue_id: issueId,
-        activity_status: collaboration.getActivityStatus(data.to),
-        event: { type: "stage_changed", stage_id: stageId, new_stage_id: data.to, from_key: data.from_key, to_key: data.to_key },
-      });
-    },
-    onCleanupCompleted(cleanupIssueId, cleanupResult) {
-      send(socket, {
-        type: "issue_event",
-        issue_id: cleanupIssueId,
-        activity_status: "completed",
-        event: { type: "cleanup_completed", issue_id: cleanupIssueId, cleanup: cleanupResult },
-      }, cleanup);
-    },
+    onMessageStarted(stageId, message) { emit(stageId, { type: "message_started", ...toMessageEventBase(message) }); },
+    onEvent(stageId, event) { emit(stageId, { type: "message_event_appended", message_id: event.message_id, event }); },
+    onMessageCompleted(stageId, message, context) { emit(stageId, { type: "message_status_changed", message_id: message.id, status: message.status, context, ended_at: message.ended_at }); },
+    onUserCalled(stageId, message) { emit(stageId, { type: "user_called", ...toMessageEventBase(message) }); },
+    onStageTransitionSuggested(stageId, suggestion) { emit(stageId, { type: "stage_transition_suggested", suggestion: toSuggestionPayload(suggestion) }); },
+    onAutoAdvanced(stageId, data) { emit(stageId, { type: "stage_changed", new_stage_id: data.to, from_key: data.from_key, to_key: data.to_key }, data.to, true); },
+    onEvaluationResult(stageId, result) { emit(stageId, { type: "evaluation_result", action: result.action, reasons: result.reasons }); },
+    onCleanupCompleted(cleanupIssueId, cleanupResult) { send(socket, { type: "issue_event", issue_id: cleanupIssueId, activity_status: "completed", event: { type: "cleanup_completed", issue_id: cleanupIssueId, cleanup: cleanupResult } }, cleanup); },
   };
 }
 

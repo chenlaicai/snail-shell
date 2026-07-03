@@ -118,6 +118,7 @@ export type IssueRealtimeMessage = {
     | { type: "user_called"; stage_id: string; message_id: number; role: MessageRole; role_name: string | null; client_id: string | null; status: MessageStatus; content?: string }
     | { type: "stage_transition_suggested"; stage_id: string; suggestion: StageSuggestion }
     | { type: "stage_changed"; stage_id: string; new_stage_id: string; from_key: string; to_key: string }
+    | { type: "evaluation_result"; stage_id: string; action: "auto_advanced" | "blocked" | "escalated"; reasons: Array<{ code: string; severity: "info" | "warning" | "error"; message: string; details?: Record<string, unknown> }> }
     | { type: "cleanup_completed"; issue_id: string; cleanup: CleanupResultDto };
 };
 
