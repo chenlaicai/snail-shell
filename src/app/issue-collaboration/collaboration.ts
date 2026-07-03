@@ -156,13 +156,30 @@ export class IssueCollaboration implements CollaborationInput {
     return true;
   }
   async advanceStage(stageId: string, targetKey: string): Promise<Stage> {
+    const oldStage = this.deps.stagePort.findStage(stageId);
+    /** 在清除 suggestions 之前提取反向转移的打回原因和证据 */
+    const backwardContext = oldStage ? this.extractBackwardContext(stageId, targetKey) : null;
     const stage = this.deps.stagePort.advanceStage(stageId, targetKey);
     this.cleanupDispatchStates(stageId);
     for (const s of (this.suggestions.get(stageId) ?? [])) this.deps.stageSuggestionRepo.markProcessed(s.message_id.toString(), "confirmed");
     this.suggestions.delete(stageId);
     this.helpers.initStageCursors(stage);
-    this.autoInvokeNewStage(stage);
+    /** 反向转移：targetKey 在 stage 历史中已存在 → 发送包含打回原因的 kickoff */
+    const isBackward = oldStage && this.isBackwardTarget(oldStage.issue_id, targetKey);
+    if (isBackward) this.autoInvokeBackwardStage(stage, oldStage, backwardContext);
+    else this.autoInvokeNewStage(stage);
     return stage;
+  }
+  /** 在 suggestions 被清除前提取打回原因和证据 */
+  private extractBackwardContext(fromStageId: string, targetKey: string): { reason: string; gate_evidence?: Record<string, unknown> } | null {
+    const s = (this.suggestions.get(fromStageId) ?? []).find(s => s.target_key === targetKey);
+    if (!s) return null;
+    return { reason: s.reason, gate_evidence: s.gate_evidence };
+  }
+  /** 判断 targetKey 是否为反向目标（在 stage 历史中存在未离开的实例） */
+  private isBackwardTarget(issueId: string, targetKey: string): boolean {
+    const stages = this.deps.stagePort.listStages(issueId) ?? [];
+    return stages.some(s => s.key === targetKey && !s.left_at);
   }
   /** L2: 手动推进前的引擎评估（不执行自动推进）。内存缓存为空时从 DB 回读 */
   async evaluateAdvance(stageId: string): Promise<EvaluationResult> {
@@ -422,6 +439,14 @@ export class IssueCollaboration implements CollaborationInput {
     this.sendMessage(stage.id, text, "").catch((err) => {
       log.error({ stageId: stage.id, err }, "autoInvokeNewStage failed");
     });
+  }
+  /** 反向转移后，向 reactivated stage 发送包含打回原因的 kickoff 消息 */
+  private autoInvokeBackwardStage(stage: Stage, fromStage: Stage, backwardContext: { reason: string; gate_evidence?: Record<string, unknown> } | null): void {
+    if (!stage.default_role_instance) return;
+    const reason = backwardContext?.reason ?? "未指定原因";
+    const evidence = backwardContext?.gate_evidence ? JSON.stringify(backwardContext.gate_evidence, null, 2) : "无";
+    const kickoff = `阶段 ${stage.key} 被重新激活。\n\n打回来源：${fromStage.key} 阶段\n打回原因：${reason}\n下游发现的问题：\n${evidence}\n\n请针对以上问题修复后重新推进。`;
+    this.sendMessage(stage.id, kickoff, "").catch((err) => { log.error({ stageId: stage.id, err }, "autoInvokeBackwardStage failed"); });
   }
   /** createIssue 后自动向第一个阶段发送 kickoff 消息，使用 summary 作为用户指令 */
   private autoInvokeFirstStage(stage: Stage, input: CreateIssueInput): void {
