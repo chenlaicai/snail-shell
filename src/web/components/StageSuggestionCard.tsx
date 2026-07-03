@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { api, BlockedError } from "@/services/api-client";
 import { showToast } from "@/components/Toast";
+import { ForceAdvanceDialog } from "@/components/ForceAdvanceDialog";
 import type { StageDetailDto, StageSuggestion } from "@/types";
 
 /** 信号类型中文映射 */
@@ -28,6 +29,7 @@ export function StageSuggestionCard({
   const [submitting, setSubmitting] = useState(false);
   const [dismissing, setDismissing] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [blockedReasons, setBlockedReasons] = useState<Array<{ code: string; severity: string; message: string; details?: Record<string, unknown> }> | null>(null);
   const { data: suggestions = [], refetch } = useQuery({
     queryKey: ["stages", stageId, "transition-suggestions"],
     queryFn: () => api("GET /api/stages/:stageId/transition-suggestions", { params: { stageId: stageId! } }),
@@ -53,8 +55,8 @@ export function StageSuggestionCard({
       refetch();
     } catch (err: unknown) {
       if (err instanceof BlockedError && err.evaluation.reasons.length > 0) {
-        const details = err.evaluation.reasons.map((r) => r.message).join("\n");
-        showToast(`推进被阻断：\n${details}`, true);
+        /** 409 阻断：弹出确认对话框而非 toast，让用户可以强制推进 */
+        setBlockedReasons(err.evaluation.reasons);
       } else {
         showToast(`推进失败：${err instanceof Error ? err.message : String(err)}`, true);
       }
@@ -80,6 +82,7 @@ export function StageSuggestionCard({
   }
 
   return (
+    <>
     <div className="rounded-lg border border-shell-600/30 bg-shell-600/10 p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
@@ -183,5 +186,16 @@ export function StageSuggestionCard({
         </div>
       </div>
     </div>
+    {blockedReasons && (
+      <ForceAdvanceDialog
+        open={!!blockedReasons}
+        onClose={() => setBlockedReasons(null)}
+        onConfirmed={(stage) => { onAccepted(stage); refetch(); setBlockedReasons(null); }}
+        stageId={stageId}
+        targetKey={suggestion.target_key}
+        reasons={blockedReasons}
+      />
+    )}
+    </>
   );
 }

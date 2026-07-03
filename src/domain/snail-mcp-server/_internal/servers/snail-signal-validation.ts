@@ -3,6 +3,7 @@ import type { IssuePort, StagePort } from "@domain/issue/port";
 import type { Stage } from "@domain/issue/model";
 import type { AutoAdvanceConfig } from "@domain/sop/model";
 import { getLogger } from "@infra/logger";
+import { GATE_METADATA } from "@domain/collaboration/gate-metadata";
 
 const log = getLogger({ module: "snail-signal-validation" });
 
@@ -138,7 +139,16 @@ function checkDecisionMode(s: SignalSuggestion): ValidationReason | null {
 function checkContextFields(config: AutoAdvanceConfig | undefined, ctx: Record<string, string>): ValidationReason | null {
   if (!config?.required_context_fields?.length) return null;
   const missing = config.required_context_fields.filter(f => !resolveContext(ctx, f));
-  return missing.length > 0 ? { code: "CONTEXT_MISSING", severity: "error", message: "Issue 上下文缺少必要字段", details: { missing_fields: missing } } : null;
+  if (missing.length === 0) return null;
+  const fix_guidance: Record<string, { description: string; check: string; doc_ref: string }> = {};
+  for (const field of missing) {
+    fix_guidance[field] = {
+      description: `Issue 上下文缺少必要字段 "${field}"`,
+      check: `通过 set_context 工具设置 "${field}" 的值`,
+      doc_ref: "cd-shared/references/stage-gate.md",
+    };
+  }
+  return { code: "CONTEXT_MISSING", severity: "error", message: "Issue 上下文缺少必要字段", details: { missing_fields: missing, fix_guidance } };
 }
 
 function checkGates(config: AutoAdvanceConfig | undefined, s: SignalSuggestion): ValidationReason | null {
@@ -149,7 +159,14 @@ function checkGates(config: AutoAdvanceConfig | undefined, s: SignalSuggestion):
     const rev04 = evidence["rev-04"] as string;
     if (!/^F\d{8}[a-kmnp-z][2-9a-kmnp-z]{3}$/.test(rev04)) failed.push("rev-04");
   }
-  return failed.length > 0 ? { code: "GATE_FAILED", severity: "error", message: `Gate 自检未通过：${failed.join(", ")}`, details: { failed_gates: failed } } : null;
+  if (failed.length === 0) return null;
+  /** 为每个失败的 gate 生成修复指引 */
+  const fix_guidance: Record<string, { description: string; check: string; doc_ref: string }> = {};
+  for (const gate of failed) {
+    const meta = GATE_METADATA[gate];
+    fix_guidance[gate] = meta ?? { description: `Gate ${gate} 未通过`, check: `确认 gate_evidence["${gate}"] 为非空字符串`, doc_ref: "cd-shared/references/adversarial-artifact-protocol.md" };
+  }
+  return { code: "GATE_FAILED", severity: "error", message: `Gate 自检未通过：${failed.join(", ")}`, details: { failed_gates: failed, fix_guidance } };
 }
 
 function checkBlockingRules(config: AutoAdvanceConfig | undefined, ctx: Record<string, string>): ValidationReason | null {

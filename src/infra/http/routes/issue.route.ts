@@ -110,6 +110,9 @@ export function createIssueRoutes(deps: IssueRoutesDeps) {
     return c.json(toStageDto(deps, stage), 201);
   });
 
+  /** 用户强制推进：跳过引擎阻断，直接执行推进（独立端点，不暴露给 MCP） */
+  app.post("/api/stages/:stageId/advance/force", zValidator("json", advanceStageBody), async (c) => forceAdvance(c, deps));
+
   app.post("/api/issues/:issueId/close", (c) => closeIssue(c, deps));
 
   return app;
@@ -239,4 +242,11 @@ async function closeIssue(c: Context, deps: IssueRoutesDeps) {
     }
     throw error;
   }
+}
+
+async function forceAdvance(c: Context, deps: IssueRoutesDeps) {
+  const stageId = requiredParam(c, "stageId");
+  const body = advanceStageBody.parse(await c.req.json());
+  const { stage, evaluation } = await deps.collaboration.forceAdvance(stageId, body.target_key);
+  return c.json({ ...toStageDto(deps, stage), forced: true, evaluation }, 201);
 }

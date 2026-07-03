@@ -2,6 +2,7 @@ import type { Stage } from "@domain/issue/model";
 import type { Sop, AutoAdvanceConfig } from "@domain/sop/model";
 import type { StageTransitionSuggestion, AdversarialArtifact, DesignAdversarialArtifact, ReviewAdversarialArtifact, SignalType, DecisionMode, EvaluationResult, EvaluationReason } from "@app/issue-collaboration/port";
 import { resolveContextValue } from "@app/issue-collaboration/resource-cleanup";
+import { buildGateFixGuidance } from "@domain/collaboration/gate-metadata";
 import { getLogger } from "@infra/logger";
 
 const log = getLogger({ module: "auto-advance" });
@@ -135,12 +136,12 @@ export class AutoAdvanceEngine {
     const missingContext = this.getMissingContextFields(stage, config);
     if (missingContext.length > 0) {
       await this.notifyMissingContext(stage.id, missingContext);
-      return { action: "blocked", reasons: [{ code: "CONTEXT_MISSING", severity: "error", message: "Issue 上下文缺少必要字段", details: { missing_fields: missingContext } }] };
+      return { action: "blocked", reasons: [{ code: "CONTEXT_MISSING", severity: "error", message: "Issue 上下文缺少必要字段", details: { missing_fields: missingContext, fix_guidance: Object.fromEntries(missingContext.map(f => [f, { description: `Issue 上下文缺少必要字段 "${f}"`, check: `通过 set_context 工具设置 "${f}" 的值`, doc_ref: "cd-shared/references/stage-gate.md" }])) } }] };
     }
     const latest = suggestions[suggestions.length - 1];
     const failedGates = this.getFailedGates(config, latest);
     if (failedGates.length > 0) {
-      return { action: "blocked", reasons: [{ code: "GATE_FAILED", severity: "error", message: `Gate 自检未通过：${failedGates.join(", ")}`, details: { failed_gates: failedGates } }] };
+      return { action: "blocked", reasons: [{ code: "GATE_FAILED", severity: "error", message: `Gate 自检未通过：${failedGates.join(", ")}`, details: { failed_gates: failedGates, fix_guidance: buildGateFixGuidance(failedGates) } }] };
     }
     return { action: "auto_advanced", target_key: latest.target_key, reasons: [{ code: "AUTO_ADVANCED", severity: "info", message: "自动推进成功" }] };
   }
@@ -154,7 +155,7 @@ export class AutoAdvanceEngine {
     const missingContext = this.getMissingContextFields(stage, config);
     if (missingContext.length > 0) {
       await this.notifyMissingContext(stage.id, missingContext);
-      return { action: "blocked", reasons: [{ code: "CONTEXT_MISSING", severity: "error", message: "Issue 上下文缺少必要字段", details: { missing_fields: missingContext } }] };
+      return { action: "blocked", reasons: [{ code: "CONTEXT_MISSING", severity: "error", message: "Issue 上下文缺少必要字段", details: { missing_fields: missingContext, fix_guidance: Object.fromEntries(missingContext.map(f => [f, { description: `Issue 上下文缺少必要字段 "${f}"`, check: `通过 set_context 工具设置 "${f}" 的值`, doc_ref: "cd-shared/references/stage-gate.md" }])) } }] };
     }
 
     const blockingResult = this.checkBlockingRules(stage, config);
@@ -197,7 +198,7 @@ export class AutoAdvanceEngine {
     for (const [speaker, latest] of latestBySpeaker) {
       const failedGates = this.getFailedGates(config, latest);
       if (failedGates.length > 0) {
-        return { result: { action: "blocked", reasons: [{ code: "GATE_FAILED", severity: "error", message: `Gate 自检未通过（${speaker}）：${failedGates.join(", ")}`, details: { failed_gates: failedGates, speaker } }] }, r7Warnings };
+        return { result: { action: "blocked", reasons: [{ code: "GATE_FAILED", severity: "error", message: `Gate 自检未通过（${speaker}）：${failedGates.join(", ")}`, details: { failed_gates: failedGates, speaker, fix_guidance: buildGateFixGuidance(failedGates) } }] }, r7Warnings };
       }
       const validation = this.validateAdversarialArtifactWithConfig(stage, config, latest);
       if (!validation.valid) {

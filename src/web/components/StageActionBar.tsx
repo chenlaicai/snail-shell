@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { api, BlockedError } from "@/services/api-client";
 import { showToast } from "@/components/Toast";
 import { CloseIssueDialog } from "@/components/CloseIssueDialog";
+import { ForceAdvanceDialog } from "@/components/ForceAdvanceDialog";
 import { useCloseIssue } from "@/mutations/issue.mutations";
 import { queryKeys } from "@/queries/keys";
 import type { IssueDetailDto, StageDetailDto, StageTransition, CleanupResultDto } from "@/types";
@@ -20,6 +21,8 @@ export function StageActionBar({
   const [isClosing, setIsClosing] = useState(false);
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [selectedTarget, setSelectedTarget] = useState("");
+  const [blockedReasons, setBlockedReasons] = useState<Array<{ code: string; severity: string; message: string; details?: Record<string, unknown> }> | null>(null);
+  const [blockedTargetKey, setBlockedTargetKey] = useState("");
   const closeIssue = useCloseIssue(issue.workspace_id);
   const qc = useQueryClient();
   /** 记录上次看到的 close_summary，用于检测从 null → 有值的转变 */
@@ -69,8 +72,9 @@ export function StageActionBar({
       setSelectedTarget("");
     } catch (err: unknown) {
       if (err instanceof BlockedError && err.evaluation.reasons.length > 0) {
-        const details = err.evaluation.reasons.map((r) => r.message).join("\n");
-        showToast(`推进被阻断：\n${details}`, true);
+        /** 409 阻断：弹出确认对话框而非 toast，让用户可以强制推进 */
+        setBlockedReasons(err.evaluation.reasons);
+        setBlockedTargetKey(targetKey);
       } else {
         showToast(`推进失败：${err instanceof Error ? err.message : String(err)}`, true);
       }
@@ -151,6 +155,16 @@ export function StageActionBar({
         onConfirm={confirmClose}
         closing={isClosing}
       />
+      {currentStage && blockedReasons && (
+        <ForceAdvanceDialog
+          open={!!blockedReasons}
+          onClose={() => { setBlockedReasons(null); setBlockedTargetKey(""); }}
+          onConfirmed={(stage) => { onStageChanged(stage); setSelectedTarget(""); setBlockedReasons(null); setBlockedTargetKey(""); }}
+          stageId={currentStage.id}
+          targetKey={blockedTargetKey}
+          reasons={blockedReasons}
+        />
+      )}
     </div>
   );
 }

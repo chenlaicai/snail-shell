@@ -30,6 +30,7 @@ function createMockCollaborationInput(overrides: Partial<CollaborationInput> = {
     listStageTransitionSuggestions: vi.fn(),
     dismissSuggestion: vi.fn(),
     advanceStage: vi.fn(),
+    forceAdvance: vi.fn(),
     rollbackStage: vi.fn(),
     getStageAuditTrail: vi.fn(),
     closeIssue: vi.fn(),

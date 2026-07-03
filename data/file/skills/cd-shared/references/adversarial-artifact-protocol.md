@@ -128,7 +128,7 @@ interface ReviewAdversarialArtifact extends AdversarialArtifact {
 | R4 | 阻断 | Design 阶段：`critique_obligation.items` 长度 >= 4（risk>=2 + gap>=1 + alternative>=1） |
 | R4b | 阻断 | Design 阶段：`scenario_coverage.constructed_scenarios` 长度 >= 2 |
 | R5 | 阻断 | Review 阶段：`file_coverage.coverage_ratio` = 1.0 |
-| R6 | 阻断 | 两位审查者的 `independent_verification` 输出雷同（相似度 > 80%） |
+| R6 | 告警 | 两位审查者的 `independent_verification` 输出雷同（相似度 > 80%），不阻断但标记 |
 | R7 | 告警 | `adversarial_findings` 全部为"无问题"（不阻断，但标记） |
 | R8 | 阻断 | Review 阶段：`finding !== "no issues"` 且 `disposition` 为 `"none"` 或空字符串 |
 
