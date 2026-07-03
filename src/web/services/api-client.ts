@@ -11,6 +11,20 @@ export class ApiError extends Error {
   }
 }
 
+/** 409 专用错误子类，保留 evaluation 详情（具体阻断原因） */
+export class BlockedError extends ApiError {
+  constructor(
+    message: string,
+    public readonly evaluation: {
+      action: string;
+      reasons: Array<{ code: string; severity: string; message: string; details?: Record<string, unknown> }>;
+    },
+  ) {
+    super(message, 409);
+    this.name = "BlockedError";
+  }
+}
+
 function resolvePath(path: string, params?: unknown): string {
   if (!params || typeof params !== "object") return path;
   let resolved = path;
@@ -33,7 +47,13 @@ function appendQuery(path: string, query?: unknown): string {
 async function handleResponse<R>(response: Response, schema?: z.ZodType<R>): Promise<R> {
   if (response.status === 204) return undefined as R;
   const data = await response.json();
-  if (!response.ok) throw new ApiError(data?.error || data?.message || "Request failed", response.status);
+  if (!response.ok) {
+    /** 409 保留 evaluation 详情，供调用方展示具体阻断原因 */
+    if (response.status === 409 && data?.evaluation) {
+      throw new BlockedError(data.error || "Advance blocked by engine", data.evaluation);
+    }
+    throw new ApiError(data?.error || data?.message || "Request failed", response.status);
+  }
   return schema ? schema.parse(data) : data;
 }
 

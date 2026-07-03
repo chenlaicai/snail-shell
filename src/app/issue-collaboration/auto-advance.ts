@@ -104,7 +104,7 @@ export class AutoAdvanceEngine {
   }
 
   /** 向后兼容：根据字段推断 signal_type。结合 stage.key 防止误路由 */
-  private inferSignalType(suggestion: StageTransitionSuggestion, stageKey: string): SignalType {
+  inferSignalType(suggestion: StageTransitionSuggestion, stageKey: string): SignalType {
     if (suggestion.consensus === false || (suggestion.positions && suggestion.positions.length > 0)) {
       return "disagreement";
     }
@@ -214,7 +214,7 @@ export class AutoAdvanceEngine {
   }
 
   /** 从 Issue.sop_snapshot 读取当前 stage 的 auto_advance 配置 */
-  private getAutoAdvanceConfig(stage: Stage): AutoAdvanceConfig | undefined {
+  getAutoAdvanceConfig(stage: Stage): AutoAdvanceConfig | undefined {
     const issue = this.deps.mustGetIssue(stage.issue_id);
     const stageDef = issue.sop_snapshot.stage_definitions.find(d => d.key === stage.key);
     return stageDef?.auto_advance;
