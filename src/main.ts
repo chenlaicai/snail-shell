@@ -129,7 +129,7 @@ function registerShutdownHooks(modules: Awaited<ReturnType<typeof initModules>>[
  * 默认启用，通过 BLOCKED_AT_ENABLED=false 显式关闭。
  * 超过 5 秒的阻塞记录完整调用栈（截断到前 20 帧）。
  */
-function startEventLoopMonitor(): void {
+export function startEventLoopMonitor(): void {
   if (process.env.BLOCKED_AT_ENABLED === "false") {
     log.info("event_loop.blocked_at disabled by BLOCKED_AT_ENABLED=false");
     return;
@@ -145,7 +145,7 @@ function startEventLoopMonitor(): void {
         .join("\n");
       log.warn({ delayMs: Math.round(time), stack: truncatedStack }, "event_loop.blocked_at");
     }
-  }, { threshold: 200 });
+  }, { threshold: 5_000 });
 
   process.on("exit", () => cleanup());
 }
