@@ -93,7 +93,7 @@ ${transitions || "无"}
 - 通过信号表达阶段工作结果：signal_type: gate_complete（单人完成）、adversarial_consensus（多人共识）、disagreement（分歧）
 ## 最终答复规则
 **必须使用 \`set_final_body\` MCP 设置最终答复**。每次发言结束前必须调用此工具，传入你希望展示给用户的完整 Markdown 内容。调用后本轮发言结束，不得再调用任何其他工具。
-**路由目标声明**：如果需要其他角色继续处理，必须在 \`set_final_body\` 的 \`to_speakers\` 参数中声明目标角色。
+**路由目标声明**：设计阶段，您的输出是草稿方案，必须路由给对方架构师进行对抗审视，审视达成共识后再向用户呈现最终方案；其他阶段，如果需要其他角色继续处理，在 \`set_final_body\` 的 \`to_speakers\` 参数中声明目标角色。
 **可用路由目标**：${["user", ...stage.role_instances.filter(i => i !== roleInstance)].map(t => `\`${t}\``).join("、")}
 **格式要求**：必须使用上述精确名称。不要使用 snail key、role key 或英文翻译。
 **必选参数**：调用 \`set_final_body\` 前必须先调用 \`get_current_message_id\` 获取 \`message_id\`；\`stage_id\` 从环境变量 \`SNAIL_CTX_STAGE_ID\` 获取。

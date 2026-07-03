@@ -683,3 +683,91 @@ describe("get_current_message_id tool (AC-3)", () => {
       .rejects.toThrow("stage_id is required");
   });
 });
+
+describe("set_final_body design stage soft reminder", () => {
+  /** 构造 design 阶段的 mock stagePort */
+  function designStagePortWithInstances(roleInstances: string[]) {
+    return createMockStagePort({
+      findStage: () => ({
+        id: "design-stage",
+        workspace_path: "",
+        issue_id: "",
+        key: "design",
+        title: "",
+        description: "",
+        default_role_instance: roleInstances[0] ?? "",
+        role_instances: roleInstances,
+        from_stage_id: null,
+        available_transitions: [],
+        output_artifacts: {},
+        entered_at: "",
+        left_at: null,
+      }),
+    });
+  }
+
+  it("design阶段+架构师路由给user→返回warning", async () => {
+    const messages = new Map<number, Message>();
+    messages.set(100, { id: 100, stage_id: "design-stage", from_speaker: "架构师-1", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
+    const port = createMockMessagePort({ getMessage: (id) => messages.get(id), findLatestMessage: () => messages.get(100) });
+    const store: McpMessageStore = {
+      getMcpRoutingTargets: () => undefined,
+      setMcpRoutingTargets: () => {},
+      deleteMcpRoutingTargets: () => {},
+    };
+    const server = createFinalResponseServer(port, store, designStagePortWithInstances(["架构师-1", "架构师-2"]));
+    const handler = server.tools[0].handler;
+
+    const result = await handler({ text: "hello", message_id: "100", stage_id: "design-stage", to_speakers: ["user"] });
+    expect(result).toEqual({ ok: true, proceed: "end_turn", warning: "Design阶段提醒：您的草稿方案是否已经过对方架构师审视？建议先路由给对方架构师进行对抗审视。" });
+  });
+
+  it("design阶段+非架构师路由给user→无warning", async () => {
+    const messages = new Map<number, Message>();
+    messages.set(100, { id: 100, stage_id: "design-stage", from_speaker: "开发者", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
+    const port = createMockMessagePort({ getMessage: (id) => messages.get(id), findLatestMessage: () => messages.get(100) });
+    const store: McpMessageStore = {
+      getMcpRoutingTargets: () => undefined,
+      setMcpRoutingTargets: () => {},
+      deleteMcpRoutingTargets: () => {},
+    };
+    const server = createFinalResponseServer(port, store, designStagePortWithInstances(["开发者", "架构师-1"]));
+    const handler = server.tools[0].handler;
+
+    const result = await handler({ text: "hello", message_id: "100", stage_id: "design-stage", to_speakers: ["user"] });
+    expect(result).toEqual({ ok: true, proceed: "end_turn" });
+  });
+
+  it("非design阶段+架构师路由给user→无warning", async () => {
+    const messages = new Map<number, Message>();
+    messages.set(100, { id: 100, stage_id: "stage-a", from_speaker: "架构师-1", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
+    const port = createMockMessagePort({ getMessage: (id) => messages.get(id), findLatestMessage: () => messages.get(100) });
+    const store: McpMessageStore = {
+      getMcpRoutingTargets: () => undefined,
+      setMcpRoutingTargets: () => {},
+      deleteMcpRoutingTargets: () => {},
+    };
+    const nonDesignStagePort = createMockStagePort({
+      findStage: () => ({
+        id: "stage-a",
+        workspace_path: "",
+        issue_id: "",
+        key: "development",
+        title: "",
+        description: "",
+        default_role_instance: "架构师-1",
+        role_instances: ["架构师-1", "架构师-2"],
+        from_stage_id: null,
+        available_transitions: [],
+        output_artifacts: {},
+        entered_at: "",
+        left_at: null,
+      }),
+    });
+    const server = createFinalResponseServer(port, store, nonDesignStagePort);
+    const handler = server.tools[0].handler;
+
+    const result = await handler({ text: "hello", message_id: "100", stage_id: "stage-a", to_speakers: ["user"] });
+    expect(result).toEqual({ ok: true, proceed: "end_turn" });
+  });
+});
