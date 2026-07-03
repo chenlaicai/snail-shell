@@ -11,7 +11,7 @@
 Design 特有字段：
 - `critique_obligation`：质疑义务量化产出（risk >= 2, gap >= 1, alternative >= 1）
 - `independent_analysis`：独立分析过程（禁止直接同意）
-- `scenario_coverage`：场景覆盖（coverage_ratio = 1.0）
+- `scenario_coverage`：场景覆盖（coverage_ratio = 1.0，constructed_scenarios >= 2）
 
 ## 角度分工
 
@@ -124,6 +124,14 @@ Design 特有字段：
 - **前端影响是否被遗漏？**
 - **变更影响分析是否覆盖后端/前端/提示词三个维度？**
 - **禁止用代码反驳用户**：不得以"当前代码是这样做的"作为反驳，必须分析用户意图和新逻辑的合理性
+
+### 通用战术适配（design 阶段）
+
+以下检查点基于对抗性审视通用战术，详见 `cd-shared/references/adversarial-review-tactics.md`。
+
+- **场景压力测试**（战术 1）：是否在 `scenario_coverage.constructed_scenarios` 中构造了至少 2 个边界场景？场景是否触及设计文档中未显式定义边界的行为？（design 阶段专属，review 阶段不使用）
+- **事实性声明验证**（战术 2）：设计文档中是否包含关于现状的事实性声明（如"当前系统支持 X"）？如有，是否在 `adversarial_findings` 中以 dimension `"fact_verification"` 验证？finding 是否遵循"声明/证据/结论"三段格式？
+- **术语一致性检查**（战术 3）：是否存在同一概念使用不同名称、或同一名称指代不同概念的情况？发现不一致时按分级标准处置（L1 修正文档 / L2 决策记录 / L3 CONTEXT.md）
 
 ## 变更影响分析强制维度
 

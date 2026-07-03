@@ -40,6 +40,7 @@ interface AdversarialArtifact {
 - `audit_trail.events` 中必须包含 `cross_review_read` 事件，且时间戳晚于 `review_started`
 - `independent_verification` 的 `actual_output` 长度不得少于 20 字符
 - `adversarial_findings` 不得全部为空数组
+- `adversarial_findings` 预定义 dimension `"fact_verification"`（事实性声明验证）。finding 格式：`声明：{声明} | 代码证据：{代码+位置} | 结论：verified/contradicted/unverifiable`
 
 ## Design 阶段特有字段（架构师×架构师）
 
@@ -63,7 +64,11 @@ interface DesignAdversarialArtifact extends AdversarialArtifact {
   scenario_coverage: {
     scenarios_reviewed: number;
     scenarios_identified: number;
-    coverage_ratio: number;  // 必须 = 1.0
+    coverage_ratio: number;  // 必须 = 1.0，= reviewed / identified
+    constructed_scenarios: { // 审查者主动构造的边界场景（>=2）
+      scenario: string;      // "当 X 发生时"
+      question: string;      // "系统应该做 Y 还是 Z？"
+    }[];
   };
 }
 ```
@@ -121,6 +126,7 @@ interface ReviewAdversarialArtifact extends AdversarialArtifact {
 | R2 | 阻断 | `audit_trail` 必须包含 `cross_review_read` 事件 |
 | R3 | 阻断 | `independent_verification` 的 `actual_output` 长度 >= 20 字符 |
 | R4 | 阻断 | Design 阶段：`critique_obligation.items` 长度 >= 4（risk>=2 + gap>=1 + alternative>=1） |
+| R4b | 阻断 | Design 阶段：`scenario_coverage.constructed_scenarios` 长度 >= 2 |
 | R5 | 阻断 | Review 阶段：`file_coverage.coverage_ratio` = 1.0 |
 | R6 | 阻断 | 两位审查者的 `independent_verification` 输出雷同（相似度 > 80%） |
 | R7 | 告警 | `adversarial_findings` 全部为"无问题"（不阻断，但标记） |

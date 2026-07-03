@@ -15,6 +15,15 @@
 3. **重构建议**必须以不改变业务语义为前提
 4. **问题暴露**：只要问题属于当前 PR 的正确性、回归风险、可维护性、流程合规或交付产物一致性范围，就必须暴露给 PR
 5. **质量改进**：措辞不精确、结构可优化、边界可收紧等不构成阻塞但能提升质量的问题，不得以"不阻塞"为由不提
+6. **事实性声明验证**：如设计文档或 PR 描述中包含关于现状的事实性声明，审查者必须在 `adversarial_findings` 中以 dimension `"fact_verification"` 验证。finding 格式：`声明：{声明} | 代码证据：{代码+位置} | 结论：verified/contradicted/unverifiable`
+
+### 通用战术适配（review 阶段）
+
+以下检查点基于对抗性审视通用战术，详见 `cd-shared/references/adversarial-review-tactics.md`。
+
+- **事实性声明验证**（战术 2）：review 阶段可使用，验证实现是否符合设计
+- **术语一致性检查**（战术 3）：如发现术语不一致，按分级标准处置（L1 修正文档 / L2 决策记录 / L3 CONTEXT.md）
+- **场景压力测试不适用于 review 阶段**：review 阶段由 `file_coverage` + `adversarial_findings`（dimension: `"completeness"`）承接实现完整性检查
 
 ## 提出的问题必须在当前 PR 中修复
 
