@@ -95,6 +95,7 @@ function createMockMessagePort(): MessagePort {
     initCursor: vi.fn(),
     findLatestRespondingSpeaker: vi.fn(),
     findLatestMessage: vi.fn(),
+    findLatestMessageBySpeaker: vi.fn(),
   };
 }
 

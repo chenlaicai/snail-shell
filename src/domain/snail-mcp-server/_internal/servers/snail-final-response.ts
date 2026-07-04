@@ -1,6 +1,7 @@
 import type { MCPServerConfig } from "@domain/snail-mcp-server/model";
 import type { McpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-message-store";
 import type { MessagePort } from "@domain/message/port";
+import type { Message } from "@domain/message/model";
 import type { StagePort } from "@domain/issue/port";
 import { getLogger } from "@infra/logger";
 const log = getLogger({ module: "snail-final-response" });
@@ -22,10 +23,14 @@ export function createFinalResponseServer(messagePort: MessagePort, mcpMessageSt
     const messageId = Number(rawMessageId);
     if (!Number.isInteger(messageId) || messageId <= 0) throw new Error("message_id must be a positive integer");
     const stageId = params.stage_id as string;
+    const fromSpeaker = params.from_speaker as string;
+    if (!fromSpeaker) throw new Error("from_speaker is required");
     /** 归属校验：保留参数校验，即使重复调用也不静默吞掉错误 */
     const message = verifyStageOwnership(messagePort, messageId, stageId);
-    /** 时效性校验：message_id 必须指向 stage 中最新的 streaming 消息 */
-    verifyMessageFreshness(messagePort, messageId, stageId);
+    /** speaker 归属校验：防止跨 speaker 写入 */
+    verifySpeakerOwnership(message, fromSpeaker);
+    /** 时效性校验：message_id 必须指向当前 speaker 在 stage 中最新的 streaming 消息 */
+    verifyMessageFreshness(messagePort, messageId, stageId, fromSpeaker);
     /** 幂等防护：同一 message 重复调用时跳过所有写入，返回区分性响应 */
     if (submittedMessages.has(messageId)) {
       return { ok: true, already_submitted: true, hint: "final body already recorded for this message; your response is complete" };
@@ -40,15 +45,8 @@ export function createFinalResponseServer(messagePort: MessagePort, mcpMessageSt
         stage_transition: stageTransition,
       });
     }
-    /** to_speakers 非空数组时写入 store；空数组视为"未指定"，不写入 */
-    let warning: string | null = null;
-    if (Array.isArray(params.to_speakers) && params.to_speakers.length > 0) {
-      const targets = (params.to_speakers as unknown[]).filter((t): t is string => typeof t === "string");
-      if (targets.length > 0) {
-        warning = validateToSpeakers(targets, stageId, stagePort, message?.from_speaker ?? null);
-        mcpMessageStore.setMcpRoutingTargets(messageId, targets);
-      }
-    }
+    /** to_speakers 处理 */
+    const warning = processToSpeakers(params, messageId, stageId, stagePort, mcpMessageStore, message);
     submittedMessages.add(messageId);
     return { ok: true, proceed: "end_turn", ...(warning ? { warning } : {}) };
   }
@@ -70,9 +68,10 @@ export function createFinalResponseServer(messagePort: MessagePort, mcpMessageSt
             text: { type: "string", description: "最终答复的 Markdown 正文" },
             message_id: { type: "string", description: "当前消息的 ID，通过 get_current_message_id 工具获取" },
             stage_id: { type: "string", description: "当前 stage 的 ID，通过环境变量 SNAIL_CTX_STAGE_ID 注入" },
+            from_speaker: { type: "string", description: "当前 agent 的角色实例名，从 system prompt 身份信息中提取" },
             to_speakers: { type: "array", items: { type: "string" }, description: "路由目标（严格优先级最高）" },
           },
-          required: ["text", "message_id", "stage_id"],
+          required: ["text", "message_id", "stage_id", "from_speaker"],
         },
         handler: handleSetFinalBody,
       },
@@ -83,20 +82,38 @@ export function createFinalResponseServer(messagePort: MessagePort, mcpMessageSt
           type: "object",
           properties: {
             stage_id: { type: "string", description: "当前 stage 的 ID" },
+            from_speaker: { type: "string", description: "当前 agent 的角色实例名，从 system prompt 身份信息中提取" },
           },
-          required: ["stage_id"],
+          required: ["stage_id", "from_speaker"],
         },
         handler: async (params) => {
           const stageId = params.stage_id as string;
           if (!stageId) throw new Error("stage_id is required");
-          const latest = messagePort.findLatestMessage(stageId);
-          if (!latest) throw new Error(`no message found for stage ${stageId}`);
-          if (latest.status !== "streaming") throw new Error(`no active streaming message found for stage ${stageId} (latest: ${latest.id}, status: ${latest.status})`);
+          const fromSpeaker = params.from_speaker as string;
+          if (!fromSpeaker) throw new Error("from_speaker is required");
+          const latest = messagePort.findLatestMessageBySpeaker(stageId, fromSpeaker);
+          if (!latest) throw new Error(`no message found for stage ${stageId} and speaker ${fromSpeaker}`);
+          if (latest.status !== "streaming") throw new Error(`no active streaming message found for stage ${stageId} and speaker ${fromSpeaker} (latest: ${latest.id}, status: ${latest.status})`);
           return { message_id: String(latest.id), from_speaker: latest.from_speaker };
         },
       },
     ],
   };
+}
+
+/**
+ * speaker 归属校验：message 的 from_speaker 必须与当前 agent 一致，防止跨 speaker 写入。
+ */
+function verifySpeakerOwnership(
+  message: Message | undefined,
+  fromSpeaker: string,
+): void {
+  if (!message) return;
+  if (message.from_speaker !== fromSpeaker) {
+    throw new Error(
+      `message ${message.id} belongs to ${message.from_speaker}, not ${fromSpeaker}`,
+    );
+  }
 }
 
 /**
@@ -118,23 +135,43 @@ function verifyStageOwnership(
 }
 
 /**
- * 时效性校验：message_id 必须是 stage 中最新的 streaming 消息。
+ * 时效性校验：message_id 必须是当前 speaker 在 stage 中最新的 streaming 消息。
  * 防止 agent 传入过期 message_id 导致串台写入。
  */
 function verifyMessageFreshness(
   messagePort: MessagePort,
   messageId: number,
   stageId: string,
+  fromSpeaker: string,
 ): void {
   if (!stageId) return;
-  const latest = messagePort.findLatestMessage(stageId);
-  if (!latest) throw new Error(`no message found for stage ${stageId} (message_id: ${messageId})`);
+  const latest = messagePort.findLatestMessageBySpeaker(stageId, fromSpeaker);
+  if (!latest) throw new Error(`no message found for stage ${stageId} and speaker ${fromSpeaker} (message_id: ${messageId})`);
   if (latest.status !== "streaming") {
     throw new Error(`message ${latest.id} is not streaming (actual: ${latest.status})`);
   }
   if (latest.id !== messageId) {
-    throw new Error(`message ${messageId} is not the active streaming message for stage ${stageId} (latest streaming: ${latest.id})`);
+    throw new Error(`message ${messageId} is not the active streaming message for ${fromSpeaker} in stage ${stageId} (latest streaming: ${latest.id})`);
   }
+}
+
+/**
+ * 处理 to_speakers 参数：非空数组时校验并写入 store，返回可能的 warning。
+ */
+function processToSpeakers(
+  params: Record<string, unknown>,
+  messageId: number,
+  stageId: string,
+  stagePort: StagePort,
+  mcpMessageStore: McpMessageStore,
+  message: Message | undefined,
+): string | null {
+  if (!Array.isArray(params.to_speakers) || params.to_speakers.length === 0) return null;
+  const targets = (params.to_speakers as unknown[]).filter((t): t is string => typeof t === "string");
+  if (targets.length === 0) return null;
+  const warning = validateToSpeakers(targets, stageId, stagePort, message?.from_speaker ?? null);
+  mcpMessageStore.setMcpRoutingTargets(messageId, targets);
+  return warning;
 }
 
 /**

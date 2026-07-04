@@ -125,4 +125,8 @@ export class MessageAdapter implements MessagePort {
   findLatestMessage(stageId: string): Message | undefined {
     return this.messageRepo.findLatestMessage(stageId);
   }
+
+  findLatestMessageBySpeaker(stageId: string, fromSpeaker: string): Message | undefined {
+    return this.messageRepo.findLatestMessageBySpeaker(stageId, fromSpeaker);
+  }
 }

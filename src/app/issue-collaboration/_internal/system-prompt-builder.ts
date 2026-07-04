@@ -96,7 +96,7 @@ ${transitions || "无"}
 **路由目标声明**：设计阶段，您的输出是草稿方案，必须路由给对方架构师进行对抗审视，审视达成共识后再向用户呈现最终方案；其他阶段，如果需要其他角色继续处理，在 \`set_final_body\` 的 \`to_speakers\` 参数中声明目标角色。
 **可用路由目标**：${["user", ...stage.role_instances.filter(i => i !== roleInstance)].map(t => `\`${t}\``).join("、")}
 **格式要求**：必须使用上述精确名称。不要使用 snail key、role key 或英文翻译。
-**必选参数**：调用 \`set_final_body\` 前必须先调用 \`get_current_message_id\` 获取 \`message_id\`；\`stage_id\` 从环境变量 \`SNAIL_CTX_STAGE_ID\` 获取。
+**必选参数**：调用 \`set_final_body\` 前必须先调用 \`get_current_message_id\` 获取 \`message_id\`；\`stage_id\` 从环境变量 \`SNAIL_CTX_STAGE_ID\` 获取；\`from_speaker\` 从上方 \`<identity>\` 块的「角色实例」字段提取。
 </context>`;
   }
 }
