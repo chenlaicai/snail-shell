@@ -272,6 +272,65 @@ describe("autoInvokeBackwardStage preserves reason and evidence", () => {
     expect(contextCall).toBeDefined();
     expect(contextCall![2]).toContain("未指定原因");
   });
+
+  it("userHint 优先于打回原因 kickoff：backward 场景下用户消息优先", async () => {
+    const reviewStage = createStage();
+    const devStage = createDevStage();
+    const messageStore = new Map<number, any>();
+    messageStore.set(1, { id: 1, stage_id: "dev-stage", from_speaker: "user", to_speakers: [], status: "completed", created_at: "", ended_at: null });
+
+    const messagePort = createMockMessagePort({
+      createMessage: createMessageSpy as unknown as MessagePort["createMessage"],
+      setContext: setContextSpy as unknown as MessagePort["setContext"],
+      appendEvent: vi.fn().mockReturnValue({ id: 1, message_id: 1, seq: 1, payload: { type: "text", text: "" }, created_at: "" }),
+      completeMessage: vi.fn(),
+      getMessage: (id) => messageStore.get(id),
+      updateMessageTargets: vi.fn((id: number, toSpeakers: string[]) => { const msg = messageStore.get(id); if (msg) msg.to_speakers = toSpeakers; }),
+      getUnreadMessages: () => { const unread = []; for (const msg of messageStore.values()) { if (msg.from_speaker === "user" && msg.status === "completed") unread.push(msg); } return unread; },
+    });
+
+    const collab = new IssueCollaboration({
+      issuePort: createMockIssuePort({ findIssue: vi.fn().mockReturnValue(createOpenIssue()) }),
+      createIssue: vi.fn(),
+      stagePort: createMockStagePort({
+        findStage: vi.fn().mockReturnValue(reviewStage),
+        listStages: vi.fn().mockReturnValue([devStage, reviewStage]),
+        advanceStage: vi.fn().mockReturnValue(devStage),
+        getRoleSnailAssignment: vi.fn().mockReturnValue({ snail_key: "test-snail", snail_instance_id: "test-instance", role_key: "developer" }),
+      }),
+      messagePort,
+      snailPort: { ...createMockSnailPort(), invokeResume: vi.fn().mockResolvedValue({ snail_instance_id: "test-instance" }) },
+      liteAIPort: createMockLiteAIPort(),
+      mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
+    });
+
+    /** 注入 backward suggestion */
+    collab["suggestions"].set("review-stage", [{
+      stage_id: "review-stage", message_id: 100, from_speaker: "reviewer-1", target_key: "development",
+      reason: "Critical security vulnerability found", guard: null, artifacts: {},
+      created_at: new Date().toISOString(), signal_type: "gate_complete",
+      gate_evidence: { "rev-01": "SQL injection" },
+    }]);
+
+    await collab.advanceStage("review-stage", "development", "我已修复 SQL 注入，请继续开发");
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    /** userHint 作为用户消息发送（from_speaker=user），不使用打回原因 kickoff */
+    expect(createMessageSpy).toHaveBeenCalled();
+    const kickoffCall = createMessageSpy.mock.calls[0][0];
+    expect(kickoffCall.from_speaker).toBe("user");
+    /** final_text 是用户提供的文本 */
+    const contextCall = setContextSpy.mock.calls.find(
+      (call: any[]) => call[1] === "final_text" && call[2] === "我已修复 SQL 注入，请继续开发"
+    );
+    expect(contextCall).toBeDefined();
+    /** 不包含打回原因 kickoff */
+    const backwardKickoff = setContextSpy.mock.calls.find(
+      (call: any[]) => call[1] === "final_text" && typeof call[2] === "string" && call[2].includes("被重新激活")
+    );
+    expect(backwardKickoff).toBeUndefined();
+  });
 });
 
 describe("时序修正：isBackwardTarget 在 advanceStage 之前调用", () => {

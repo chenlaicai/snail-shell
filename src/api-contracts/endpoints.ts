@@ -23,8 +23,8 @@ export type ApiEndpoints = {
   "POST /api/stages/:stageId/messages/:messageId/interrupt": EndpointDef<{ stageId: string; messageId: string }, never, never, { interrupted: boolean }>;
   "GET /api/stages/:stageId/transition-suggestions": EndpointDef<{ stageId: string }, never, never, Dto.StageSuggestion[]>;
   "DELETE /api/stages/:stageId/transition-suggestions/:targetKey": EndpointDef<{ stageId: string; targetKey: string }, { created_at: string }, never, { ok: true }>;
-  "POST /api/stages/:stageId/advance": EndpointDef<{ stageId: string }, never, { target_key: string }, Dto.StageDetailDto>;
-  "POST /api/stages/:stageId/advance/force": EndpointDef<{ stageId: string }, never, { target_key: string }, Dto.StageDetailDto & { forced: boolean; evaluation: { action: string; reasons: Array<{ code: string; severity: string; message: string; details?: Record<string, unknown> }> } }>;
+  "POST /api/stages/:stageId/advance": EndpointDef<{ stageId: string }, never, { target_key: string; user_hint?: string }, Dto.StageDetailDto>;
+  "POST /api/stages/:stageId/advance/force": EndpointDef<{ stageId: string }, never, { target_key: string; user_hint?: string }, Dto.StageDetailDto & { forced: boolean; evaluation: { action: string; reasons: Array<{ code: string; severity: string; message: string; details?: Record<string, unknown> }> } }>;
   "GET /api/sops": EndpointDef<never, { source?: string }, never, Dto.SopDto[]>;
   "GET /api/sops/:sopKey": EndpointDef<{ sopKey: string }, never, never, Dto.SopDetailDto | null>;
   "POST /api/sops": EndpointDef<never, never, Omit<Dto.SopDto, 'scope'>, Dto.SopDto>;

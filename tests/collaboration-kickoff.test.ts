@@ -282,6 +282,131 @@ describe("autoInvokeNewStage: advanceStage/rollbackStage 后自动发送 kickoff
   });
 });
 
+describe("advanceStage with userHint: 用户补充说明作为用户消息发送", () => {
+  let createMessageSpy: ReturnType<typeof vi.fn>;
+  let setContextSpy: ReturnType<typeof vi.fn>;
+  let invokeFirstCallSpy: ReturnType<typeof vi.fn>;
+  let nextMessageId: number;
+  let messageStore: Map<number, { id: number; stage_id: string; from_speaker: string; to_speakers: string[]; status: "completed" | "streaming" | "failed"; created_at: string; ended_at: null }>;
+
+  beforeEach(() => {
+    nextMessageId = 100;
+    messageStore = new Map();
+    messageStore.set(1, { id: 1, stage_id: "s2", from_speaker: "user", to_speakers: [], status: "completed" as const, created_at: "", ended_at: null });
+    createMessageSpy = vi.fn().mockImplementation((input: { stage_id: string; from_speaker: string; to_speakers: string[]; status: "completed" | "streaming" | "failed" }) => {
+      const id = nextMessageId++;
+      const msg = { id, ...input, created_at: "", ended_at: null };
+      messageStore.set(id, msg);
+      return msg;
+    });
+    setContextSpy = vi.fn();
+    invokeFirstCallSpy = vi.fn().mockResolvedValue({ snail_instance_id: "test-instance" });
+  });
+
+  function createCollaboration(opts: { stagePort?: StagePort } = {}) {
+    const newStage = createNewStage();
+    const messagePort = createMockMessagePort({
+      createMessage: createMessageSpy as unknown as MessagePort["createMessage"],
+      setContext: setContextSpy as unknown as MessagePort["setContext"],
+      appendEvent: vi.fn().mockReturnValue({ id: 1, message_id: 1, seq: 1, payload: { type: "text", text: "" }, created_at: "" }),
+      completeMessage: vi.fn(),
+      getMessage: (id) => messageStore.get(id),
+      updateMessageTargets: vi.fn((id: number, toSpeakers: string[]) => {
+        const msg = messageStore.get(id);
+        if (msg) msg.to_speakers = toSpeakers;
+      }) as unknown as MessagePort["updateMessageTargets"],
+      getUnreadMessages: () => {
+        const unread = [];
+        for (const msg of messageStore.values()) {
+          if (msg.from_speaker === "user" && msg.status === "completed") unread.push(msg);
+        }
+        return unread;
+      },
+    });
+    const issuePort = createMockIssuePort({
+      findIssue: vi.fn().mockReturnValue(createOpenIssue()),
+    });
+    const stagePort = opts.stagePort ?? createMockStagePort({
+      findStage: vi.fn().mockReturnValue(newStage),
+      advanceStage: vi.fn().mockReturnValue(newStage),
+      listStages: vi.fn().mockReturnValue([]),
+      getRoleSnailAssignment: vi.fn().mockReturnValue({ snail_key: "test-snail", snail_instance_id: null, role_key: "developer" }),
+    });
+    const snailPort = {
+      ...createMockSnailPort(),
+      invokeFirstCall: invokeFirstCallSpy as unknown as SnailPort["invokeFirstCall"],
+    };
+
+    return new IssueCollaboration({
+      issuePort,
+      createIssue: vi.fn(),
+      stagePort,
+      messagePort,
+      snailPort,
+      liteAIPort: createMockLiteAIPort(),
+      mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
+    });
+  }
+
+  it("userHint 有内容时作为用户消息发送（from_speaker=user）", async () => {
+    const collaboration = createCollaboration();
+
+    await collaboration.advanceStage("s1", "development", "我发现了一个问题，请重新设计");
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(createMessageSpy).toHaveBeenCalled();
+    const kickoffCall = createMessageSpy.mock.calls[0][0];
+    expect(kickoffCall.from_speaker).toBe("user");
+    expect(kickoffCall.stage_id).toBe("s2");
+    expect(invokeFirstCallSpy).toHaveBeenCalled();
+  });
+
+  it("userHint 内容作为 final_text context 存储", async () => {
+    const collaboration = createCollaboration();
+
+    await collaboration.advanceStage("s1", "development", "请检查性能问题");
+
+    expect(setContextSpy).toHaveBeenCalled();
+    const contextCall = setContextSpy.mock.calls[0];
+    expect(contextCall[1]).toBe("final_text");
+    expect(contextCall[2]).toBe("请检查性能问题");
+  });
+
+  it("userHint 为空字符串时 fallback 为默认系统消息", async () => {
+    const collaboration = createCollaboration();
+
+    await collaboration.advanceStage("s1", "development", "   ");
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(createMessageSpy).toHaveBeenCalled();
+    const kickoffCall = createMessageSpy.mock.calls[0][0];
+    expect(kickoffCall.from_speaker).toBe("");
+  });
+
+  it("userHint 为 undefined 时 fallback 为默认系统消息", async () => {
+    const collaboration = createCollaboration();
+
+    await collaboration.advanceStage("s1", "development");
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(createMessageSpy).toHaveBeenCalled();
+    const kickoffCall = createMessageSpy.mock.calls[0][0];
+    expect(kickoffCall.from_speaker).toBe("");
+  });
+
+  it("rollbackStage 也支持 userHint", async () => {
+    const collaboration = createCollaboration();
+
+    await collaboration.rollbackStage("s2", "design", "回滚原因：设计需要修改");
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(createMessageSpy).toHaveBeenCalled();
+    const kickoffCall = createMessageSpy.mock.calls[0][0];
+    expect(kickoffCall.from_speaker).toBe("user");
+  });
+});
+
 describe("autoInvokeFirstStage: createIssue 后自动发送 kickoff 消息", () => {
   let createMessageSpy: ReturnType<typeof vi.fn>;
   let setContextSpy: ReturnType<typeof vi.fn>;

@@ -37,6 +37,7 @@ const sendMessageBody = z.object({
 
 const advanceStageBody = z.object({
   target_key: z.string().min(1),
+  user_hint: z.string().max(2000).optional(),
 });
 
 export function createIssueRoutes(deps: IssueRoutesDeps) {
@@ -106,7 +107,7 @@ export function createIssueRoutes(deps: IssueRoutesDeps) {
     if (evaluation.action === "blocked") {
       return c.json({ error: "Advance blocked by engine", evaluation }, 409);
     }
-    const stage = await deps.collaboration.advanceStage(stageId, body.target_key);
+    const stage = await deps.collaboration.advanceStage(stageId, body.target_key, body.user_hint);
     return c.json(toStageDto(deps, stage), 201);
   });
 
@@ -247,6 +248,6 @@ async function closeIssue(c: Context, deps: IssueRoutesDeps) {
 async function forceAdvance(c: Context, deps: IssueRoutesDeps) {
   const stageId = requiredParam(c, "stageId");
   const body = advanceStageBody.parse(await c.req.json());
-  const { stage, evaluation } = await deps.collaboration.forceAdvance(stageId, body.target_key);
+  const { stage, evaluation } = await deps.collaboration.forceAdvance(stageId, body.target_key, body.user_hint);
   return c.json({ ...toStageDto(deps, stage), forced: true, evaluation }, 201);
 }
