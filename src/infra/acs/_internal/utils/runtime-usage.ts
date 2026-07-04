@@ -97,6 +97,31 @@ export function usageDetailFromOpenCodeTokens(tokens: unknown, builtinContextWin
   });
 }
 
+/**
+ * 从 pi-mono 的 turn_end / agent_end 事件中提取 token usage 数据。
+ *
+ * pi 的 usage 数据可能出现在事件的 `usage` 或 `tokens` 字段中。
+ * 使用宽松解析，字段缺失时不崩溃、不发射 usage 事件。
+ */
+export function usageDetailFromPiMono(usage: unknown, builtinContextWindow?: number | null): RuntimeUsageDetail | null {
+  if (!isRecord(usage)) return null;
+  const runtimeContextWindow = readNumber(usage.context_window) ?? readNumber(usage.contextWindow);
+  const contextWindow = runtimeContextWindow ?? builtinContextWindow ?? null;
+  return withDerivedRatios({
+    input_tokens: readNumber(usage.input_tokens) ?? readNumber(usage.input),
+    output_tokens: readNumber(usage.output_tokens) ?? readNumber(usage.output),
+    total_tokens: readNumber(usage.total_tokens) ?? readNumber(usage.total),
+    cached_input_tokens: readNumber(usage.cached_input_tokens),
+    cache_write_tokens: readNumber(usage.cache_write_tokens),
+    reasoning_tokens: readNumber(usage.reasoning_tokens),
+    context_window: contextWindow,
+    context_window_source: contextWindowSource(runtimeContextWindow, contextWindow),
+    context_usage_ratio: null,
+    output_token_ratio: null,
+    raw: usage,
+  });
+}
+
 function contextWindowSource(runtimeContextWindow: number | null, resolvedContextWindow: number | null): "runtime" | "builtin" | "unknown" {
   if (typeof runtimeContextWindow === "number" && runtimeContextWindow > 0) return "runtime";
   if (typeof resolvedContextWindow === "number" && resolvedContextWindow > 0) return "builtin";

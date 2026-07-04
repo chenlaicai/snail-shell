@@ -7,7 +7,7 @@
       "_name_help": "【必填】显示名称",
       "name": "Claude Code + Sonnet",
 
-      "_agent_name_help": "【必填】对应的 agent name（对应 acs registry 中的注册名）。可选值：claude-code, claude-code-stateful, codex, opencode",
+      "_agent_name_help": "【必填】对应的 agent name（对应 acs registry 中的注册名）。可选值：claude-code, claude-code-stateful, codex, opencode, pi-mono",
       "agent_name": "claude-code",
 
       "_model_help": "【必填】模型标识",
@@ -17,6 +17,14 @@
       "context_window": 200000,
 
       "_invocation_timeout_ms_help": "【可选】调用超时（毫秒），默认 30 分钟",
+      "invocation_timeout_ms": 1800000
+    },
+    {
+      "id": "pi-mono",
+      "name": "Pi Mono",
+      "agent_name": "pi-mono",
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "context_window": 200000,
       "invocation_timeout_ms": 1800000
     }
   ]
