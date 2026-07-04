@@ -2,7 +2,7 @@
 id: F20260703w2rn
 ---
 
-# F20260703w2rn — infra 层消除 @app/ 依赖：适配器层独立
+# F20260703w2rn — 适配器层独立：infra/http + infra/mcp-server 迁移至 adapter
 
 ## 不兼容更新
 
@@ -20,15 +20,17 @@ id: F20260703w2rn
 
 ## 背景与动机
 
-`npm run check` 产出 3 个 ESLint warning，均来自 `@typescript-eslint/no-restricted-imports` 规则：
+`npm run check` 原先产出 3 个 ESLint warning，均来自 `@typescript-eslint/no-restricted-imports` 规则：
 
-| # | 文件 | 行 | 违规 import |
+| # | 文件 | 行 | 原始违规 import |
 |---|------|-----|-------------|
 | 1 | `src/infra/http/app.ts` | 13 | `import type { CollaborationInput } from "@app/issue-collaboration/port"` |
 | 2 | `src/infra/http/routes/issue.route.ts` | 9 | 同上 |
 | 3 | `src/infra/http/unified-websocket.ts` | 5-10 | `import type { CollaborationInput, CollaborationConsumer, WorkspaceConsumer, StageTransitionSuggestion } from "@app/issue-collaboration/port"` |
 
-ESLint 规则（`eslint.config.mjs:96-105`）约束：**infra 层禁止依赖 app 层；adapter 通过 DI 接收 app 层实例**。
+ESLint 规则（`eslint.config.mjs`）约束：**infra 层禁止依赖 app 层；adapter 通过 DI 接收 app 层实例**。
+
+> **注意**：PR #569（ESLint 层级方向约束升级）已将上述 import 从 `@app/issue-collaboration/port`（`CollaborationInput`）迁移为 `@domain/collaboration/port`（`CollaborationPort`），原始 3 个 ESLint warning 已随之消除。但 `src/infra/` 中放置适配器代码的架构问题仍然存在——`http/` 和 `mcp-server/` 是入站适配器，不是基础设施，`@domain/` 依赖虽不触发 ESLint 规则，但层级语义混淆未修正。本重构的动机是修正架构层级划分，而非仅消除 ESLint warning。
 
 ## 根因分析
 
@@ -37,9 +39,9 @@ ESLint 规则（`eslint.config.mjs:96-105`）约束：**infra 层禁止依赖 ap
 ```
 main.ts
   └─ createApp({ collaboration: collaboration.adapter })   ← DI 注入
-       └─ AppDeps.collaboration: CollaborationInput         ← 类型来自 @app/
-            ├─ app.ts: CollaborationInput                   ← warning #1
-            ├─ issue.route.ts: CollaborationInput           ← warning #2
+       └─ AppDeps.collaboration: CollaborationPort          ← 类型来自 @domain/
+            ├─ app.ts: CollaborationPort                    ← warning #1
+            ├─ issue.route.ts: CollaborationPort            ← warning #2
             └─ unified-websocket.ts: 多个类型               ← warning #3
 ```
 
@@ -51,16 +53,16 @@ main.ts
 |--------|------|---------------|-------------------|
 | 根文件（7个） | 纯基础设施 | 0 | 0 |
 | `acs/` | 纯基础设施 | 0 | 0 |
-| **`http/`** | **适配器** | 3 | 29 |
+| **`http/`** | **适配器** | 0 | 32 |
 | **`mcp-server/`** | **适配器** | 0 | 2 |
 
 `http/` 和 `mcp-server/` 是**入站适配器**（接收外部 HTTP/WebSocket 请求，委派给 domain/app port），不是基础设施。放在 `infra/` 下是层级语义混淆，导致 ESLint 规则误报。
 
-### `CollaborationInput` 归属分析
+### `CollaborationPort` 归属分析
 
 逐方法分析（15 个方法），14 个是跨聚合编排操作（issue+stage、message+stage、issue+cleanup 等），与现有 domain port 的单聚合模式（`IssuePort`, `StagePort`）不同。`CleanupResult` 含运维概念（`PrStatus`, `ResourceStatus`），放入 domain 会污染领域模型。
 
-**结论**：`CollaborationInput` 是跨聚合编排接口，应留在 app 层。适配器层应独立于 infra，合法依赖 app 和 domain。
+**结论**：`CollaborationPort`（原 `CollaborationInput`，PR #569 迁移至 `@domain/collaboration/port`）是跨聚合编排接口。适配器层应独立于 infra，合法依赖 app 和 domain。
 
 ## 设计方案
 
@@ -151,8 +153,8 @@ src/infra/     ← 纯基础设施（logger, database, acs, config）
 
 ### 核心设计决策
 
-1. **`CollaborationInput` 留在 app 层**：15 个方法中 14 个是跨聚合编排操作，不是单聚合 domain port。`CleanupResult` 含运维概念，放入 domain 会污染领域模型。
-2. **适配器独立于 infra**：`http/` 和 `mcp-server/` 是入站适配器（29+3 个 @domain/@app import），不是基础设施。放在 `infra/` 下是层级语义混淆。
+1. **`CollaborationPort`（原 `CollaborationInput`）归属**：15 个方法中 14 个是跨聚合编排操作，不是单聚合 domain port。`CleanupResult` 含运维概念，放入 domain 会污染领域模型。
+2. **适配器独立于 infra**：`http/` 和 `mcp-server/` 是入站适配器（32+2 个 @domain import），不是基础设施。放在 `infra/` 下是层级语义混淆。
 3. **infra ESLint 规则不修改**：infra 确实不应依赖 app/domain，规则正确。修正方式是移动适配器，而非放宽规则。
 
 ### 争议解决记录
