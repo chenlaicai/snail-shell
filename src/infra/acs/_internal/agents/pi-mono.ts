@@ -71,7 +71,7 @@ export class PiMonoAgent implements AgentRuntimePort {
 
     const model = options.model ?? PiMonoAgent.DEFAULT_MODEL;
     const statefulInput = buildStatefulPromptInput(true, request.prompt.systemPrompt, request.prompt.systemReminder, request.messages);
-    const promptText = renderStatefulPrompt(statefulInput, { skipSystemPrompt: false });
+    const promptText = renderStatefulPrompt(statefulInput, { skipSystemPrompt: true });
     const excludeTools = translatePiMonoTools(request.guard_profile.deny);
     const args = buildFirstCallArgs(model, request.prompt.systemPrompt, excludeTools, promptText);
 

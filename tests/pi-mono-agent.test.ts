@@ -158,6 +158,18 @@ describe("PiMonoAgent invokeFirstCall CLI args", () => {
     const [, args] = mockSpawn.mock.calls[0];
     expect(args).not.toContain("--append-system-prompt");
   });
+
+  it("does not include systemPrompt in prompt text (sent via --append-system-prompt only)", async () => {
+    const agent = new PiMonoAgent();
+    const { proc, events } = setupSpawnAndCollect();
+    await runInvocation(agent, "invokeFirstCall", createFirstCallRequest(), createInvokeOptions(), proc, events,
+      [SESSION_EVENT("sess-123"), TEXT_EVENT, AGENT_END_EVENT]);
+
+    const [, args] = mockSpawn.mock.calls[0];
+    const promptTextArg = args[args.length - 1];
+    expect(promptTextArg).not.toContain("You are a helpful assistant.");
+    expect(promptTextArg).not.toContain("当前任务上下文");
+  });
 });
 
 describe("PiMonoAgent invokeResume CLI args", () => {
@@ -486,9 +498,9 @@ describe("PiMonoAgent prompt stdin fallback", () => {
   it("uses stdin when prompt exceeds 64KB threshold", async () => {
     const agent = new PiMonoAgent();
     const { proc, events } = setupSpawnAndCollect();
-    const largePrompt = "A".repeat(70 * 1024);
+    const largeContent = "A".repeat(70 * 1024);
     await runInvocation(agent, "invokeFirstCall",
-      createFirstCallRequest({ prompt: { systemPrompt: largePrompt, systemReminder: "" } }),
+      createFirstCallRequest({ messages: [{ role: "human" as const, speaker: "user", content: largeContent }] }),
       createInvokeOptions(), proc, events, [SESSION_EVENT("s1"), TEXT_EVENT, AGENT_END_EVENT]);
 
     expect(proc.stdin.write).toHaveBeenCalled();
