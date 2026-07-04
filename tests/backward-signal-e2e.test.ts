@@ -121,6 +121,9 @@ describe("detectStageTransition → backward signal stores suggestion", () => {
 });
 
 describe("isBackwardTarget", () => {
+  /** [design-time] 标注：以下测试使用 left_at: null 的已离开 stage，
+   * 此场景在 append-only 模型下不可能出现（已离开的 stage 必有 left_at）。
+   * 保留测试以覆盖 isBackwardTarget 逻辑本身，待 transferStage 实现后激活。 */
   it("returns true when target key exists in stage history without left_at", () => {
     const reviewStage = createStage();
     const devStage = createDevStage();
@@ -160,6 +163,10 @@ describe("isBackwardTarget", () => {
 });
 
 describe("autoInvokeBackwardStage preserves reason and evidence", () => {
+  /** [design-time] 标注：以下测试使用 left_at: null 的已离开 stage，
+   * 此场景在 append-only 模型下不可能出现（已离开的 stage 必有 left_at）。
+   * 时序修正后 isBackwardTarget 对所有转移返回 false，autoInvokeBackwardStage 为死代码。
+   * 保留测试覆盖逻辑本身，待 transferStage 实现后激活。 */
   let createMessageSpy: ReturnType<typeof vi.fn>;
   let setContextSpy: ReturnType<typeof vi.fn>;
 
@@ -264,5 +271,224 @@ describe("autoInvokeBackwardStage preserves reason and evidence", () => {
     );
     expect(contextCall).toBeDefined();
     expect(contextCall![2]).toContain("未指定原因");
+  });
+});
+
+describe("时序修正：isBackwardTarget 在 advanceStage 之前调用", () => {
+  let createMessageSpy: ReturnType<typeof vi.fn>;
+  let setContextSpy: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    createMessageSpy = vi.fn().mockImplementation((input) => ({ id: 200, ...input, created_at: "", ended_at: null }));
+    setContextSpy = vi.fn();
+  });
+
+  /**
+   * B-1: 首次正向推进到目标 stage → kickoff 消息为"开始执行。"
+   * 模拟真实 append-only 行为：listStages 在 advanceStage 前后返回不同值。
+   * 旧代码（isBackwardTarget 在 advanceStage 之后调用）会误判为反向重新激活。
+   */
+  it("B-1: 首次正向推进时 kickoff 为'开始执行。'，不包含'被重新激活'", async () => {
+    const designStage: Stage = {
+      id: "design-stage", workspace_path: "/workspace", issue_id: "issue-1", key: "design", title: "Design",
+      description: "", default_role_instance: "architect", role_instances: ["architect"],
+      from_stage_id: null, available_transitions: [{ to: "development", guard: null }],
+      output_artifacts: {}, entered_at: "2026-07-02T10:00:00Z", left_at: "2026-07-02T12:00:00Z",
+    };
+    const devStage: Stage = {
+      id: "dev-stage", workspace_path: "/workspace", issue_id: "issue-1", key: "development", title: "Development",
+      description: "", default_role_instance: "developer", role_instances: ["developer"],
+      from_stage_id: "design-stage", available_transitions: [],
+      output_artifacts: {}, entered_at: "2026-07-02T12:00:00Z", left_at: null,
+    };
+
+    /** 模拟真实行为：advanceStage 调用前 listStages 不含新 stage，调用后含新 stage */
+    let advanceStageCalled = false;
+    const listStagesMock = vi.fn(() => {
+      if (!advanceStageCalled) return [designStage];
+      return [designStage, devStage];
+    });
+    const advanceStageMock = vi.fn(() => {
+      advanceStageCalled = true;
+      return devStage;
+    });
+
+    const messageStore = new Map<number, any>();
+    messageStore.set(1, { id: 1, stage_id: "dev-stage", from_speaker: "user", to_speakers: [], status: "completed", created_at: "", ended_at: null });
+
+    const collab = new IssueCollaboration({
+      issuePort: createMockIssuePort({ findIssue: vi.fn().mockReturnValue(createOpenIssue()) }),
+      createIssue: vi.fn(),
+      stagePort: createMockStagePort({
+        findStage: vi.fn().mockReturnValue(designStage),
+        listStages: listStagesMock,
+        advanceStage: advanceStageMock as unknown as StagePort["advanceStage"],
+        getRoleSnailAssignment: vi.fn().mockReturnValue({ snail_key: "test-snail", snail_instance_id: null, role_key: "developer" }),
+      }),
+      messagePort: createMockMessagePort({
+        createMessage: createMessageSpy as unknown as MessagePort["createMessage"],
+        setContext: setContextSpy as unknown as MessagePort["setContext"],
+        appendEvent: vi.fn().mockReturnValue({ id: 1, message_id: 1, seq: 1, payload: { type: "text", text: "" }, created_at: "" }),
+        completeMessage: vi.fn(),
+        getMessage: (id) => messageStore.get(id),
+        updateMessageTargets: vi.fn(),
+        getUnreadMessages: () => [],
+      }),
+      snailPort: createMockSnailPort(),
+      liteAIPort: createMockLiteAIPort(),
+      mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
+    });
+
+    await collab.advanceStage("design-stage", "development");
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    /** kickoff 消息应为"开始执行。"，不包含"被重新激活" */
+    const finalTextCall = setContextSpy.mock.calls.find(
+      (call: any[]) => call[1] === "final_text" && typeof call[2] === "string"
+    );
+    expect(finalTextCall).toBeDefined();
+    expect(finalTextCall![2]).toContain("开始执行");
+    expect(finalTextCall![2]).not.toContain("被重新激活");
+  });
+
+  /**
+   * B-2: 反向推进到已在历史中的 stage（append-only 模型，目标已离开）→ kickoff 消息为"重新进入"
+   */
+  it("B-2: 反向推进到已离开的 stage → kickoff 为'重新进入'，不包含'被重新激活'", async () => {
+    const devStageLeft: Stage = {
+      id: "dev-stage-old", workspace_path: "/workspace", issue_id: "issue-1", key: "development", title: "Development",
+      description: "", default_role_instance: "developer", role_instances: ["developer"],
+      from_stage_id: null, available_transitions: [{ to: "review", guard: null }],
+      output_artifacts: {}, entered_at: "2026-07-02T10:00:00Z", left_at: "2026-07-02T14:00:00Z",
+    };
+    const reviewStage: Stage = {
+      id: "review-stage", workspace_path: "/workspace", issue_id: "issue-1", key: "review", title: "Review",
+      description: "", default_role_instance: "reviewer", role_instances: ["reviewer"],
+      from_stage_id: "dev-stage-old", available_transitions: [{ to: "development", guard: null }],
+      output_artifacts: {}, entered_at: "2026-07-02T14:00:00Z", left_at: null,
+    };
+    const devStageNew: Stage = {
+      id: "dev-stage-new", workspace_path: "/workspace", issue_id: "issue-1", key: "development", title: "Development",
+      description: "", default_role_instance: "developer", role_instances: ["developer"],
+      from_stage_id: "review-stage", available_transitions: [],
+      output_artifacts: {}, entered_at: "2026-07-03T10:00:00Z", left_at: null,
+    };
+
+    /** listStages 返回已离开的 dev stage + 当前 review stage（append-only 真实行为） */
+    let advanceStageCalled = false;
+    const listStagesMock = vi.fn(() => {
+      if (!advanceStageCalled) return [devStageLeft, reviewStage];
+      return [devStageLeft, reviewStage, devStageNew];
+    });
+    const advanceStageMock = vi.fn(() => {
+      advanceStageCalled = true;
+      return devStageNew;
+    });
+
+    const messageStore = new Map<number, any>();
+    messageStore.set(1, { id: 1, stage_id: "dev-stage-new", from_speaker: "user", to_speakers: [], status: "completed", created_at: "", ended_at: null });
+
+    const collab = new IssueCollaboration({
+      issuePort: createMockIssuePort({ findIssue: vi.fn().mockReturnValue(createOpenIssue()) }),
+      createIssue: vi.fn(),
+      stagePort: createMockStagePort({
+        findStage: vi.fn().mockReturnValue(reviewStage),
+        listStages: listStagesMock,
+        advanceStage: advanceStageMock as unknown as StagePort["advanceStage"],
+        getRoleSnailAssignment: vi.fn().mockReturnValue({ snail_key: "test-snail", snail_instance_id: null, role_key: "developer" }),
+      }),
+      messagePort: createMockMessagePort({
+        createMessage: createMessageSpy as unknown as MessagePort["createMessage"],
+        setContext: setContextSpy as unknown as MessagePort["setContext"],
+        appendEvent: vi.fn().mockReturnValue({ id: 1, message_id: 1, seq: 1, payload: { type: "text", text: "" }, created_at: "" }),
+        completeMessage: vi.fn(),
+        getMessage: (id) => messageStore.get(id),
+        updateMessageTargets: vi.fn(),
+        getUnreadMessages: () => [],
+      }),
+      snailPort: createMockSnailPort(),
+      liteAIPort: createMockLiteAIPort(),
+      mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
+    });
+
+    await collab.advanceStage("review-stage", "development");
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    /** kickoff 消息应为"重新进入 [development] 阶段"，不包含"被重新激活" */
+    const finalTextCall = setContextSpy.mock.calls.find(
+      (call: any[]) => call[1] === "final_text" && typeof call[2] === "string"
+    );
+    expect(finalTextCall).toBeDefined();
+    expect(finalTextCall![2]).toContain("重新进入");
+    expect(finalTextCall![2]).toContain("development");
+    expect(finalTextCall![2]).not.toContain("被重新激活");
+  });
+
+  /**
+   * B-3: forceAdvance 路径与 advanceStage 一致的 kickoff 消息
+   */
+  it("B-3: forceAdvance 正向推进时 kickoff 为'开始执行。'，不包含'被重新激活'", async () => {
+    const devStage: Stage = {
+      id: "dev-stage", workspace_path: "/workspace", issue_id: "issue-1", key: "development", title: "Development",
+      description: "", default_role_instance: "developer", role_instances: ["developer"],
+      from_stage_id: null, available_transitions: [{ to: "review", guard: null }],
+      output_artifacts: {}, entered_at: "2026-07-02T10:00:00Z", left_at: null,
+    };
+    const reviewStage: Stage = {
+      id: "review-stage", workspace_path: "/workspace", issue_id: "issue-1", key: "review", title: "Review",
+      description: "", default_role_instance: "reviewer", role_instances: ["reviewer"],
+      from_stage_id: "dev-stage", available_transitions: [],
+      output_artifacts: {}, entered_at: "2026-07-02T12:00:00Z", left_at: null,
+    };
+
+    let advanceStageCalled = false;
+    const listStagesMock = vi.fn(() => {
+      if (!advanceStageCalled) return [devStage];
+      return [devStage, reviewStage];
+    });
+    const advanceStageMock = vi.fn(() => {
+      advanceStageCalled = true;
+      return reviewStage;
+    });
+
+    const messageStore = new Map<number, any>();
+    messageStore.set(1, { id: 1, stage_id: "review-stage", from_speaker: "user", to_speakers: [], status: "completed", created_at: "", ended_at: null });
+
+    const collab = new IssueCollaboration({
+      issuePort: createMockIssuePort({ findIssue: vi.fn().mockReturnValue(createOpenIssue()) }),
+      createIssue: vi.fn(),
+      stagePort: createMockStagePort({
+        findStage: vi.fn().mockReturnValue(devStage),
+        listStages: listStagesMock,
+        advanceStage: advanceStageMock as unknown as StagePort["advanceStage"],
+        recordAudit: vi.fn(),
+        getRoleSnailAssignment: vi.fn().mockReturnValue({ snail_key: "test-snail", snail_instance_id: null, role_key: "reviewer" }),
+      }),
+      messagePort: createMockMessagePort({
+        createMessage: createMessageSpy as unknown as MessagePort["createMessage"],
+        setContext: setContextSpy as unknown as MessagePort["setContext"],
+        appendEvent: vi.fn().mockReturnValue({ id: 1, message_id: 1, seq: 1, payload: { type: "text", text: "" }, created_at: "" }),
+        completeMessage: vi.fn(),
+        getMessage: (id) => messageStore.get(id),
+        updateMessageTargets: vi.fn(),
+        getUnreadMessages: () => [],
+      }),
+      snailPort: createMockSnailPort(),
+      liteAIPort: createMockLiteAIPort(),
+      mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
+    });
+
+    await collab.forceAdvance("dev-stage", "review");
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    const finalTextCall = setContextSpy.mock.calls.find(
+      (call: any[]) => call[1] === "final_text" && typeof call[2] === "string"
+    );
+    expect(finalTextCall).toBeDefined();
+    expect(finalTextCall![2]).toContain("开始执行");
+    expect(finalTextCall![2]).not.toContain("被重新激活");
   });
 });
