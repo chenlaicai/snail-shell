@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createMcpHandler } from "../src/infra/mcp-server/handler";
+import { createMcpHandler } from "../src/adapter/mcp-server/handler";
 import type { SnailMCPServerPort } from "../src/domain/snail-mcp-server/port";
 
 /** Mock logger — 使用 vi.hoisted 确保在 vi.mock 之前可用 */

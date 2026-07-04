@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { encodeWorkspaceId, decodeWorkspaceId } from "@infra/http/workspace-id";
+import { encodeWorkspaceId, decodeWorkspaceId } from "@adapter/http/workspace-id";
 import type { CollaborationInput } from "@app/issue-collaboration/port";
 
 // Capture the callback passed to upgradeWebSocket before module loads
@@ -21,7 +21,7 @@ vi.mock("@infra/logger", () => ({
   }),
 }));
 
-import { createUnifiedWebSocketBridge } from "@infra/http/unified-websocket";
+import { createUnifiedWebSocketBridge } from "@adapter/http/unified-websocket";
 
 describe("workspace-id encoding/decoding", () => {
   it("roundtrips workspace path through base64url", () => {

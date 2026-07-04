@@ -3,7 +3,7 @@ import { FileDataStore } from "@infra/file-data-store";
 import { ConfigStore } from "@infra/config-store";
 import { loadServerSettings, type ServerSettings } from "@infra/server-config";
 import { SQLiteDatabase } from "@infra/database";
-import { createApp } from "@infra/http/app";
+import { createApp } from "@adapter/http/app";
 import { getLogger } from "@infra/logger";
 import blocked from "blocked-at";
 import { init as initAcs } from "@infra/acs/_internal/initor";
@@ -27,8 +27,8 @@ import { init as initIssueCollaboration } from "@app/issue-collaboration/initor"
 import { init as initIMHub } from "@app/im-hub/initor";
 import { createMcpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-message-store";
 import type { EvolutionPort } from "@domain/evolution/port";
-import { createMcpHandler } from "@infra/mcp-server/handler";
-import { createUnifiedWebSocketBridge } from "@infra/http/unified-websocket";
+import { createMcpHandler } from "@adapter/mcp-server/handler";
+import { createUnifiedWebSocketBridge } from "@adapter/http/unified-websocket";
 
 const log = getLogger();
 

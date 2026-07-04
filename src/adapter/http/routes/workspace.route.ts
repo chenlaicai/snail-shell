@@ -7,7 +7,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { toWorkspaceDto } from "@infra/http/workspace-id";
+import { toWorkspaceDto } from "@adapter/http/workspace-id";
 import type { WorkspacePort } from "@domain/workspace/port";
 
 const CreateWorkspaceBodySchema = z.object({

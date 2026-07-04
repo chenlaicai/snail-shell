@@ -1,11 +1,11 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { createWorkspaceRoutes } from "@infra/http/routes/workspace.route";
-import { createIssueRoutes } from "@infra/http/routes/issue.route";
-import { createMetaRoutes } from "@infra/http/routes/meta.route";
-import { createKnowledgeRoutes } from "@infra/http/routes/knowledge.route";
-import { createEvolutionRoutes } from "@infra/http/routes/evolution.route";
-import { createFrontendLogRoutes } from "@infra/http/routes/frontend-log.route";
+import { createWorkspaceRoutes } from "@adapter/http/routes/workspace.route";
+import { createIssueRoutes } from "@adapter/http/routes/issue.route";
+import { createMetaRoutes } from "@adapter/http/routes/meta.route";
+import { createKnowledgeRoutes } from "@adapter/http/routes/knowledge.route";
+import { createEvolutionRoutes } from "@adapter/http/routes/evolution.route";
+import { createFrontendLogRoutes } from "@adapter/http/routes/frontend-log.route";
 import { getLogger } from "@infra/logger";
 import type { WorkspacePort } from "@domain/workspace/port";
 import type { IssuePort, StagePort } from "@domain/issue/port";

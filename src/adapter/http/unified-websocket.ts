@@ -9,7 +9,7 @@ import type {
   StageTransitionSuggestion,
 } from "@domain/collaboration/port";
 import type { Message } from "@domain/message/model";
-import { decodeWorkspaceId } from "@infra/http/workspace-id";
+import { decodeWorkspaceId } from "@adapter/http/workspace-id";
 
 const log = getLogger({ module: "websocket" });
 
