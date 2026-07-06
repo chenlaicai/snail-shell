@@ -1,11 +1,11 @@
 ---
-id: F20260703kzqm
+id: F20260706kzqm
 title: Stage Suggestion 已阅自动消失
 status: implemented
 created_at: 2026-07-03
 ---
 
-# F20260703kzqm — Stage Suggestion "已阅自动消失"
+# F20260706kzqm — Stage Suggestion "已阅自动消失"
 
 ## 背景
 
