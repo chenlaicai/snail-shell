@@ -1,8 +1,9 @@
 import type { Stage } from "@domain/issue/model";
 import type { Sop, AutoAdvanceConfig } from "@domain/sop/model";
-import type { StageTransitionSuggestion, SignalType, EvaluationResult } from "@app/issue-collaboration/port";
+import type { StageTransitionSuggestion, EvaluationResult } from "@app/issue-collaboration/port";
 import { resolveContextValue } from "@app/issue-collaboration/resource-cleanup";
 import { buildGateFixGuidance } from "@domain/collaboration/gate-metadata";
+import { checkSystemGate, inferSignalType } from "@app/issue-collaboration/gate-check";
 import { getLogger } from "@infra/logger";
 
 const log = getLogger({ module: "auto-advance" });
@@ -35,9 +36,11 @@ export class AutoAdvanceEngine {
       return { action: "blocked", reasons: [{ code: "NO_SIGNALS", severity: "info", message: "无信号" }] };
     }
 
+    const config = this.getAutoAdvanceConfig(stage);
+
     const typedSuggestions = suggestions.map(s => ({
       ...s,
-      signal_type: s.signal_type ?? this.inferSignalType(s, stage.key),
+      signal_type: s.signal_type ?? inferSignalType(config),
     }));
 
     // 分歧信号优先处理（通用逻辑，所有 stage 都处理，不受 accepted_signal_types 限制）
@@ -47,7 +50,6 @@ export class AutoAdvanceEngine {
     }
 
     // 无 auto_advance 配置 → 不参与自动推进，升级到人工
-    const config = this.getAutoAdvanceConfig(stage);
     if (!config) {
       return { action: "escalated", reasons: [{ code: "NO_AUTO_ADVANCE_CONFIG", severity: "info", message: "该阶段未配置自动推进" }] };
     }
@@ -70,15 +72,6 @@ export class AutoAdvanceEngine {
     }
 
     return { action: "blocked", reasons: [{ code: "NO_VALID_SIGNALS", severity: "info", message: "无有效信号" }] };
-  }
-
-  /** 向后兼容：根据字段推断 signal_type。 */
-  inferSignalType(suggestion: StageTransitionSuggestion, stageKey: string): SignalType {
-    // design/review 阶段 → adversarial_consensus
-    if (stageKey === "design" || stageKey === "review") {
-      return "adversarial_consensus";
-    }
-    return "gate_complete";
   }
 
   private async handleDisagreement(stageId: string, disagreement: StageTransitionSuggestion): Promise<EvaluationResult> {
@@ -197,32 +190,5 @@ export class AutoAdvanceEngine {
     const config = this.getAutoAdvanceConfig(stage);
     if (!config) return false;
     return this.getFailedGates(stage, config).length === 0;
-  }
-}
-
-/**
- * 系统自动检查的 gate：不依赖 agent 输入，系统直接检查 issue context 或 stage 状态。
- * prompt 级 gate 始终返回 true（agent 在 reason 中自证）。
- */
-function checkSystemGate(gate: string, ctx: Record<string, string>): boolean {
-  switch (gate) {
-    case "design-01":
-      /** 检查 issue context 中是否有 feature_doc_path 指向的文件 */
-      return !!resolveContextValue(ctx, "feature_doc_path");
-    case "design-02":
-      /** 降级为 prompt 级（系统无法在 L2 层检查 disagreement 状态） */
-      return true;
-    case "dev-04":
-      /** 检查 issue context 中的 pr_url 字段 */
-      return !!resolveContextValue(ctx, "pr_url");
-    case "rev-04": {
-      /** 从 issue context 的 feature_number 字段获取特性编号，正则校验 */
-      const featureNumber = resolveContextValue(ctx, "feature_number");
-      if (!featureNumber) return false;
-      return /^F\d{8}[a-kmnp-z][2-9a-kmnp-z]{3}$/.test(featureNumber);
-    }
-    default:
-      /** prompt 级 gate：dev-01, dev-02, dev-03, dev-06, rev-01, rev-02, rev-03 */
-      return true;
   }
 }

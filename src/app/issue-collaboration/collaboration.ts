@@ -12,6 +12,7 @@ import type { CollaborationConsumer, CollaborationInput, CreateIssueResult, Eval
 import type { StageSuggestionRepository, StageSuggestionRecord } from "@domain/issue/_internal/repository";
 import { AutoAdvanceEngine } from "@app/issue-collaboration/auto-advance";
 import { validateSingleSignal } from "@app/issue-collaboration/signal-validation";
+import { inferSignalType } from "@app/issue-collaboration/gate-check";
 import { ConsumerNotifier } from "@app/issue-collaboration/consumer-notifier";
 import { MessageHandler } from "@app/issue-collaboration/message-handler";
 import { CollaborationHelpers } from "@app/issue-collaboration/helpers";
@@ -433,7 +434,7 @@ export class IssueCollaboration implements CollaborationInput, StageTransitionPo
     const config = issue.sop_snapshot.stage_definitions.find(d => d.key === stage.key)?.auto_advance;
 
     /** 推断 signal_type：显式指定优先，否则从 stage config 的 accepted_signal_types 推断 */
-    const signalType = (input.signalType as SignalType | undefined) ?? this.inferSignalType(config);
+    const signalType = (input.signalType as SignalType | undefined) ?? inferSignalType(config);
 
     /** 查找当前 streaming 消息以关联 suggestion */
     const streamingMessage = this.deps.messagePort.findLatestMessageBySpeaker(input.stageId, input.fromSpeaker);
@@ -469,13 +470,6 @@ export class IssueCollaboration implements CollaborationInput, StageTransitionPo
     await this.notifyConsumers(input.stageId, "onEvaluationResult", result);
 
     return { valid: true, registered: true };
-  }
-
-  /** 从 stage config 的 accepted_signal_types 推断信号类型 */
-  private inferSignalType(config: { accepted_signal_types: string[] } | undefined): SignalType {
-    if (!config) return "gate_complete";
-    if (config.accepted_signal_types.includes("adversarial_consensus")) return "adversarial_consensus";
-    return "gate_complete";
   }
 
   private async recordAuditTrail(fromStage: Stage, toStage: Stage, suggestion: StageTransitionSuggestion): Promise<void> {
