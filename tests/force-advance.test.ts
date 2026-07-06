@@ -252,6 +252,10 @@ describe("forceAdvance", () => {
   });
 
   it("backward 场景保留打回原因和 gate_evidence", async () => {
+    /** [design-time] 标注：此测试使用 left_at: null 的已离开 stage，
+     * 在 append-only 模型下不可能出现（已离开的 stage 必有 left_at）。
+     * 时序修正后 isBackwardTarget 对所有转移返回 false，autoInvokeBackwardStage 为死代码。
+     * 保留测试覆盖逻辑本身，待 transferStage 实现后激活。 */
     /** 捕获 setContext 中的 final_text（kickoff 消息文本） */
     const finalTexts: string[] = [];
     const messagePort = createMockMessagePort({

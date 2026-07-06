@@ -160,13 +160,16 @@ export class IssueCollaboration implements CollaborationInput {
     const oldStage = this.deps.stagePort.findStage(stageId);
     /** 在清除 suggestions 之前提取反向转移的打回原因和证据 */
     const backwardContext = oldStage ? this.extractBackwardContext(stageId, targetKey) : null;
+    /** 在创建新 stage 之前判断是否反向转移：此时 listStages 不含即将创建的新 stage，
+     * 避免新创建的 stage（left_at=null）被误判为"可重新激活的已存在 stage"。
+     * append-only 模型下已离开的 stage 必有 left_at，因此此检查对所有转移返回 false。
+     * 完整反向检测依赖 transferStage 实现（F20260703jh7v 遗留项）。 */
+    const isBackward = oldStage && this.isBackwardTarget(oldStage.issue_id, targetKey);
     const stage = this.deps.stagePort.advanceStage(stageId, targetKey);
     this.cleanupDispatchStates(stageId);
     for (const s of (this.suggestions.get(stageId) ?? [])) this.deps.stageSuggestionRepo.markProcessed(s.message_id.toString(), "confirmed");
     this.suggestions.delete(stageId);
     this.helpers.initStageCursors(stage);
-    /** 反向转移：targetKey 在 stage 历史中已存在 → 发送包含打回原因的 kickoff */
-    const isBackward = oldStage && this.isBackwardTarget(oldStage.issue_id, targetKey);
     if (isBackward) this.autoInvokeBackwardStage(stage, oldStage, backwardContext);
     else this.autoInvokeNewStage(stage);
     return stage;
@@ -185,6 +188,8 @@ export class IssueCollaboration implements CollaborationInput {
     const oldStage = this.deps.stagePort.findStage(stageId);
     /** 在清除 suggestions 之前提取反向转移的打回原因和证据（与 advanceStage 一致） */
     const backwardContext = oldStage ? this.extractBackwardContext(stageId, targetKey) : null;
+    /** 在创建新 stage 之前判断是否反向转移（与 advanceStage 一致的时序修正） */
+    const isBackward = oldStage && this.isBackwardTarget(oldStage.issue_id, targetKey);
     const newStage = this.deps.stagePort.advanceStage(stageId, targetKey);
     this.cleanupDispatchStates(stageId);
     for (const s of (this.suggestions.get(stageId) ?? [])) this.deps.stageSuggestionRepo.markProcessed(s.message_id.toString(), "confirmed");
@@ -202,7 +207,7 @@ export class IssueCollaboration implements CollaborationInput {
     await this.notifyConsumers(newStage.id, "onAutoAdvanced", {
       from: stageId, to: newStage.id, from_key: oldStage?.key ?? "", to_key: newStage.key, reason: `[forced] 用户强制推进`,
     });
-    if (oldStage && this.isBackwardTarget(oldStage.issue_id, targetKey)) {
+    if (isBackward) {
       this.autoInvokeBackwardStage(newStage, oldStage, backwardContext ?? { reason: `[forced] 用户强制推进`, gate_evidence: {} });
     } else {
       this.autoInvokeNewStage(newStage);
