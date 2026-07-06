@@ -140,12 +140,12 @@ export interface CollaborationInput {
   unregisterWorkspaceConsumer(workspaceId: string, consumer: WorkspaceConsumer): void;
   listStageTransitionSuggestions(stageId: string): StageTransitionSuggestion[];
   dismissSuggestion(stageId: string, targetKey: string, createdAt: string): boolean;
-  advanceStage(stageId: string, targetKey: string): Promise<Stage>;
+  advanceStage(stageId: string, targetKey: string, userHint?: string): Promise<Stage>;
   /** 用户强制推进：跳过引擎评估，直接执行推进并记录审计日志 */
-  forceAdvance(stageId: string, targetKey: string): Promise<{ stage: Stage; evaluation: EvaluationResult }>;
+  forceAdvance(stageId: string, targetKey: string, userHint?: string): Promise<{ stage: Stage; evaluation: EvaluationResult }>;
   /** L2: 手动推进前的引擎评估（不执行自动推进） */
   evaluateAdvance(stageId: string): Promise<EvaluationResult>;
-  rollbackStage(stageId: string, targetKey: string): Promise<Stage>;
+  rollbackStage(stageId: string, targetKey: string, userHint?: string): Promise<Stage>;
   getStageAuditTrail(stageId: string): StageAuditRecord[];
   closeIssue(issueId: string): Promise<{ issue: Issue; cleanup: CleanupResult }>;
   /** 查询 stage 是否有 agent 正在执行（用于 activity_status 判断） */

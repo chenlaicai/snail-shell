@@ -21,6 +21,8 @@ export function StageActionBar({
   const [isClosing, setIsClosing] = useState(false);
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [selectedTarget, setSelectedTarget] = useState("");
+  const [userHint, setUserHint] = useState("");
+  const [showHintInput, setShowHintInput] = useState(false);
   const [blockedReasons, setBlockedReasons] = useState<Array<{ code: string; severity: string; message: string; details?: Record<string, unknown> }> | null>(null);
   const [blockedTargetKey, setBlockedTargetKey] = useState("");
   const closeIssue = useCloseIssue(issue.workspace_id);
@@ -65,11 +67,16 @@ export function StageActionBar({
     try {
       const stage = await api("POST /api/stages/:stageId/advance", {
         params: { stageId: currentStage.id },
-        body: { target_key: targetKey },
+        body: {
+          target_key: targetKey,
+          user_hint: userHint.trim() || undefined,
+        },
       });
       showToast("阶段已推进");
       onStageChanged(stage);
       setSelectedTarget("");
+      setUserHint("");
+      setShowHintInput(false);
     } catch (err: unknown) {
       if (err instanceof BlockedError && err.evaluation.reasons.length > 0) {
         /** 409 阻断：弹出确认对话框而非 toast，让用户可以强制推进 */
@@ -135,6 +142,24 @@ export function StageActionBar({
           {transitions.map((transition) => <option key={transition.to} value={transition.to}>{transition.to}</option>)}
         </select>
       )}
+      <div className="space-y-1.5">
+        <button
+          onClick={() => setShowHintInput(!showHintInput)}
+          className="text-[11px] text-text-muted hover:text-text-secondary transition-colors"
+        >
+          {showHintInput ? "收起" : "添加推进说明..."}
+        </button>
+        {showHintInput && (
+          <textarea
+            value={userHint}
+            onChange={(e) => setUserHint(e.target.value)}
+            placeholder="可选：填写推进原因或对新阶段的指示..."
+            rows={3}
+            maxLength={2000}
+            className="w-full rounded-md border border-white/6 bg-surface-0 px-2.5 py-1.5 text-xs text-text-primary focus:border-shell-600/40 focus:outline-none resize-none"
+          />
+        )}
+      </div>
       <button
         onClick={handleAdvance}
         disabled={advancing || isClosing || transitions.length === 0 || needsSelection}
@@ -159,10 +184,11 @@ export function StageActionBar({
         <ForceAdvanceDialog
           open={!!blockedReasons}
           onClose={() => { setBlockedReasons(null); setBlockedTargetKey(""); }}
-          onConfirmed={(stage) => { onStageChanged(stage); setSelectedTarget(""); setBlockedReasons(null); setBlockedTargetKey(""); }}
+          onConfirmed={(stage) => { onStageChanged(stage); setSelectedTarget(""); setUserHint(""); setShowHintInput(false); setBlockedReasons(null); setBlockedTargetKey(""); }}
           stageId={currentStage.id}
           targetKey={blockedTargetKey}
           reasons={blockedReasons}
+          userHint={userHint.trim() || undefined}
         />
       )}
     </div>

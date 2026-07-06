@@ -318,4 +318,57 @@ describe("forceAdvance", () => {
     expect(kickoff!).toContain(backwardReason);
     expect(kickoff!).toContain("dev-02");
   });
+
+  it("forceAdvance with userHint: 用户说明优先于打回原因 kickoff", async () => {
+    /** 捕获 setContext 中的 final_text */
+    const finalTexts: string[] = [];
+    const createMessageSpy = vi.fn().mockImplementation((input: { from_speaker: string }) => {
+      return { id: 1, stage_id: "stage-2", from_speaker: input.from_speaker, to_speakers: [], status: "completed", created_at: "", ended_at: null };
+    });
+    const messagePort = createMockMessagePort({
+      createMessage: createMessageSpy as unknown as MessagePort["createMessage"],
+      setContext: vi.fn((_messageId: number, key: string, value: string) => {
+        if (key === "final_text") finalTexts.push(value);
+      }),
+    });
+
+    const oldStage = createStage({ id: "stage-1", key: "development" });
+    const backwardStage = createStage({ id: "stage-2", key: "design", from_stage_id: "stage-1" });
+    const stagePort = createMockStagePort({
+      findStage: vi.fn().mockReturnValue(oldStage),
+      advanceStage: vi.fn().mockReturnValue(backwardStage),
+      listStages: vi.fn().mockReturnValue([{ ...backwardStage, left_at: null }]),
+      recordAudit: vi.fn(),
+      getRoleSnailAssignment: vi.fn().mockReturnValue({ snail_key: "test-snail", snail_instance_id: null, role_key: "developer" }),
+    });
+
+    const collaboration = new IssueCollaboration({
+      issuePort: createMockIssuePort({ findIssue: vi.fn().mockReturnValue(createOpenIssue()) }),
+      createIssue: vi.fn(),
+      stagePort,
+      messagePort,
+      snailPort: createMockSnailPort(),
+      liteAIPort: createMockLiteAIPort(),
+      mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: createMockStageSuggestionRepo(),
+    });
+
+    /** 注入 backward suggestion */
+    collaboration["suggestions"].set("stage-1", [{
+      stage_id: "stage-1", message_id: 1, from_speaker: "reviewer", target_key: "design",
+      reason: "Gate 自检未通过", guard: null, artifacts: {},
+      created_at: new Date().toISOString(), signal_type: "disagreement",
+      gate_evidence: { "dev-02": "npm run check 失败" },
+    }]);
+
+    await collaboration.forceAdvance("stage-1", "design", "我已经修复了问题，请继续");
+
+    /** userHint 作为用户消息发送（from_speaker=user），不使用打回原因 kickoff */
+    expect(createMessageSpy).toHaveBeenCalled();
+    const kickoffCall = createMessageSpy.mock.calls[0][0];
+    expect(kickoffCall.from_speaker).toBe("user");
+    /** final_text 是用户提供的文本，不是打回原因 */
+    expect(finalTexts).toContain("我已经修复了问题，请继续");
+    expect(finalTexts.some(t => t.includes("打回原因"))).toBe(false);
+  });
 });

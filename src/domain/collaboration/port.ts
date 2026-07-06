@@ -102,10 +102,10 @@ export interface CollaborationPort {
   unregisterWorkspaceConsumer(workspaceId: string, consumer: WorkspaceConsumer): void;
   listStageTransitionSuggestions(stageId: string): StageTransitionSuggestion[];
   dismissSuggestion(stageId: string, targetKey: string, createdAt: string): boolean;
-  advanceStage(stageId: string, targetKey: string): Promise<Stage>;
-  forceAdvance(stageId: string, targetKey: string): Promise<{ stage: Stage; evaluation: EvaluationResult }>;
+  advanceStage(stageId: string, targetKey: string, userHint?: string): Promise<Stage>;
+  forceAdvance(stageId: string, targetKey: string, userHint?: string): Promise<{ stage: Stage; evaluation: EvaluationResult }>;
   evaluateAdvance(stageId: string): Promise<EvaluationResult>;
-  rollbackStage(stageId: string, targetKey: string): Promise<Stage>;
+  rollbackStage(stageId: string, targetKey: string, userHint?: string): Promise<Stage>;
   getStageAuditTrail(stageId: string): StageAuditRecord[];
   closeIssue(issueId: string): Promise<CloseIssueResult>;
   isInvoking(stageId: string): boolean;

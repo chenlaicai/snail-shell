@@ -156,7 +156,7 @@ export class IssueCollaboration implements CollaborationInput {
     if (remaining.length === 0) this.suggestions.delete(stageId); else this.suggestions.set(stageId, remaining);
     return true;
   }
-  async advanceStage(stageId: string, targetKey: string): Promise<Stage> {
+  async advanceStage(stageId: string, targetKey: string, userHint?: string): Promise<Stage> {
     const oldStage = this.deps.stagePort.findStage(stageId);
     /** 在清除 suggestions 之前提取反向转移的打回原因和证据 */
     const backwardContext = oldStage ? this.extractBackwardContext(stageId, targetKey) : null;
@@ -170,12 +170,12 @@ export class IssueCollaboration implements CollaborationInput {
     for (const s of (this.suggestions.get(stageId) ?? [])) this.deps.stageSuggestionRepo.markProcessed(s.message_id.toString(), "confirmed");
     this.suggestions.delete(stageId);
     this.helpers.initStageCursors(stage);
-    if (isBackward) this.autoInvokeBackwardStage(stage, oldStage, backwardContext);
-    else this.autoInvokeNewStage(stage);
+    if (isBackward) this.autoInvokeBackwardStage(stage, oldStage, backwardContext, userHint);
+    else this.autoInvokeNewStage(stage, userHint);
     return stage;
   }
   /** 用户强制推进：跳过引擎阻断，执行推进并写审计日志 */
-  async forceAdvance(stageId: string, targetKey: string): Promise<{ stage: Stage; evaluation: EvaluationResult }> {
+  async forceAdvance(stageId: string, targetKey: string, userHint?: string): Promise<{ stage: Stage; evaluation: EvaluationResult }> {
     this.helpers.mustGetStage(stageId);
     /** 仍然执行评估，获取阻断原因供前端展示。评估失败不阻塞强制推进。 */
     let evaluation: EvaluationResult;
@@ -208,9 +208,9 @@ export class IssueCollaboration implements CollaborationInput {
       from: stageId, to: newStage.id, from_key: oldStage?.key ?? "", to_key: newStage.key, reason: `[forced] 用户强制推进`,
     });
     if (isBackward) {
-      this.autoInvokeBackwardStage(newStage, oldStage, backwardContext ?? { reason: `[forced] 用户强制推进`, gate_evidence: {} });
+      this.autoInvokeBackwardStage(newStage, oldStage, backwardContext ?? { reason: `[forced] 用户强制推进`, gate_evidence: {} }, userHint);
     } else {
-      this.autoInvokeNewStage(newStage);
+      this.autoInvokeNewStage(newStage, userHint);
     }
     return { stage: newStage, evaluation };
   }
@@ -474,12 +474,20 @@ export class IssueCollaboration implements CollaborationInput {
       decision_mode: r.decision_mode as DecisionMode | undefined, recommendation: r.recommendation ?? undefined,
       alternatives: r.alternatives ? JSON.parse(r.alternatives) as string[] : undefined })));
   }
-  async rollbackStage(stageId: string, targetKey: string): Promise<Stage> {
-    return this.advanceStage(stageId, targetKey);
+  async rollbackStage(stageId: string, targetKey: string, userHint?: string): Promise<Stage> {
+    return this.advanceStage(stageId, targetKey, userHint);
   }
   /** 阶段推进后自动向新阶段发送 kickoff 消息，触发默认 agent 开始工作 */
-  private autoInvokeNewStage(stage: Stage): void {
+  private autoInvokeNewStage(stage: Stage, userHint?: string): void {
     if (!stage.default_role_instance) return;
+    /** 用户提供了 hint，作为用户消息发送（优先于默认 kickoff 和重新进入提示） */
+    const hint = userHint?.trim();
+    if (hint) {
+      this.sendMessage(stage.id, hint, "user").catch((err) => {
+        log.error({ stageId: stage.id, err }, "autoInvokeNewStage failed");
+      });
+      return;
+    }
     const reEntry = isStageReEntry(this.deps.stagePort.listStages(stage.issue_id) ?? [], stage.id);
     const text = reEntry
       ? `重新进入 [${stage.key}] 阶段。请先了解前序阶段的情况和变更，再开始工作。`
@@ -489,8 +497,14 @@ export class IssueCollaboration implements CollaborationInput {
     });
   }
   /** 反向转移后，向 reactivated stage 发送包含打回原因的 kickoff 消息 */
-  private autoInvokeBackwardStage(stage: Stage, fromStage: Stage, backwardContext: { reason: string; gate_evidence?: Record<string, unknown> } | null): void {
+  private autoInvokeBackwardStage(stage: Stage, fromStage: Stage, backwardContext: { reason: string; gate_evidence?: Record<string, unknown> } | null, userHint?: string): void {
     if (!stage.default_role_instance) return;
+    /** 用户提供了 hint，作为用户消息发送（优先于打回原因 kickoff） */
+    const hint = userHint?.trim();
+    if (hint) {
+      this.sendMessage(stage.id, hint, "user").catch((err) => { log.error({ stageId: stage.id, err }, "autoInvokeBackwardStage failed"); });
+      return;
+    }
     const reason = backwardContext?.reason ?? "未指定原因";
     const evidence = backwardContext?.gate_evidence ? JSON.stringify(backwardContext.gate_evidence, null, 2) : "无";
     const kickoff = `阶段 ${stage.key} 被重新激活。\n\n打回来源：${fromStage.key} 阶段\n打回原因：${reason}\n下游发现的问题：\n${evidence}\n\n请针对以上问题修复后重新推进。`;

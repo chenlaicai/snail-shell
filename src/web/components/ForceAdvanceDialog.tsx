@@ -12,6 +12,8 @@ interface ForceAdvanceDialogProps {
   targetKey: string;
   /** 409 响应中的 evaluation reasons */
   reasons: Array<{ code: string; severity: string; message: string; details?: Record<string, unknown> }>;
+  /** 用户填写的推进说明，传递给强制推进 API */
+  userHint?: string;
 }
 
 /** 按 severity 分组展示阻断原因 */
@@ -22,7 +24,7 @@ function groupBySeverity(reasons: ForceAdvanceDialogProps["reasons"]): { errors:
 }
 
 /** 用户强制推进确认对话框：按 severity 分组展示阻断原因，用户确认后调用 /force 端点 */
-export function ForceAdvanceDialog({ open, onClose, onConfirmed, stageId, targetKey, reasons }: ForceAdvanceDialogProps) {
+export function ForceAdvanceDialog({ open, onClose, onConfirmed, stageId, targetKey, reasons, userHint }: ForceAdvanceDialogProps) {
   const [forcing, setForcing] = useState(false);
   const { errors, warnings } = groupBySeverity(reasons);
 
@@ -35,7 +37,7 @@ export function ForceAdvanceDialog({ open, onClose, onConfirmed, stageId, target
     try {
       const stage = await api("POST /api/stages/:stageId/advance/force", {
         params: { stageId },
-        body: { target_key: targetKey },
+        body: { target_key: targetKey, user_hint: userHint },
       });
       showToast("已强制推进（绕过质量门禁）");
       onConfirmed(stage);
