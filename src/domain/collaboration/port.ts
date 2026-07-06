@@ -6,35 +6,6 @@ import type { Message, MessageContext, MessageEvent } from "@domain/message/mode
 
 export type SignalType = "gate_complete" | "adversarial_consensus" | "disagreement";
 
-export type DecisionMode = "autonomous" | "suggestive" | "requires_human";
-
-export interface Position {
-  speaker: string;
-  stance: "for" | "against" | "neutral";
-  argument: string;
-  evidence?: string;
-}
-
-export interface AdversarialArtifact {
-  independent_verification: {
-    command: string;
-    actual_output: string;
-    executed_at: string;
-  }[];
-  adversarial_findings: {
-    dimension: string;
-    finding: string;
-    disposition: string;
-  }[];
-  audit_trail: {
-    events: {
-      timestamp: string;
-      event_type: 'review_started' | 'cross_review_read' | 'disagreement_found' | 'consensus_reached';
-      detail: string;
-    }[];
-  };
-}
-
 // ── 引擎评估 ───────────────────────────────────────────────────────────
 
 export type EvaluationAction = "auto_advanced" | "blocked" | "escalated";
@@ -64,14 +35,7 @@ export interface StageTransitionSuggestion {
   artifacts: Record<string, string>;
   created_at: string;
   signal_type?: SignalType;
-  decision_mode?: DecisionMode;
-  consensus?: boolean;
-  positions?: Position[];
   review_round?: number;
-  gate_evidence?: Record<string, unknown>;
-  adversarial_artifact?: AdversarialArtifact;
-  recommendation?: string;
-  alternatives?: string[];
   dismiss_count?: number;
 }
 

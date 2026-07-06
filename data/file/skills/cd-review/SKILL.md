@@ -13,8 +13,8 @@ description: |
 
 ## Gotchas（必读）
 
-- **[HARD] 信号预校验**：在调用 `set_final_body` 包含 `stage_transition` JSON 之前，必须先调用 `validate_stage_signal` 工具并通过校验。未预校验直接发信号 = 违规。
-- **[HARD] Stage Gate 自检**：你是检视阶段的守门人，不是推进者。在建议 stage_transition 之前，必须逐项完成下方 Stage Gate 自检章节，呈现完整证据。禁用"检视完了"、"没问题了"、"可以合入"等笼统结论——每项必须逐条列出处置状态。未完成自检直接建议推进 = 违规。
+- **[HARD] 信号预校验**：完成 Stage Gate 自检后，调用 `request_stage_transition` 工具请求推进。校验失败时根据 reasons 自纠后重试。未校验直接结束发言 = 违规。
+- **[HARD] Stage Gate 自检**：在调用 `request_stage_transition` 之前，必须逐项完成下方 Stage Gate 自检章节，呈现完整证据。禁用"检视完了"、"没问题了"、"可以合入"等笼统结论——每项必须逐条列出处置状态。未完成自检直接请求推进 = 违规。
 - **"低风险"不是跳过问题的理由**：只要问题有修复价值，无论风险高低，都应在当前 PR 修复。禁止使用"低风险"、"可忽略"、"不重要"等标签。
 - **验证命令必须独立执行**：不是检查开发者是否执行了，而是自己再跑一遍。"看了 diff，都改了"不是有效的 evidence。
 - **复检必须覆盖完整 PR diff**：不能只确认单条评论是否已处理，需覆盖完整 PR diff 和可能的回归风险。
@@ -55,24 +55,19 @@ description: |
 
 ### 判断与行动
 
-- **偏差是设计问题** → 立即发出早期 stage_transition 信号，target_key 指向 `design`
+- **偏差是设计问题** → 立即调用 `request_stage_transition` 请求退回到 `design` 阶段
 - **偏差是实现问题** → review 阶段内解决，不打回
 - **无偏差** → 继续正常工作（进入判断检视重点步骤）
 
-### 信号格式
+### 调用示例
 
-```json
-{
-  "stage_transition": {
-    "signal_type": "adversarial_consensus",
-    "target_key": "design",
-    "reason": "PR 方向偏离 feature 文档设计意图，需回到设计阶段修正",
-    "guard": "intake: 架构方向偏差",
-    "gate_evidence": {
-      "intake-1": "具体偏差说明"
-    }
-  }
-}
+```
+request_stage_transition({
+  stage_id: "<从环境变量获取>",
+  target_key: "design",
+  reason: "PR 方向偏离 feature 文档设计意图，需回到设计阶段修正。\n\nintake-1: 具体偏差说明",
+  from_speaker: "审查者-1"
+})
 ```
 
 ### 注意
@@ -86,7 +81,7 @@ description: |
 
 - 检视结论必须逐条列出处置状态：已修复 / 开发者回应（审查者认可）/ 待处理
 - 存在任何"待处理"项时，结论必须是"需要开发者继续处理"
-- 变更完整性验证命令必须独立执行，输出写入 rev-02 的 gate_evidence
+- 变更完整性验证命令必须独立执行，输出写入 rev-02 的自检证据
 - PR 评论按签名规则收尾（规则见 cd-shared 的 `references/pr-signature.md`）
 - 审查报告中每个问题必须有"处置方式"字段，只允许填"在当前 PR 修复"，禁用"不堵塞""可遗留""建议合入""后续优化""不影响功能""不影响，建议合入"等变体话术
 - 检视后必须通过 `set_final_body` 的 `to_speakers` 声明路由目标
@@ -94,7 +89,7 @@ description: |
 
 ## Stage Gate 自检（必须）
 
-**在考虑提议推进 stage_transition 之前，必须完成以下自检。未完成自检不得建议推进。**
+**在调用 `request_stage_transition` 之前，必须完成以下自检。未完成自检不得请求推进。**
 
 ### 验收清单
 
@@ -103,7 +98,7 @@ description: |
 | rev-01 | 所有检视意见已逐条处理 | ✅ |
 | rev-02 | 根据变更类型独立执行验证命令，实际输出作为检视证据 | ✅ |
 | rev-03 | PR 评论已按签名模板收尾 | ✅ |
-| rev-04 | 特性编号已验证合规并写入 gate_evidence（格式：FYYYYMMDDxxxx） | ✅ |
+| rev-04 | 特性编号已通过 set_context 写入 issue context 的 feature_number 字段（格式：FYYYYMMDDxxxx） | ✅ |
 | rev-ctx | pr_url 已通过 set_context 写入 Issue.context（reviewer 需据此定位 PR） | ✅ |
 
 ### 执行步骤
@@ -123,96 +118,34 @@ description: |
 所有 required 项通过，可以提议推进。
 ```
 
-4. 确认所有标 ✅ 的 required 项均有实质性证据后，才可在消息中包含 stage_transition 建议
-5. 存在未通过项时，不得建议推进，应继续处理检视意见
+4. 确认所有标 ✅ 的 required 项均有实质性证据后，调用 `request_stage_transition` 请求推进
+5. 存在未通过项时，不得请求推进，应继续处理检视意见
 
 ## 信号协议
 
-完成 Gate 自检后，通过结构化信号表达阶段工作结果：
+完成 Gate 自检后，调用 `request_stage_transition` 工具请求推进。自检证据写在 `reason` 参数中。
 
 ### 共识信号（两个 reviewer 都认可）
 
-```json
-{
-  "stage_transition": {
-    "signal_type": "adversarial_consensus",
-    "target_key": "merge",
-    "reason": "所有检视意见已处理，验证通过",
-    "guard": "rev-01: 所有评论已处理; rev-02: 验证通过; rev-03: 已签名",
-    "gate_evidence": {
-      "rev-01": "所有评论处置状态: 已修复",
-      "rev-02": "npm run check 通过",
-      "rev-03": "PR #123 评论已签名",
-      "rev-ctx": "pr_url=https://github.com/..."
-    },
-    "adversarial_artifact": {
-      "independent_verification": [
-        {
-          "command": "{{实际执行的命令，如 npm run check}}",
-          "actual_output": "{{命令的实际输出，至少 20 字符}}",
-          "executed_at": "{{ISO 时间戳}}"
-        }
-      ],
-      "adversarial_findings": [
-        {
-          "dimension": "{{检查维度，如 completeness / correctness / regression}}",
-          "finding": "{{发现内容，可以是 'no issues' 但必须说明检查了什么}}",
-          "disposition": "{{处置方式}}"
-        }
-      ],
-      "audit_trail": {
-        "events": [
-          { "timestamp": "{{ISO}}", "event_type": "review_started", "detail": "开始检视" },
-          { "timestamp": "{{ISO}}", "event_type": "cross_review_read", "detail": "阅读对方结论" }
-        ]
-      },
-      "file_dispositions": [
-        { "path": "{{文件路径}}", "status": "reviewed", "issues_found": 0 }
-      ],
-      "cross_review": {
-        "peer_conclusion_summary": "{{对方结论摘要}}",
-        "my_independent_check": "{{你的独立检查结果}}",
-        "alignment_or_conflict": "{{aligned / conflict}}"
-      },
-      "ci_independence": {
-        "source": "github_api",
-        "status": "{{CI 状态}}",
-        "confirmed_at": "{{ISO 时间戳}}"
-      },
-      "file_coverage": {
-        "files_reviewed": 5,
-        "files_in_diff": 5,
-        "coverage_ratio": 1.0
-      }
-    }
-  }
-}
+```
+request_stage_transition({
+  stage_id: "<从环境变量获取>",
+  target_key: "merge",
+  reason: "所有检视意见已处理，验证通过。\n\nrev-01: 所有评论处置状态: 已修复\nrev-02: npm run check 通过\nrev-03: PR #123 评论已签名\nrev-04: feature_number=F20260701tj92\nrev-ctx: pr_url=https://github.com/...",
+  from_speaker: "审查者-1"
+})
 ```
 
-**注意**：`signal_type: "adversarial_consensus"` 必须携带 `adversarial_artifact`，否则引擎会拒绝信号。详见 `cd-shared/references/adversarial-artifact-protocol.md`。
+**注意**：review 阶段需要两个审查者都调用 `request_stage_transition` 才能自动推进。系统通过 speaker count ≥ 2 保证共识。
 
 ### 分歧信号（存在问题）
 
-```json
-{
-  "stage_transition": {
-    "signal_type": "disagreement",
-    "target_key": "merge",
-    "reason": "发现未处理的检视意见",
-    "positions": [
-      {
-        "speaker": "reviewer-1",
-        "stance": "against",
-        "argument": "存在未修复的 bug",
-        "evidence": "PR 评论 #456"
-      },
-      {
-        "speaker": "reviewer-2",
-        "stance": "for",
-        "argument": "问题已修复",
-        "evidence": "最新 commit 已修复"
-      }
-    ]
-  }
-}
+```
+request_stage_transition({
+  stage_id: "<从环境变量获取>",
+  target_key: "merge",
+  signal_type: "disagreement",
+  reason: "发现未处理的检视意见",
+  from_speaker: "审查者-1"
+})
 ```

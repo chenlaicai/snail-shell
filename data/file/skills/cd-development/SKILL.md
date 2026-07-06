@@ -13,8 +13,8 @@ description: |
 
 ## Gotchas（必读）
 
-- **[HARD] 信号预校验**：在调用 `set_final_body` 包含 `stage_transition` JSON 之前，必须先调用 `validate_stage_signal` 工具并通过校验。未预校验直接发信号 = 违规。
-- **[HARD] Stage Gate 自检**：你是开发阶段的守门人，不是推进者。在建议 stage_transition 之前，必须逐项完成下方 Stage Gate 自检章节，呈现完整证据。禁用"代码写完了"、"测试通过了"、"PR 提了"等笼统陈述——每项必须附带具体验证输出或 PR 链接。未完成自检直接建议推进 = 违规。
+- **[HARD] 信号预校验**：完成 Stage Gate 自检后，调用 `request_stage_transition` 工具请求推进。校验失败时根据 reasons 自纠后重试。未校验直接结束发言 = 违规。
+- **[HARD] Stage Gate 自检**：在调用 `request_stage_transition` 之前，必须逐项完成下方 Stage Gate 自检章节，呈现完整证据。禁用"代码写完了"、"测试通过了"、"PR 提了"等笼统陈述——每项必须附带具体验证输出或 PR 链接。未完成自检直接请求推进 = 违规。
 - **业务代码是主体，测试是仆从**：测试验证的是外部可观测行为，不是内部实现。mock 仅作为隔离手段，不作为断言依据（禁止断言调用次数/调用参数）。
 - **代码仓库不允许存在兼容性桥接代码**：没有 `if oldFormat then migrate`。数据库 schema 只允许 `CREATE TABLE IF NOT EXISTS`，不允许 ALTER TABLE。
 - **测试失败不等于回退业务代码**：先判断是测试未适配新设计，还是实现偏离了设计。详见 `references/testing-rules.md`。
@@ -55,21 +55,15 @@ description: |
 
 ### 判断与行动
 
-- **第 1 或第 2 题答案为"否"** → 立即发出早期 stage_transition 信号，target_key 指向 `design`：
+- **第 1 或第 2 题答案为"否"** → 立即调用 `request_stage_transition` 请求退回到 `design` 阶段：
 
-```json
-{
-  "stage_transition": {
-    "signal_type": "gate_complete",
-    "target_key": "design",
-    "reason": "Feature 文档存在根本性缺陷，无法基于此实现",
-    "guard": "intake: 行为规格不明确 / 技术约束不可行",
-    "gate_evidence": {
-      "intake-1": "具体缺陷说明",
-      "intake-2": "具体缺陷说明"
-    }
-  }
-}
+```
+request_stage_transition({
+  stage_id: "<从环境变量获取>",
+  target_key: "design",
+  reason: "Feature 文档存在根本性缺陷，无法基于此实现。\n\nintake-1: 具体缺陷说明\nintake-2: 具体缺陷说明",
+  from_speaker: "开发者"
+})
 ```
 
 - **所有题答案为"是"或"可接受"** → 继续正常工作（进入设计确认步骤）
@@ -90,7 +84,7 @@ description: |
 
 ## Stage Gate 自检（必须）
 
-**在考虑提议推进 stage_transition 之前，必须完成以下自检。未完成自检不得建议推进。**
+**在调用 `request_stage_transition` 之前，必须完成以下自检。未完成自检不得请求推进。**
 
 ### 验收清单
 
@@ -101,7 +95,7 @@ description: |
 | dev-03 | Feature 文档已同步更新 | ✅ |
 | dev-04 | PR 已创建且包含完整改动摘要 | ✅ |
 | dev-05 | 不兼容更新已在 PR 中标注 | |
-| dev-06 | 变更完整性已验证：根据 issue context 的 `sop.change_type` 执行对应验证命令，实际输出已写入 gate_evidence | ✅ |
+| dev-06 | 变更完整性已验证：根据 issue context 的 `sop.change_type` 执行对应验证命令，实际输出已写入自检证据 | ✅ |
 | dev-ctx | worktree_path、branch_name、pr_url 已通过 set_context 写入 Issue.context | ✅ |
 
 ### 执行步骤
@@ -124,32 +118,22 @@ description: |
 所有 required 项通过，可以提议推进。
 ```
 
-4. 确认所有标 ✅ 的 required 项均有实质性证据后，才可在消息中包含 stage_transition 建议
-5. 存在未通过项时，不得建议推进，应继续处理未完成的工作
+4. 确认所有标 ✅ 的 required 项均有实质性证据后，调用 `request_stage_transition` 请求推进
+5. 存在未通过项时，不得请求推进，应继续处理未完成的工作
 
 ## 信号协议
 
-完成 Gate 自检后，通过结构化信号表达阶段工作结果：
+完成 Gate 自检后，调用 `request_stage_transition` 工具请求推进。自检证据写在 `reason` 参数中。
 
-### Gate Complete 信号（单人完成）
+### 调用示例
 
-```json
-{
-  "stage_transition": {
-    "signal_type": "gate_complete",
-    "target_key": "review",
-    "reason": "代码实现完成，自检通过，PR 已创建",
-    "guard": "dev-01: 代码已实现; dev-02: 自检通过; dev-03: 文档已更新; dev-04: PR 已创建; dev-06: 变更完整性已验证",
-    "gate_evidence": {
-      "dev-01": "src/app/issue-collaboration/collaboration.ts 已修改",
-      "dev-02": "npm run check 通过",
-      "dev-03": "docs/features/2026/06/26/F20260626m4vx.md 已更新",
-      "dev-04": "PR #123 已创建",
-      "dev-06": "npm run check 通过",
-      "dev-ctx": "worktree_path=/Users/.../worktrees/xxx, branch_name=feature-xxx, pr_url=https://github.com/..."
-    }
-  }
-}
+```
+request_stage_transition({
+  stage_id: "<从环境变量获取>",
+  target_key: "review",
+  reason: "代码实现完成，自检通过，PR 已创建。\n\ndev-01: src/app/issue-collaboration/collaboration.ts 已修改\ndev-02: npm run check 通过\ndev-03: Feature 文档已更新\ndev-04: PR #123 已创建\ndev-06: npm run check 通过\ndev-ctx: worktree_path=/Users/.../worktrees/xxx, branch_name=feature-xxx, pr_url=https://github.com/...",
+  from_speaker: "开发者"
+})
 ```
 
-**注意**：development stage 只有一个开发者，不存在对抗机制，使用 `signal_type: "gate_complete"` 即可，无需 `consensus` 和 `adversarial_artifact`。
+**注意**：development stage 只有一个开发者，使用 `gate_complete` 信号类型（系统自动推断，无需显式指定）。

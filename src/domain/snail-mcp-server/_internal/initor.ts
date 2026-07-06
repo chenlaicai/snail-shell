@@ -6,7 +6,8 @@ import { createRednoteResearchServer } from "@domain/snail-mcp-server/_internal/
 import { createSnailIssueContextServer } from "@domain/snail-mcp-server/_internal/servers/snail-issue-context";
 import { createMessageHistoryServer } from "@domain/snail-mcp-server/_internal/servers/snail-message-history";
 import { createFeatureChainServer } from "@domain/snail-mcp-server/_internal/servers/snail-feature-chain";
-import { createSignalValidationServer } from "@domain/snail-mcp-server/_internal/servers/snail-signal-validation";
+import { createStageTransitionServer } from "@domain/snail-mcp-server/_internal/servers/snail-stage-transition";
+import type { StageTransitionPort } from "@domain/snail-mcp-server/port";
 import type { McpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-message-store";
 import type { KnowledgePort } from "@domain/knowledge/port";
 import type { MessagePort } from "@domain/message/port";
@@ -30,6 +31,8 @@ export interface SnailMCPServerDeps {
   featureChain: FeatureChainPort;
   /** MCP 路由目标 store（set_final_body 写入，collaboration resolveReplies 消费） */
   mcpMessageStore: McpMessageStore;
+  /** 阶段推进端口（request_stage_transition 工具通过此端口注册信号） */
+  stageTransition: StageTransitionPort;
 }
 
 /**
@@ -47,7 +50,7 @@ export function init(deps: SnailMCPServerDeps) {
   adapter.registerServer(createSnailIssueContextServer(deps.issue));
   adapter.registerServer(createMessageHistoryServer(deps.stage, deps.message));
   adapter.registerServer(createFeatureChainServer(deps.featureChain));
-  adapter.registerServer(createSignalValidationServer(deps.stage, deps.issue));
+  adapter.registerServer(createStageTransitionServer(deps.stageTransition));
 
   return { adapter };
 }

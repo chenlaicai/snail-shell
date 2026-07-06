@@ -101,8 +101,6 @@ export type StageSuggestion = {
   artifacts: Record<string, string>;
   created_at: string;
   signal_type?: "gate_complete" | "adversarial_consensus" | "disagreement";
-  gate_evidence?: Record<string, unknown>;
-  adversarial_artifact?: Record<string, unknown>;
   /** 建议被忽略的次数（用于 B5：重复建议提示） */
   dismiss_count?: number;
 };

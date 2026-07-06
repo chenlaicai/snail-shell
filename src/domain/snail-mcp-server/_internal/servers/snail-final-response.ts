@@ -3,8 +3,6 @@ import type { McpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-mes
 import type { MessagePort } from "@domain/message/port";
 import type { Message } from "@domain/message/model";
 import type { StagePort } from "@domain/issue/port";
-import { getLogger } from "@infra/logger";
-const log = getLogger({ module: "snail-final-response" });
 
 const SET_FINAL_BODY_DESCRIPTION = "提交本次发言的最终答复正文。每次发言结束前必须调用此工具，传入你希望展示给用户的完整 Markdown 内容。调用后，此正文将作为消息的主要展示内容，流式过程中的中间分析会被折叠。重要：调用此工具后，你的发言即告结束。不得再调用任何其他工具。";
 
@@ -34,21 +32,12 @@ export function createFinalResponseServer(messagePort: MessagePort, mcpMessageSt
     /** 时效性校验：message_id 必须指向当前 speaker 在 stage 中最新的 streaming 消息 */
     verifyMessageFreshness(messagePort, messageId, stageId, fromSpeaker);
     /**
-     * 幂等防护拆分：final body 文本和 signal 事件仅首次写入，
+     * 幂等防护拆分：final body 文本仅首次写入，
      * to_speakers 每次都更新（允许 agent 在一次发言中调整路由目标）。
      */
     const isFirstSubmission = !submittedMessages.has(messageId);
     if (isFirstSubmission) {
       messagePort.setContext(messageId, "mcp_final_body", text);
-      /** 自动从 text 中提取 stage_transition 信号，注入为 signal 事件 */
-      const stageTransition = extractStageTransition(text);
-      if (stageTransition) {
-        messagePort.appendEvent(messageId, {
-          type: "signal",
-          signal: "stage_transition",
-          stage_transition: stageTransition,
-        });
-      }
     }
     /** to_speakers 每次都更新（不幂等） */
     const warning = processToSpeakers(params, messageId, stageId, stagePort, mcpMessageStore, message);
@@ -212,42 +201,4 @@ function validateToSpeakers(
     }
   }
   return null;
-}
-
-/**
- * 从 agent 输出文本中提取 stage_transition JSON。
- * agent 可能输出纯 JSON，也可能在 Markdown 中嵌入 JSON 块。
- * 解析失败时静默返回 null（agent 可能没有输出信号，这是正常情况）。
- */
-function extractStageTransition(text: string): Record<string, unknown> | null {
-  const direct = tryParseStageTransition(text);
-  if (direct) return direct;
-  const marker = '"stage_transition"';
-  const markerIdx = text.indexOf(marker);
-  if (markerIdx < 0) return null;
-  const startIdx = text.lastIndexOf("{", markerIdx);
-  if (startIdx < 0) return null;
-  const endIdx = findMatchingBrace(text, startIdx);
-  if (endIdx < 0) return null;
-  return tryParseStageTransition(text.slice(startIdx, endIdx + 1));
-}
-
-function tryParseStageTransition(text: string): Record<string, unknown> | null {
-  try {
-    const parsed = JSON.parse(text) as { stage_transition?: unknown };
-    if (parsed?.stage_transition && typeof parsed.stage_transition === "object") return parsed.stage_transition as Record<string, unknown>;
-  } catch {
-    log.debug({ textLength: text.length }, "stage_transition.parse.skipped");
-  }
-  return null;
-}
-
-/** 从 startIdx 处的 { 开始，计数花括号找到匹配的 } 位置 */
-function findMatchingBrace(text: string, startIdx: number): number {
-  let depth = 0;
-  for (let i = startIdx; i < text.length; i++) {
-    if (text[i] === "{") depth++;
-    else if (text[i] === "}") { depth--; if (depth === 0) return i; }
-  }
-  return -1;
 }
