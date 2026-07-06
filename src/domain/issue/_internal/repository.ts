@@ -456,7 +456,7 @@ export interface StageSuggestionRecord {
   decision_mode: string | null;
   recommendation: string | null;
   alternatives: string | null;
-  status: "pending" | "confirmed" | "ignored";
+  status: "pending" | "seen" | "confirmed" | "ignored";
   created_at: number;
   processed_at: number | null;
 }
@@ -464,8 +464,11 @@ export interface StageSuggestionRecord {
 export interface StageSuggestionRepository {
   insert(record: StageSuggestionRecord): void;
   listPendingByStage(stageId: string): StageSuggestionRecord[];
+  /** 返回 pending + seen 状态的 suggestion（用于 DB 回退） */
+  listActiveByStage(stageId: string): StageSuggestionRecord[];
   /** 查询指定 stage 中同一 target_key 被忽略的次数 */
   countIgnoredByStageAndTargetKey(stageId: string, targetKey: string): number;
+  markSeen(id: string): void;
   markProcessed(id: string, status: "confirmed" | "ignored"): void;
   deleteByStage(stageId: string): void;
 }
@@ -490,12 +493,26 @@ export class SQLiteStageSuggestionRepository implements StageSuggestionRepositor
     );
   }
 
+  listActiveByStage(stageId: string): StageSuggestionRecord[] {
+    return this.db.all<StageSuggestionRecord>(
+      `SELECT * FROM stage_suggestion WHERE stage_id = ? AND status IN ('pending', 'seen') ORDER BY created_at ASC`,
+      [stageId],
+    );
+  }
+
   countIgnoredByStageAndTargetKey(stageId: string, targetKey: string): number {
     const row = this.db.get<{ cnt: number }>(
       `SELECT COUNT(*) as cnt FROM stage_suggestion WHERE stage_id = ? AND status = 'ignored' AND target_key = ?`,
       [stageId, targetKey],
     );
     return row?.cnt ?? 0;
+  }
+
+  markSeen(id: string): void {
+    this.db.run(
+      `UPDATE stage_suggestion SET status = 'seen', processed_at = ? WHERE id = ? AND status = 'pending'`,
+      [Date.now(), id],
+    );
   }
 
   markProcessed(id: string, status: "confirmed" | "ignored"): void {

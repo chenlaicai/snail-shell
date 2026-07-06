@@ -146,10 +146,30 @@ export class IssueCollaboration implements CollaborationInput, StageTransitionPo
       .map(s => { const c = this.deps.stageSuggestionRepo.countIgnoredByStageAndTargetKey(stageId, s.target_key); return c > 0 ? { ...s, dismiss_count: c } : s; });
   }
   dismissSuggestion(stageId: string, targetKey: string, createdAt: string): boolean {
-    const suggestions = this.suggestions.get(stageId); if (!suggestions) return false;
+    const suggestions = this.suggestions.get(stageId);
+    if (suggestions) {
+      const remaining = suggestions.filter(s => !(s.target_key === targetKey && s.created_at === createdAt));
+      if (remaining.length < suggestions.length) {
+        for (const s of suggestions) { if (s.target_key === targetKey && s.created_at === createdAt) this.deps.stageSuggestionRepo.markProcessed(s.message_id.toString(), "ignored"); }
+        if (remaining.length === 0) this.suggestions.delete(stageId); else this.suggestions.set(stageId, remaining);
+        return true;
+      }
+    }
+    /** DB 回退：acknowledge 已从内存移除时，从 DB 查找 active 记录并标记 ignored */
+    const activeRecords = this.deps.stageSuggestionRepo.listActiveByStage(stageId);
+    const match = activeRecords.find(r => r.target_key === targetKey && new Date(r.created_at).toISOString() === createdAt);
+    if (match) {
+      this.deps.stageSuggestionRepo.markProcessed(match.id, "ignored");
+      return true;
+    }
+    return false;
+  }
+  acknowledgeSuggestion(stageId: string, targetKey: string, createdAt: string): boolean {
+    const suggestions = this.suggestions.get(stageId);
+    if (!suggestions) return false;
     const remaining = suggestions.filter(s => !(s.target_key === targetKey && s.created_at === createdAt));
     if (remaining.length === suggestions.length) return false;
-    for (const s of suggestions) { if (s.target_key === targetKey && s.created_at === createdAt) this.deps.stageSuggestionRepo.markProcessed(s.message_id.toString(), "ignored"); }
+    for (const s of suggestions) { if (s.target_key === targetKey && s.created_at === createdAt) this.deps.stageSuggestionRepo.markSeen(s.message_id.toString()); }
     if (remaining.length === 0) this.suggestions.delete(stageId); else this.suggestions.set(stageId, remaining);
     return true;
   }
@@ -164,7 +184,9 @@ export class IssueCollaboration implements CollaborationInput, StageTransitionPo
     const isBackward = oldStage && this.isBackwardTarget(oldStage.issue_id, targetKey);
     const stage = this.deps.stagePort.advanceStage(stageId, targetKey);
     this.cleanupDispatchStates(stageId);
+    /** 标记内存中的 suggestion 为 confirmed，并 DB 回退处理已被 acknowledge 的 seen 记录 */
     for (const s of (this.suggestions.get(stageId) ?? [])) this.deps.stageSuggestionRepo.markProcessed(s.message_id.toString(), "confirmed");
+    for (const r of this.deps.stageSuggestionRepo.listActiveByStage(stageId)) this.deps.stageSuggestionRepo.markProcessed(r.id, "confirmed");
     this.suggestions.delete(stageId);
     this.helpers.initStageCursors(stage);
     if (isBackward) this.autoInvokeBackwardStage(stage, oldStage, backwardContext, userHint);
@@ -189,7 +211,9 @@ export class IssueCollaboration implements CollaborationInput, StageTransitionPo
     const isBackward = oldStage && this.isBackwardTarget(oldStage.issue_id, targetKey);
     const newStage = this.deps.stagePort.advanceStage(stageId, targetKey);
     this.cleanupDispatchStates(stageId);
+    /** 标记内存中的 suggestion 为 confirmed，并 DB 回退处理已被 acknowledge 的 seen 记录 */
     for (const s of (this.suggestions.get(stageId) ?? [])) this.deps.stageSuggestionRepo.markProcessed(s.message_id.toString(), "confirmed");
+    for (const r of this.deps.stageSuggestionRepo.listActiveByStage(stageId)) this.deps.stageSuggestionRepo.markProcessed(r.id, "confirmed");
     this.suggestions.delete(stageId);
     this.helpers.initStageCursors(newStage);
     /** 审计日志：标记为 forced，让后续审查者知道这是用户手动强制推进 */

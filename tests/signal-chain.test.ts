@@ -48,7 +48,9 @@ function createMockStageSuggestionRepo(): StageSuggestionRepository {
   return {
     insert: vi.fn(),
     listPendingByStage: vi.fn().mockReturnValue([]),
+    listActiveByStage: vi.fn().mockReturnValue([]),
     countIgnoredByStageAndTargetKey: vi.fn().mockReturnValue(0),
+    markSeen: vi.fn(),
     markProcessed: vi.fn(),
     deleteByStage: vi.fn(),
   };

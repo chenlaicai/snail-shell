@@ -26,7 +26,7 @@ function createMockMcpMessageStore(): McpMessageStore {
 }
 
 function createMockStageSuggestionRepo(): StageSuggestionRepository {
-  return { insert: vi.fn(), listPendingByStage: vi.fn().mockReturnValue([]), countIgnoredByStageAndTargetKey: vi.fn().mockReturnValue(0), markProcessed: vi.fn(), deleteByStage: vi.fn() };
+  return { insert: vi.fn(), listPendingByStage: vi.fn().mockReturnValue([]), listActiveByStage: vi.fn().mockReturnValue([]), countIgnoredByStageAndTargetKey: vi.fn().mockReturnValue(0), markSeen: vi.fn(), markProcessed: vi.fn(), deleteByStage: vi.fn() };
 }
 
 function createMockIssuePort(overrides: Partial<IssuePort> = {}): IssuePort {

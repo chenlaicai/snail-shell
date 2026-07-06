@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { api, BlockedError } from "@/services/api-client";
 import { showToast } from "@/components/Toast";
 import { ForceAdvanceDialog } from "@/components/ForceAdvanceDialog";
@@ -29,6 +29,16 @@ export function StageSuggestionCard({
   });
 
   const suggestion = (suggestions as StageSuggestion[])[0] ?? null;
+
+  /** B1: 组件挂载并显示 suggestion 时，自动标记为已阅。不在当前会话清除显示——用户仍可 Confirm/Ignore */
+  useEffect(() => {
+    if (!stageId || !suggestion) return;
+    api("PATCH /api/stages/:stageId/transition-suggestions/:targetKey/acknowledge", {
+      params: { stageId, targetKey: suggestion.target_key },
+      body: { created_at: suggestion.created_at },
+    }).catch(() => { /* B5: acknowledge 失败不影响当前会话 */ });
+  }, [stageId, suggestion?.target_key, suggestion?.created_at]);
+
   if (!stageId || !suggestion) return null;
 
   const signalType = suggestion.signal_type;

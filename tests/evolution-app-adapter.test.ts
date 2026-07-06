@@ -29,6 +29,7 @@ function createMockCollaborationInput(overrides: Partial<CollaborationInput> = {
     unregisterWorkspaceConsumer: vi.fn(),
     listStageTransitionSuggestions: vi.fn(),
     dismissSuggestion: vi.fn(),
+    acknowledgeSuggestion: vi.fn(),
     advanceStage: vi.fn(),
     forceAdvance: vi.fn(),
     rollbackStage: vi.fn(),
