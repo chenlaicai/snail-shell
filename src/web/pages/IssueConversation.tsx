@@ -130,8 +130,9 @@ export function IssueConversation() {
 
       <div className="flex flex-1 min-h-0">
         <div className="flex-1 flex flex-col min-w-0">
-          <div ref={scrollRef} onScroll={handleScroll} className="relative flex-1 overflow-y-auto px-6 py-6">
-            <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-5">
+          {/* Non-message content — fixed area, does not scroll with messages (MP1) */}
+          <div className="shrink-0 px-6 pt-6">
+            <div className="mx-auto w-full max-w-[1120px] flex flex-col gap-5">
 
               {/* Issue header */}
               <div className="mb-2">
@@ -187,6 +188,13 @@ export function IssueConversation() {
               )}
 
               <div className="h-px bg-white/6" />
+
+            </div>
+          </div>
+
+          {/* Message scroll container — only messages and StageSuggestionCard (MP1) */}
+          <div ref={scrollRef} onScroll={handleScroll} className="relative flex-1 overflow-y-auto px-6 py-6">
+            <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-5">
 
               {/* Messages — 虚拟滚动，只渲染可见消息 */}
               {sorted.length === 0 && <div className="text-center text-text-muted text-sm py-8">No messages yet. Start the conversation below.</div>}
