@@ -32,10 +32,18 @@ function refetchStaleWorkspaceQueries(
 }
 
 /** 处理 activity_status_changed 事件：更新 issue detail + workspace issues 缓存 */
-function applyActivityStatusChange(
+export function applyActivityStatusChange(
   queryClient: ReturnType<typeof useQueryClient>,
   workspaceId: string, issueId: string, activityStatus: ActivityStatus,
 ): void {
+  /**
+   * 如果 issue 已关闭（乐观更新已设置 closed_at），跳过冗余的 activity_status 更新。
+   * close issue 时 onMutate 同步设置 closed_at，后端随后发出的 activity_status_changed
+   * 事件与乐观更新重复，过滤可避免冗余 setQueryData 触发的重渲染。
+   */
+  const currentDetail = queryClient.getQueryData<IssueDetailDto>(queryKeys.issues.detail(issueId));
+  if (currentDetail?.closed_at) return;
+
   queryClient.setQueryData(
     queryKeys.issues.detail(issueId),
     (old: IssueDetailDto | null | undefined) => old ? { ...old, activity_status: activityStatus } : old,
