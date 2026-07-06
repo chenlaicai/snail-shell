@@ -86,7 +86,7 @@ function createEmptyBatch(): StageBatch {
  * 将 16ms 窗口内（一帧）的多个 WebSocket 事件收集后一次性 setQueryData，
  * 避免每个事件都触发独立的 React 重渲染周期。
  */
-class EventBatcher {
+export class EventBatcher {
   private batch = new Map<string, StageBatch>();
   private pendingStageTransitions: Array<{ issueId: string; stageId: string }> = [];
   private pendingStageChanges: Array<{ issueId: string; newStageId: string }> = [];
@@ -154,6 +154,14 @@ class EventBatcher {
   /** flush 时批量更新 activity_status，每个 issue 只处理最新值 */
   private applyActivityStatus(): void {
     for (const [issueId, activityStatus] of this.pendingActivityStatus) {
+      /**
+       * 如果 issue 已关闭（乐观更新已设置 closed_at），跳过冗余的 activity_status 更新。
+       * close issue 时 onMutate 同步设置 closed_at，后端随后发出的 activity_status_changed
+       * 事件与乐观更新重复，过滤可避免冗余 setQueryData 触发的重渲染。
+       */
+      const currentDetail = this.queryClient.getQueryData<IssueDetailDto>(queryKeys.issues.detail(issueId));
+      if (currentDetail?.closed_at) continue;
+
       this.queryClient.setQueryData(
         queryKeys.issues.detail(issueId),
         (old: IssueDetailDto | null | undefined) => old ? { ...old, activity_status: activityStatus } : old,
