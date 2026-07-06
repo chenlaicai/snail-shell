@@ -12,13 +12,6 @@ const SIGNAL_TYPE_LABEL: Record<string, string> = {
   disagreement: "分歧",
 };
 
-/** 从 gate_evidence 中提取摘要：前 3 条 + 总数 */
-function getGateEvidenceSummary(gateEvidence: Record<string, unknown> | undefined): { items: [string, unknown][]; total: number } {
-  if (!gateEvidence || typeof gateEvidence !== "object") return { items: [], total: 0 };
-  const entries = Object.entries(gateEvidence);
-  return { items: entries.slice(0, 3), total: entries.length };
-}
-
 export function StageSuggestionCard({
   stageId,
   onAccepted,
@@ -28,7 +21,6 @@ export function StageSuggestionCard({
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [dismissing, setDismissing] = useState(false);
-  const [showDetails, setShowDetails] = useState(false);
   const [blockedReasons, setBlockedReasons] = useState<Array<{ code: string; severity: string; message: string; details?: Record<string, unknown> }> | null>(null);
   const { data: suggestions = [], refetch } = useQuery({
     queryKey: ["stages", stageId, "transition-suggestions"],
@@ -40,7 +32,6 @@ export function StageSuggestionCard({
   if (!stageId || !suggestion) return null;
 
   const signalType = suggestion.signal_type;
-  const gateSummary = getGateEvidenceSummary(suggestion.gate_evidence);
 
   async function handleConfirm() {
     if (submitting) return;
@@ -92,19 +83,6 @@ export function StageSuggestionCard({
             {suggestion.reason && `：${suggestion.reason}`}
           </div>
 
-          {/* Gate Evidence 摘要 */}
-          {gateSummary.items.length > 0 && (
-            <div className="mt-2 text-[11px] leading-4 text-text-secondary">
-              <span className="text-green-400">✅ Gate 通过：</span>
-              {gateSummary.items.map(([key, value]) => (
-                <div key={key} className="ml-3">
-                  - {key}: <span className="text-text-primary">{typeof value === "string" ? value : String(value)}</span>
-                </div>
-              ))}
-              {gateSummary.total > 3 && <div className="ml-3 text-text-secondary/60">...共 {gateSummary.total} 项</div>}
-            </div>
-          )}
-
           {/* 信号类型 */}
           {signalType && (
             <div className="mt-1 text-[11px] leading-4 text-text-secondary">
@@ -116,50 +94,6 @@ export function StageSuggestionCard({
           {suggestion.dismiss_count != null && suggestion.dismiss_count >= 3 && (
             <div className="mt-1 text-[11px] leading-4 text-amber-400">
               ⚠️ 该建议已被忽略 {suggestion.dismiss_count} 次
-            </div>
-          )}
-
-          {/* Details 展开区域 */}
-          {showDetails && (
-            <div className="mt-2 rounded border border-white/5 bg-shell-600/5 p-2 text-[11px] leading-4">
-              {/* 完整 gate_evidence */}
-              {suggestion.gate_evidence && (
-                <div className="mb-2">
-                  <div className="font-medium text-shell-400">完整 Gate Evidence</div>
-                  {Object.entries(suggestion.gate_evidence).map(([key, value]) => (
-                    <div key={key} className="ml-2 text-text-secondary">
-                      {key}: <span className="text-text-primary">{typeof value === "string" ? value : JSON.stringify(value)}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* 对抗产物摘要 */}
-              {suggestion.adversarial_artifact && typeof suggestion.adversarial_artifact === "object" && (
-                <div>
-                  <div className="font-medium text-shell-400">对抗产物摘要</div>
-                  {(() => {
-                    const artifact = suggestion.adversarial_artifact as Record<string, unknown>;
-                    const iv = artifact.independent_verification;
-                    const af = artifact.adversarial_findings;
-                    return (
-                      <>
-                        {Array.isArray(iv) && iv.length > 0 && (
-                          <div className="ml-2 text-text-secondary">
-                            独立验证：{typeof iv[0] === "object" && iv[0] !== null ? String((iv[0] as Record<string, unknown>).actual_output ?? "").slice(0, 100) : String(iv[0]).slice(0, 100)}
-                            {(String((iv[0] as Record<string, unknown>).actual_output ?? "").length > 100) && "..."}
-                          </div>
-                        )}
-                        {Array.isArray(af) && (
-                          <div className="ml-2 text-text-secondary">
-                            发现项：{af.length} 条，已解决 {af.filter((f: Record<string, unknown>) => f.disposition && f.disposition !== "none").length} 条
-                          </div>
-                        )}
-                      </>
-                    );
-                  })()}
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -175,14 +109,6 @@ export function StageSuggestionCard({
               {dismissing ? "Ignoring..." : "Ignore"}
             </button>
           </div>
-          {(suggestion.gate_evidence || suggestion.adversarial_artifact) && (
-            <button
-              onClick={() => setShowDetails(!showDetails)}
-              className="text-[11px] text-shell-400 hover:text-shell-300 transition-colors"
-            >
-              {showDetails ? "收起" : "Details..."}
-            </button>
-          )}
         </div>
       </div>
     </div>

@@ -34,7 +34,7 @@ description: |
 
 ### Stage Gate 自检
 
-阶段结束时对照验收清单逐项自查，生成 gate evidence 写入 `gate_evidence` 字段。详见 `references/stage-gate.md`。
+阶段结束时对照验收清单逐项自查，自检证据写在 `request_stage_transition` 的 `reason` 参数中。详见 `references/stage-gate.md`。
 
 ### 证据规则
 
