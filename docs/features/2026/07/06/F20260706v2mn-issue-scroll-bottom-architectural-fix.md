@@ -381,3 +381,31 @@ this.getMaxScrollOffset = () => {
 | R2 | totalSize 稳定检测在极端情况下不收敛 | 低 | isInitialScrollRef 卡在 true，handleScroll 被永久抑制 | **超时兜底（500ms）已提升为设计约束**，确保即使 totalSize 不变化也能退出 | 架构师 |
 | R3 | 非消息内容移出后视觉布局变化 | 低 | 用户感知到 header 不再随消息滚动 | 属预期行为变化，符合主流聊天应用模式 | 架构师 |
 | R4 | 移除 paddingEnd 后少消息时消息在顶部 | 低 | 用户可能期望消息在底部（贴近输入框） | UA-1 的"最下方"指最新消息可见；主流聊天应用新频道也是顶部对齐；StageSuggestionCard 紧随消息提供视觉填充 | 架构师 |
+
+<!-- [development-time] 以下章节在实现阶段完成并记录 -->
+
+## 实现记录
+
+**PR**: https://github.com/chenlaicai/snail-shell/pull/583
+**实现日期**: 2026-07-06
+
+### 修改点实现
+
+| MP | 文件 | 实现内容 |
+|----|------|----------|
+| MP1 | `src/web/pages/IssueConversation.tsx` | 将 issue header、stage tabs、properties grid、WS status banner、divider 从滚动容器移出到 `shrink-0 px-6 pt-6` 固定区域。滚动容器只保留虚拟消息列表和 StageSuggestionCard。 |
+| MP2 | `src/web/hooks/useChatScroll.ts` | 新增 `isInitialScrollRef`（stage 切换时设为 true）、`prevTotalSizeRef`（totalSize 稳定检测）、`initialScrollTimeoutRef`（500ms 超时兜底）。`handleScroll` 在初始模式或平滑滚动期间提前返回，不更新 `wasAtBottomRef`。`useLayoutEffect` 在初始模式时无条件调用 `scrollToIndex`，检测 totalSize 稳定后退出初始模式。 |
+| MP3 | `src/web/hooks/useChatScroll.ts` | 移除 `usePaddingEnd` 函数、`paddingEnd` 状态、`containerHeight` 状态、ResizeObserver 逻辑、`useVirtualizer` 配置中的 `paddingEnd` 参数。 |
+
+### 验证结果
+
+- `npm run check`（lint + tsc + build）：通过
+- `npx vitest run --config vitest.web.config.ts`：22 tests passed (3 files)
+- 自动化测试覆盖：T1（初始加载滚动位置）、T2（少消息无 padding 空白）、T3（stage 切换滚动到底部）、T4（新消息 auto-scroll）、T5（混合高度消息初始加载）、B6（handleScroll 竞态条件修复）、MP1 隔离验证
+
+### 辅助函数提取
+
+为满足 `max-lines-per-function ≤ 60` 的 lint 约束，提取了以下独立函数：
+- `startInitialScrollTimeout`：启动初始滚动模式超时兜底
+- `exitInitialScrollMode`：退出初始滚动模式并清除超时
+- `fetchOlderHistory`：cursor-based 翻页加载历史消息
