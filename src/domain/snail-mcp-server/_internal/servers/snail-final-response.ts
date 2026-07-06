@@ -6,6 +6,8 @@ import type { StagePort } from "@domain/issue/port";
 import { getLogger } from "@infra/logger";
 const log = getLogger({ module: "snail-final-response" });
 
+const SET_FINAL_BODY_DESCRIPTION = "提交本次发言的最终答复正文。每次发言结束前必须调用此工具，传入你希望展示给用户的完整 Markdown 内容。调用后，此正文将作为消息的主要展示内容，流式过程中的中间分析会被折叠。重要：调用此工具后，你的发言即告结束。不得再调用任何其他工具。";
+
 /**
  * snail-final-response MCP Server。
  * 用于 agent 提交消息的最终展示正文和路由目标声明。
@@ -31,24 +33,42 @@ export function createFinalResponseServer(messagePort: MessagePort, mcpMessageSt
     verifySpeakerOwnership(message, fromSpeaker);
     /** 时效性校验：message_id 必须指向当前 speaker 在 stage 中最新的 streaming 消息 */
     verifyMessageFreshness(messagePort, messageId, stageId, fromSpeaker);
-    /** 幂等防护：同一 message 重复调用时跳过所有写入，返回区分性响应 */
-    if (submittedMessages.has(messageId)) {
-      return { ok: true, already_submitted: true, hint: "final body already recorded for this message; your response is complete" };
+    /**
+     * 幂等防护拆分：final body 文本和 signal 事件仅首次写入，
+     * to_speakers 每次都更新（允许 agent 在一次发言中调整路由目标）。
+     */
+    const isFirstSubmission = !submittedMessages.has(messageId);
+    if (isFirstSubmission) {
+      messagePort.setContext(messageId, "mcp_final_body", text);
+      /** 自动从 text 中提取 stage_transition 信号，注入为 signal 事件 */
+      const stageTransition = extractStageTransition(text);
+      if (stageTransition) {
+        messagePort.appendEvent(messageId, {
+          type: "signal",
+          signal: "stage_transition",
+          stage_transition: stageTransition,
+        });
+      }
     }
-    messagePort.setContext(messageId, "mcp_final_body", text);
-    /** 自动从 text 中提取 stage_transition 信号，注入为 signal 事件 */
-    const stageTransition = extractStageTransition(text);
-    if (stageTransition) {
-      messagePort.appendEvent(messageId, {
-        type: "signal",
-        signal: "stage_transition",
-        stage_transition: stageTransition,
-      });
-    }
-    /** to_speakers 处理 */
+    /** to_speakers 每次都更新（不幂等） */
     const warning = processToSpeakers(params, messageId, stageId, stagePort, mcpMessageStore, message);
     submittedMessages.add(messageId);
-    return { ok: true, proceed: "end_turn", ...(warning ? { warning } : {}) };
+    if (isFirstSubmission) {
+      return { ok: true, proceed: "end_turn", ...(warning ? { warning } : {}) };
+    }
+    return { ok: true, already_submitted: true, hint: "final body already recorded for this message; your response is complete", ...(warning ? { warning } : {}) };
+  }
+
+  /** 处理 get_current_message_id 调用 */
+  async function handleGetCurrentMessageId(params: Record<string, unknown>) {
+    const stageId = params.stage_id as string;
+    if (!stageId) throw new Error("stage_id is required");
+    const fromSpeaker = params.from_speaker as string;
+    if (!fromSpeaker) throw new Error("from_speaker is required");
+    const latest = messagePort.findLatestMessageBySpeaker(stageId, fromSpeaker);
+    if (!latest) throw new Error(`no message found for stage ${stageId} and speaker ${fromSpeaker}`);
+    if (latest.status !== "streaming") throw new Error(`no active streaming message found for stage ${stageId} and speaker ${fromSpeaker} (latest: ${latest.id}, status: ${latest.status})`);
+    return { message_id: String(latest.id), from_speaker: latest.from_speaker };
   }
 
   return {
@@ -57,11 +77,7 @@ export function createFinalResponseServer(messagePort: MessagePort, mcpMessageSt
     tools: [
       {
         name: "set_final_body",
-        description:
-          "提交本次发言的最终答复正文。每次发言结束前必须调用此工具，" +
-          "传入你希望展示给用户的完整 Markdown 内容。" +
-          "调用后，此正文将作为消息的主要展示内容，流式过程中的中间分析会被折叠。" +
-          "重要：调用此工具后，你的发言即告结束。不得再调用任何其他工具。",
+        description: SET_FINAL_BODY_DESCRIPTION,
         inputSchema: {
           type: "object",
           properties: {
@@ -86,16 +102,7 @@ export function createFinalResponseServer(messagePort: MessagePort, mcpMessageSt
           },
           required: ["stage_id", "from_speaker"],
         },
-        handler: async (params) => {
-          const stageId = params.stage_id as string;
-          if (!stageId) throw new Error("stage_id is required");
-          const fromSpeaker = params.from_speaker as string;
-          if (!fromSpeaker) throw new Error("from_speaker is required");
-          const latest = messagePort.findLatestMessageBySpeaker(stageId, fromSpeaker);
-          if (!latest) throw new Error(`no message found for stage ${stageId} and speaker ${fromSpeaker}`);
-          if (latest.status !== "streaming") throw new Error(`no active streaming message found for stage ${stageId} and speaker ${fromSpeaker} (latest: ${latest.id}, status: ${latest.status})`);
-          return { message_id: String(latest.id), from_speaker: latest.from_speaker };
-        },
+        handler: handleGetCurrentMessageId,
       },
     ],
   };

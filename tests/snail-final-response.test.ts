@@ -582,7 +582,7 @@ describe("set_final_body idempotent guard (B2)", () => {
     return { port, mcpStore, contextWrites, events, routingWrites };
   }
 
-  it("returns idempotent response on duplicate call and skips all writes", async () => {
+  it("B2: final body is idempotent but to_speakers updates on duplicate call", async () => {
     const { port, mcpStore, contextWrites, routingWrites } = createPortWithCapture();
     const server = createFinalResponseServer(port, mcpStore, createMockStagePort());
     const handler = server.tools[0].handler;
@@ -593,14 +593,84 @@ describe("set_final_body idempotent guard (B2)", () => {
     expect(contextWrites).toHaveLength(1);
     expect(routingWrites).toHaveLength(1);
 
-    /** 重复调用：即使传入不同 text，也不覆写 */
+    /** 重复调用：final body 不覆写，但 to_speakers 更新 */
     const second = await handler({ text: "body v2", message_id: "100", stage_id: "s1", from_speaker: "dev", to_speakers: ["other"] });
     expect(second).toEqual({ ok: true, already_submitted: true, hint: "final body already recorded for this message; your response is complete" });
-    /** 无新增写入 */
+    /** final body 不覆写 */
     expect(contextWrites).toHaveLength(1);
     expect(contextWrites[0].ctx).toBe("body v1");
+    /** to_speakers 更新 */
+    expect(routingWrites).toHaveLength(2);
+    expect(routingWrites[1].targets).toEqual(["other"]);
+  });
+
+  it("B1: to_speakers is written to store even on duplicate call (non-idempotent)", async () => {
+    const { port, mcpStore, routingWrites } = createPortWithCapture();
+    const server = createFinalResponseServer(port, mcpStore, createMockStagePort());
+    const handler = server.tools[0].handler;
+
+    /** 首次调用带 to_speakers */
+    await handler({ text: "body v1", message_id: "100", stage_id: "s1", from_speaker: "dev", to_speakers: ["reviewer-1"] });
     expect(routingWrites).toHaveLength(1);
-    expect(routingWrites[0].targets).toEqual(["reviewer"]);
+    expect(routingWrites[0].targets).toEqual(["reviewer-1"]);
+
+    /** 重复调用带不同 to_speakers → 仍写入 store */
+    await handler({ text: "body v2", message_id: "100", stage_id: "s1", from_speaker: "dev", to_speakers: ["reviewer-2"] });
+    expect(routingWrites).toHaveLength(2);
+    expect(routingWrites[1].targets).toEqual(["reviewer-2"]);
+  });
+
+  it("B3: to_speakers validation still runs on duplicate call", async () => {
+    const { port, mcpStore } = createPortWithCapture();
+    const stagePort = createMockStagePort({
+      findStage: () => ({
+        id: "s1", workspace_path: "", issue_id: "", key: "development", title: "", description: "",
+        default_role_instance: "dev", role_instances: ["dev", "reviewer"], from_stage_id: null,
+        available_transitions: [], output_artifacts: {}, entered_at: "", left_at: null,
+      }),
+    });
+    const server = createFinalResponseServer(port, mcpStore, stagePort);
+    const handler = server.tools[0].handler;
+
+    /** 首次调用成功 */
+    await handler({ text: "body", message_id: "100", stage_id: "s1", from_speaker: "dev", to_speakers: ["reviewer"] });
+
+    /** 重复调用传入无效目标 → 仍抛错 */
+    await expect(handler({ text: "body v2", message_id: "100", stage_id: "s1", from_speaker: "dev", to_speakers: ["invalid-target"] }))
+      .rejects.toThrow('Invalid to_speakers: [invalid-target]. Valid targets: [reviewer] or "user".');
+  });
+
+  it("B4: duplicate call returns warning from to_speakers validation", async () => {
+    const { mcpStore } = createPortWithCapture();
+    const designStagePort = createMockStagePort({
+      findStage: () => ({
+        id: "s1", workspace_path: "", issue_id: "", key: "design", title: "", description: "",
+        default_role_instance: "架构师-1", role_instances: ["架构师-1", "架构师-2"], from_stage_id: null,
+        available_transitions: [], output_artifacts: {}, entered_at: "", left_at: null,
+      }),
+    });
+    const messages = new Map<number, Message>();
+    messages.set(100, { id: 100, stage_id: "s1", from_speaker: "架构师-1", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
+    const portWithMsg = createMockMessagePort({
+      getMessage: (id) => messages.get(id),
+      findLatestMessageBySpeaker: () => messages.get(100),
+      setContext: () => {},
+      appendEvent: () => ({ id: 1, message_id: 100, seq: 1, payload: { type: "text", text: "" }, created_at: "" }) as MessageEvent,
+    });
+    const server = createFinalResponseServer(portWithMsg, mcpStore, designStagePort);
+    const handler = server.tools[0].handler;
+
+    /** 首次调用不带 to_speakers */
+    await handler({ text: "body", message_id: "100", stage_id: "s1", from_speaker: "架构师-1" });
+
+    /** 重复调用带 to_speakers: ["user"] → 返回 warning */
+    const result = await handler({ text: "body v2", message_id: "100", stage_id: "s1", from_speaker: "架构师-1", to_speakers: ["user"] });
+    expect(result).toEqual({
+      ok: true,
+      already_submitted: true,
+      hint: "final body already recorded for this message; your response is complete",
+      warning: "Design阶段提醒：您的草稿方案是否已经过对方架构师审视？建议先路由给对方架构师进行对抗审视。",
+    });
   });
 
   it("does not append signal event on duplicate call even with stage_transition", async () => {
