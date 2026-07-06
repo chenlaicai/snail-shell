@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { KnowledgePort } from "@domain/knowledge/port";
 import type { WorkspacePort } from "@domain/workspace/port";
 import type { Scope } from "@domain/workspace/model";
-import { decodeWorkspaceId } from "@infra/http/workspace-id";
+import { decodeWorkspaceId } from "@adapter/http/workspace-id";
 
 interface KnowledgeRoutesDeps {
   knowledge: KnowledgePort;

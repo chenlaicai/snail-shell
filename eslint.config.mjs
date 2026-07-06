@@ -94,6 +94,20 @@ export default tseslint.config(
     }
   },
 
+  // adapter 层允许 import type from @app/*，禁止值导入
+  {
+    files: ["src/adapter/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": ["warn", {
+        patterns: [{
+          group: ["@app/*"],
+          allowTypeImports: true,
+          message: "adapter 层通过 import type 获取端口类型，禁止值导入；运行时通过 DI 注入"
+        }]
+      }]
+    }
+  },
+
   // ========== domain 模块专属约束 ==========
   // 每个模块同时约束 @app/* 反向依赖和 _internal 跨模块访问
   // 通用 @app/* 约束已移除——所有模块均有专属 error 规则，通用 warn 规则冗余且可能掩盖遗漏

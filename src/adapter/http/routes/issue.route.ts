@@ -1,7 +1,7 @@
 import { Hono, type Context } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { decodeWorkspaceId, encodeWorkspaceId, toWorkspaceDto } from "@infra/http/workspace-id";
+import { decodeWorkspaceId, encodeWorkspaceId, toWorkspaceDto } from "@adapter/http/workspace-id";
 import { getLogger } from "@infra/logger";
 import type { WorkspacePort } from "@domain/workspace/port";
 import type { IssuePort, StagePort } from "@domain/issue/port";
