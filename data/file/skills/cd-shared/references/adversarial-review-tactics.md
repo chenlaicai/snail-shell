@@ -7,7 +7,7 @@
 ## 分层结构
 
 - **抽象层**：思维模型，适用于任何对抗性审视场景
-- **适配层**：将抽象战术映射到 code-delivery SOP 的具体结构（`scenario_coverage`、`adversarial_findings`、审视检查点）
+- **适配层**：将抽象战术映射到 code-delivery SOP 的具体审视检查点
 
 ---
 
@@ -25,28 +25,13 @@
 
 ### 适配层（code-delivery）
 
-**归属**：归入 `scenario_coverage`（场景覆盖），不属于 `critique_obligation`（质疑义务）。场景压力测试是探测手段，不是判断产出。
-
-**结构**：`scenario_coverage` 新增 `constructed_scenarios` 子字段：
-
-```
-scenario_coverage:
-  identified_scenarios: [...]     // 已有场景
-  constructed_scenarios:          // 审查者主动构造的边界场景
-    - scenario: "当 X 发生时"
-      question: "系统应该做 Y 还是 Z？"
-  coverage_ratio: 1.0
-```
-
 **约束**：
-- 数量：`constructed_scenarios` >= 2
+- 数量：构造的边界场景 >= 2
 - 质量：场景必须触及设计文档中未显式定义边界的行为。复述设计文档已覆盖的情况不计入
-- `coverage_ratio` 语义：`reviewed / identified`，仅计算 identified scenarios。`constructed_scenarios` 是独立强制约束（>=2），不参与 ratio 计算
-- 防重叠：不得将同一发现同时计入 gap 和 constructed_scenarios。未回答的 question 自动升级为 gap，从 constructed_scenarios 中移除
 
 **交互模式**：场景压力测试在审视报告中一次性提出，被审查者在回应中一次性回答。不引入逐个提问的交互模式，保持独白式审视的效率。
 
-**stage 适配**：仅 design 阶段使用（`scenario_coverage.constructed_scenarios`）。review 阶段不使用场景压力测试，由 `file_coverage` + `adversarial_findings`（dimension: `"completeness"`）承接实现完整性检查。
+**stage 适配**：仅 design 阶段使用。review 阶段不使用场景压力测试，由完整文件覆盖检查承接实现完整性检查。
 
 ---
 
@@ -60,17 +45,9 @@ scenario_coverage:
 
 ### 适配层（code-delivery）
 
-**归属**：复用现有 `adversarial_findings` 结构，新增 dimension `"fact_verification"`。不新增顶层字段，不改变 `AdversarialArtifact` 类型定义。
-
 **输出格式约束**：finding 字段必须包含三段——`声明：{设计文档中的事实性声明} | 代码证据：{实际代码内容 + 位置} | 结论：verified / contradicted / unverifiable`
 
-```json
-{
-  "dimension": "fact_verification",
-  "finding": "声明：当前系统支持 Stage 间自动流转 | 代码证据：auto-advance.ts:45 仅处理同一 Stage 内的建议推进（evaluate() 方法检查 stage_id 一致性） | 结论：contradicted",
-  "disposition": "已修正设计文档第 3.2 节"
-}
-```
+示例：`声明：当前系统支持 Stage 间自动流转 | 代码证据：auto-advance.ts:45 仅处理同一 Stage 内的建议推进（evaluate() 方法检查 stage_id 一致性） | 结论：contradicted`
 
 **stage 适配**：design + review 阶段均可使用。design 阶段验证设计假设，review 阶段验证实现是否符合设计。
 

@@ -14,7 +14,7 @@
 
 ### GATE-4: 确认 feature 文档编号合规
 - 严格按照特性编号规则（见 `cd-shared/references/feature-numbering.md`）验证格式合法且不与已有编号碰撞
-- 将验证通过的特性编号写入 `gate_evidence.rev-04`（值为编号本身，如 `F20260701tj92`）
+- 在消息中确认特性编号格式合规（如 `F20260701tj92`）
 
 加载完整上下文：PR diff、提交记录、PR 说明、当前 Feature 文档、Stage 输入、conversation 上下文和已记录验证结果。
 

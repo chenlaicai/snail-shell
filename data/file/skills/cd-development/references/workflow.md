@@ -55,12 +55,12 @@
 4. 检查前端/后端是否同步修改
 5. 检查"为什么"注释覆盖非显而易见的逻辑
 
-自检结果写入 gate_evidence。
+自检结果在消息中呈现完整证据。
 
 ## 阶段四：验证与 PR 提交
 
 1. 执行 issue context 中的 `sop.verification_commands`（或按 `sop.change_type` 的默认模板）
 2. 记录验证输出作为 dev-02 evidence
-3. 通过 stage-gate API 写入 gate_evidence
+3. 在消息中呈现验证证据
 4. 创建 PR，标题格式严格按照特性编号规则（见 `cd-shared/references/feature-numbering.md`）
 5. PR 描述中包含回归检查的范围和结果

@@ -72,12 +72,8 @@ Intake 审视产出的信号与正常 stage_transition 信号格式相同，只�
   "stage_transition": {
     "signal_type": "gate_complete",
     "target_key": "design",
-    "reason": "Feature 文档存在根本性缺陷，无法基于此实现",
-    "guard": "intake: 行为规格不明确",
-    "gate_evidence": {
-      "intake-1": "文档未定义 X 的边界条件",
-      "intake-2": "约束 Y 与约束 Z 矛盾"
-    }
+    "reason": "Feature 文档存在根本性缺陷，无法基于此实现。intake-1: 文档未定义 X 的边界条件；intake-2: 约束 Y 与约束 Z 矛盾",
+    "guard": "intake: 行为规格不明确"
   }
 }
 ```
