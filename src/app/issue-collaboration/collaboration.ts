@@ -504,8 +504,7 @@ export class IssueCollaboration implements CollaborationInput, StageTransitionPo
   }
   private persistSuggestion(s: StageTransitionSuggestion): void {
     this.deps.stageSuggestionRepo.insert({ id: s.message_id.toString(), stage_id: s.stage_id, target_key: s.target_key, signal_type: s.signal_type ?? null,
-      gate_evidence: null, adversarial_artifact: null,
-      decision_mode: null, recommendation: null, alternatives: null, status: "pending", created_at: new Date(s.created_at).getTime(), processed_at: null });
+      status: "pending", created_at: new Date(s.created_at).getTime(), processed_at: null });
   }
   restoreSuggestions(stageId: string, records: StageSuggestionRecord[]): void {
     if (records.length === 0) return;

@@ -451,11 +451,6 @@ export interface StageSuggestionRecord {
   stage_id: string;
   target_key: string;
   signal_type: string | null;
-  gate_evidence: string | null;
-  adversarial_artifact: string | null;
-  decision_mode: string | null;
-  recommendation: string | null;
-  alternatives: string | null;
   status: "pending" | "seen" | "confirmed" | "ignored";
   created_at: number;
   processed_at: number | null;
@@ -480,9 +475,9 @@ export class SQLiteStageSuggestionRepository implements StageSuggestionRepositor
 
   insert(record: StageSuggestionRecord): void {
     this.db.run(
-      `INSERT OR IGNORE INTO stage_suggestion (id, stage_id, target_key, signal_type, gate_evidence, adversarial_artifact, decision_mode, recommendation, alternatives, status, created_at, processed_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [record.id, record.stage_id, record.target_key, record.signal_type, record.gate_evidence, record.adversarial_artifact, record.decision_mode, record.recommendation, record.alternatives, record.status, record.created_at, record.processed_at],
+      `INSERT OR IGNORE INTO stage_suggestion (id, stage_id, target_key, signal_type, status, created_at, processed_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [record.id, record.stage_id, record.target_key, record.signal_type, record.status, record.created_at, record.processed_at],
     );
   }
 

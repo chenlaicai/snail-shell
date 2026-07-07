@@ -32,7 +32,7 @@ export interface BlockingRule {
 export interface AutoAdvanceConfig {
   /** 推进前置：Issue.context 必须存在的 key 列表 */
   required_context_fields: string[];
-  /** 推进前置：gate_evidence 必须通过的 gate ID 列表 */
+  /** 推进前置：系统自动检查的 gate ID 列表 */
   gate_ids: string[];
   /** 信号路由：本 stage 接受的 signal_type 列表（排他过滤器） */
   accepted_signal_types: string[];

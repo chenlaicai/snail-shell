@@ -1,8 +1,7 @@
 import type { Stage } from "@domain/issue/model";
 import type { AutoAdvanceConfig } from "@domain/sop/model";
 import type { StageTransitionSuggestion, EvaluationResult } from "@app/issue-collaboration/port";
-import { resolveContextValue } from "@app/issue-collaboration/resource-cleanup";
-import { checkSystemGates } from "@app/issue-collaboration/gate-check";
+import { checkSystemGates, getMissingContextFields, checkBlockingRules } from "@app/issue-collaboration/gate-check";
 import { GATE_METADATA } from "@domain/collaboration/gate-metadata";
 
 /** 校验单条信号，返回 blocked 或 null（通过）。 */
@@ -25,8 +24,7 @@ export function validateSingleSignal(
 }
 
 function validateContextFields(config: AutoAdvanceConfig | undefined, issueContext: Record<string, string>): EvaluationResult | null {
-  if (!config || config.required_context_fields.length === 0) return null;
-  const missing = config.required_context_fields.filter(field => !resolveContextValue(issueContext, field));
+  const missing = getMissingContextFields(config, issueContext);
   if (missing.length === 0) return null;
   const fix_guidance: Record<string, { description: string; check: string; doc_ref: string }> = {};
   for (const field of missing) {
@@ -53,14 +51,7 @@ function validateSystemGates(config: AutoAdvanceConfig | undefined, issueContext
 }
 
 function validateBlockingRules(config: AutoAdvanceConfig | undefined, issueContext: Record<string, string>): EvaluationResult | null {
-  if (!config?.blocking_rules) return null;
-  for (const rule of config.blocking_rules) {
-    if (rule.type === "incompatible_tag") {
-      const prTitle = resolveContextValue(issueContext, "pr_title") ?? "";
-      if (prTitle.includes("[Incompatible]")) {
-        return { action: "blocked", reasons: [{ code: "INCOMPATIBLE_BLOCKED", severity: "warning", message: "PR 标题含 [Incompatible]，阻断自动推进" }] };
-      }
-    }
-  }
-  return null;
+  const rule = checkBlockingRules(config, issueContext);
+  if (!rule) return null;
+  return { action: "blocked", reasons: [{ code: rule, severity: "warning", message: rule === "INCOMPATIBLE_BLOCKED" ? "PR 标题含 [Incompatible]，阻断自动推进" : "阻断规则触发" }] };
 }
