@@ -342,6 +342,16 @@ export class EventBatcher {
   private flush(): void {
     this.scheduled = false;
 
+    navTrace("batcher_flush", {
+      pendingCounts: {
+        batches: this.batch.size,
+        stageTransitions: this.pendingStageTransitions.length,
+        stageChanges: this.pendingStageChanges.length,
+        activityStatus: this.pendingActivityStatus.size,
+        cleanupResults: this.pendingCleanupResults.size,
+      },
+    });
+
     /** 先处理 activity_status 批量更新，再处理 cleanup 结果，最后处理消息 batch */
     this.applyActivityStatus();
     this.applyCleanupResults();
@@ -352,16 +362,6 @@ export class EventBatcher {
         (old: MessageDto[] | undefined) => this.applyBatch(stageId, batch, old),
       );
     }
-
-    navTrace("batcher_flush", {
-      pendingCounts: {
-        batches: this.batch.size,
-        stageTransitions: this.pendingStageTransitions.length,
-        stageChanges: this.pendingStageChanges.length,
-        activityStatus: this.pendingActivityStatus.size,
-        cleanupResults: this.pendingCleanupResults.size,
-      },
-    });
 
     this.batch.clear();
 

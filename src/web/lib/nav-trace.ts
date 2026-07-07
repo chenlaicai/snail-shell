@@ -73,6 +73,17 @@ export function clearTraceBuffer(): void {
   writeBuffer([]);
 }
 
+/** 从 trace entry 中提取 URL——用于 page_load 的 prevUrl 诊断 */
+function extractUrlFromEntry(entry: NavTraceEntry | undefined): string | undefined {
+  if (!entry?.detail) return undefined;
+  const d = entry.detail as Record<string, unknown>;
+  switch (entry.type) {
+    case "pagehide": return typeof d.url === "string" ? d.url : undefined;
+    case "navigate": return typeof d.to === "string" ? d.to : undefined;
+    default: return undefined;
+  }
+}
+
 /**
  * 页面加载时检测导航类型。
  * 必须在 main.tsx 入口、React 渲染前调用。
@@ -90,9 +101,8 @@ export function initNavTraceOnPageLoad(): void {
     // 不支持 performance.getEntriesByType 时静默跳过
   }
 
-  const prevUrl = entries.length > 0
-    ? (entries[entries.length - 1] as NavTraceEntry | undefined)?.detail
-    : undefined;
+  const lastEntry = entries.length > 0 ? entries[entries.length - 1] : undefined;
+  const prevUrl = extractUrlFromEntry(lastEntry);
 
   navTrace("page_load", { navType, prevUrl: prevUrl ?? undefined });
 
