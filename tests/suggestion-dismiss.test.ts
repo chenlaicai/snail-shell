@@ -8,6 +8,7 @@ import type { SnailPort } from "@domain/snail/port";
 import type { LiteAIPort } from "@domain/lite-ai/port";
 import type { Stage } from "@domain/issue/model";
 import type { StageTransitionSuggestion } from "@app/issue-collaboration/port";
+import type { StageSuggestionRecord } from "@domain/issue/_internal/repository";
 
 function createMockMessagePort(overrides: Partial<MessagePort> = {}): MessagePort {
   return {
@@ -46,7 +47,9 @@ function createMockStageSuggestionRepo(): StageSuggestionRepository {
   return {
     insert: vi.fn(),
     listPendingByStage: vi.fn().mockReturnValue([]),
+    listActiveByStage: vi.fn().mockReturnValue([]),
     countIgnoredByStageAndTargetKey: vi.fn().mockReturnValue(0),
+    markSeen: vi.fn(),
     markProcessed: vi.fn(),
     deleteByStage: vi.fn(),
   };
@@ -231,6 +234,139 @@ describe("advanceStage cleanup", () => {
 
     await collab.advanceStage("s1", "merge");
 
+    expect(collab["suggestions"].has("s1")).toBe(false);
+  });
+});
+
+describe("acknowledgeSuggestion", () => {
+  it("should mark suggestion as seen in DB and remove from memory", () => {
+    const collab = createCollaboration();
+    const s1 = makeSuggestion({ created_at: "2026-07-03T10:00:00.000Z", message_id: 42 });
+    collab["suggestions"].set("s1", [s1]);
+
+    const result = collab.acknowledgeSuggestion("s1", "merge", "2026-07-03T10:00:00.000Z");
+
+    expect(result).toBe(true);
+    expect(collab["deps"].stageSuggestionRepo.markSeen).toHaveBeenCalled();
+    expect(collab["suggestions"].has("s1")).toBe(false);
+  });
+
+  it("should keep other suggestions in memory when acknowledging one", () => {
+    const collab = createCollaboration();
+    const s1 = makeSuggestion({ created_at: "2026-07-03T10:00:00.000Z", message_id: 1 });
+    const s2 = makeSuggestion({ created_at: "2026-07-03T11:00:00.000Z", message_id: 2 });
+    collab["suggestions"].set("s1", [s1, s2]);
+
+    collab.acknowledgeSuggestion("s1", "merge", "2026-07-03T10:00:00.000Z");
+
+    const remaining = collab.listStageTransitionSuggestions("s1");
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].created_at).toBe("2026-07-03T11:00:00.000Z");
+  });
+
+  it("should return false when no suggestions exist for stageId", () => {
+    const collab = createCollaboration();
+    expect(collab.acknowledgeSuggestion("nonexistent", "merge", "2026-07-03T10:00:00.000Z")).toBe(false);
+  });
+
+  it("should return false when target_key + created_at does not match", () => {
+    const collab = createCollaboration();
+    collab["suggestions"].set("s1", [makeSuggestion({ created_at: "2026-07-03T10:00:00.000Z" })]);
+
+    expect(collab.acknowledgeSuggestion("s1", "merge", "2026-07-03T99:00:00.000Z")).toBe(false);
+  });
+});
+
+describe("dismissSuggestion DB fallback", () => {
+  it("should find suggestion in DB when not in memory (acknowledge removed it)", () => {
+    const repo = createMockStageSuggestionRepo();
+    const dbRecord: StageSuggestionRecord = {
+      id: "42",
+      stage_id: "s1",
+      target_key: "merge",
+      signal_type: null,
+      gate_evidence: null,
+      adversarial_artifact: null,
+      decision_mode: null,
+      recommendation: null,
+      alternatives: null,
+      status: "seen",
+      created_at: new Date("2026-07-03T10:00:00.000Z").getTime(),
+      processed_at: null,
+    };
+    repo.listActiveByStage = vi.fn().mockReturnValue([dbRecord]);
+    const collab = new IssueCollaboration({
+      issuePort: createMockIssuePort(),
+      createIssue: vi.fn(),
+      stagePort: createMockStagePort(),
+      messagePort: createMockMessagePort(),
+      snailPort: createMockSnailPort(),
+      liteAIPort: createMockLiteAIPort(),
+      mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: repo,
+    });
+
+    const result = collab.dismissSuggestion("s1", "merge", "2026-07-03T10:00:00.000Z");
+
+    expect(result).toBe(true);
+    expect(repo.markProcessed).toHaveBeenCalled();
+  });
+
+  it("should return false when not in memory and not in DB", () => {
+    const collab = createCollaboration();
+    (collab["deps"].stageSuggestionRepo.listActiveByStage as ReturnType<typeof vi.fn>).mockReturnValue([]);
+
+    expect(collab.dismissSuggestion("s1", "merge", "2026-07-03T10:00:00.000Z")).toBe(false);
+  });
+});
+
+describe("advanceStage DB fallback", () => {
+  it("should mark seen suggestions in DB as confirmed when memory is empty", async () => {
+    const repo = createMockStageSuggestionRepo();
+    const dbRecord: StageSuggestionRecord = {
+      id: "42",
+      stage_id: "s1",
+      target_key: "merge",
+      signal_type: null,
+      gate_evidence: null,
+      adversarial_artifact: null,
+      decision_mode: null,
+      recommendation: null,
+      alternatives: null,
+      status: "seen",
+      created_at: new Date("2026-07-03T10:00:00.000Z").getTime(),
+      processed_at: null,
+    };
+    repo.listActiveByStage = vi.fn().mockReturnValue([dbRecord]);
+    const collab = new IssueCollaboration({
+      issuePort: createMockIssuePort(),
+      createIssue: vi.fn(),
+      stagePort: createMockStagePort(),
+      messagePort: createMockMessagePort(),
+      snailPort: createMockSnailPort(),
+      liteAIPort: createMockLiteAIPort(),
+      mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo: repo,
+    });
+    (collab["deps"].stagePort.advanceStage as ReturnType<typeof vi.fn>).mockReturnValue(createStage({ id: "s2", key: "merge" }));
+
+    /** Memory is empty (suggestion was acknowledged), but DB has a seen record */
+    await collab.advanceStage("s1", "merge");
+
+    expect(repo.markProcessed).toHaveBeenCalled();
+  });
+});
+
+describe("evaluateAdvance excludes seen suggestions", () => {
+  it("should not restore seen suggestions from DB", async () => {
+    const collab = createCollaboration();
+    /** listPendingByStage returns only pending, not seen */
+    (collab["deps"].stageSuggestionRepo.listPendingByStage as ReturnType<typeof vi.fn>).mockReturnValue([]);
+    (collab["deps"].stagePort.findStage as ReturnType<typeof vi.fn>).mockReturnValue(createStage());
+
+    const result = await collab.evaluateAdvance("s1");
+
+    expect(result.action).toBe("blocked");
     expect(collab["suggestions"].has("s1")).toBe(false);
   });
 });

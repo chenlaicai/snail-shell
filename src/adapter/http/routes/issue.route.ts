@@ -40,6 +40,10 @@ const advanceStageBody = z.object({
   user_hint: z.string().max(2000).optional(),
 });
 
+const acknowledgeBody = z.object({
+  created_at: z.string().min(1),
+});
+
 export function createIssueRoutes(deps: IssueRoutesDeps) {
   const app = new Hono();
 
@@ -89,15 +93,9 @@ export function createIssueRoutes(deps: IssueRoutesDeps) {
     return c.json(deps.collaboration.listStageTransitionSuggestions(c.req.param("stageId")));
   });
 
-  app.delete("/api/stages/:stageId/transition-suggestions/:targetKey", (c) => {
-    const stageId = c.req.param("stageId");
-    const targetKey = c.req.param("targetKey");
-    const createdAt = c.req.query("created_at");
-    if (!createdAt) return c.json({ error: "created_at query param required" }, 400);
-    const dismissed = deps.collaboration.dismissSuggestion(stageId, targetKey, createdAt);
-    if (!dismissed) return c.json({ error: "Suggestion not found" }, 404);
-    return c.json({ ok: true });
-  });
+  app.delete("/api/stages/:stageId/transition-suggestions/:targetKey", (c) => dismissSuggestion(c, deps));
+
+  app.patch("/api/stages/:stageId/transition-suggestions/:targetKey/acknowledge", zValidator("json", acknowledgeBody), async (c) => acknowledgeSuggestion(c, deps));
 
   app.post("/api/stages/:stageId/advance", zValidator("json", advanceStageBody), async (c) => {
     const stageId = c.req.param("stageId");
@@ -250,4 +248,22 @@ async function forceAdvance(c: Context, deps: IssueRoutesDeps) {
   const body = advanceStageBody.parse(await c.req.json());
   const { stage, evaluation } = await deps.collaboration.forceAdvance(stageId, body.target_key, body.user_hint);
   return c.json({ ...toStageDto(deps, stage), forced: true, evaluation }, 201);
+}
+
+async function acknowledgeSuggestion(c: Context, deps: IssueRoutesDeps) {
+  const stageId = requiredParam(c, "stageId");
+  const targetKey = requiredParam(c, "targetKey");
+  const { created_at } = acknowledgeBody.parse(await c.req.json());
+  deps.collaboration.acknowledgeSuggestion(stageId, targetKey, created_at);
+  return c.body(null, 204);
+}
+
+function dismissSuggestion(c: Context, deps: IssueRoutesDeps) {
+  const stageId = requiredParam(c, "stageId");
+  const targetKey = requiredParam(c, "targetKey");
+  const createdAt = c.req.query("created_at");
+  if (!createdAt) return c.json({ error: "created_at query param required" }, 400);
+  const dismissed = deps.collaboration.dismissSuggestion(stageId, targetKey, createdAt);
+  if (!dismissed) return c.json({ error: "Suggestion not found" }, 404);
+  return c.json({ ok: true });
 }

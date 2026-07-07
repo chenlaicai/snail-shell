@@ -56,6 +56,8 @@ export interface CollaborationInput {
   unregisterWorkspaceConsumer(workspaceId: string, consumer: WorkspaceConsumer): void;
   listStageTransitionSuggestions(stageId: string): StageTransitionSuggestion[];
   dismissSuggestion(stageId: string, targetKey: string, createdAt: string): boolean;
+  /** 将 suggestion 标记为 seen（已阅），从内存移除但 DB 保留 */
+  acknowledgeSuggestion(stageId: string, targetKey: string, createdAt: string): boolean;
   advanceStage(stageId: string, targetKey: string, userHint?: string): Promise<Stage>;
   /** 用户强制推进：跳过引擎评估，直接执行推进并记录审计日志 */
   forceAdvance(stageId: string, targetKey: string, userHint?: string): Promise<{ stage: Stage; evaluation: EvaluationResult }>;
