@@ -16,7 +16,7 @@ Explain the motivation for this change.
 - [ ] `src/persistence/*`
 - [ ] `src/agent/*`
 - [ ] `src/api/*`
-- [ ] `.meta/*`
+- [ ] `data/file/*`
 - [ ] Database schema or stored data behavior
 - [ ] Runtime session behavior
 - [ ] Stage or artifact workflow
