@@ -54,6 +54,8 @@ export function applyActivityStatusChange(
       issue.id === issueId ? { ...issue, activity_status: activityStatus } : issue,
     ),
   );
+  /** activity_status 变化意味着有消息结束/开始，updated_at 也已变化，触发后台 refetch 获取最新值 */
+  queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.issues(workspaceId) });
 }
 
 /**

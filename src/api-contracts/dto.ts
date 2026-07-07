@@ -88,7 +88,7 @@ export type IssueDto = {
   closed_at: string | null;
   close_summary: CleanupResultDto | null;
 };
-export type IssueDetailDto = IssueDto & { stages: StageDetailDto[]; current_stage: StageDetailDto; activity_status: ActivityStatus };
+export type IssueDetailDto = IssueDto & { stages: StageDetailDto[]; current_stage: StageDetailDto; activity_status: ActivityStatus; updated_at: string };
 export type CreateIssueResult = { issue: IssueDetailDto; stage: StageDetailDto };
 export type StageSuggestion = {
   stage_id: string;

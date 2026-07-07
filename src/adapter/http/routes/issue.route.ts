@@ -174,12 +174,16 @@ async function interruptMessage(c: Context, deps: IssueRoutesDeps) {
   return c.json({ interrupted });
 }
 
-function toIssueDetail(deps: Pick<IssueRoutesDeps, "stagePort" | "collaboration">, issue: Issue) {
+function toIssueDetail(deps: Pick<IssueRoutesDeps, "stagePort" | "collaboration" | "messagePort">, issue: Issue) {
   const stages = deps.stagePort.listStages(issue.id).map(stage => toStageDto(deps, stage, issue));
   const currentStage = stages.find(stage => !stage.left_at) ?? stages.at(-1);
   if (!currentStage) throw new Error(`Issue has no current stage: ${issue.id}`);
 
   const activityStatus = deps.collaboration.getActivityStatus(currentStage.id, issue.closed_at);
+
+  /** updated_at = 最新消息的 ended_at（streaming 中回退 created_at），无消息时回退 issue.created_at */
+  const latestMessage = deps.messagePort.findLatestMessageByIssueId(issue.id);
+  const updated_at = latestMessage ? (latestMessage.ended_at ?? latestMessage.created_at) : issue.created_at;
 
   return {
     ...issue,
@@ -188,6 +192,7 @@ function toIssueDetail(deps: Pick<IssueRoutesDeps, "stagePort" | "collaboration"
     stages,
     current_stage: currentStage,
     activity_status: activityStatus,
+    updated_at,
   };
 }
 

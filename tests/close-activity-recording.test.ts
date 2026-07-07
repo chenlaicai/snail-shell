@@ -96,6 +96,7 @@ function createMockMessagePort(): MessagePort {
     findLatestRespondingSpeaker: vi.fn(),
     findLatestMessage: vi.fn(),
     findLatestMessageBySpeaker: vi.fn(),
+    findLatestMessageByIssueId: vi.fn(),
   };
 }
 
