@@ -26,7 +26,11 @@ import { init as initMCP } from "@domain/mcp-config/_internal/initor";
 import { init as initIssueCollaboration } from "@app/issue-collaboration/initor";
 import { init as initIMHub } from "@app/im-hub/initor";
 import { createMcpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-message-store";
-import type { EvolutionPort } from "@domain/evolution/port";
+import { init as initMemorySearch } from "@domain/memory-search/_internal/initor";
+import { KnowledgeSearchChannel } from "@domain/knowledge/_internal/search-channel";
+import { MessageSearchChannel } from "@domain/message/_internal/search-index";
+import { FeatureDocSearchChannel } from "@domain/feature-chain/_internal/search-index";
+import { EvolutionSearchChannel } from "@domain/evolution/_internal/search-index";
 import type { StageTransitionPort, IssueManagementPort } from "@domain/snail-mcp-server/port";
 import { createMcpHandler } from "@adapter/mcp-server/handler";
 import { createUnifiedWebSocketBridge } from "@adapter/http/unified-websocket";
@@ -38,7 +42,6 @@ async function main() {
   const serverSettings = loadServerSettings(repoRoot);
   const { modules, db } = await initModules(repoRoot, serverSettings);
 
-  modules.featureChain.adapter.rebuild();
   logStartupSummary(modules);
   registerShutdownHooks(modules, db);
   startHttpServer(modules, serverSettings);
@@ -57,16 +60,17 @@ async function initModules(repoRoot: string, serverSettings: ServerSettings) {
   const knowledge = initKnowledge(dataStore, workspaces, db);
   const issue = initIssue(sop.adapter, db);
   const message = initMessage(db);
-  const featureChain = initFeatureChain(repoRoot);
-  const evolutionRef: { current?: ReturnType<typeof initEvolution> } = {};
-  const lazyEvolution: EvolutionPort = new Proxy({} as EvolutionPort, {
-    get(_target, prop: string) {
-      return (...args: unknown[]) => {
-        if (!evolutionRef.current) throw new Error("Evolution module is not initialized");
-        return (evolutionRef.current.adapter as unknown as Record<string, (...a: unknown[]) => unknown>)[prop](...args);
-      };
-    },
-  });
+  const featureChain = initFeatureChain(repoRoot, db);
+  const evolution = initEvolution(db);
+
+  // 创建跨域统一搜索协调器
+  const memorySearch = initMemorySearch([
+    new KnowledgeSearchChannel(knowledge.index),
+    new MessageSearchChannel(message.searchIndex),
+    new FeatureDocSearchChannel(featureChain.searchIndex),
+    new EvolutionSearchChannel(evolution.searchIndex),
+  ]);
+
   const mcpMessageStore = createMcpMessageStore();
   /** lazy proxy for StageTransitionPort — collaboration 在 MCP server 之后初始化 */
   const collaborationRef: { current?: { requestTransition: StageTransitionPort["requestTransition"]; spawnIssue: IssueManagementPort["spawnIssue"] } } = {};
@@ -84,7 +88,7 @@ async function initModules(repoRoot: string, serverSettings: ServerSettings) {
     },
   };
   const snailMCPServer = initMCPServer({
-    evolution: lazyEvolution,
+    evolution: evolution.adapter,
     knowledge: knowledge.adapter,
     message: message.adapter,
     issue: issue.issueAdapter,
@@ -92,6 +96,7 @@ async function initModules(repoRoot: string, serverSettings: ServerSettings) {
     featureChain: featureChain.adapter,
     mcpMessageStore,
     stageTransition: lazyStageTransition,
+    memorySearch: memorySearch.adapter,
     issueManagement: lazyIssueManagement,
   });
   const mcp = initMCP({ dataStore, workspaces, snailMCPServer: snailMCPServer.adapter, serverSettings });
@@ -100,18 +105,16 @@ async function initModules(repoRoot: string, serverSettings: ServerSettings) {
   const snail = initSnail(dataStore, db, { registry, tenetPrompt: tenetPrompt.adapter, skill: skill.adapter, mcp: mcp.adapter, guardProfile: guardProfile.adapter }, serverSettings.maxConcurrentAgents);
   const collaboration = initIssueCollaboration({ issuePort: issue.issueAdapter, createIssue: (input) => issue.issueAdapter.createIssue(input), stagePort: issue.stageAdapter, messagePort: message.adapter, snailPort: snail.adapter, liteAIPort: liteAI.adapter, mcpMessageStore, stageSuggestionRepo: issue.stageSuggestionRepo });
   collaborationRef.current = collaboration.adapter;
-  const evolution = initEvolution(db);
   const evolutionApp = initEvolutionApp({
     evolutionPort: evolution.adapter,
     collaboration: collaboration.adapter,
     issuePort: issue.issueAdapter,
     snailPort: snail.adapter,
   });
-  evolutionRef.current = evolution;
   const im = initIM({ workspacePort: workspace.adapter, issuePort: issue.issueAdapter, stagePort: issue.stageAdapter, configStore, db });
   const imHub = initIMHub({ imAdapter: im.adapter, lobbyAdapter: im.lobbyAdapter, collaboration: collaboration.adapter, stagePort: issue.stageAdapter });
   await im.adapter.startChannels();
-  return { modules: { registry, workspace, tenetPrompt, skill, sop, snailMCPServer, mcp, featureChain, snail, im, imHub, liteAI, evolution, evolutionApp, issue, message, collaboration, knowledge, configStore }, db };
+  return { modules: { registry, workspace, tenetPrompt, skill, sop, snailMCPServer, mcp, featureChain, snail, im, imHub, liteAI, evolution, evolutionApp, issue, message, collaboration, knowledge, memorySearch, configStore }, db };
 }
 
 function logStartupSummary(modules: Awaited<ReturnType<typeof initModules>>["modules"]): void {
@@ -127,6 +130,7 @@ function logStartupSummary(modules: Awaited<ReturnType<typeof initModules>>["mod
   log.info({ ready: Boolean(modules.imHub.adapter) }, "IM Hub");
   log.info({ status: modules.liteAI.adapter.getConfig() ? "configured" : "not configured" }, "Lite AI");
   log.info({ status: "ready" }, "Evolution");
+  log.info({ status: "ready" }, "Memory Search");
   log.info({ names: modules.registry.listAgentRuntimes() }, "Registered agents");
 }
 

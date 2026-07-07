@@ -14,6 +14,7 @@ import type {
   ContextRepository,
   ReadCursorRepository,
 } from "@domain/message/_internal/repository";
+import type { MessageSearchIndex } from "@domain/message/_internal/search-index";
 
 export class MessageAdapter implements MessagePort {
   constructor(
@@ -21,6 +22,7 @@ export class MessageAdapter implements MessagePort {
     private eventRepo: EventRepository,
     private contextRepo: ContextRepository,
     private cursorRepo: ReadCursorRepository,
+    private searchIndex: MessageSearchIndex,
   ) {}
 
   // ── Message CRUD ─────────────────────────────────────────────────────
@@ -54,6 +56,17 @@ export class MessageAdapter implements MessagePort {
 
   searchContext(stageId: string, query: string, limit: number): Array<{ message: Message; context: MessageContext }> {
     return this.messageRepo.searchContext(stageId, query, limit);
+  }
+
+  searchByFts(stageIds: string[], query: string, limit: number): Array<{ message_id: number; stage_id: string; from_speaker: string | null; content: string; created_at: string }> {
+    const results = this.searchIndex.searchByStageIds(query, new Set(stageIds), limit);
+    return results.map((r) => ({
+      message_id: r.message_id,
+      stage_id: r.stage_id,
+      from_speaker: r.from_speaker,
+      content: this.contextRepo.get(r.message_id)?.context ?? "",
+      created_at: r.created_at,
+    }));
   }
 
   listMessagesByStatus(status: MessageStatus, limit?: number): Message[] {
@@ -96,7 +109,13 @@ export class MessageAdapter implements MessagePort {
   }
 
   setContext(messageId: number, kind: MessageContextKind, context: string): void {
-    this.contextRepo.set(messageId, kind, context);
+    this.messageRepo.transaction(() => {
+      this.contextRepo.set(messageId, kind, context);
+      const message = this.messageRepo.findById(messageId);
+      if (message) {
+        this.searchIndex.indexMessage(messageId, message.stage_id, context);
+      }
+    });
   }
 
   // ── ReadCursor ───────────────────────────────────────────────────────

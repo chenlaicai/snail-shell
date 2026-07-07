@@ -19,6 +19,8 @@ export interface MessagePort {
   listMessagesWindow(stageId: string, anchorId: number, before: number, after: number): Message[];
   /** 跨 stage 关键词搜索 message_context（SQL LIKE），返回匹配的 {message, context} */
   searchContext(stageId: string, query: string, limit: number): Array<{ message: Message; context: MessageContext }>;
+  /** 跨 stage FTS5 搜索消息（B12 升级），返回匹配的 {message_id, stage_id, from_speaker, content, created_at} */
+  searchByFts(stageIds: string[], query: string, limit: number): Array<{ message_id: number; stage_id: string; from_speaker: string | null; content: string; created_at: string }>;
   listMessagesByStatus(status: MessageStatus, limit?: number): Message[];
   updateMessageTargets(messageId: number, toSpeakers: string[]): void;
 

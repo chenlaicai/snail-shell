@@ -12,7 +12,8 @@ import { Scope } from "@domain/workspace/model";
 function createMockMessagePort(overrides: Partial<MessagePort> = {}): MessagePort {
   return {
     createMessage: () => ({ id: 1, stage_id: "s1", from_speaker: null, to_speakers: [], status: "streaming", created_at: "", ended_at: null }),
-    getMessage: () => undefined, listMessages: () => [], listMessagesWindow: () => [], searchContext: () => [],
+    getMessage: () => undefined, listMessages: () => [], listMessagesWindow: () => [], searchByFts: () => [],
+    searchContext: () => [],
     listMessagesByStatus: () => [], updateMessageTargets: () => {}, completeMessage: () => {},
     appendEvent: () => ({ id: 1, message_id: 1, seq: 1, payload: { type: "text", text: "" }, created_at: "" }),
     getMessageEvents: () => [], getContext: () => null, setContext: () => {}, getCursor: () => 0,

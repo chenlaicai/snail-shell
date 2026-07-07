@@ -32,7 +32,6 @@ type EvolutionItemRow = Omit<EvolutionItem, "tags" | "metadata"> & {
 export interface EvolutionRepository {
   findById(id: string): EvolutionItem | undefined;
   list(filters?: EvolutionItemListFilters): EvolutionItem[];
-  search(query: string, filters?: EvolutionItemListFilters): EvolutionItem[];
   create(item: EvolutionItem): void;
   update(id: string, updates: Partial<Pick<EvolutionItem, "status" | "issue_id" | "result" | "updated_at">>): void;
 }
@@ -58,12 +57,6 @@ export class SQLiteEvolutionRepository implements EvolutionRepository {
     const offset = filters?.offset ?? 0;
     const limit = filters?.limit ?? 50;
     return tagFiltered.slice(offset, offset + limit);
-  }
-
-  search(query: string, filters?: EvolutionItemListFilters): EvolutionItem[] {
-    const lowerQuery = query.toLowerCase();
-    return this.list(filters)
-      .filter(item => item.title.toLowerCase().includes(lowerQuery) || item.content.toLowerCase().includes(lowerQuery));
   }
 
   create(item: EvolutionItem): void {

@@ -7,6 +7,7 @@ import type {
 import { EvolutionStatus } from "@domain/evolution/model";
 import type { EvolutionPort, UpdateEvolutionItemInput } from "@domain/evolution/port";
 import type { EvolutionRepository } from "@domain/evolution/_internal/repository";
+import type { EvolutionSearchIndex } from "@domain/evolution/_internal/search-index";
 
 /**
  * Evolution 适配器（纯数据层）。
@@ -15,7 +16,10 @@ import type { EvolutionRepository } from "@domain/evolution/_internal/repository
  * 编排逻辑（createIssue）已移至 app/evolution。
  */
 export class EvolutionAdapter implements EvolutionPort {
-  constructor(private repo: EvolutionRepository) {}
+  constructor(
+    private repo: EvolutionRepository,
+    private searchIndex: EvolutionSearchIndex,
+  ) {}
 
   findById(id: string): EvolutionItem | undefined {
     return this.repo.findById(id);
@@ -26,7 +30,7 @@ export class EvolutionAdapter implements EvolutionPort {
   }
 
   search(query: string, filters?: EvolutionItemListFilters): EvolutionItem[] {
-    return this.repo.search(query, filters);
+    return this.searchIndex.search(query, filters);
   }
 
   create(input: CreateEvolutionItemInput): EvolutionItem {
@@ -46,6 +50,7 @@ export class EvolutionAdapter implements EvolutionPort {
     };
 
     this.repo.create(item);
+    this.searchIndex.indexItem(item);
     return item;
   }
 
