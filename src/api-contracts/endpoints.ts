@@ -43,4 +43,6 @@ export type ApiEndpoints = {
   "GET /api/knowledge/items/summary": EndpointDef<never, never, never, Record<string, number>>;
   "GET /api/evolution/items": EndpointDef<never, { workspace_id?: string; issue_id?: string; query?: string; limit?: number; offset?: number }, never, Dto.EvolutionItemDto[]>;
   "GET /api/evolution/items/:itemId": EndpointDef<{ itemId: string }, never, never, Dto.EvolutionItemDto | null>;
+  "POST /api/evolution/items/:itemId/create-issue": EndpointDef<{ itemId: string }, never, never, Dto.EvolutionItemDto>;
+  "POST /api/evolution/items/:itemId/close": EndpointDef<{ itemId: string }, never, { result?: string }, Dto.EvolutionItemDto>;
 };

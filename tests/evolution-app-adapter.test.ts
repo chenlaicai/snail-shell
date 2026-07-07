@@ -200,4 +200,93 @@ describe("EvolutionAppAdapter", () => {
       );
     });
   });
+
+  describe("closeItem", () => {
+    it("closes candidate item with default result", async () => {
+      const item = createCandidateItem();
+      const updatedItem = { ...item, status: EvolutionStatus.Completed, result: "手动关闭" };
+
+      const updateSpy = vi.fn().mockReturnValue(updatedItem);
+      const evolutionPort = createMockEvolutionPort({
+        findById: vi.fn().mockReturnValue(item),
+        update: updateSpy,
+      });
+
+      const adapter = new EvolutionAppAdapter(
+        evolutionPort,
+        createMockCollaborationInput(),
+        createMockIssuePort(),
+        createMockSnailPort(),
+      );
+      const result = await adapter.closeItem("evo-1");
+
+      expect(updateSpy).toHaveBeenCalled();
+      const updateCall = updateSpy.mock.calls[0];
+      expect(updateCall[0]).toBe("evo-1");
+      expect(updateCall[1].status).toBe(EvolutionStatus.Completed);
+      expect(updateCall[1].result).toBe("手动关闭");
+      expect(result).toEqual(updatedItem);
+    });
+
+    it("closes candidate item with custom result", async () => {
+      const item = createCandidateItem();
+      const updatedItem = { ...item, status: EvolutionStatus.Completed, result: "误报，无需处理" };
+
+      const updateSpy = vi.fn().mockReturnValue(updatedItem);
+      const evolutionPort = createMockEvolutionPort({
+        findById: vi.fn().mockReturnValue(item),
+        update: updateSpy,
+      });
+
+      const adapter = new EvolutionAppAdapter(
+        evolutionPort,
+        createMockCollaborationInput(),
+        createMockIssuePort(),
+        createMockSnailPort(),
+      );
+      const result = await adapter.closeItem("evo-1", "误报，无需处理");
+
+      expect(updateCall(updateSpy).result).toBe("误报，无需处理");
+      expect(result).toEqual(updatedItem);
+    });
+
+    it("throws if item not found", async () => {
+      const evolutionPort = createMockEvolutionPort({
+        findById: vi.fn().mockReturnValue(undefined),
+      });
+
+      const adapter = new EvolutionAppAdapter(
+        evolutionPort,
+        createMockCollaborationInput(),
+        createMockIssuePort(),
+        createMockSnailPort(),
+      );
+
+      await expect(adapter.closeItem("nonexistent")).rejects.toThrow(
+        "Evolution item not found: nonexistent",
+      );
+    });
+
+    it("throws if item is not in candidate status", async () => {
+      const item = createCandidateItem({ status: EvolutionStatus.InProgress });
+      const evolutionPort = createMockEvolutionPort({
+        findById: vi.fn().mockReturnValue(item),
+      });
+
+      const adapter = new EvolutionAppAdapter(
+        evolutionPort,
+        createMockCollaborationInput(),
+        createMockIssuePort(),
+        createMockSnailPort(),
+      );
+
+      await expect(adapter.closeItem("evo-1")).rejects.toThrow(
+        'Cannot close item in status "in_progress", must be "candidate"',
+      );
+    });
+  });
 });
+
+function updateCall(spy: ReturnType<typeof vi.fn>): { status: string; result: string } {
+  return spy.mock.calls[0][1] as { status: string; result: string };
+}
