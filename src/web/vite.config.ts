@@ -58,8 +58,8 @@ export default defineConfig(() => {
          * (git worktree remove 删除 worktree 目录) 页面发生完整刷新。
          */
         ignored: [
-          "**/.snail/worktrees/**",
-          "**/.claude/worktrees/**",
+          path.resolve(__dirname, "../../.snail/worktrees/**"),
+          path.resolve(__dirname, "../../.claude/worktrees/**"),
         ],
       },
       proxy: {
