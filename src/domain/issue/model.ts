@@ -35,6 +35,8 @@ export interface CreateIssueInput {
   snail_assignment_plan: IssueSnailAssignmentPlan;
   /** 创建时注入的初始上下文（可选），后续由 Agent 通过 MCP 工具追加 */
   context?: Record<string, string>;
+  /** 预构建的 SOP 快照（D10）。传入时跳过 sopPort.findByKey 查找，直接使用此快照 */
+  sop_snapshot?: Sop;
 }
 
 // ── Stage ─────────────────────────────────────────────────────────────

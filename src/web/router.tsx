@@ -5,6 +5,7 @@ import { sopQueries } from "./queries/sop.queries";
 import { evolutionQueries } from "./queries/evolution.queries";
 import { knowledgeQueries } from "./queries/knowledge.queries";
 import { metaQueries } from "./queries/meta.queries";
+import { issueTemplateQueries } from "./queries/issue-template.queries";
 import { recordPageLoad } from "./lib/perf-logger";
 import { AppShell } from "./layouts/AppShell";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -17,6 +18,7 @@ import { IssueConversation } from "./pages/IssueConversation";
 import { EvolutionCenter } from "./pages/EvolutionCenter";
 import { KnowledgeLibrary } from "./pages/KnowledgeLibrary";
 import { SopCenter } from "./pages/SopCenter";
+import { IssueTemplates } from "./pages/IssueTemplates";
 import { SnailDen } from "./pages/SnailDen";
 import { PromptCenter } from "./pages/PromptCenter";
 import { SkillCenter } from "./pages/SkillCenter";
@@ -174,6 +176,14 @@ export const router = createBrowserRouter([
       {
         path: "lobby",
         element: <Lobby />,
+      },
+      {
+        path: "issue-templates",
+        element: <IssueTemplates />,
+        loader: timedLoader("/issue-templates", async () => {
+          await queryClient.ensureQueryData(issueTemplateQueries.list());
+          return null;
+        }),
       },
       { path: "*", element: <NotFound /> },
     ],

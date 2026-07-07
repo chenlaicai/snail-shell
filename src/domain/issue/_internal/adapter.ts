@@ -57,7 +57,8 @@ export class IssueAdapter implements IssuePort {
   }
 
   createIssue(input: CreateIssueInput): Issue {
-    const sop = this.sopPort.findByKey(input.adopted_sop_key);
+    /** D10: 传入 sop_snapshot 时跳过 findByKey，直接使用母体冻结的快照 */
+    const sop = input.sop_snapshot ?? this.sopPort.findByKey(input.adopted_sop_key);
     if (!sop) throw new Error(`SOP not found: ${input.adopted_sop_key}`);
     validateSnailAssignmentPlan(sop, input.snail_assignment_plan);
 
@@ -308,7 +309,7 @@ function previewStageDefinition(sop: Sop, stageDef: StageDefinition, title: stri
   };
 }
 
-function validateSnailAssignmentPlan(sop: Sop, plan: IssueSnailAssignmentPlan): void {
+export function validateSnailAssignmentPlan(sop: Sop, plan: IssueSnailAssignmentPlan): void {
   for (const stageDef of sop.stage_definitions) {
     validateStageSnailAssignments(stageDef, plan[stageDef.key] ?? {});
   }
