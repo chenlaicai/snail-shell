@@ -179,6 +179,9 @@ export class MessageSearchIndex {
     }));
   }
   search(query: string, options: SearchOptions): ChannelResult[] {
+    // Message 无 tags 字段，指定 tags 时不返回消息结果（B3 语义）
+    if (options.tags?.length) return [];
+
     const ftsQuery = buildFtsMatchQuery(query);
 
     if (ftsQuery) {
