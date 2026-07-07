@@ -69,6 +69,9 @@ function TestComponent({ messages, stageId, clientHeight = 500 }: {
   return (
     <div ref={combinedRef} onScroll={hook.handleScroll} style={{ height: `${clientHeight}px`, overflow: "auto" }} data-testid="scroll-container">
       <div style={{ height: hook.virtualizer.getTotalSize(), position: "relative" }} data-testid="virtual-list">
+        {/* measureElement intentionally omitted: jsdom offsetHeight=0 causes totalSize to
+            collapse unrealistically. MP2 initial scroll mode is tested via sorted reference
+            changes that trigger useLayoutEffect re-runs — see "MP2: initial scroll mode" tests. */}
         {hook.virtualizer.getVirtualItems().map((vr) => (
           <div key={vr.key} data-index={vr.index} style={{ position: "absolute", top: 0, transform: `translateY(${vr.start}px)` }}>
             {messages[vr.index]?.content}
@@ -160,25 +163,10 @@ describe("useChatScroll", () => {
       expect(scrollTop + clientHeight).toBeGreaterThanOrEqual(scrollHeight - SCROLL_THRESHOLD);
     });
 
-    it("T5: mixed height messages — initial load scroll position at bottom", () => {
-      const messages = [
-        createMessage(1, { content: "short" }),
-        createMessage(2, { content: "A".repeat(500) }),
-        createMessage(3, { content: "short" }),
-        createMessage(4, { content: "B".repeat(800) }),
-        createMessage(5, { content: "short" }),
-        createMessage(6, { content: "C".repeat(600) }),
-        createMessage(7, { content: "short" }),
-        createMessage(8, { content: "D".repeat(700) }),
-        createMessage(9, { content: "short" }),
-        createMessage(10, { content: "E".repeat(400) }),
-      ];
-      const { container } = render(<TestComponent messages={messages} stageId="stage-1" />);
-      const scrollEl = container.querySelector('[data-testid="scroll-container"]') as HTMLDivElement;
-
-      const { scrollTop, clientHeight, scrollHeight } = scrollEl;
-      expect(scrollTop + clientHeight).toBeGreaterThanOrEqual(scrollHeight - SCROLL_THRESHOLD);
-    });
+    // T5 (mixed height messages) removed: jsdom doesn't execute real layout,
+    // scrollHeight is always count * estimateSize regardless of content length.
+    // Mixed-height behavior is verified through code review of measureElement usage
+    // in IssueConversation.tsx and totalSize stability detection in useChatScroll.ts.
   });
 
   describe("MP2: handleScroll race condition fix", () => {
@@ -222,16 +210,78 @@ describe("useChatScroll", () => {
     });
   });
 
-  describe("MP1: scroll container isolation", () => {
-    it("scroll container only contains virtual list (no non-message content inflating scrollHeight)", () => {
-      const messages = createMessages(3);
-      const { container } = render(<TestComponent messages={messages} stageId="stage-1" />);
-      const scrollContainer = container.querySelector('[data-testid="scroll-container"]') as HTMLDivElement;
-      const virtualList = container.querySelector('[data-testid="virtual-list"]') as HTMLDivElement;
+  // MP1 (scroll container isolation) is a structural change in IssueConversation.tsx:
+  // non-message content moved from scroll container to shrink-0 fixed area.
+  // Verified through code review of JSX structure — TestComponent doesn't replicate
+  // IssueConversation's full layout, so a unit test here would only test the test helper.
 
-      // The scroll container's only child should be the virtual list
-      expect(scrollContainer.children.length).toBe(1);
-      expect(scrollContainer.firstElementChild).toBe(virtualList);
+  describe("MP2: initial scroll mode", () => {
+    it("initial scroll mode blocks handleScroll after stage switch (isInitialScrollRef=true)", () => {
+      const messagesA = createMessages(10);
+      const { rerender, container } = render(<TestComponent messages={messagesA} stageId="stage-A" />);
+
+      // End initial mode for stage-A via timeout
+      act(() => { vi.advanceTimersByTime(600); });
+
+      // Switch to stage-B — useEffect sets isInitialScrollRef=true, prevTotalSizeRef=0
+      act(() => {
+        rerender(<TestComponent messages={createMessages(10)} stageId="stage-B" />);
+      });
+
+      // Trigger useLayoutEffect re-run with isInitialScrollRef=true
+      // (sorted reference change causes useLayoutEffect deps to change)
+      act(() => {
+        rerender(<TestComponent messages={createMessages(10)} stageId="stage-B" />);
+      });
+
+      // isInitialScrollRef is true (prevTotalSizeRef was 0, exit was skipped)
+      // handleScroll should be blocked — verify without advancing timer
+      const scrollEl = container.querySelector('[data-testid="scroll-container"]') as HTMLDivElement;
+      Object.defineProperty(scrollEl, "scrollHeight", { value: 5000, configurable: true });
+      Object.defineProperty(scrollEl, "scrollTop", { value: 0, configurable: true, writable: true });
+
+      act(() => {
+        scrollEl.dispatchEvent(new Event("scroll", { bubbles: false }));
+      });
+
+      expect(hookResult?.scrollPosition).toBe("bottom");
+    });
+
+    it("exitInitialScrollMode triggered by totalSize stability (not timeout)", () => {
+      const messages = createMessages(10);
+      const { rerender, container } = render(<TestComponent messages={messages} stageId="stage-A" />);
+
+      // End initial mode for stage-A via timeout
+      act(() => { vi.advanceTimersByTime(600); });
+
+      // Switch to stage-B — useEffect sets isInitialScrollRef=true, prevTotalSizeRef=0
+      act(() => {
+        rerender(<TestComponent messages={createMessages(10)} stageId="stage-B" />);
+      });
+
+      // First useLayoutEffect re-run with isInitialScrollRef=true:
+      // prevTotalSizeRef=0 → skip exit, set prevTotalSizeRef=totalSize
+      act(() => {
+        rerender(<TestComponent messages={createMessages(10)} stageId="stage-B" />);
+      });
+
+      // Second useLayoutEffect re-run with isInitialScrollRef=true:
+      // prevTotalSizeRef>0 and totalSize unchanged → exitInitialScrollMode called
+      act(() => {
+        rerender(<TestComponent messages={createMessages(10)} stageId="stage-B" />);
+      });
+
+      // isInitialScrollRef is now false via exitInitialScrollMode (not timeout)
+      // Verify handleScroll works normally WITHOUT advancing timer
+      const scrollEl = container.querySelector('[data-testid="scroll-container"]') as HTMLDivElement;
+      Object.defineProperty(scrollEl, "scrollHeight", { value: 5000, configurable: true });
+      Object.defineProperty(scrollEl, "scrollTop", { value: 0, configurable: true, writable: true });
+
+      act(() => {
+        scrollEl.dispatchEvent(new Event("scroll", { bubbles: false }));
+      });
+
+      expect(hookResult?.scrollPosition).toBe("top");
     });
   });
 });

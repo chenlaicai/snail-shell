@@ -84,6 +84,11 @@ export function useChatScroll({ sorted, stageId, setOlderHistory, isLoadingHisto
     const el = scrollRef.current;
     if (!el || sorted.length === 0) return;
     if (isInitialScrollRef.current) {
+      // Initial scroll mode: unconditionally scrollToIndex(last) without checking wasAtBottomRef.
+      // Why unconditional: during initial load/stage switch, user hasn't interacted yet,
+      // so we must force-scroll to bottom regardless of current scroll position.
+      // totalSize stability check: when totalSize stops changing (< 1px delta between renders),
+      // measureElement has converged — exit initial mode to restore normal handleScroll behavior.
       virtualizer.scrollToIndex(sorted.length - 1, { align: 'end' });
       if (prevTotalSizeRef.current > 0 && Math.abs(totalSize - prevTotalSizeRef.current) < 1) exitInitialScrollMode(isInitialScrollRef, initialScrollTimeoutRef);
       prevTotalSizeRef.current = totalSize;
@@ -101,6 +106,10 @@ export function useChatScroll({ sorted, stageId, setOlderHistory, isLoadingHisto
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
+    // Block handleScroll during initial scroll mode and smooth scrolling.
+    // Why: during initial mode, useLayoutEffect calls scrollToIndex unconditionally;
+    // if handleScroll updated wasAtBottomRef to false here, auto-scroll to bottom would break.
+    // During smooth scrolling, programmatic scroll events must not override the target position.
     if (isInitialScrollRef.current || isSmoothScrollingRef.current) return;
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < SCROLL_THRESHOLD;
     wasAtBottomRef.current = atBottom;
