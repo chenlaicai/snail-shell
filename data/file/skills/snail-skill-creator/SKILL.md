@@ -30,7 +30,7 @@ description: 创建或维护 Snail Shell 内置 skill 时使用。用于确保�
 
 2. **创建目录结构**：
    ```
-   .meta/skills/<skill-name>/
+   data/file/skills/<skill-name>/
    ├── SKILL.md          # 必须，skill 入口
    ├── <script-name>     # 可选，附属脚本
    └── ...               # 其他附属文件
@@ -85,12 +85,12 @@ description: 简要说明这个 skill 提供什么能力，以及在什么情况
 
 ## Rules
 
-1. 所有内置 skill 放在 `.meta/skills/<skill-name>/SKILL.md`。
+1. 所有内置 skill 放在 `data/file/skills/<skill-name>/SKILL.md`。
 2. 每个 skill 是一个目录，`SKILL.md` 为入口。
 3. 如需附属脚本、样例、模板、参考文档，放在同一 skill 目录下。
 4. skill 是独立能力包，不要把系统提示词正文复制进 skill。
 5. 如果某项约束属于长期系统身份或场景边界，应进入 prompt 文档，而不是 skill。
-6. 附属脚本中计算工作区根目录时，使用 `$(dirname "$0")/../../..`（因为 skill 目录在 `.meta/skills/<skill-name>/` 下）。
+6. 附属脚本中计算工作区根目录时，使用 `$(dirname "$0")/../../..`（因为 skill 目录在 `data/file/skills/<skill-name>/` 下）。
 
 ## Output
 
@@ -98,4 +98,4 @@ description: 简要说明这个 skill 提供什么能力，以及在什么情况
 
 ## Supporting Files
 
-- SKILL.md.template：skill 模板文件，位于 `.meta/skills/SKILL.md.template`。
+- SKILL.md.template：skill 模板文件，位于 `data/file/skills/SKILL.md.template`。

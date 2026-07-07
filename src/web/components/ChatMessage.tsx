@@ -119,8 +119,8 @@ function ChatMessageInner({ message, onInterrupt, onRetry }: { message: MessageD
           <div className={`flex items-center gap-2 mb-1 px-1 ${isUser ? "justify-end" : "flex-wrap"}`}>
             {!isUser && (
               <>
-                <span className="text-[12px] font-medium text-text-secondary">{message.from_role ?? "Agent"}</span>
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-shell-600/20 text-shell-400">AI</span>
+                <span className="text-[12px] font-medium text-text-secondary">{message.from_role ?? "Snail"}</span>
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-shell-600/20 text-shell-400">Snail</span>
               </>
             )}
             <span className="text-[11px] text-text-muted">{formatDateTime(message.created_at)}</span>
@@ -238,7 +238,7 @@ function ChatMessageInner({ message, onInterrupt, onRetry }: { message: MessageD
                 <div className="w-1.5 h-1.5 rounded-full bg-shell-400 animate-bounce [animation-delay:150ms]" />
                 <div className="w-1.5 h-1.5 rounded-full bg-shell-400 animate-bounce [animation-delay:300ms]" />
               </div>
-              <span className="text-[11px] text-shell-400">AI is responding...</span>
+              <span className="text-[11px] text-shell-400">Snail is responding...</span>
               {onInterrupt && (
                 <button
                   onClick={handleStop}
@@ -264,7 +264,7 @@ function ChatMessageInner({ message, onInterrupt, onRetry }: { message: MessageD
                 <span className="text-[11px] font-medium text-status-amber">响应可能已中断</span>
               </div>
               <p className="text-[10px] text-text-muted leading-relaxed">
-                AI 已长时间无新事件，可能是 WebSocket 断连或后端异常。事件数: {message.events.length}，消息 ID: #{message.id}
+                Snail 已长时间无新事件，可能是 WebSocket 断连或后端异常。事件数: {message.events.length}，消息 ID: #{message.id}
               </p>
               <div className="flex items-center gap-2 mt-1.5">
                 {onInterrupt && (

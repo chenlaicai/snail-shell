@@ -69,7 +69,7 @@ export interface CollaborationInput {
   /** 查询 stage 是否有 agent 正在执行（用于 activity_status 判断） */
   isInvoking(stageId: string): boolean;
   /** 计算 stage 的 activity_status（唯一实现） */
-  getActivityStatus(stageId: string, issueClosedAt?: string | null): "ai_running" | "needs_human" | "completed";
+  getActivityStatus(stageId: string, issueClosedAt?: string | null): "snail_running" | "needs_human" | "completed";
   /** 启动恢复：重新路由已完成消息的 to_speakers */
   resumeRoute(stageId: string, message: Message): Promise<void>;
   /** 启动恢复：从 DB 恢复未处理的 suggestions 到内存缓存 */
@@ -91,5 +91,5 @@ export interface CollaborationConsumer {
 }
 
 export interface WorkspaceConsumer {
-  onActivityStatusChanged(issueId: string, activityStatus: "ai_running" | "needs_human" | "completed", previousStatus: "ai_running" | "needs_human" | "completed"): void;
+  onActivityStatusChanged(issueId: string, activityStatus: "snail_running" | "needs_human" | "completed", previousStatus: "snail_running" | "needs_human" | "completed"): void;
 }

@@ -16,7 +16,7 @@ export interface KnowledgeEntry {
   content: string;
   /** 作用域：由文件所在目录决定 */
   scope: Scope;
-  /** 关联的工作空间（workspace 来源时有值） */
+  /** 关联的工作区（workspace 来源时有值） */
   workspace?: Workspace;
 }
 
@@ -32,7 +32,7 @@ export interface CreateKnowledgeInput {
   content: string;
   /** 作用域 */
   scope: Scope;
-  /** 关联的工作空间（workspace 来源时必填） */
+  /** 关联的工作区（workspace 来源时必填） */
   workspace?: Workspace;
 }
 
@@ -40,7 +40,7 @@ export interface CreateKnowledgeInput {
 export interface RemoveKnowledgeInput {
   /** 作用域 */
   scope: Scope;
-  /** 关联的工作空间（workspace 来源时必填） */
+  /** 关联的工作区（workspace 来源时必填） */
   workspace?: Workspace;
   /** 条目唯一标识 */
   id: string;

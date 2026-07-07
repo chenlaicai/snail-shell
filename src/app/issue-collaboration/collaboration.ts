@@ -40,7 +40,7 @@ type DispatchState = { status: "idle" | "invoking"; pending: boolean };
 export class IssueCollaboration implements CollaborationInput, StageTransitionPort, IssueManagementPort {
   private readonly issueConsumers = new Map<string, Set<CollaborationConsumer>>();
   private readonly workspaceConsumers = new Map<string, Set<WorkspaceConsumer>>();
-  private readonly lastActivityStatus = new Map<string, "ai_running" | "needs_human" | "completed">();
+  private readonly lastActivityStatus = new Map<string, "snail_running" | "needs_human" | "completed">();
   private readonly suggestions = new Map<string, StageTransitionSuggestion[]>();
   private readonly maxCollaborationRounds: number;
   private readonly activeInvocations = new Map<number, AbortController>();
@@ -323,11 +323,11 @@ export class IssueCollaboration implements CollaborationInput, StageTransitionPo
     for (const [key, state] of this.dispatchStates) { if (key.startsWith(`${stageId}:`) && state.status === "invoking") return true; }
     return false;
   }
-  getActivityStatus(stageId: string, issueClosedAt?: string | null): "ai_running" | "needs_human" | "completed" {
+  getActivityStatus(stageId: string, issueClosedAt?: string | null): "snail_running" | "needs_human" | "completed" {
     if (issueClosedAt) return "completed";
-    if (this.isInvoking(stageId)) return "ai_running";
+    if (this.isInvoking(stageId)) return "snail_running";
     const latest = this.deps.messagePort.findLatestMessage(stageId);
-    if (latest?.status === "streaming") return "ai_running";
+    if (latest?.status === "streaming") return "snail_running";
     return "needs_human";
   }
   private cleanupDispatchStates(stageId: string): void {

@@ -45,7 +45,7 @@ domain/xxx/
 
 **做法**:
 - `FileWorkspaceRepository(fileSystem, repoRoot)` → 内部拼接 `config/workspaces.json`
-- `FileTenetPromptRepository(fileSystem, repoRoot, workspacePaths)` → 内部拼接 `.meta/prompts/`
+- `FileTenetPromptRepository(fileSystem, repoRoot, workspacePaths)` → 内部拼接 `data/file/prompts/`
 - main 不感知模块内部路径细节
 
 ## 4. 基础设施层（infra）
@@ -192,8 +192,8 @@ export class EvolutionGovernance {
 
 **当前阶段**:
 - workspace：读取 `workspaces.json` → 缓存
-- tenet-prompt：读取 `.meta/prompts/*.md` → 缓存
-- skill：读取 `.meta/skills/*/SKILL.md` → 缓存
+- tenet-prompt：读取 `data/file/prompts/*.md` → 缓存
+- skill：读取 `data/file/skills/*/SKILL.md` → 缓存
 - sop：读取 `config/sop/*/*.yaml` → 缓存
 
 **原则**:

@@ -89,7 +89,7 @@ export function StageSuggestionCard({
         <div className="min-w-0 flex-1">
           <div className="text-[13px] font-medium text-shell-400">Stage Suggestion</div>
           <div className="mt-1 text-[12px] leading-5 text-text-secondary">
-            AI 建议由 <span className="text-text-primary">{suggestion.from_speaker}</span> 推进到 <span className="text-text-primary">{suggestion.target_key}</span>
+            Snail 建议由 <span className="text-text-primary">{suggestion.from_speaker}</span> 推进到 <span className="text-text-primary">{suggestion.target_key}</span>
             {suggestion.reason && `：${suggestion.reason}`}
           </div>
 

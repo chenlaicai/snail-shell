@@ -1,10 +1,10 @@
 import type { Message } from "@infra/acs/model";
 
 /**
- * Snail — AI Agent 运行时配置。
+ * Snail — agent 运行时配置。
  *
  * 一个 Snail 绑定了 agent 实现和 model 配置，
- * 是"一个可调用的 AI Agent"的完整声明。
+ * 是"一个可调用的 agent"的完整声明。
  */
 export interface Snail {
   /** Snail 唯一标识，如 "claude-code-sonnet" */

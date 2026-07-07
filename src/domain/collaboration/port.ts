@@ -74,7 +74,7 @@ export interface CollaborationPort {
   getStageAuditTrail(stageId: string): StageAuditRecord[];
   closeIssue(issueId: string): Promise<CloseIssueResult>;
   isInvoking(stageId: string): boolean;
-  getActivityStatus(stageId: string, issueClosedAt?: string | null): "ai_running" | "needs_human" | "completed";
+  getActivityStatus(stageId: string, issueClosedAt?: string | null): "snail_running" | "needs_human" | "completed";
   resumeRoute(stageId: string, message: Message): Promise<void>;
 }
 
@@ -95,5 +95,5 @@ export interface CollaborationConsumer {
 }
 
 export interface WorkspaceConsumer {
-  onActivityStatusChanged(issueId: string, activityStatus: "ai_running" | "needs_human" | "completed", previousStatus: "ai_running" | "needs_human" | "completed"): void;
+  onActivityStatusChanged(issueId: string, activityStatus: "snail_running" | "needs_human" | "completed", previousStatus: "snail_running" | "needs_human" | "completed"): void;
 }

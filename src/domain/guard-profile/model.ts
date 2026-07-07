@@ -13,6 +13,6 @@ export interface GuardProfile {
   deny: string[];
   /** 作用域 */
   scope: Scope;
-  /** 关联的工作空间（workspace 来源时有值） */
+  /** 关联的工作区（workspace 来源时有值） */
   workspace?: Workspace;
 }

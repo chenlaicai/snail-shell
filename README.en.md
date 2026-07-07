@@ -21,7 +21,7 @@ Snail Shell manages workspaces through staged workflows (init -> discuss -> codi
 - **Runtime abstraction**: Supports Claude Code CLI (stateless) and OpenCode CLI (stateful).
 - **Persistence**: Uses SQLite and provides full-text search through FTS5.
 - **API service**: Uses Express + WebSocket to provide REST APIs and real-time agent events.
-- **Agent orchestration**: `WorkspaceManager` coordinates multi-agent collaboration and message routing.
+- **Agent orchestration**: `IssueCollaboration` coordinates multi-agent collaboration and message routing.
 
 ## Quick Start
 
@@ -134,10 +134,10 @@ Configure OpenAI in `config/llm.json`:
 
 ### Metadata configuration
 
-- `.meta/stages.json`: defines workflow stages.
-- `.meta/roles.json`: defines workflow roles.
-- `.meta/snails.json`: defines Snail Den runtime executors.
-- `.meta/artifact-types.json`: defines artifact types.
+- `data/file/sops/`: defines SOP workflows (including stages and roles).
+- `data/file/prompts/`: defines runtime behavior rules and reference constraints.
+- `data/file/skills/`: defines standalone capability protocols and operation steps.
+- Snail Den runtime executors are managed via API and stored in the database.
 
 ## API Usage
 
@@ -183,14 +183,14 @@ The development database is located at `data/database/snail-shell.db` and uses S
 
 ```text
 src/
-├── agent/          # AI agent runtime adapters
+├── agent/          # agent runtime adapters
 ├── api/            # REST API and WebSocket service
 ├── llm/            # OpenAI integration
 ├── persistence/    # database operations
 ├── workspace/      # workspace management and collaboration logic
 └── types/          # TypeScript definitions
 
-.meta/              # metadata configuration
+data/file/          # metadata configuration
 config/             # runtime configuration
 tests/              # tests
 ```
@@ -211,7 +211,7 @@ tests/              # tests
 - `.github/ISSUE_TEMPLATE/*` is written in English.
 - The GitHub repository `About` section, including Description, Homepage, and Topics, is written in English.
 - Requirement documents, design documents, analysis documents, discussion notes, and stage output documents are written in Chinese.
-- Files under `.meta/` only use English keys and code-facing conventions, without separate Chinese and English copies.
+- Files under `data/file/` only use English keys and code-facing conventions, without separate Chinese and English copies.
 
 ## License
 

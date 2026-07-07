@@ -262,9 +262,9 @@ describe("dispatch idle → workspace notification", () => {
     await collaboration.sendMessage("s1", "hello", "user", ["developer"]);
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    /** 即使 invokeAgent 失败，finally 块应将状态从 ai_running 恢复为 needs_human */
-    const aiRunningToNeedsHuman = statusChanges.find(s => s.newStatus === "needs_human" && s.prevStatus === "ai_running");
-    expect(aiRunningToNeedsHuman).toBeDefined();
-    expect(aiRunningToNeedsHuman!.issueId).toBe(issue.id);
+    /** 即使 invokeAgent 失败，finally 块应将状态从 snail_running 恢复为 needs_human */
+    const snailRunningToNeedsHuman = statusChanges.find(s => s.newStatus === "needs_human" && s.prevStatus === "snail_running");
+    expect(snailRunningToNeedsHuman).toBeDefined();
+    expect(snailRunningToNeedsHuman!.issueId).toBe(issue.id);
   });
 });

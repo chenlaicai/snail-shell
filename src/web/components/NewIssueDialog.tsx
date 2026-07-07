@@ -155,7 +155,7 @@ export function NewIssueDialog({ workspaceId, open, onClose }: NewIssueDialogPro
                 value={summary}
                 onChange={(e) => setSummary(e.target.value)}
                 className="w-full bg-surface-0 border border-white/6 rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-shell-600/40 resize-none"
-                placeholder="描述你希望 AI 帮你解决的问题"
+                placeholder="描述你希望 Snail 帮你解决的问题"
                 rows={6}
               />
             </div>

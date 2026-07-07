@@ -5,7 +5,7 @@ const statusConfig: Record<string, { label: string; dot: string; bg: string; tex
   completed: { label: "Completed", dot: "bg-status-gray", bg: "bg-status-gray/15", text: "text-text-muted" },
   active: { label: "In Progress", dot: "bg-status-blue", bg: "bg-status-blue/15", text: "text-status-blue" },
   closed: { label: "Closed", dot: "bg-status-gray", bg: "bg-status-gray/15", text: "text-text-muted" },
-  ai_running: { label: "AI Running", dot: "bg-status-blue", bg: "bg-status-blue/15", text: "text-status-blue" },
+  snail_running: { label: "Snail Running", dot: "bg-status-blue", bg: "bg-status-blue/15", text: "text-status-blue" },
   needs_human: { label: "Needs You", dot: "bg-status-amber", bg: "bg-status-amber/15", text: "text-status-amber" },
 };
 
