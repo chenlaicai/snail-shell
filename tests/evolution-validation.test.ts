@@ -156,7 +156,7 @@ describe("create_candidate validation", () => {
   it("accepts all valid trigger_reason values", async () => {
     const port = createMockEvolutionPort();
     const handler = getCreateCandidateHandler(port);
-    const reasons = ["user_dissatisfied", "user_confused", "user_corrected", "repeat_problem", "feature_missing"];
+    const reasons = ["user_dissatisfied", "user_confused", "user_corrected", "repeat_problem", "feature_missing", "tool_friction"];
 
     for (const reason of reasons) {
       vi.mocked(port.create).mockClear();

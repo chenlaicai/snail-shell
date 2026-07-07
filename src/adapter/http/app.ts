@@ -18,6 +18,7 @@ import type { SnailPort } from "@domain/snail/port";
 import type { MCPPort } from "@domain/mcp-config/port";
 import type { KnowledgePort } from "@domain/knowledge/port";
 import type { EvolutionPort } from "@domain/evolution/port";
+import type { EvolutionAppPort } from "@app/evolution/port";
 import type { Hono as HonoApp } from "hono";
 
 const log = getLogger({ module: "http" });
@@ -35,6 +36,7 @@ export interface AppDeps {
   mcp: MCPPort;
   knowledge: KnowledgePort;
   evolution: EvolutionPort;
+  evolutionApp: EvolutionAppPort;
   mcpHandler?: HonoApp;
 }
 
