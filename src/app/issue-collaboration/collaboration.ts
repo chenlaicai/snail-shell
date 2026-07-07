@@ -104,7 +104,8 @@ export class IssueCollaboration implements CollaborationInput, StageTransitionPo
       for (const role of stage.role_instances) plan[stage.key][role.role_instance] = snailKey;
     }
     const context: Record<string, string> = input.source_issue_id ? { source_issue_id: input.source_issue_id } : {};
-    return this.createIssue({ ...input, snail_assignment_plan: plan, context });
+    const { source_issue_id: _, ...rest } = input;
+    return this.createIssue({ ...rest, snail_assignment_plan: plan, context });
   }
   async interruptMessage(messageId: number): Promise<boolean> {
     const controller = this.activeInvocations.get(messageId);

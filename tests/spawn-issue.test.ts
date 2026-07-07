@@ -200,6 +200,8 @@ describe("spawnIssue", () => {
     expect(callArg.summary).toBe("继承前序 Issue 的上下文");
     expect(callArg.adopted_sop_key).toBe("code-delivery");
     expect(callArg.context).toEqual({ source_issue_id: "issue-1" });
+    /** source_issue_id 已消费到 context，不应泄漏到 CreateIssueInput */
+    expect(callArg.source_issue_id).toBeUndefined();
     /** snail_assignment_plan 自动分配 snail-1 给所有 role instance */
     expect(callArg.snail_assignment_plan).toEqual({ design: { "architect-1": "snail-1" } });
   });
