@@ -177,9 +177,9 @@ export function IssueConversation() {
             </div>
           </div>
 
-          {/* Message scroll container — only messages and StageSuggestionCard (MP1) */}
+          {/* Message scroll container — only virtualized content (MP1 完结) */}
           <div ref={scrollRef} onScroll={handleScroll} className="relative flex-1 overflow-y-auto px-6 py-6">
-            <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-5">
+            <div className="mx-auto w-full max-w-[1120px]">
 
               {/* Messages — 虚拟滚动，只渲染可见消息 */}
               {sorted.length === 0 && <div className="text-center text-text-muted text-sm py-8">No messages yet. Start the conversation below.</div>}
@@ -208,9 +208,6 @@ export function IssueConversation() {
                   })}
                 </div>
               )}
-
-              {/* StageSuggestionCard 放在对话流末尾，用户在底部可直接看到 */}
-              <StageSuggestionCard stageId={stageId} onAccepted={handleStageChanged} />
 
             </div>
 
@@ -241,6 +238,14 @@ export function IssueConversation() {
                 )}
               </div>
             )}
+          </div>
+
+          {/* StageSuggestionCard — 固定区域，不在滚动容器内 */}
+          {/* 组件 return null 时无 DOM 产出，自然不占位 (UA-9) */}
+          <div className="shrink-0 px-6">
+            <div className="mx-auto max-w-[1120px]">
+              <StageSuggestionCard stageId={stageId} onAccepted={handleStageChanged} />
+            </div>
           </div>
 
           {/* Input */}
