@@ -1,4 +1,5 @@
 import type { MCPServerConfig, JsonRpcRequest, JsonRpcResponse } from "@domain/snail-mcp-server/model";
+import type { Issue, Stage } from "@domain/issue/model";
 
 /** Snail MCP Server 端口定义 */
 export interface SnailMCPServerPort {
@@ -37,4 +38,15 @@ export interface StageTransitionPort {
     signalType?: string;
     reason: string;
   }): Promise<TransitionRequestResult>;
+}
+
+/** Issue 管理端口：MCP 工具通过此端口创建新 Issue */
+export interface IssueManagementPort {
+  spawnIssue(input: {
+    workspace_path: string;
+    title: string;
+    summary?: string;
+    adopted_sop_key: string;
+    source_issue_id?: string;
+  }): Promise<{ issue: Issue; stage: Stage }>;
 }

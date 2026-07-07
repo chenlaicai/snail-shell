@@ -27,7 +27,7 @@ import { init as initIssueCollaboration } from "@app/issue-collaboration/initor"
 import { init as initIMHub } from "@app/im-hub/initor";
 import { createMcpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-message-store";
 import type { EvolutionPort } from "@domain/evolution/port";
-import type { StageTransitionPort } from "@domain/snail-mcp-server/port";
+import type { StageTransitionPort, IssueManagementPort } from "@domain/snail-mcp-server/port";
 import { createMcpHandler } from "@adapter/mcp-server/handler";
 import { createUnifiedWebSocketBridge } from "@adapter/http/unified-websocket";
 
@@ -69,11 +69,18 @@ async function initModules(repoRoot: string, serverSettings: ServerSettings) {
   });
   const mcpMessageStore = createMcpMessageStore();
   /** lazy proxy for StageTransitionPort — collaboration 在 MCP server 之后初始化 */
-  const collaborationRef: { current?: { requestTransition: StageTransitionPort["requestTransition"] } } = {};
+  const collaborationRef: { current?: { requestTransition: StageTransitionPort["requestTransition"]; spawnIssue: IssueManagementPort["spawnIssue"] } } = {};
   const lazyStageTransition: StageTransitionPort = {
     requestTransition: async (input) => {
       if (!collaborationRef.current) throw new Error("Collaboration module is not initialized");
       return collaborationRef.current.requestTransition(input);
+    },
+  };
+  /** lazy proxy for IssueManagementPort — 同样依赖 collaboration */
+  const lazyIssueManagement: IssueManagementPort = {
+    spawnIssue: async (input) => {
+      if (!collaborationRef.current) throw new Error("Collaboration module is not initialized");
+      return collaborationRef.current.spawnIssue(input);
     },
   };
   const snailMCPServer = initMCPServer({
@@ -85,6 +92,7 @@ async function initModules(repoRoot: string, serverSettings: ServerSettings) {
     featureChain: featureChain.adapter,
     mcpMessageStore,
     stageTransition: lazyStageTransition,
+    issueManagement: lazyIssueManagement,
   });
   const mcp = initMCP({ dataStore, workspaces, snailMCPServer: snailMCPServer.adapter, serverSettings });
   const guardProfile = initGuardProfile(dataStore);
