@@ -81,6 +81,7 @@ function createMockMessagePort(): MessagePort {
     getMessage: vi.fn(),
     listMessages: vi.fn(),
     listMessagesWindow: vi.fn(),
+    searchByFts: () => [],
     searchContext: vi.fn(),
     listMessagesByStatus: vi.fn(),
     updateMessageTargets: vi.fn(),

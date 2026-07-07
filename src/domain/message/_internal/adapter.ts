@@ -58,6 +58,17 @@ export class MessageAdapter implements MessagePort {
     return this.messageRepo.searchContext(stageId, query, limit);
   }
 
+  searchByFts(stageIds: string[], query: string, limit: number): Array<{ message_id: number; stage_id: string; from_speaker: string | null; content: string; created_at: string }> {
+    const results = this.searchIndex.searchByStageIds(query, new Set(stageIds), limit);
+    return results.map((r) => ({
+      message_id: r.message_id,
+      stage_id: r.stage_id,
+      from_speaker: r.from_speaker,
+      content: this.contextRepo.get(r.message_id)?.context ?? "",
+      created_at: r.created_at,
+    }));
+  }
+
   listMessagesByStatus(status: MessageStatus, limit?: number): Message[] {
     return this.messageRepo.listByStatus(status, limit);
   }

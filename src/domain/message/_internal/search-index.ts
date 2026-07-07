@@ -88,7 +88,96 @@ export class MessageSearchIndex {
     return this.db.get<{ count: number }>(`SELECT COUNT(*) as count FROM message_search`)?.count ?? 0;
   }
 
-  /** SearchChannel 接口：跨 stage 搜索 */
+  /** 跨 stage FTS5 搜索（用于 search_messages MCP 工具升级，B12） */
+  searchByStageIds(
+    query: string,
+    stageIds: Set<string>,
+    limit: number,
+  ): Array<{ message_id: number; stage_id: string; snippet: string; from_speaker: string | null; created_at: string }> {
+    const ftsQuery = buildFtsMatchQuery(query);
+
+    if (ftsQuery) {
+      return this.searchByStageIdsMatch(ftsQuery, stageIds, limit);
+    }
+    return this.searchByStageIdsLike(query, stageIds, limit);
+  }
+
+  private searchByStageIdsMatch(
+    ftsQuery: string,
+    stageIds: Set<string>,
+    limit: number,
+  ): Array<{ message_id: number; stage_id: string; snippet: string; from_speaker: string | null; created_at: string }> {
+    if (stageIds.size === 0) return [];
+
+    const placeholders = Array.from(stageIds).map(() => "?").join(",");
+    const rows = this.db.prepare(`
+      SELECT
+        ms.message_id,
+        ms.stage_id,
+        snippet(message_search, 2, '[', ']', '...', 24) AS snippet,
+        bm25(message_search) AS bm25_score,
+        m.from_speaker,
+        m.created_at
+      FROM message_search ms
+      JOIN message m ON m.id = ms.message_id
+      WHERE message_search MATCH ? AND ms.stage_id IN (${placeholders})
+      ORDER BY bm25(message_search)
+      LIMIT ?
+    `).all(ftsQuery, ...stageIds, limit) as Array<{
+      message_id: number;
+      stage_id: string;
+      snippet: string;
+      bm25_score: number;
+      from_speaker: string | null;
+      created_at: string;
+    }>;
+
+    return rows.map((row) => ({
+      message_id: row.message_id,
+      stage_id: row.stage_id,
+      snippet: row.snippet,
+      from_speaker: row.from_speaker,
+      created_at: row.created_at,
+    }));
+  }
+
+  private searchByStageIdsLike(
+    query: string,
+    stageIds: Set<string>,
+    limit: number,
+  ): Array<{ message_id: number; stage_id: string; snippet: string; from_speaker: string | null; created_at: string }> {
+    if (stageIds.size === 0) return [];
+
+    const escaped = query.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+    const placeholders = Array.from(stageIds).map(() => "?").join(",");
+    const rows = this.db.prepare(`
+      SELECT
+        mc.message_id,
+        m.stage_id,
+        m.from_speaker,
+        m.created_at,
+        mc.context
+      FROM message_context mc
+      JOIN message m ON m.id = mc.message_id
+      WHERE mc.context LIKE '%' || ? || '%' ESCAPE '\\' AND m.stage_id IN (${placeholders})
+      ORDER BY m.id DESC
+      LIMIT ?
+    `).all(escaped, ...stageIds, limit) as Array<{
+      message_id: number;
+      stage_id: string;
+      from_speaker: string | null;
+      created_at: string;
+      context: string;
+    }>;
+
+    return rows.map((row) => ({
+      message_id: row.message_id,
+      stage_id: row.stage_id,
+      snippet: generateSnippet(row.context, query),
+      from_speaker: row.from_speaker,
+      created_at: row.created_at,
+    }));
+  }
   search(query: string, options: SearchOptions): ChannelResult[] {
     const ftsQuery = buildFtsMatchQuery(query);
 
@@ -146,13 +235,14 @@ export class MessageSearchIndex {
     const escaped = query.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
     let sql = `
       SELECT
-        ms.message_id,
-        ms.stage_id,
+        mc.message_id,
+        m.stage_id,
         m.from_speaker,
-        m.created_at
-      FROM message_search ms
-      JOIN message m ON m.id = ms.message_id
-      WHERE ms.context LIKE '%' || ? || '%' ESCAPE '\\'
+        m.created_at,
+        mc.context
+      FROM message_context mc
+      JOIN message m ON m.id = mc.message_id
+      WHERE mc.context LIKE '%' || ? || '%' ESCAPE '\\'
     `;
     const params: unknown[] = [escaped];
 
@@ -172,13 +262,14 @@ export class MessageSearchIndex {
       stage_id: string;
       from_speaker: string | null;
       created_at: string;
+      context: string;
     }>;
 
     return rows.map((row) => ({
       content_type: "message" as const,
       id: String(row.message_id),
       title: row.from_speaker ?? "system",
-      snippet: "",
+      snippet: generateSnippet(row.context, query),
       raw_score: 1.0,
       source: {
         domain: "message",
@@ -211,4 +302,21 @@ export class MessageSearchChannel implements SearchChannel {
   validate(): boolean {
     return this.index.validate();
   }
+}
+
+/** 为 LIKE 回退搜索生成摘要 */
+function generateSnippet(content: string, query: string): string {
+  const lowerContent = content.toLowerCase();
+  const lowerQuery = query.toLowerCase();
+  const index = lowerContent.indexOf(lowerQuery);
+
+  if (index === -1) {
+    return content.slice(0, 100) + "...";
+  }
+
+  const start = Math.max(0, index - 50);
+  const end = Math.min(content.length, index + query.length + 50);
+  const snippet = content.slice(start, end);
+
+  return (start > 0 ? "..." : "") + snippet + (end < content.length ? "..." : "");
 }

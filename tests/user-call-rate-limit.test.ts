@@ -26,6 +26,7 @@ function createMockMessagePort(overrides: Partial<MessagePort> = {}): MessagePor
     listMessages: vi.fn().mockReturnValue([]),
     listMessagesWindow: vi.fn().mockReturnValue([]),
     searchContext: vi.fn().mockReturnValue([]),
+    searchByFts: vi.fn().mockReturnValue([]),
     getCursor: vi.fn().mockReturnValue(0),
     advanceCursor: vi.fn(),
     initCursor: vi.fn(),

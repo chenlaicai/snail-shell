@@ -285,7 +285,8 @@ export class KnowledgeSearchIndex {
         snippet(knowledge_search, 4, '[', ']', '...', 24) AS snippet,
         bm25(knowledge_search) AS bm25_score,
         ke.title,
-        ke.tags
+        ke.tags,
+        ke.updated_at
       FROM knowledge_search ks
       JOIN knowledge_entries ke ON ke.id = ks.entry_id
       WHERE knowledge_search MATCH ?
@@ -293,8 +294,21 @@ export class KnowledgeSearchIndex {
     const params: unknown[] = [ftsQuery];
 
     if (options.workspace_path) {
-      sql += ` AND (ks.workspace_path IS NULL OR ks.workspace_path = ?)`;
+      sql += ` AND (ke.workspace_path IS NULL OR ke.workspace_path = ?)`;
       params.push(options.workspace_path);
+    }
+    if (options.tags?.length) {
+      const placeholders = options.tags.map(() => "?").join(",");
+      sql += ` AND EXISTS (SELECT 1 FROM json_each(ke.tags) WHERE value IN (${placeholders}))`;
+      params.push(...options.tags);
+    }
+    if (options.time_range?.after) {
+      sql += ` AND ke.updated_at >= ?`;
+      params.push(options.time_range.after);
+    }
+    if (options.time_range?.before) {
+      sql += ` AND ke.updated_at <= ?`;
+      params.push(options.time_range.before);
     }
 
     sql += ` ORDER BY bm25(knowledge_search) LIMIT 50`;
@@ -305,6 +319,7 @@ export class KnowledgeSearchIndex {
       workspace_path: string | null;
       title: string;
       tags: string;
+      updated_at: string;
       snippet: string;
       bm25_score: number;
     }>;
@@ -321,6 +336,7 @@ export class KnowledgeSearchIndex {
       metadata: {
         tags: JSON.parse(row.tags || "[]"),
         scope: row.scope,
+        updated_at: row.updated_at,
       },
     }));
   }
@@ -334,7 +350,8 @@ export class KnowledgeSearchIndex {
         ke.workspace_path,
         ke.title,
         ke.content,
-        ke.tags
+        ke.tags,
+        ke.updated_at
       FROM knowledge_entries ke
       WHERE ke.title LIKE '%' || ? || '%' ESCAPE '\\' OR ke.content LIKE '%' || ? || '%' ESCAPE '\\'
     `;
@@ -343,6 +360,19 @@ export class KnowledgeSearchIndex {
     if (options.workspace_path) {
       sql += ` AND (ke.workspace_path IS NULL OR ke.workspace_path = ?)`;
       params.push(options.workspace_path);
+    }
+    if (options.tags?.length) {
+      const placeholders = options.tags.map(() => "?").join(",");
+      sql += ` AND EXISTS (SELECT 1 FROM json_each(ke.tags) WHERE value IN (${placeholders}))`;
+      params.push(...options.tags);
+    }
+    if (options.time_range?.after) {
+      sql += ` AND ke.updated_at >= ?`;
+      params.push(options.time_range.after);
+    }
+    if (options.time_range?.before) {
+      sql += ` AND ke.updated_at <= ?`;
+      params.push(options.time_range.before);
     }
 
     sql += ` LIMIT 50`;
@@ -354,6 +384,7 @@ export class KnowledgeSearchIndex {
       title: string;
       content: string;
       tags: string;
+      updated_at: string;
     }>;
 
     return rows.map((row) => ({
@@ -368,6 +399,7 @@ export class KnowledgeSearchIndex {
       metadata: {
         tags: JSON.parse(row.tags || "[]"),
         scope: row.scope,
+        updated_at: row.updated_at,
       },
     }));
   }

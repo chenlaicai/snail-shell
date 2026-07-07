@@ -121,16 +121,16 @@ export class FeatureDocSearchIndex {
   }
 
   /** SearchChannel 接口：返回 ChannelResult[] */
-  searchChannel(query: string, _options: SearchOptions): ChannelResult[] {
+  searchChannel(query: string, options: SearchOptions): ChannelResult[] {
     const ftsQuery = buildFtsMatchQuery(query);
 
     if (ftsQuery) {
-      return this.searchChannelByMatch(ftsQuery);
+      return this.searchChannelByMatch(ftsQuery, options);
     }
-    return this.searchChannelByLike(query);
+    return this.searchChannelByLike(query, options);
   }
 
-  private searchChannelByMatch(ftsQuery: string): ChannelResult[] {
+  private searchChannelByMatch(ftsQuery: string, options: SearchOptions): ChannelResult[] {
     const rows = this.db.prepare(`
       SELECT
         doc_id,
@@ -146,27 +146,29 @@ export class FeatureDocSearchIndex {
       bm25_score: number;
     }>;
 
-    return rows.map((row) => {
-      const doc = this.docs.get(row.doc_id);
-      return {
-        content_type: "feature_doc" as const,
-        id: row.doc_id,
-        title: doc?.title ?? row.doc_id,
-        snippet: row.snippet,
-        raw_score: -row.bm25_score,
-        source: {
-          domain: "feature-chain",
-          file_path: doc?.doc_path,
-        },
-        metadata: {
-          tags: doc?.tags ?? [],
-          created_at: doc?.created_at,
-        },
-      };
-    });
+    return rows
+      .map((row) => {
+        const doc = this.docs.get(row.doc_id);
+        return {
+          content_type: "feature_doc" as const,
+          id: row.doc_id,
+          title: doc?.title ?? row.doc_id,
+          snippet: row.snippet,
+          raw_score: -row.bm25_score,
+          source: {
+            domain: "feature-chain",
+            file_path: doc?.doc_path,
+          },
+          metadata: {
+            tags: doc?.tags ?? [],
+            created_at: doc?.created_at,
+          },
+        };
+      })
+      .filter((r) => matchesTagsAndTime(r.metadata.tags, r.metadata.created_at, options));
   }
 
-  private searchChannelByLike(query: string): ChannelResult[] {
+  private searchChannelByLike(query: string, options: SearchOptions): ChannelResult[] {
     const lowerQuery = query.toLowerCase();
     const results: ChannelResult[] = [];
 
@@ -191,7 +193,9 @@ export class FeatureDocSearchIndex {
       }
     }
 
-    return results.slice(0, 50);
+    return results
+      .filter((r) => matchesTagsAndTime(r.metadata.tags, r.metadata.created_at, options))
+      .slice(0, 50);
   }
 }
 
@@ -234,4 +238,18 @@ function generateSnippet(content: string, query: string): string {
   const snippet = content.slice(start, end);
 
   return (start > 0 ? "..." : "") + snippet + (end < content.length ? "..." : "");
+}
+
+/** 检查结果是否匹配 tags 和 time_range 过滤条件 */
+function matchesTagsAndTime(
+  tags: string[] | undefined,
+  createdAt: string | undefined,
+  options: SearchOptions,
+): boolean {
+  if (options.tags?.length && !tags?.some((t) => options.tags!.includes(t))) return false;
+  if (createdAt && options.time_range) {
+    if (options.time_range.after && createdAt < options.time_range.after) return false;
+    if (options.time_range.before && createdAt > options.time_range.before) return false;
+  }
+  return true;
 }

@@ -205,7 +205,7 @@ export class EvolutionSearchIndex {
   }
 
   private searchChannelByMatch(ftsQuery: string, options: SearchOptions): ChannelResult[] {
-    let sql = `
+    const sql = `
       SELECT
         es.item_id,
         snippet(evolution_search, 2, '[', ']', '...', 24) AS snippet,
@@ -219,24 +219,10 @@ export class EvolutionSearchIndex {
       FROM evolution_search es
       JOIN evolution_item ei ON ei.id = es.item_id
       WHERE evolution_search MATCH ?
+      ${buildChannelFilterSql(options)}
+      ORDER BY bm25(evolution_search) LIMIT 50
     `;
-    const params: unknown[] = [ftsQuery];
-
-    if (options.scope) {
-      sql += ` AND ei.workspace_id = ?`;
-      params.push(options.scope);
-    }
-
-    if (options.time_range?.after) {
-      sql += ` AND ei.created_at >= ?`;
-      params.push(options.time_range.after);
-    }
-    if (options.time_range?.before) {
-      sql += ` AND ei.created_at <= ?`;
-      params.push(options.time_range.before);
-    }
-
-    sql += ` ORDER BY bm25(evolution_search) LIMIT 50`;
+    const params: unknown[] = [ftsQuery, ...collectChannelFilterParams(options)];
 
     const rows = this.db.prepare(sql).all(...params) as Array<{
       item_id: string;
@@ -270,7 +256,7 @@ export class EvolutionSearchIndex {
 
   private searchChannelByLike(query: string, options: SearchOptions): ChannelResult[] {
     const escaped = query.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
-    let sql = `
+    const sql = `
       SELECT
         ei.id AS item_id,
         ei.title,
@@ -282,24 +268,10 @@ export class EvolutionSearchIndex {
         ei.status
       FROM evolution_item ei
       WHERE (ei.title LIKE '%' || ? || '%' ESCAPE '\\' OR ei.content LIKE '%' || ? || '%' ESCAPE '\\')
+      ${buildChannelFilterSql(options)}
+      LIMIT 50
     `;
-    const params: unknown[] = [escaped, escaped];
-
-    if (options.scope) {
-      sql += ` AND ei.workspace_id = ?`;
-      params.push(options.scope);
-    }
-
-    if (options.time_range?.after) {
-      sql += ` AND ei.created_at >= ?`;
-      params.push(options.time_range.after);
-    }
-    if (options.time_range?.before) {
-      sql += ` AND ei.created_at <= ?`;
-      params.push(options.time_range.before);
-    }
-
-    sql += ` LIMIT 50`;
+    const params: unknown[] = [escaped, escaped, ...collectChannelFilterParams(options)];
 
     const rows = this.db.prepare(sql).all(...params) as Array<{
       item_id: string;
@@ -368,4 +340,27 @@ function generateSnippet(content: string, query: string): string {
   const snippet = content.slice(start, end);
 
   return (start > 0 ? "..." : "") + snippet + (end < content.length ? "..." : "");
+}
+
+/** 构建 Evolution 域 channel 过滤 SQL 片段 */
+function buildChannelFilterSql(options: SearchOptions): string {
+  let sql = "";
+  if (options.workspace_path) sql += ` AND ei.workspace_id = ?`;
+  if (options.tags?.length) {
+    const placeholders = options.tags.map(() => "?").join(",");
+    sql += ` AND EXISTS (SELECT 1 FROM json_each(ei.tags) WHERE value IN (${placeholders}))`;
+  }
+  if (options.time_range?.after) sql += ` AND ei.created_at >= ?`;
+  if (options.time_range?.before) sql += ` AND ei.created_at <= ?`;
+  return sql;
+}
+
+/** 收集 Evolution 域 channel 过滤参数 */
+function collectChannelFilterParams(options: SearchOptions): unknown[] {
+  const params: unknown[] = [];
+  if (options.workspace_path) params.push(options.workspace_path);
+  if (options.tags?.length) params.push(...options.tags);
+  if (options.time_range?.after) params.push(options.time_range.after);
+  if (options.time_range?.before) params.push(options.time_range.before);
+  return params;
 }

@@ -25,7 +25,7 @@ export function createMessageHistoryServer(
   };
 }
 
-/** 跨 stage 关键词搜索 */
+/** 跨 stage 关键词搜索（FTS5，B12 升级） */
 function createSearchMessagesTool(stagePort: StagePort, messagePort: MessagePort): MCPTool {
   return {
     name: "search_messages",
@@ -42,24 +42,17 @@ function createSearchMessagesTool(stagePort: StagePort, messagePort: MessagePort
     handler: async (params) => {
       const { issue_id, query, limit = 10 } = params as { issue_id: string; query: string; limit?: number };
       const stages = stagePort.listStages(issue_id);
-      const results: Array<{ message: Message; context: MessageContext; stage_id: string }> = [];
+      const stageIds = stages.map((s) => s.id);
 
-      for (const stage of stages) {
-        if (results.length >= limit) break;
-        const remaining = limit - results.length;
-        const matches = messagePort.searchContext(stage.id, query, remaining);
-        for (const m of matches) {
-          results.push({ ...m, stage_id: stage.id });
-        }
-      }
+      const results = messagePort.searchByFts(stageIds, query, limit);
 
       return {
         results: results.map((r) => ({
-          message_id: r.message.id,
+          message_id: r.message_id,
           stage_id: r.stage_id,
-          from_speaker: r.message.from_speaker,
-          content: r.context.context,
-          created_at: r.message.created_at,
+          from_speaker: r.from_speaker,
+          content: r.content,
+          created_at: r.created_at,
         })),
         total: results.length,
       };

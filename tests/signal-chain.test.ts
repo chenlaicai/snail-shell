@@ -17,6 +17,7 @@ function createMockMessagePort(overrides: Partial<MessagePort> = {}): MessagePor
     getMessage: () => undefined,
     listMessages: () => [],
     listMessagesWindow: () => [],
+    searchByFts: () => [],
     searchContext: () => [],
     listMessagesByStatus: () => [],
     updateMessageTargets: () => {},
