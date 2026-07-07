@@ -7,6 +7,7 @@ import { createSnailIssueContextServer } from "@domain/snail-mcp-server/_interna
 import { createMessageHistoryServer } from "@domain/snail-mcp-server/_internal/servers/snail-message-history";
 import { createFeatureChainServer } from "@domain/snail-mcp-server/_internal/servers/snail-feature-chain";
 import { createStageTransitionServer } from "@domain/snail-mcp-server/_internal/servers/snail-stage-transition";
+import { createMemorySearchServer } from "@domain/snail-mcp-server/_internal/servers/memory-search";
 import type { StageTransitionPort } from "@domain/snail-mcp-server/port";
 import type { McpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-message-store";
 import type { KnowledgePort } from "@domain/knowledge/port";
@@ -14,10 +15,11 @@ import type { MessagePort } from "@domain/message/port";
 import type { IssuePort, StagePort } from "@domain/issue/port";
 import type { EvolutionPort } from "@domain/evolution/port";
 import type { FeatureChainPort } from "@domain/feature-chain/port";
+import type { SearchCoordinatorPort } from "@domain/memory-search/port";
 
 /** Snail MCP Server 模块依赖 */
 export interface SnailMCPServerDeps {
-  /** evolution adapter（lazy，Proxy 代理） */
+  /** evolution adapter */
   evolution: EvolutionPort;
   /** knowledge adapter */
   knowledge: KnowledgePort;
@@ -33,6 +35,8 @@ export interface SnailMCPServerDeps {
   mcpMessageStore: McpMessageStore;
   /** 阶段推进端口（request_stage_transition 工具通过此端口注册信号） */
   stageTransition: StageTransitionPort;
+  /** 跨域统一搜索协调器 */
+  memorySearch: SearchCoordinatorPort;
 }
 
 /**
@@ -51,6 +55,7 @@ export function init(deps: SnailMCPServerDeps) {
   adapter.registerServer(createMessageHistoryServer(deps.stage, deps.message));
   adapter.registerServer(createFeatureChainServer(deps.featureChain));
   adapter.registerServer(createStageTransitionServer(deps.stageTransition));
+  adapter.registerServer(createMemorySearchServer(deps.memorySearch));
 
   return { adapter };
 }

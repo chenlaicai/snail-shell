@@ -4,6 +4,8 @@ import type { SQLiteDatabase } from "@infra/database";
 import { getLogger } from "@infra/logger";
 import type { KnowledgeEntry } from "@domain/knowledge/model";
 import type { SearchResult } from "@domain/knowledge/port";
+import type { ChannelResult, SearchOptions } from "@domain/memory-search/model";
+import { buildFtsMatchQuery } from "@domain/memory-search/_internal/coordinator";
 
 const log = getLogger({ module: "knowledge" });
 
@@ -16,8 +18,8 @@ const log = getLogger({ module: "knowledge" });
  * - 索引损坏时自动恢复
  *
  * 限制：
- * - unicode61 分词器不支持中文分词，中文短语会被拆分为单字匹配
- * - 如需精确中文短语搜索，需使用 jieba 等分词插件
+ * - trigram 分词器支持中文子串匹配，最小 3 字符
+ * - <3 字符的查询回退到原始表 LIKE
  *
  * FTS5 表存储在平台级数据库 snail-shell.db 中，与其他 domain 共享连接。
  */
@@ -31,6 +33,7 @@ export class KnowledgeSearchIndex {
   constructor(db: SQLiteDatabase) {
     this.db = db;
     this.initSchema();
+    this.ensureTokenizerVersion();
 
     this.insertEntryStmt = this.db.prepare(`
       INSERT OR REPLACE INTO knowledge_entries (id, scope, workspace_path, title, content, tags, content_hash, updated_at)
@@ -63,62 +66,140 @@ export class KnowledgeSearchIndex {
         workspace_path UNINDEXED,
         title,
         content,
-        tokenize='unicode61'
+        tokenize='trigram'
       );
     `);
+  }
+
+  /**
+   * 确保 FTS5 表使用 trigram 分词器。
+   * 如果旧表使用 unicode61，则 DROP + CREATE 重建。
+   */
+  private ensureTokenizerVersion(): void {
+    const row = this.db.get<{ sql: string }>(
+      `SELECT sql FROM sqlite_master WHERE type='table' AND name='knowledge_search'`,
+    );
+    if (!row?.sql) return;
+
+    if (!row.sql.includes("tokenize='trigram'")) {
+      log.info("FTS5 table uses old tokenizer, rebuilding with trigram");
+      this.db.exec(`DROP TABLE IF EXISTS knowledge_search`);
+      this.db.exec(`
+        CREATE VIRTUAL TABLE knowledge_search USING fts5(
+          entry_id UNINDEXED,
+          scope UNINDEXED,
+          workspace_path UNINDEXED,
+          title,
+          content,
+          tokenize='trigram'
+        );
+      `);
+    }
   }
 
   /** 全文搜索 */
   search(query: string, workspacePath?: string): SearchResult[] {
     try {
-      const ftsQuery = this.buildFtsQuery(query);
-      let sql = `
-        SELECT
-          ks.entry_id,
-          ks.scope,
-          ks.workspace_path,
-          snippet(knowledge_search, 4, '[', ']', '...', 24) AS snippet,
-          ke.title,
-          ke.content,
-          ke.tags
-        FROM knowledge_search ks
-        JOIN knowledge_entries ke ON ke.id = ks.entry_id
-        WHERE knowledge_search MATCH ?
-      `;
-      const params: string[] = [ftsQuery];
+      const ftsQuery = buildFtsMatchQuery(query);
 
-      if (workspacePath) {
-        sql += ` AND (ks.workspace_path IS NULL OR ks.workspace_path = ?)`;
-        params.push(workspacePath);
+      if (ftsQuery) {
+        return this.searchByMatch(ftsQuery, workspacePath);
       }
-
-      sql += ` ORDER BY rank LIMIT 50`;
-
-      const rows = this.db.prepare(sql).all(...params) as Array<{
-        entry_id: string;
-        scope: string;
-        workspace_path: string | null;
-        title: string;
-        content: string;
-        tags: string;
-        snippet: string;
-      }>;
-
-      return rows.map((row) => ({
-        entry: {
-          id: row.entry_id,
-          title: row.title,
-          content: row.content,
-          scope: row.scope as KnowledgeEntry["scope"],
-          tags: JSON.parse(row.tags || "[]"),
-          workspace: row.workspace_path ? { path: row.workspace_path, summary: null } : undefined,
-        },
-        snippet: row.snippet,
-      }));
+      return this.searchByLike(query, workspacePath);
     } catch (err) {
       log.error({ err }, "Search failed");
       return [];
     }
+  }
+
+  private searchByMatch(ftsQuery: string, workspacePath?: string): SearchResult[] {
+    let sql = `
+      SELECT
+        ks.entry_id,
+        ks.scope,
+        ks.workspace_path,
+        snippet(knowledge_search, 4, '[', ']', '...', 24) AS snippet,
+        ke.title,
+        ke.content,
+        ke.tags
+      FROM knowledge_search ks
+      JOIN knowledge_entries ke ON ke.id = ks.entry_id
+      WHERE knowledge_search MATCH ?
+    `;
+    const params: string[] = [ftsQuery];
+
+    if (workspacePath) {
+      sql += ` AND (ks.workspace_path IS NULL OR ks.workspace_path = ?)`;
+      params.push(workspacePath);
+    }
+
+    sql += ` ORDER BY rank LIMIT 50`;
+
+    const rows = this.db.prepare(sql).all(...params) as Array<{
+      entry_id: string;
+      scope: string;
+      workspace_path: string | null;
+      title: string;
+      content: string;
+      tags: string;
+      snippet: string;
+    }>;
+
+    return rows.map((row) => ({
+      entry: {
+        id: row.entry_id,
+        title: row.title,
+        content: row.content,
+        scope: row.scope as KnowledgeEntry["scope"],
+        tags: JSON.parse(row.tags || "[]"),
+        workspace: row.workspace_path ? { path: row.workspace_path, summary: null } : undefined,
+      },
+      snippet: row.snippet,
+    }));
+  }
+
+  private searchByLike(query: string, workspacePath?: string): SearchResult[] {
+    const escaped = query.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+    let sql = `
+      SELECT
+        ke.id AS entry_id,
+        ke.scope,
+        ke.workspace_path,
+        ke.title,
+        ke.content,
+        ke.tags
+      FROM knowledge_entries ke
+      WHERE ke.title LIKE '%' || ? || '%' ESCAPE '\\' OR ke.content LIKE '%' || ? || '%' ESCAPE '\\'
+    `;
+    const params: string[] = [escaped, escaped];
+
+    if (workspacePath) {
+      sql += ` AND (ke.workspace_path IS NULL OR ke.workspace_path = ?)`;
+      params.push(workspacePath);
+    }
+
+    sql += ` LIMIT 50`;
+
+    const rows = this.db.prepare(sql).all(...params) as Array<{
+      entry_id: string;
+      scope: string;
+      workspace_path: string | null;
+      title: string;
+      content: string;
+      tags: string;
+    }>;
+
+    return rows.map((row) => ({
+      entry: {
+        id: row.entry_id,
+        title: row.title,
+        content: row.content,
+        scope: row.scope as KnowledgeEntry["scope"],
+        tags: JSON.parse(row.tags || "[]"),
+        workspace: row.workspace_path ? { path: row.workspace_path, summary: null } : undefined,
+      },
+      snippet: generateSnippet(row.content, query),
+    }));
   }
 
   /** 同步单条目到索引（upsert） */
@@ -185,6 +266,112 @@ export class KnowledgeSearchIndex {
     return false;
   }
 
+  /** SearchChannel 接口：返回 ChannelResult[] */
+  searchChannel(query: string, options: SearchOptions): ChannelResult[] {
+    const ftsQuery = buildFtsMatchQuery(query);
+
+    if (ftsQuery) {
+      return this.searchChannelByMatch(ftsQuery, options);
+    }
+    return this.searchChannelByLike(query, options);
+  }
+
+  private searchChannelByMatch(ftsQuery: string, options: SearchOptions): ChannelResult[] {
+    let sql = `
+      SELECT
+        ks.entry_id,
+        ks.scope,
+        ks.workspace_path,
+        snippet(knowledge_search, 4, '[', ']', '...', 24) AS snippet,
+        bm25(knowledge_search) AS bm25_score,
+        ke.title,
+        ke.tags
+      FROM knowledge_search ks
+      JOIN knowledge_entries ke ON ke.id = ks.entry_id
+      WHERE knowledge_search MATCH ?
+    `;
+    const params: unknown[] = [ftsQuery];
+
+    if (options.workspace_path) {
+      sql += ` AND (ks.workspace_path IS NULL OR ks.workspace_path = ?)`;
+      params.push(options.workspace_path);
+    }
+
+    sql += ` ORDER BY bm25(knowledge_search) LIMIT 50`;
+
+    const rows = this.db.prepare(sql).all(...params) as Array<{
+      entry_id: string;
+      scope: string;
+      workspace_path: string | null;
+      title: string;
+      tags: string;
+      snippet: string;
+      bm25_score: number;
+    }>;
+
+    return rows.map((row) => ({
+      content_type: "knowledge" as const,
+      id: row.entry_id,
+      title: row.title,
+      snippet: row.snippet,
+      raw_score: -row.bm25_score,
+      source: {
+        domain: "knowledge",
+      },
+      metadata: {
+        tags: JSON.parse(row.tags || "[]"),
+        scope: row.scope,
+      },
+    }));
+  }
+
+  private searchChannelByLike(query: string, options: SearchOptions): ChannelResult[] {
+    const escaped = query.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+    let sql = `
+      SELECT
+        ke.id AS entry_id,
+        ke.scope,
+        ke.workspace_path,
+        ke.title,
+        ke.content,
+        ke.tags
+      FROM knowledge_entries ke
+      WHERE ke.title LIKE '%' || ? || '%' ESCAPE '\\' OR ke.content LIKE '%' || ? || '%' ESCAPE '\\'
+    `;
+    const params: unknown[] = [escaped, escaped];
+
+    if (options.workspace_path) {
+      sql += ` AND (ke.workspace_path IS NULL OR ke.workspace_path = ?)`;
+      params.push(options.workspace_path);
+    }
+
+    sql += ` LIMIT 50`;
+
+    const rows = this.db.prepare(sql).all(...params) as Array<{
+      entry_id: string;
+      scope: string;
+      workspace_path: string | null;
+      title: string;
+      content: string;
+      tags: string;
+    }>;
+
+    return rows.map((row) => ({
+      content_type: "knowledge" as const,
+      id: row.entry_id,
+      title: row.title,
+      snippet: generateSnippet(row.content, query),
+      raw_score: 1.0,
+      source: {
+        domain: "knowledge",
+      },
+      metadata: {
+        tags: JSON.parse(row.tags || "[]"),
+        scope: row.scope,
+      },
+    }));
+  }
+
   /** 关闭数据库连接（由 SQLiteDatabase 统一管理，此处为空实现） */
   close(): void {
     // 连接由 SQLiteDatabase 统一管理，不需要单独关闭
@@ -193,12 +380,21 @@ export class KnowledgeSearchIndex {
   private computeHash(title: string, content: string): string {
     return crypto.createHash("sha256").update(`${title}\n${content}`).digest("hex").slice(0, 16);
   }
+}
 
-  private buildFtsQuery(query: string): string {
-    const terms = query.split(/\s+/).filter(Boolean);
-    if (terms.length === 0) return "*";
-    return terms
-      .map((t) => `"${t.replace(/"/g, '""')}"`)
-      .join(" AND ");
+/** 为 LIKE 回退搜索生成摘要 */
+function generateSnippet(content: string, query: string): string {
+  const lowerContent = content.toLowerCase();
+  const lowerQuery = query.toLowerCase();
+  const index = lowerContent.indexOf(lowerQuery);
+
+  if (index === -1) {
+    return content.slice(0, 100) + "...";
   }
+
+  const start = Math.max(0, index - 50);
+  const end = Math.min(content.length, index + query.length + 50);
+  const snippet = content.slice(start, end);
+
+  return (start > 0 ? "..." : "") + snippet + (end < content.length ? "..." : "");
 }

@@ -14,6 +14,7 @@ import type {
   ContextRepository,
   ReadCursorRepository,
 } from "@domain/message/_internal/repository";
+import type { MessageSearchIndex } from "@domain/message/_internal/search-index";
 
 export class MessageAdapter implements MessagePort {
   constructor(
@@ -21,6 +22,7 @@ export class MessageAdapter implements MessagePort {
     private eventRepo: EventRepository,
     private contextRepo: ContextRepository,
     private cursorRepo: ReadCursorRepository,
+    private searchIndex: MessageSearchIndex,
   ) {}
 
   // ── Message CRUD ─────────────────────────────────────────────────────
@@ -96,7 +98,13 @@ export class MessageAdapter implements MessagePort {
   }
 
   setContext(messageId: number, kind: MessageContextKind, context: string): void {
-    this.contextRepo.set(messageId, kind, context);
+    this.messageRepo.transaction(() => {
+      this.contextRepo.set(messageId, kind, context);
+      const message = this.messageRepo.findById(messageId);
+      if (message) {
+        this.searchIndex.indexMessage(messageId, message.stage_id, context);
+      }
+    });
   }
 
   // ── ReadCursor ───────────────────────────────────────────────────────

@@ -10,6 +10,7 @@ export interface FeatureChainRepository {
   get(id: string): FeatureDoc | undefined;
   chain(id: string, direction: "backward" | "forward" | "both"): FeatureChain;
   rebuild(): void;
+  listAll(): FeatureDoc[];
 }
 
 /** Feature Chain 文件存储实现 */
@@ -104,6 +105,10 @@ export class FileFeatureChainRepository implements FeatureChainRepository {
         log.warn({ err, filePath }, "Failed to parse feature doc");
       }
     }
+  }
+
+  listAll(): FeatureDoc[] {
+    return Array.from(this.docs.values());
   }
 
   private parseFeatureDoc(fileName: string, raw: string, filePath: string): FeatureDoc {
