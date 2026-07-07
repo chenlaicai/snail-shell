@@ -51,6 +51,16 @@ export default defineConfig(() => {
       strictPort: true,
       watch: {
         cwd: path.resolve(__dirname),
+        /**
+         * 忽略 worktree 目录中的文件变更。worktree 是 Snail Shell 多 Agent 协作的独立工作副本，
+         * 其文件变更不应触发 Vite dev server 的 HMR 或 full-reload。
+         * 特别是 tsconfig.json 变更会触发 cache 清除和 full-reload，导致 close issue 时
+         * (git worktree remove 删除 worktree 目录) 页面发生完整刷新。
+         */
+        ignored: [
+          "**/.snail/worktrees/**",
+          "**/.claude/worktrees/**",
+        ],
       },
       proxy: {
         "/api": backendHttpBaseUrl,
