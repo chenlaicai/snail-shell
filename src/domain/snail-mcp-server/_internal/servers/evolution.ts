@@ -9,6 +9,7 @@ const TRIGGER_REASONS = [
   "user_corrected",
   "repeat_problem",
   "feature_missing",
+  "tool_friction",
 ] as const;
 
 type TriggerReason = (typeof TRIGGER_REASONS)[number];
@@ -91,12 +92,12 @@ function createCompleteEvolutionItemTool(evolution: EvolutionPort): MCPTool {
 function createCreateCandidateTool(evolution: EvolutionPort): MCPTool {
   return {
     name: "create_candidate",
-    description: "创建演进候选项。此 tool 仅创建 evolution_item 记录（状态为 Candidate）。治理对话的 Issue/Stage/Conversation 由治理流程创建，不由本 tool 创建。",
+    description: "创建演进候选项。当在对话中识别到以下反馈信号时使用：\n- 用户不满：明确表达对系统行为的不满意、生气、失望\n- 用户困惑：表示不理解、困惑、不清楚\n- 用户纠正：纠正你的行为或输出\n- 重复问题：同一问题反复提出（第三次及以上）\n- 功能缺失：期望的功能不存在（多次出现或明确影响工作流）\n- 工具使用体验不佳：agent 在使用系统提供的 skill/MCP/功能时，发现操作不便、流程冗余、参数缺失或语义不清\n\n不应创建的情况：\n- 当前 issue 正在处理的问题本身（条目应指向系统改进点，而非复述问题）\n- 审美偏好、首次 feature request、随口建议、与系统无关的抱怨\n\n创建前判断：改进点必须超出当前 issue 范围、指向系统层面（prompt/skill/SOP/code/知识库）、且具有复用价值。任一不满足则不创建。\n\n内容要求：\n- title：系统改进点简述（如\"review skill 应增加 XX 检查\"而非\"XX 问题\"）\n- content：改进方向 + 触发场景 + 建议落点，必须回答\"系统的哪个部分需要怎样改变\"\n\n执行步骤：先搜索已有条目判断重复 → 不重复则调用本工具（metadata 带 auto_generation）→ 回复中说明已记录 → 继续正常回复\n\n此 tool 仅创建 evolution_item 记录（状态为 Candidate）。治理对话的 Issue/Stage/Conversation 由治理流程创建，不由本 tool 创建。",
     inputSchema: {
       type: "object",
       properties: {
-        title: { type: "string", description: "演进项标题" },
-        content: { type: "string", description: "演进项内容（Markdown）" },
+        title: { type: "string", description: "系统改进点简述（如'review skill 应增加 XX 检查'而非'XX 问题'）" },
+        content: { type: "string", description: "改进方向 + 触发场景 + 建议落点。必须回答'系统的哪个部分需要怎样改变'" },
         workspace_id: { type: "string", description: "工作区 ID" },
         tags: { type: "array", items: { type: "string" }, description: "标签列表（可选）" },
         metadata: {

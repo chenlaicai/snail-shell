@@ -185,6 +185,7 @@ function startHttpServer(modules: Awaited<ReturnType<typeof initModules>>["modul
     mcp: modules.mcp.adapter,
     knowledge: modules.knowledge.adapter,
     evolution: modules.evolution.adapter,
+    evolutionApp: modules.evolutionApp.adapter,
     mcpHandler,
   });
   app.route("/im", modules.im.app);
