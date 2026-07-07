@@ -9,7 +9,7 @@ export function HomePage() {
         <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-shell-500 to-shell-800 text-3xl shadow-[0_20px_60px_rgba(200,114,52,0.18)]">🐌</div>
         <h1 className="text-2xl font-semibold tracking-tight text-text-primary">欢迎使用 Snail Shell</h1>
         <p className="mt-3 text-[14px] leading-7 text-text-secondary">
-          管理 workspace、跟踪 issue、推进 stage，并与 AI Snail 协作完成复杂任务。
+          管理 workspace、跟踪 issue、推进 stage，并与 Snail 协作完成复杂任务。
         </p>
         <div className="mt-8 flex justify-center gap-3">
           <button

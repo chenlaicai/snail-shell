@@ -205,7 +205,7 @@ export class EventBatcher {
     let result = old ?? [];
     let changed = false;
 
-    /** 处理 message_started 事件（服务端推送的 AI 消息开始） */
+    /** 处理 message_started 事件（服务端推送的 Snail 消息开始） */
     for (const event of batch.messageStarted) {
       if (result.some((m) => m.id === event.message_id)) continue;
       result = [createPlaceholderMessage(stageId, {

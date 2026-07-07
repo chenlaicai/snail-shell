@@ -24,7 +24,7 @@ export function ToolApprovalCard({ stageId, messageId, toolName, toolInput, onAp
       </div>
       <div className="mb-3">
         <p className="text-[13px] text-text-primary">
-          Agent wants to use <span className="font-mono text-shell-400">{toolName}</span>
+          Snail wants to use <span className="font-mono text-shell-400">{toolName}</span>
         </p>
         {toolInput && Object.keys(toolInput).length > 0 && (
           <pre className="mt-2 bg-surface-0 rounded p-2 text-[11px] text-text-secondary overflow-x-auto">

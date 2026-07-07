@@ -163,7 +163,7 @@ export function ChatInput({ onSend, disabled, placeholder = "Reply to this issue
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1 text-[11px] text-text-muted">
             <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/></svg>
-            Ask Agent
+            Ask Snail
           </div>
           <button
             onClick={handleSend}

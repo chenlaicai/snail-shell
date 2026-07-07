@@ -2,7 +2,7 @@
 
 中文 | [English](./README.en.md)
 
-Snail Shell 是一个多智能体协作工作空间系统，通过结构化工作流编排专业职责角色，并由 Snail Den 中的 runtime 承担实际执行。
+Snail Shell 是一个多智能体协作工作区系统，通过结构化工作流编排专业职责角色，并由 Snail Den 中的 runtime 承担实际执行。
 
 ## 工作区概览
 
@@ -21,7 +21,7 @@ Snail Shell 通过阶段化工作流（初始化 -> 讨论 -> 编码 -> 检查 -
 - **运行时抽象**：支持 Claude Code CLI（无状态）和 OpenCode CLI（有状态）。
 - **数据持久化**：使用 SQLite，并通过 FTS5 提供全文搜索能力。
 - **API 服务**：使用 Express + WebSocket 提供 REST API 和实时智能体事件。
-- **智能体编排**：`ProjectManager` 负责协调多智能体协作和消息路由。
+- **智能体编排**：`IssueCollaboration` 负责协调多智能体协作和消息路由。
 
 ## 快速开始
 
@@ -137,10 +137,10 @@ UPDATE_GOLDEN=1 npm run test
 
 ### 元数据配置
 
-- `.meta/stages.json`：定义工作流阶段。
-- `.meta/roles.json`：定义工作流职责角色，其中 JSON key 就是每个 role 的唯一 name。
-- `.meta/snails.json`：定义 Snail Den 运行承担者，其中 JSON key 就是每个 snail 的唯一 name。
-- `.meta/artifact-types.json`：定义交付物类型。
+- `data/file/sops/`：定义 SOP 工作流（包含阶段和角色）。
+- `data/file/prompts/`：定义运行时行为规则和参考约束。
+- `data/file/skills/`：定义独立能力协议和操作步骤。
+- Snail Den 运行承担者通过 API 管理，存储于数据库。
 
 ## API 使用
 
@@ -195,14 +195,14 @@ GET /api/conversations/:id/history/search?query=关键词
 
 ```text
 src/
-├── agent/          # AI 智能体运行时适配器
+├── agent/          # 智能体运行时适配器
 ├── api/            # REST API 和 WebSocket 服务
 ├── llm/            # OpenAI 集成
 ├── persistence/    # 数据库操作
 ├── workspace/      # 工作区管理和协作逻辑
 └── types/          # TypeScript 类型定义
 
-.meta/              # 元数据配置
+data/file/          # 元数据配置
 config/             # 运行时配置
 tests/              # 测试
 ```
@@ -223,7 +223,7 @@ tests/              # 测试
 - `.github/ISSUE_TEMPLATE/*` 使用英文。
 - GitHub 仓库 `About` 区域中的 Description、Homepage 和 Topics 使用英文。
 - 需求文档、设计文档、分析文档、讨论纪要和阶段产出文档使用中文。
-- `.meta/` 下的文件仅使用英文键名和面向代码的约定，不额外提供中英文双份。
+- `data/file/` 下的文件仅使用英文键名和面向代码的约定，不额外提供中英文双份。
 
 ## License
 

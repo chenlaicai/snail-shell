@@ -24,10 +24,10 @@ docs/
 
 这类内容必须进入最贴近执行边界的长期入口：
 
-1. AI 运行时行为规则进入 `.meta/prompts/`。
-2. 独立能力协议、命令和操作步骤进入 `.meta/skills/`。
+1. agent 运行时行为规则进入 `data/file/prompts/`。
+2. 独立能力协议、命令和操作步骤进入 `data/file/skills/`。
 3. 代码模型、数据协议、runtime 映射和安全边界进入 `src/` 类型、实现、测试和必要 why 注释。
-4. 提示词效果评估规则进入 `.meta/prompt-evaluations/`、评估 runner 和相关测试。
+4. 提示词效果评估规则进入 `data/file/prompt-evaluations/`、评估 runner 和相关测试。
 5. 已确认的架构取舍进入设计决策库，而不是新增长期设计文档。
 
 feature 文档可以记录本次设计取舍和迁移过程，但不能替代上述长期入口。
@@ -51,7 +51,7 @@ feature 文档可以记录本次设计取舍和迁移过程，但不能替代上
 
 后续每个 feature 开发前，应先创建一份 feature 文档，再按文档推进实现、验证和 PR。feature 文档可以随该 feature 的需求收敛、设计取舍和检视反馈更新。
 
-feature 文档在对应 PR 合入后即视为历史交付记录，后续 feature 不得二次修改已合入 feature 文档来追写新结论、更新旧范围或让历史记录适配当前实现状态。后续行为、规则或实现发生变化时，必须创建新的 feature 文档记录本次变化；需要长期维护的事实、规则或操作说明，应沉淀到 `user-manual/`、`AGENTS.md`、`.meta/prompts/`、`.meta/skills/`、代码、测试或脚本等长期入口，而不是改写已完成 feature 的历史记录。
+feature 文档在对应 PR 合入后即视为历史交付记录，后续 feature 不得二次修改已合入 feature 文档来追写新结论、更新旧范围或让历史记录适配当前实现状态。后续行为、规则或实现发生变化时，必须创建新的 feature 文档记录本次变化；需要长期维护的事实、规则或操作说明，应沉淀到 `user-manual/`、`AGENTS.md`、`data/file/prompts/`、`data/file/skills/`、代码、测试或脚本等长期入口，而不是改写已完成 feature 的历史记录。
 
 feature 文档编号规则：
 
@@ -70,7 +70,7 @@ docs/features/2026/06/23/F202606238vkw-random-feature-id.md
 
 已有的 `FYYYYMMDDNN`（两位顺序递增编号）格式保持不变，无需迁移。
 
-feature 文档应使用以下结构（新建 feature 时复制此模板到 `docs/features/YYYY/MM/DD/FYYYYMMDDxxxx-slug.md`）。各章节按阶段归属分为两类：`[design-time]` 标注的章节在需求收敛与设计阶段（代码前）完成并锁定，进入实现阶段后不得单方面修改；其余章节可在实现和验证阶段填写或更新。`## 核心业务行为` 章节由 AI 在设计阶段根据业务需求起草、人认可后进入实现阶段；实现阶段可修改（新增、修正、删除），须在范围变更记录中说明。
+feature 文档应使用以下结构（新建 feature 时复制此模板到 `docs/features/YYYY/MM/DD/FYYYYMMDDxxxx-slug.md`）。各章节按阶段归属分为两类：`[design-time]` 标注的章节在需求收敛与设计阶段（代码前）完成并锁定，进入实现阶段后不得单方面修改；其余章节可在实现和验证阶段填写或更新。`## 核心业务行为` 章节由 Snail 在设计阶段根据业务需求起草、人认可后进入实现阶段；实现阶段可修改（新增、修正、删除），须在范围变更记录中说明。
 
 ```markdown
 ---
@@ -165,7 +165,7 @@ doc_kind: spec
 
 ## 生效路径 [required]
 
-说明本 feature 的规则、约束或工作方式通过哪些长期入口生效，例如代码、配置、`AGENTS.md`、`.meta/prompts`、脚本、CI 或工作流产物要求。
+说明本 feature 的规则、约束或工作方式通过哪些长期入口生效，例如代码、配置、`AGENTS.md`、`data/file/prompts`、脚本、CI 或工作流产物要求。
 
 ## 设计约束摘要 [required]
 

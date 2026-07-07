@@ -16,4 +16,4 @@ npm run check
 
 ## Project Notes
 
-Snail Shell coordinates multiple AI runtimes through staged workflows and formal artifacts. Changes that affect persistence, runtime sessions, stage advancement, or artifact constraints should clearly describe compatibility and migration risks in the PR.
+Snail Shell coordinates multiple agent runtimes through staged workflows and formal artifacts. Changes that affect persistence, runtime sessions, stage advancement, or artifact constraints should clearly describe compatibility and migration risks in the PR.

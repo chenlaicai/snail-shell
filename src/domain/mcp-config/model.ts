@@ -19,6 +19,6 @@ export interface MCPConfig {
   scope: Scope;
   /** 配置来源：builtin 内建注入、platform 平台配置、workspace 工作区配置 */
   source?: 'builtin' | 'platform' | 'workspace';
-  /** 关联的工作空间（workspace 来源时有值） */
+  /** 关联的工作区（workspace 来源时有值） */
   workspace?: Workspace;
 }

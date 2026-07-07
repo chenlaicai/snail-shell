@@ -1,13 +1,13 @@
 ---
 name: prompt-constraints
-description: 查询 .meta/prompts/reference/ 目录中的参考约束（非核心提示词补充）。角色手册仅包含 [HARD]/[STD] 核心行为边界；详细操作规则以独立文件存放在 reference 目录中，按需查阅。
+description: 查询 data/file/prompts/reference/ 目录中的参考约束（非核心提示词补充）。角色手册仅包含 [HARD]/[STD] 核心行为边界；详细操作规则以独立文件存放在 reference 目录中，按需查阅。
 ---
 
 # 参考约束查询
 
 ## Purpose
 
-`.meta/prompts/reference/` 目录存放非核心系统提示词的参考约束——不直接注入 system prompt，而是由角色手册触发 AI 按需查阅。
+`data/file/prompts/reference/` 目录存放非核心系统提示词的参考约束——不直接注入 system prompt，而是由角色手册触发 Snail 按需查阅。
 
 角色手册（S-03/S-04/S-08）只包含 [HARD]/[STD] 核心行为边界。当核心规则不足以覆盖当前决策场景时，通过本 skill 查阅对应类别的参考约束文件。
 
@@ -18,11 +18,11 @@ description: 查询 .meta/prompts/reference/ 目录中的参考约束（非核�
 
 ## 查阅方式
 
-使用 Glob 列出 `.meta/prompts/reference/` 目录下的文件，用 Read 读取相关文件：
+使用 Glob 列出 `data/file/prompts/reference/` 目录下的文件，用 Read 读取相关文件：
 
 ```
-Glob: .meta/prompts/reference/*.md
-Read: .meta/prompts/reference/<文件名>.md
+Glob: data/file/prompts/reference/*.md
+Read: data/file/prompts/reference/<文件名>.md
 ```
 
 ## 文件索引

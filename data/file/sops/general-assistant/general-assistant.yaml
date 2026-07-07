@@ -3,12 +3,12 @@
 # 文件名即 key: general-assistant
 
 name: 知识问答助理
-description: 通用知识问答场景，AI 助理负责意图理解、信息检索、梳理归纳和结构化回答。
+description: 通用知识问答场景，Snail 助理负责意图理解、信息检索、梳理归纳和结构化回答。
 
 stage_definitions:
   - key: chat
     title: 对话
-    description: AI 助理理解用户意图，通过模型知识或网络搜索获取信息，梳理归纳后给出结构化回答。
+    description: Snail 助理理解用户意图，通过模型知识或网络搜索获取信息，梳理归纳后给出结构化回答。
     roles:
       - key: assistant
         name: 助理

@@ -12,7 +12,7 @@ function createIssueDetail(overrides: Partial<IssueDetailDto> = {}): IssueDetail
     workspace_id: "ws-1",
     workspace_path: "/test",
     status: "open",
-    activity_status: "ai_running",
+    activity_status: "snail_running",
     closed_at: null,
     close_summary: null,
     current_stage_id: "stage-1",
@@ -66,7 +66,7 @@ describe("EventBatcher.applyActivityStatus — closed_at 过滤", () => {
 
   it("issue 已有 closed_at 时，跳过 activity_status 更新（detail cache）", () => {
     const issueId = "issue-1";
-    const issue = createIssueDetail({ closed_at: "2026-07-03T12:00:00Z", activity_status: "ai_running" });
+    const issue = createIssueDetail({ closed_at: "2026-07-03T12:00:00Z", activity_status: "snail_running" });
     queryClient.setQueryData(queryKeys.issues.detail(issueId), issue);
 
     const batcher = new EventBatcher(queryClient);
@@ -77,13 +77,13 @@ describe("EventBatcher.applyActivityStatus — closed_at 过滤", () => {
 
     const updated = queryClient.getQueryData<IssueDetailDto>(queryKeys.issues.detail(issueId));
     // activity_status 不应被更新为 completed
-    expect(updated?.activity_status).toBe("ai_running");
+    expect(updated?.activity_status).toBe("snail_running");
   });
 
   it("issue 已有 closed_at 时，跳过 activity_status 更新（workspace list cache）", () => {
     const issueId = "issue-1";
     const workspaceId = "ws-1";
-    const issue = createIssueDetail({ closed_at: "2026-07-03T12:00:00Z", activity_status: "ai_running" });
+    const issue = createIssueDetail({ closed_at: "2026-07-03T12:00:00Z", activity_status: "snail_running" });
     queryClient.setQueryData(queryKeys.issues.detail(issueId), issue);
     queryClient.setQueryData(queryKeys.workspaces.issues(workspaceId), [issue]);
 
@@ -92,12 +92,12 @@ describe("EventBatcher.applyActivityStatus — closed_at 过滤", () => {
     batcher.dispose();
 
     const list = queryClient.getQueryData<IssueDetailDto[]>(queryKeys.workspaces.issues(workspaceId));
-    expect(list?.[0].activity_status).toBe("ai_running");
+    expect(list?.[0].activity_status).toBe("snail_running");
   });
 
   it("issue 无 closed_at 时，正常更新 activity_status（detail cache）", () => {
     const issueId = "issue-1";
-    const issue = createIssueDetail({ closed_at: null, activity_status: "ai_running" });
+    const issue = createIssueDetail({ closed_at: null, activity_status: "snail_running" });
     queryClient.setQueryData(queryKeys.issues.detail(issueId), issue);
 
     const batcher = new EventBatcher(queryClient);
@@ -132,23 +132,23 @@ describe("applyActivityStatusChange — closed_at 过滤", () => {
   it("issue 已有 closed_at 时，跳过 activity_status 更新", () => {
     const issueId = "issue-1";
     const workspaceId = "ws-1";
-    const issue = createIssueDetail({ closed_at: "2026-07-03T12:00:00Z", activity_status: "ai_running" });
+    const issue = createIssueDetail({ closed_at: "2026-07-03T12:00:00Z", activity_status: "snail_running" });
     queryClient.setQueryData(queryKeys.issues.detail(issueId), issue);
     queryClient.setQueryData(queryKeys.workspaces.issues(workspaceId), [issue]);
 
     applyActivityStatusChange(queryClient, workspaceId, issueId, "completed");
 
     const detail = queryClient.getQueryData<IssueDetailDto>(queryKeys.issues.detail(issueId));
-    expect(detail?.activity_status).toBe("ai_running");
+    expect(detail?.activity_status).toBe("snail_running");
 
     const list = queryClient.getQueryData<IssueDetailDto[]>(queryKeys.workspaces.issues(workspaceId));
-    expect(list?.[0].activity_status).toBe("ai_running");
+    expect(list?.[0].activity_status).toBe("snail_running");
   });
 
   it("issue 无 closed_at 时，正常更新 activity_status", () => {
     const issueId = "issue-1";
     const workspaceId = "ws-1";
-    const issue = createIssueDetail({ closed_at: null, activity_status: "ai_running" });
+    const issue = createIssueDetail({ closed_at: null, activity_status: "snail_running" });
     queryClient.setQueryData(queryKeys.issues.detail(issueId), issue);
     queryClient.setQueryData(queryKeys.workspaces.issues(workspaceId), [issue]);
 

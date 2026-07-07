@@ -20,7 +20,7 @@ export type RoleSnailAssignment = {
 };
 
 export type StageStatus = "in_progress" | "completed";
-export type ActivityStatus = "ai_running" | "needs_human" | "completed";
+export type ActivityStatus = "snail_running" | "needs_human" | "completed";
 export type StageDto = {
   id: string;
   workspace_path: string;
