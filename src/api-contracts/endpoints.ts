@@ -45,4 +45,11 @@ export type ApiEndpoints = {
   "GET /api/evolution/items/:itemId": EndpointDef<{ itemId: string }, never, never, Dto.EvolutionItemDto | null>;
   "POST /api/evolution/items/:itemId/create-issue": EndpointDef<{ itemId: string }, never, never, Dto.EvolutionItemDto>;
   "POST /api/evolution/items/:itemId/close": EndpointDef<{ itemId: string }, never, { result?: string }, Dto.EvolutionItemDto>;
+  "GET /api/issue-templates": EndpointDef<never, never, never, Dto.IssueTemplateDto[]>;
+  "POST /api/issue-templates": EndpointDef<never, never, Dto.CreateIssueTemplateBody, Dto.IssueTemplateDto>;
+  "PUT /api/issue-templates/:id": EndpointDef<{ id: string }, never, Dto.UpdateIssueTemplateBody, Dto.IssueTemplateDto>;
+  "DELETE /api/issue-templates/:id": EndpointDef<{ id: string }, never, never, { ok: true }>;
+  "PATCH /api/issue-templates/:id/toggle": EndpointDef<{ id: string }, never, never, Dto.IssueTemplateDto>;
+  "GET /api/issue-templates/:id/executions": EndpointDef<{ id: string }, never, never, Dto.IssueTemplateExecutionDto[]>;
+  "GET /api/issue-templates/:id/children": EndpointDef<{ id: string }, never, never, Dto.IssueTemplateChildDto[]>;
 };

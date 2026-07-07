@@ -6,6 +6,7 @@ import { createMetaRoutes } from "@adapter/http/routes/meta.route";
 import { createKnowledgeRoutes } from "@adapter/http/routes/knowledge.route";
 import { createEvolutionRoutes } from "@adapter/http/routes/evolution.route";
 import { createFrontendLogRoutes } from "@adapter/http/routes/frontend-log.route";
+import { createIssueTemplateRoutes } from "@adapter/http/routes/issue-template.route";
 import { getLogger } from "@infra/logger";
 import type { WorkspacePort } from "@domain/workspace/port";
 import type { IssuePort, StagePort } from "@domain/issue/port";
@@ -19,6 +20,7 @@ import type { MCPPort } from "@domain/mcp-config/port";
 import type { KnowledgePort } from "@domain/knowledge/port";
 import type { EvolutionPort } from "@domain/evolution/port";
 import type { EvolutionAppPort } from "@app/evolution/port";
+import type { IssueTemplatePort } from "@domain/issue-template/port";
 import type { Hono as HonoApp } from "hono";
 
 const log = getLogger({ module: "http" });
@@ -37,6 +39,7 @@ export interface AppDeps {
   knowledge: KnowledgePort;
   evolution: EvolutionPort;
   evolutionApp: EvolutionAppPort;
+  issueTemplatePort: IssueTemplatePort;
   mcpHandler?: HonoApp;
 }
 
@@ -75,6 +78,7 @@ export function createApp(deps: AppDeps) {
   app.route("/", createMetaRoutes(deps));
   app.route("/", createKnowledgeRoutes(deps));
   app.route("/", createEvolutionRoutes(deps));
+  app.route("/", createIssueTemplateRoutes({ issueTemplatePort: deps.issueTemplatePort, sopPort: deps.sop }));
   app.route("/", createFrontendLogRoutes());
 
   if (deps.mcpHandler) {

@@ -23,6 +23,7 @@ export function Sidebar() {
           <SidebarLink to="/evolution" icon={<EvolutionIcon />} label="Evolution" />
           <SidebarLink to="/knowledge" icon={<KnowledgeIcon />} label="Knowledge" />
           <SidebarLink to="/sops" icon={<SopIcon />} label="SOPs" />
+          <SidebarLink to="/issue-templates" icon={<TemplateIcon />} label="Issue Templates" />
           <SidebarLink to="/lobby" icon={<LobbyIcon />} label="IM Lobby" />
         </div>
 
@@ -94,6 +95,16 @@ function LobbyIcon() {
   return (
     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+    </svg>
+  );
+}
+
+function TemplateIcon() {
+  return (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+      <line x1="3" y1="9" x2="21" y2="9"/>
+      <line x1="9" y1="21" x2="9" y2="9"/>
     </svg>
   );
 }

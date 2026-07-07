@@ -178,3 +178,55 @@ export type PromptDto = { id: string; title: string; content: string; tags: stri
 export type SkillDto = { name: string; description: string; content: string; scope: string; dir_path: string };
 export type SnailDenTemplateDto = { key: string; name: string; agent_name: string; model: string; context_window?: number; invocation_timeout_ms?: number };
 export type McpConfigDto = { name: string; command?: string; args?: string[]; env?: Record<string, string>; url?: string; scope: string; source?: 'builtin' | 'platform' | 'workspace'; workspace_path?: string };
+
+export type IssueTemplateDto = {
+  id: string;
+  workspace_path: string;
+  workspace_id: string;
+  title: string;
+  sop_key: string;
+  sop_snapshot: SopDto;
+  snail_assignment_plan: IssueSnailAssignmentPlanDto;
+  cron_expression: string;
+  enabled: boolean;
+  last_spawned_at: string | null;
+  consecutive_failures: number;
+  created_at: string;
+  updated_at: string;
+  last_status: "success" | "failed" | null;
+  last_child_issue_id: string | null;
+};
+
+export type IssueTemplateExecutionDto = {
+  id: string;
+  template_id: string;
+  child_issue_id: string | null;
+  status: "success" | "failed";
+  error: string | null;
+  executed_at: string;
+};
+
+export type CreateIssueTemplateBody = {
+  workspace_path: string;
+  title: string;
+  sop_key: string;
+  snail_assignment_plan: IssueSnailAssignmentPlanDto;
+  cron_expression: string;
+  enabled?: boolean;
+};
+
+export type UpdateIssueTemplateBody = {
+  title?: string;
+  sop_key?: string;
+  snail_assignment_plan?: IssueSnailAssignmentPlanDto;
+  cron_expression?: string;
+  enabled?: boolean;
+};
+
+export type IssueTemplateChildDto = {
+  child_issue_id: string;
+  title: string;
+  status: "open" | "closed";
+  workspace_id: string;
+  created_at: string;
+};

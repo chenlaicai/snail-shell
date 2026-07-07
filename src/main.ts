@@ -25,6 +25,7 @@ import { init as initLiteAI } from "@domain/lite-ai/_internal/initor";
 import { init as initMCP } from "@domain/mcp-config/_internal/initor";
 import { init as initIssueCollaboration } from "@app/issue-collaboration/initor";
 import { init as initIMHub } from "@app/im-hub/initor";
+import { init as initIssueTemplate } from "@domain/issue-template/_internal/initor";
 import { createMcpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-message-store";
 import { init as initMemorySearch } from "@domain/memory-search/_internal/initor";
 import { KnowledgeSearchChannel } from "@domain/knowledge/_internal/search-channel";
@@ -42,6 +43,8 @@ async function main() {
   const serverSettings = loadServerSettings(repoRoot);
   const { modules, db } = await initModules(repoRoot, serverSettings);
 
+  modules.featureChain.adapter.rebuild();
+  modules.issueTemplate.adapter.start();
   logStartupSummary(modules);
   registerShutdownHooks(modules, db);
   startHttpServer(modules, serverSettings);
@@ -114,7 +117,8 @@ async function initModules(repoRoot: string, serverSettings: ServerSettings) {
   const im = initIM({ workspacePort: workspace.adapter, issuePort: issue.issueAdapter, stagePort: issue.stageAdapter, configStore, db });
   const imHub = initIMHub({ imAdapter: im.adapter, lobbyAdapter: im.lobbyAdapter, collaboration: collaboration.adapter, stagePort: issue.stageAdapter });
   await im.adapter.startChannels();
-  return { modules: { registry, workspace, tenetPrompt, skill, sop, snailMCPServer, mcp, featureChain, snail, im, imHub, liteAI, evolution, evolutionApp, issue, message, collaboration, knowledge, memorySearch, configStore }, db };
+  const issueTemplate = initIssueTemplate(db, collaboration.adapter);
+  return { modules: { registry, workspace, tenetPrompt, skill, sop, snailMCPServer, mcp, featureChain, snail, im, imHub, liteAI, evolution, evolutionApp, issue, message, collaboration, knowledge, memorySearch, configStore, issueTemplate }, db };
 }
 
 function logStartupSummary(modules: Awaited<ReturnType<typeof initModules>>["modules"]): void {
@@ -131,6 +135,7 @@ function logStartupSummary(modules: Awaited<ReturnType<typeof initModules>>["mod
   log.info({ status: modules.liteAI.adapter.getConfig() ? "configured" : "not configured" }, "Lite AI");
   log.info({ status: "ready" }, "Evolution");
   log.info({ status: "ready" }, "Memory Search");
+  log.info({ count: modules.issueTemplate.adapter.list().length }, "Issue Templates");
   log.info({ names: modules.registry.listAgentRuntimes() }, "Registered agents");
 }
 
@@ -139,6 +144,7 @@ function registerShutdownHooks(modules: Awaited<ReturnType<typeof initModules>>[
   const shutdown = () => {
     if (closed) return;
     closed = true;
+    modules.issueTemplate.adapter.stop();
     log.info("Closing database...");
     db.close();
   };
@@ -190,6 +196,7 @@ function startHttpServer(modules: Awaited<ReturnType<typeof initModules>>["modul
     knowledge: modules.knowledge.adapter,
     evolution: modules.evolution.adapter,
     evolutionApp: modules.evolutionApp.adapter,
+    issueTemplatePort: modules.issueTemplate.adapter,
     mcpHandler,
   });
   app.route("/im", modules.im.app);

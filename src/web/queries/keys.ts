@@ -66,4 +66,9 @@ export const queryKeys = {
     snailDen: ["meta", "snail-den"] as const,
   },
   roles: ["roles"] as const,
+  issueTemplates: {
+    all: ["issueTemplates"] as const,
+    executions: (id: string) => ["issueTemplates", id, "executions"] as const,
+    children: (id: string) => ["issueTemplates", id, "children"] as const,
+  },
 };
