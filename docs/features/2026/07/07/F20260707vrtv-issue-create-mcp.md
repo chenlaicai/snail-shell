@@ -52,10 +52,11 @@ change_type: feature
 名称：create_issue
 描述：创建新 Issue。可指定前序 Issue 建立继承关系。创建后新 Issue 的首个 Stage 自动启动。
 参数：
+  - workspace_path: string（必填）— 工作区路径，Agent 从 SNAIL_CTX_WORKSPACE_PATH 环境变量读取后传入
   - title: string（必填）— Issue 标题
-  - sop_key: string（必填）—采用的 SOP key（如 "code-delivery"、"general-assistant"）
+  - sop_key: string（必填）— 采用的 SOP key（如 "code-delivery"、"general-assistant"）
   - summary?: string（可选）— Issue 摘要，用于承接前序 Issue 的上下文和洞察
-  - source_issue_id?: string（可选）—前序 Issue ID，用于建立继承关系。
+  - source_issue_id?: string（可选）— 前序 Issue ID，用于建立继承关系。
     传入后系统在新 Issue 的 context 中写入 source_issue_id 字段。
 返回：
   - 成功：{ issue_id, issue_title, stage_id, stage_key }
@@ -68,7 +69,7 @@ change_type: feature
 
 1. **Snail 自动分配**：Agent 不需要提供 `snail_assignment_plan`。系统通过 `SnailPort.list()`（`CollaborationDeps.snailPort`，`collaboration.ts:31`）获取第一个 snail 分配给所有 role instance（`snailPort.list()[0]?.key`，与前端 `NewIssueDialog` 的 `stableSnails[0]?.key` 逻辑一致）。用户后续可在前端调整。
 
-2. **Workspace 自动填充**：从当前 Issue 的 `workspace_path` 继承，Agent 不需要提供。MCP tool handler 实现约束：(a) 优先从 `SNAIL_CTX_ISSUE_ID` 环境变量获取当前 Issue ID（agent 进程内有效）；(b) 回退到 `source_issue_id`——前序 Issue 必与当前 Issue 属于同一 workspace，从 source issue 提取 `workspace_path`；(c) 两者都不可用时抛错。
+2. **Workspace 路径**：Agent 从 `SNAIL_CTX_WORKSPACE_PATH` 环境变量读取后作为 `workspace_path` 参数传入（与 `set_context`/`get_context`/`stage_transition` 等工具的参数模式一致）。MCP tool handler 运行在 HTTP 服务器进程中，无法通过 `process.env` 访问 agent 进程的环境变量，因此 `workspace_path` 作为显式参数传递。
 
 3. **继承关系存储**：若提供 `source_issue_id`，系统在新 Issue 的 `context` 中写入 `source_issue_id` 字段。新 Issue 的 Agent 可通过 `get_context` 发现前序 Issue ID，进而通过 Issue 详情查看前序 Issue 的标题和摘要。
 
@@ -137,7 +138,7 @@ createSnailIssueContextServer(issuePort: IssuePort, issueManagement: IssueManage
 | B1 | Agent 调用 `create_issue`，传入 `title`、`sop_key`、`summary`、`source_issue_id` | 系统创建新 Issue，自动分配 snail，自动启动首个 Stage，在新 Issue context 中写入 `source_issue_id`。返回 `{ issue_id, issue_title, stage_id, stage_key }` | ← UA-1, UA-2, UA-3 |
 | B2 | Agent 调用 `create_issue`，传入不存在的 `sop_key` | 系统返回错误，不创建 Issue | ← UA-1 |
 | B3 | Agent 调用 `create_issue`，传入不存在的 `source_issue_id`，或 `source_issue_id` 对应的 Issue 与当前 Issue 不属于同一 `workspace_path` | 系统返回错误，不创建 Issue | ← UA-3 |
-| B4 | Agent 调用 `create_issue`，不传 `source_issue_id` | 系统创建独立的 Issue，无继承关系，context 中无 `source_issue_id` | ← UA-1 |
+| B4 | Agent 调用 `create_issue`，传入 `workspace_path` 但不传 `source_issue_id` | 系统创建独立的 Issue，无继承关系，context 中无 `source_issue_id` | ← UA-1 |
 | B5 | Agent 调用 `create_issue`，不传 `summary` | 系统创建 Issue，`summary` 为空。新 Issue 的 Agent 依赖 `source_issue_id` 追溯前序 Issue | ← UA-1 |
 | B6 | 新 Issue 创建后，首个 Stage 的 Agent 启动 | Agent 在 system prompt 的 Issue 上下文中看到 `source_issue_id`（若存在），可通过 `get_context` 确认前序 Issue ID | ← UA-3 |
 | B7 | Snail den 中无可用 snail | 系统返回错误，不创建 Issue | ← UA-1 |

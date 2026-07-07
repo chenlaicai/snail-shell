@@ -22,7 +22,7 @@ export function createSnailIssueContextServer(issuePort: IssuePort, issueManagem
     tools: [
       createSetContextTool(issuePort),
       createGetContextTool(issuePort),
-      createCreateIssueTool(issuePort, issueManagement),
+      createCreateIssueTool(issueManagement),
     ],
   };
 }
@@ -95,44 +95,27 @@ function createGetContextTool(issuePort: IssuePort): MCPTool {
   };
 }
 
-function createCreateIssueTool(issuePort: IssuePort, issueManagement: IssueManagementPort): MCPTool {
+function createCreateIssueTool(issueManagement: IssueManagementPort): MCPTool {
   return {
     name: "create_issue",
-    description: "创建新 Issue。可指定前序 Issue 建立继承关系。创建后新 Issue 的首个 Stage 自动启动。workspace_path 从当前 Issue 继承，无需提供。",
+    description: "创建新 Issue。可指定前序 Issue 建立继承关系。创建后新 Issue 的首个 Stage 自动启动。",
     inputSchema: {
       type: "object",
       properties: {
+        workspace_path: { type: "string", description: "工作区路径，通过环境变量 SNAIL_CTX_WORKSPACE_PATH 注入" },
         title: { type: "string", description: "Issue 标题" },
         sop_key: { type: "string", description: "采用的 SOP key（如 \"code-delivery\"、\"general-assistant\"）" },
         summary: { type: "string", description: "Issue 摘要，用于承接前序 Issue 的上下文和洞察" },
         source_issue_id: { type: "string", description: "前序 Issue ID，用于建立继承关系。传入后系统在新 Issue 的 context 中写入 source_issue_id 字段。通常传入当前 Issue 的 ID。" },
       },
-      required: ["title", "sop_key"],
+      required: ["workspace_path", "title", "sop_key"],
     },
     handler: async (params) => {
+      const workspacePath = String(params.workspace_path);
       const title = String(params.title);
       const sopKey = String(params.sop_key);
       const summary = params.summary ? String(params.summary) : undefined;
       const sourceIssueId = params.source_issue_id ? String(params.source_issue_id) : undefined;
-
-      /**
-       * 获取 workspace_path：
-       * 1. 优先从 process.env.SNAIL_CTX_ISSUE_ID 获取当前 Issue（agent 进程内有效）
-       * 2. 回退到 source_issue_id：前序 Issue 必与当前 Issue 属于同一 workspace
-       * 3. 两者都不可用时抛错
-       */
-      let workspacePath: string | undefined;
-      const currentIssueId = process.env.SNAIL_CTX_ISSUE_ID;
-      if (currentIssueId) {
-        const currentIssue = issuePort.findIssue(currentIssueId);
-        if (currentIssue) workspacePath = currentIssue.workspace_path;
-      }
-      if (!workspacePath && sourceIssueId) {
-        const sourceIssue = issuePort.findIssue(sourceIssueId);
-        if (!sourceIssue) throw new Error(`Source issue not found: ${sourceIssueId}`);
-        workspacePath = sourceIssue.workspace_path;
-      }
-      if (!workspacePath) throw new Error("Cannot determine workspace_path: set SNAIL_CTX_ISSUE_ID or provide source_issue_id");
 
       const result = await issueManagement.spawnIssue({
         workspace_path: workspacePath,
