@@ -70,11 +70,11 @@ stage_definitions:
 
   - key: merge
     title: 合入
-    description: 维护者执行硬性条件检查，全部通过则使用 Squash Merge 合入 PR，任一不通过则打回到审查阶段。
+    description: 维护者执行硬性条件检查，全部通过则声明合入就绪，等待用户执行合入，任一不通过则打回到审查阶段。
     roles:
       - key: merger
         name: 维护者
-        description: 负责 PR 合入前的硬性条件检查，通过则合入，不通过则打回到审查阶段。
+        description: 负责 PR 合入前的硬性条件检查，通过则声明合入就绪，不通过则打回到审查阶段。合入操作由用户执行。
         is_primary: true
         skill: cd-merge
 

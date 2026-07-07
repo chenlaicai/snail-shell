@@ -161,21 +161,6 @@ export function IssueConversation() {
                 </div>
               )}
 
-              {/* Issue properties grid */}
-              <div className="bg-surface-2 rounded-lg border border-white/6 overflow-hidden">
-                <div className="grid grid-cols-2 divide-x divide-white/6">
-                  <div>
-                    <PropRow label="Stage"><span className="text-[13px]">{stage?.stage_definition?.title ?? "—"}</span></PropRow>
-                    <PropRow label="SOP" last><span className="text-[13px] text-text-secondary">{issue.sop_snapshot.name ?? "—"}</span></PropRow>
-                  </div>
-                  <div>
-                    <PropRow label="Created"><span className="text-[13px] text-text-secondary">{issue.created_at ? new Date(issue.created_at).toLocaleDateString() : "—"}</span></PropRow>
-                    <PropRow label="Closed"><span className="text-[13px] text-text-secondary">{issue.closed_at ? new Date(issue.closed_at).toLocaleDateString() : "—"}</span></PropRow>
-                    <PropRow label="Stages" last><span className="text-[13px] text-text-secondary">{issue.stages?.length ?? 0}</span></PropRow>
-                  </div>
-                </div>
-              </div>
-
               {wsStatus !== "connected" && (
                 <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] ${
                   wsStatus === "reconnecting"
@@ -278,15 +263,6 @@ export function IssueConversation() {
 
         <PropertiesPanel issue={issue} stage={stage} onStageChanged={handleStageChanged} />
       </div>
-    </div>
-  );
-}
-
-function PropRow({ label, children, last }: { label: string; children: React.ReactNode; last?: boolean }) {
-  return (
-    <div className={`flex items-center px-4 py-2.5 ${!last ? "border-b border-white/4" : ""} hover:bg-white/3 transition-colors`}>
-      <span className="w-24 text-xs text-text-muted shrink-0">{label}</span>
-      {children}
     </div>
   );
 }

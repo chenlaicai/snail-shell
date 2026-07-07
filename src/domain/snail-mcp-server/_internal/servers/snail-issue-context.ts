@@ -1,5 +1,6 @@
 import type { MCPServerConfig, MCPTool } from "@domain/snail-mcp-server/model";
 import type { IssuePort } from "@domain/issue/port";
+import type { IssueManagementPort } from "@domain/snail-mcp-server/port";
 
 /** 系统保留 key，禁止 Agent 通过 set_context 写入 */
 const RESERVED_KEYS = new Set([
@@ -12,15 +13,16 @@ const RESERVED_KEYS = new Set([
 
 /**
  * Issue Context MCP Server。
- * 提供 Issue 级别上下文的读写工具。
+ * 提供 Issue 级别上下文的读写工具，以及 Issue 创建工具。
  */
-export function createSnailIssueContextServer(issuePort: IssuePort): MCPServerConfig {
+export function createSnailIssueContextServer(issuePort: IssuePort, issueManagement: IssueManagementPort): MCPServerConfig {
   return {
     name: "snail-issue-context",
     version: "1.0.0",
     tools: [
       createSetContextTool(issuePort),
       createGetContextTool(issuePort),
+      createCreateIssueTool(issueManagement),
     ],
   };
 }
@@ -89,6 +91,46 @@ function createGetContextTool(issuePort: IssuePort): MCPTool {
         // 返回完整上下文
         return { context: issue.context };
       }
+    },
+  };
+}
+
+function createCreateIssueTool(issueManagement: IssueManagementPort): MCPTool {
+  return {
+    name: "create_issue",
+    description: "创建新 Issue。可指定前序 Issue 建立继承关系。创建后新 Issue 的首个 Stage 自动启动。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspace_path: { type: "string", description: "工作区路径，通过环境变量 SNAIL_CTX_WORKSPACE_PATH 注入" },
+        title: { type: "string", description: "Issue 标题" },
+        sop_key: { type: "string", description: "采用的 SOP key（如 \"code-delivery\"、\"general-assistant\"）" },
+        summary: { type: "string", description: "Issue 摘要，用于承接前序 Issue 的上下文和洞察" },
+        source_issue_id: { type: "string", description: "前序 Issue ID，用于建立继承关系。传入后系统在新 Issue 的 context 中写入 source_issue_id 字段。通常传入当前 Issue 的 ID。" },
+      },
+      required: ["workspace_path", "title", "sop_key"],
+    },
+    handler: async (params) => {
+      const workspacePath = String(params.workspace_path);
+      const title = String(params.title);
+      const sopKey = String(params.sop_key);
+      const summary = params.summary ? String(params.summary) : undefined;
+      const sourceIssueId = params.source_issue_id ? String(params.source_issue_id) : undefined;
+
+      const result = await issueManagement.spawnIssue({
+        workspace_path: workspacePath,
+        title,
+        summary,
+        adopted_sop_key: sopKey,
+        source_issue_id: sourceIssueId,
+      });
+
+      return {
+        issue_id: result.issue.id,
+        issue_title: result.issue.title,
+        stage_id: result.stage.id,
+        stage_key: result.stage.key,
+      };
     },
   };
 }

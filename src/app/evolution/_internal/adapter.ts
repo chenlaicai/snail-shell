@@ -42,6 +42,19 @@ export class EvolutionAppAdapter implements EvolutionAppPort {
     });
   }
 
+  async closeItem(itemId: string, result?: string): Promise<EvolutionItem> {
+    const item = this.evolutionPort.findById(itemId);
+    if (!item) throw new Error(`Evolution item not found: ${itemId}`);
+    if (item.status !== EvolutionStatus.Candidate) {
+      throw new Error(`Cannot close item in status "${item.status}", must be "candidate"`);
+    }
+
+    return this.evolutionPort.update(itemId, {
+      status: EvolutionStatus.Completed,
+      result: result ?? "手动关闭",
+    });
+  }
+
   private createDefaultSnailAssignmentPlan(adoptedSopKey: string, title: string): IssueSnailAssignmentPlan {
     const snail = this.snailPort.list()[0];
     if (!snail) throw new Error("Cannot create evolution issue without configured snails");

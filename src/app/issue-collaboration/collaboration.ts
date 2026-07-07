@@ -1,13 +1,13 @@
 import type { Message, MessageContext, MessageEvent } from "@domain/message/model";
 import type { MessagePort } from "@domain/message/port";
 import type { IssuePort, StagePort, StageAuditRecord } from "@domain/issue/port";
-import type { CreateIssueInput, Issue, Stage } from "@domain/issue/model";
+import type { CreateIssueInput, Issue, Stage, IssueSnailAssignmentPlan } from "@domain/issue/model";
 import type { SnailPort } from "@domain/snail/port";
 import type { SnailFirstCallRequest, SnailResumeRequest } from "@domain/snail/model";
 import type { LiteAIPort } from "@domain/lite-ai/port";
 import type { AgentEvent, InvokeOptions } from "@infra/acs/model";
 import type { McpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-message-store";
-import type { StageTransitionPort, TransitionRequestResult, TransitionValidationReason } from "@domain/snail-mcp-server/port";
+import type { StageTransitionPort, TransitionRequestResult, TransitionValidationReason, IssueManagementPort } from "@domain/snail-mcp-server/port";
 import type { CollaborationConsumer, CollaborationInput, CreateIssueResult, EvaluationResult, SignalType, StageTransitionSuggestion, WorkspaceConsumer } from "@app/issue-collaboration/port";
 import type { StageSuggestionRepository, StageSuggestionRecord } from "@domain/issue/_internal/repository";
 import { AutoAdvanceEngine } from "@app/issue-collaboration/auto-advance";
@@ -37,7 +37,7 @@ interface CollaborationDeps {
 }
 type SpeakerTarget = { speaker: string; source: "mention" | "reply" | "default" };
 type DispatchState = { status: "idle" | "invoking"; pending: boolean };
-export class IssueCollaboration implements CollaborationInput, StageTransitionPort {
+export class IssueCollaboration implements CollaborationInput, StageTransitionPort, IssueManagementPort {
   private readonly issueConsumers = new Map<string, Set<CollaborationConsumer>>();
   private readonly workspaceConsumers = new Map<string, Set<WorkspaceConsumer>>();
   private readonly lastActivityStatus = new Map<string, "ai_running" | "needs_human" | "completed">();
@@ -80,6 +80,32 @@ export class IssueCollaboration implements CollaborationInput, StageTransitionPo
       this.autoInvokeFirstStage(stage, input);
       return { issue, stage };
     });
+  }
+  /** IssueManagementPort 实现：Agent 通过 create_issue MCP 工具调用 */
+  async spawnIssue(input: {
+    workspace_path: string; title: string; summary?: string;
+    adopted_sop_key: string; source_issue_id?: string;
+  }): Promise<{ issue: Issue; stage: Stage }> {
+    /** 验证 source_issue_id（若提供）：必须存在且属于同一 workspace */
+    if (input.source_issue_id) {
+      const source = this.deps.issuePort.findIssue(input.source_issue_id);
+      if (!source) throw new Error(`Source issue not found: ${input.source_issue_id}`);
+      if (source.workspace_path !== input.workspace_path) throw new Error("Source issue workspace mismatch");
+    }
+    /** 自动分配 snail：取第一个可用 snail 的 key（与前端 NewIssueDialog 逻辑一致） */
+    const snails = this.deps.snailPort.list();
+    if (snails.length === 0) throw new Error("No snail available in the den");
+    const snailKey = snails[0].key;
+    /** 通过 previewSopStages 获取所有 stage 和 role instances，构造 snail_assignment_plan */
+    const stages = this.deps.issuePort.previewSopStages(input.adopted_sop_key, input.title);
+    const plan: IssueSnailAssignmentPlan = {};
+    for (const stage of stages) {
+      plan[stage.key] = {};
+      for (const role of stage.role_instances) plan[stage.key][role.role_instance] = snailKey;
+    }
+    const context: Record<string, string> = input.source_issue_id ? { source_issue_id: input.source_issue_id } : {};
+    const { source_issue_id: _, ...rest } = input;
+    return this.createIssue({ ...rest, snail_assignment_plan: plan, context });
   }
   async interruptMessage(messageId: number): Promise<boolean> {
     const controller = this.activeInvocations.get(messageId);
