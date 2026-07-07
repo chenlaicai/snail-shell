@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../services/api-client";
 import { queryKeys } from "../queries/keys";
+import { navTrace, registerPendingMutationProvider } from "../lib/nav-trace";
 import type { CloseIssueResultDto, IssueDetailDto } from "@/types";
 
 export function useCreateIssue(workspaceId: string) {
@@ -14,11 +15,13 @@ export function useCreateIssue(workspaceId: string) {
 
 export function useCloseIssue(workspaceId: string) {
   const qc = useQueryClient();
-  return useMutation({
+  const closeMutation = useMutation({
     mutationFn: (issueId: string): Promise<CloseIssueResultDto> =>
       api("POST /api/issues/:issueId/close", { params: { issueId } }),
 
     onMutate: async (issueId) => {
+      navTrace("close_issue_on_mutate", { issueId });
+
       await qc.cancelQueries({ queryKey: queryKeys.issues.detail(issueId) });
       await qc.cancelQueries({ queryKey: queryKeys.workspaces.issues(workspaceId) });
 
@@ -47,6 +50,8 @@ export function useCloseIssue(workspaceId: string) {
     },
 
     onError: (_err, issueId, context) => {
+      navTrace("close_issue_on_error", { issueId, error: _err instanceof Error ? _err.message : String(_err) });
+
       if (context?.prevDetail) {
         qc.setQueryData(queryKeys.issues.detail(issueId), context.prevDetail);
       }
@@ -56,7 +61,13 @@ export function useCloseIssue(workspaceId: string) {
     },
 
     onSuccess: (data, issueId) => {
+      navTrace("close_issue_on_success", { issueId });
       qc.setQueryData(queryKeys.issues.detail(issueId), data.issue);
     },
   });
+
+  // 注册 pending mutation 提供器，供 nav-trace pagehide 快照使用
+  registerPendingMutationProvider(() => closeMutation.isPending);
+
+  return closeMutation;
 }

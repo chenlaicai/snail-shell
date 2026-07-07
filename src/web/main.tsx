@@ -6,6 +6,10 @@ import { RouterProvider } from "react-router-dom";
 import { queryClient } from "./queries/client";
 import { router } from "./router";
 import { Toast } from "./components/Toast";
+import { initNavTraceOnPageLoad } from "./lib/nav-trace";
+
+// 在 React 渲染前检测导航类型，确保 HTTP 全量刷新时能捕获 trace buffer
+initNavTraceOnPageLoad();
 
 export function App() {
   return (

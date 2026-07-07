@@ -5,9 +5,13 @@ import { queryKeys } from "../queries/keys";
 import { removePendingMessage } from "../lib/pending-messages";
 import { recordWsReconnect, recordWsDisconnect } from "../lib/perf-logger";
 import { getLogger } from "../lib/logger";
+import { navTrace, registerWsStatusProvider } from "../lib/nav-trace";
 import type { IssueRealtimeMessage, IssueDetailDto, MessageDto, WsServerMessage, CleanupResultDto } from "../types";
 
 const log = getLogger("WebSocket");
+
+// 模块级注册 wsStatus 提供器，供 nav-trace pagehide 快照使用
+registerWsStatusProvider(() => useConversationStore.getState().wsStatus);
 
 /** staleTime 与 client.ts 保持一致 */
 const STALE_TIME = 30_000;
@@ -349,6 +353,16 @@ export class EventBatcher {
       );
     }
 
+    navTrace("batcher_flush", {
+      pendingCounts: {
+        batches: this.batch.size,
+        stageTransitions: this.pendingStageTransitions.length,
+        stageChanges: this.pendingStageChanges.length,
+        activityStatus: this.pendingActivityStatus.size,
+        cleanupResults: this.pendingCleanupResults.size,
+      },
+    });
+
     this.batch.clear();
 
     // Stage transition 事件：invalidate 查询
@@ -379,7 +393,20 @@ export class EventBatcher {
 
   /** 组件卸载时调用，确保 pending 事件不丢失 */
   dispose(): void {
-    if (this.batch.size > 0 || this.pendingStageTransitions.length > 0 || this.pendingStageChanges.length > 0 || this.pendingActivityStatus.size > 0 || this.pendingCleanupResults.size > 0) {
+    const hadPending = this.batch.size > 0 || this.pendingStageTransitions.length > 0 || this.pendingStageChanges.length > 0 || this.pendingActivityStatus.size > 0 || this.pendingCleanupResults.size > 0;
+
+    navTrace("batcher_dispose", {
+      pendingCounts: {
+        batches: this.batch.size,
+        stageTransitions: this.pendingStageTransitions.length,
+        stageChanges: this.pendingStageChanges.length,
+        activityStatus: this.pendingActivityStatus.size,
+        cleanupResults: this.pendingCleanupResults.size,
+      },
+      scheduled: this.scheduled,
+    });
+
+    if (hadPending) {
       this.flush();
     }
   }
@@ -406,6 +433,16 @@ function createWsConnection(url: string, handlers: WsHandlers): WebSocket {
   return ws;
 }
 
+/** 创建 WS onMessage handler，包含 trace 记录和 batcher 转发 */
+function createOnMessageHandler(batcher: EventBatcher): (msg: WsServerMessage) => void {
+  return (msg) => {
+    if (msg.type !== "heartbeat") {
+      navTrace("ws_event", { eventType: msg.event.type, issueId: msg.issue_id });
+    }
+    batcher.add(msg);
+  };
+}
+
 export function useIssueRealtime(issueId: string | null, currentStageId: string | null) {
   const wsRef = useRef<WebSocket | null>(null);
   const timerRef = useRef<{ timer: ReturnType<typeof setTimeout> | null; delay: number; start: number; count: number }>({ timer: null, delay: 1000, start: 0, count: 0 });
@@ -414,13 +451,11 @@ export function useIssueRealtime(issueId: string | null, currentStageId: string 
   const setWsStatus = useConversationStore((state) => state.setWsStatus);
   const currentStageIdRef = useRef<string | null>(null);
   currentStageIdRef.current = currentStageId;
-
   useEffect(() => {
     if (!issueId) { setWsStatus("disconnected"); return; }
     let mounted = true;
     let activeWs: WebSocket | null = null;
     const t = timerRef.current;
-
     function connect() {
       if (!mounted) return;
       const proto = location.protocol === "https:" ? "wss:" : "ws:";
@@ -440,7 +475,7 @@ export function useIssueRealtime(issueId: string | null, currentStageId: string 
             t.count = 0; t.delay = 1000;
             setWsStatus("connected");
           },
-          onMessage: (msg) => batcherRef.current!.add(msg),
+          onMessage: createOnMessageHandler(batcherRef.current),
           onError: () => { if (mounted && activeWs === ws && wsRef.current === ws) setWsStatus("error"); },
           onClose: () => {
             if (!mounted || activeWs !== ws || wsRef.current !== ws) return;

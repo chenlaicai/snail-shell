@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { navTrace } from "@/lib/nav-trace";
 
 interface TopBarProps {
   breadcrumbs: Array<{ label: string; to?: string }>;
@@ -6,6 +7,11 @@ interface TopBarProps {
 
 export function TopBar({ breadcrumbs }: TopBarProps) {
   const navigate = useNavigate();
+
+  function handleNavigate(to: string) {
+    navTrace("navigate", { from: location.pathname, to });
+    navigate(to);
+  }
 
   return (
     <header className="h-14 flex items-center px-6 gap-4 border-b border-white/6 shrink-0">
@@ -16,7 +22,7 @@ export function TopBar({ breadcrumbs }: TopBarProps) {
               <svg className="w-3.5 h-3.5 text-text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m9 18 6-6-6-6"/></svg>
             )}
             {crumb.to ? (
-              <button onClick={() => navigate(crumb.to!)} className="text-text-secondary hover:text-text-primary transition-colors">
+              <button onClick={() => handleNavigate(crumb.to!)} className="text-text-secondary hover:text-text-primary transition-colors">
                 {crumb.label}
               </button>
             ) : (

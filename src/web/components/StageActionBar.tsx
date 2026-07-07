@@ -6,6 +6,7 @@ import { CloseIssueDialog } from "@/components/CloseIssueDialog";
 import { ForceAdvanceDialog } from "@/components/ForceAdvanceDialog";
 import { useCloseIssue } from "@/mutations/issue.mutations";
 import { queryKeys } from "@/queries/keys";
+import { navTrace } from "@/lib/nav-trace";
 import type { IssueDetailDto, StageDetailDto, StageTransition, CleanupResultDto } from "@/types";
 
 export function StageActionBar({
@@ -115,6 +116,7 @@ export function StageActionBar({
   }
 
   function confirmClose() {
+    navTrace("close_issue_start", { issueId: issue.id });
     setIsClosing(true);
     closeIssue.mutate(issue.id, {
       onSuccess: () => {

@@ -8,6 +8,7 @@ import { IssueCard } from "@/components/IssueCard";
 import { NewIssueDialog } from "@/components/NewIssueDialog";
 import { groupByActivityStatus, activityStatusColumns } from "@/lib/issue-utils";
 import { useWorkspaceRealtime } from "@/hooks/useWorkspaceRealtime";
+import { navTrace } from "@/lib/nav-trace";
 import type { IssueDetailDto } from "@/types";
 
 /** 根据 WebSocket 状态返回连接指示器样式和文案 */
@@ -73,7 +74,10 @@ export function IssueBoard() {
 
       <div className="flex items-center px-6 py-3 gap-3 border-b border-white/4 shrink-0">
         <div className="flex items-center bg-surface-2 rounded-md border border-white/6 p-0.5">
-          <button onClick={() => navigate(`/workspaces/${workspaceId}/list`)} className="px-2.5 py-1 rounded text-xs text-text-secondary hover:text-text-primary transition-colors flex items-center gap-1.5">
+          <button onClick={() => {
+            navTrace("navigate", { from: location.pathname, to: `/workspaces/${workspaceId}/list` });
+            navigate(`/workspaces/${workspaceId}/list`);
+          }} className="px-2.5 py-1 rounded text-xs text-text-secondary hover:text-text-primary transition-colors flex items-center gap-1.5">
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
             List
           </button>
