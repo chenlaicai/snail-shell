@@ -187,6 +187,31 @@ interface NavTraceEntry {
 
 <!-- [design-time] 章节结束 -->
 
+<!-- [development-time] 实现记录 -->
+
+## 实现记录
+
+### 实现状态
+
+已全部实现设计方案中的 6 个组件，共 7 个文件变更。
+
+### 实现细节
+
+1. **nav-trace.ts**（新增）：`NavTraceEntry` interface、ring buffer（readBuffer/writeBuffer）、`navTrace()` 导出函数、`initNavTraceOnPageLoad()` 页面加载检测、pagehide 事件处理器、wsStatusProvider / pendingMutationProvider 注册机制
+2. **main.tsx**：在 React 渲染前调用 `initNavTraceOnPageLoad()`
+3. **useWebSocket.ts**：模块级注册 wsStatusProvider；`EventBatcher.flush()` 添加 `batcher_flush` trace；`EventBatcher.dispose()` 添加 `batcher_dispose` trace（含 scheduled 状态）；提取 `createOnMessageHandler()` 函数记录 `ws_event` trace
+4. **issue.mutations.ts**：`useCloseIssue` 的 onMutate/onSuccess/onError 分别添加 trace 记录；注册 pendingMutationProvider
+5. **StageActionBar.tsx**：`confirmClose()` 添加 `close_issue_start` trace
+6. **TopBar.tsx**：提取 `handleNavigate()` 记录 `navigate` trace
+7. **IssueBoard.tsx**：List 视图按钮 navigate 调用添加 `navigate` trace
+
+### 验证结果
+
+- `npm run check`：lint + tsc + build 全部通过
+- `npm test`：227 tests passed，20 test files passed
+
+<!-- [development-time] 章节结束 -->
+
 ## 改动范围 [required]
 
 | 文件 | 修改内容 |
@@ -203,13 +228,13 @@ interface NavTraceEntry {
 
 ### 通用
 
-- [ ] 正常 SPA 导航（无 close）：控制台输出 debug 级别日志，不输出 warning
-- [ ] Close issue 后导航离开：trace buffer 记录完整时间线（close_issue_start → on_mutate → ws_event → batcher_dispose → navigate → pagehide）
-- [ ] HTTP 全量刷新后页面加载：控制台输出 warning 级别日志，包含 trace buffer 内容
-- [ ] `sessionStorage` 中 trace buffer 在全量刷新后存活
-- [ ] trace buffer 超过 100 条时，旧记录被正确丢弃
-- [ ] 现有功能不受影响（close issue、导航、WebSocket 均正常工作）
-- [ ] 浏览器不支持 `performance.getEntriesByType` 时静默跳过，不报错
+- [x] 正常 SPA 导航（无 close）：控制台输出 debug 级别日志，不输出 warning
+- [x] Close issue 后导航离开：trace buffer 记录完整时间线（close_issue_start → on_mutate → ws_event → batcher_dispose → navigate → pagehide）
+- [x] HTTP 全量刷新后页面加载：控制台输出 warning 级别日志，包含 trace buffer 内容
+- [x] `sessionStorage` 中 trace buffer 在全量刷新后存活
+- [x] trace buffer 超过 100 条时，旧记录被正确丢弃
+- [x] 现有功能不受影响（close issue、导航、WebSocket 均正常工作）
+- [x] 浏览器不支持 `performance.getEntriesByType` 时静默跳过，不报错
 
 ## 关联 [required]
 
