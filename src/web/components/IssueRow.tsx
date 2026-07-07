@@ -22,7 +22,7 @@ export function IssueRow({ issue }: { issue: IssueDetailDto }) {
         <StatusBadge status={issue.activity_status} />
       </div>
       <div className="w-40 shrink-0 text-[12px] text-text-muted truncate">{stage?.stage_definition?.title ?? "—"}</div>
-      <div className="w-20 shrink-0 text-right text-[11px] text-text-muted">{formatRelativeTime(issue.created_at)}</div>
+      <div className="w-20 shrink-0 text-right text-[11px] text-text-muted">{formatRelativeTime(issue.updated_at)}</div>
     </div>
   );
 }

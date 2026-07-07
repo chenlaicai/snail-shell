@@ -25,7 +25,7 @@ export function IssueCard({ issue }: { issue: IssueDetailDto }) {
       </div>
 
       <div className="flex items-center justify-between">
-        <span className="text-[11px] text-text-muted">{formatRelativeTime(issue.created_at)}</span>
+        <span className="text-[11px] text-text-muted">{formatRelativeTime(issue.updated_at)}</span>
       </div>
     </div>
   );

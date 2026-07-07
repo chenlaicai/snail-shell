@@ -19,6 +19,7 @@ function createMockMessagePort(overrides: Partial<MessagePort> = {}): MessagePor
     updateMessageTargets: vi.fn(),
     findLatestMessage: vi.fn().mockReturnValue({ id: 1, stage_id: "s1", from_speaker: "user", to_speakers: ["user"], status: "completed", created_at: "", ended_at: null }),
     findLatestMessageBySpeaker: vi.fn(),
+    findLatestMessageByIssueId: vi.fn(),
     findLatestRespondingSpeaker: vi.fn(),
     getUnreadMessages: vi.fn().mockReturnValue([]),
     listMessagesByStatus: vi.fn().mockReturnValue([]),
