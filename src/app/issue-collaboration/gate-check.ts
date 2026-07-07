@@ -45,3 +45,23 @@ export function inferSignalType(config: { accepted_signal_types: string[] } | un
   if (config.accepted_signal_types.includes("adversarial_consensus")) return "adversarial_consensus";
   return "gate_complete";
 }
+
+/** 检查 required_context_fields，返回缺失字段列表（空数组表示全部通过）。L1/L2 共享。 */
+export function getMissingContextFields(config: AutoAdvanceConfig | undefined, context: Record<string, string>): string[] {
+  if (!config || config.required_context_fields.length === 0) return [];
+  return config.required_context_fields.filter(field => !resolveContextValue(context, field));
+}
+
+/** 检查 blocking_rules，返回触发的阻断规则 code（null 表示通过）。L1/L2 共享。 */
+export function checkBlockingRules(config: AutoAdvanceConfig | undefined, context: Record<string, string>): string | null {
+  if (!config?.blocking_rules) return null;
+  for (const rule of config.blocking_rules) {
+    if (rule.type === "incompatible_tag") {
+      const prTitle = resolveContextValue(context, "pr_title") ?? "";
+      if (prTitle.includes("[Incompatible]")) {
+        return "INCOMPATIBLE_BLOCKED";
+      }
+    }
+  }
+  return null;
+}

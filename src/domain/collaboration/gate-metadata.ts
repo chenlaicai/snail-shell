@@ -1,6 +1,6 @@
 /** Gate 元数据：为错误反馈提供可操作的修复指引。
  *
- * 三层校验（auto-advance / signal-validation / snail-signal-validation）共享同一份定义，
+ * 三层校验（auto-advance / signal-validation）共享同一份定义，
  * 新增 gate 时只需修改此处。
  */
 export const GATE_METADATA: Record<string, { description: string; check: string; doc_ref: string }> = {
@@ -13,9 +13,9 @@ export const GATE_METADATA: Record<string, { description: string; check: string;
   "dev-03": { description: "Feature 文档已同步更新", check: "确认 Feature 文档的 development-time 章节已更新实现记录", doc_ref: "cd-development/SKILL.md" },
   "dev-04": { description: "PR 已创建且包含完整改动摘要", check: "确认 PR 已推送到远端且描述包含改动摘要", doc_ref: "cd-development/SKILL.md" },
   "dev-06": { description: "变更完整性已验证", check: "根据 change_type 执行对应验证命令（如 npm run check），确认输出无报错", doc_ref: "cd-development/SKILL.md" },
-  "rev-01": { description: "两位审查者均完成独立检视", check: "确认两位审查者的 adversarial_artifact 均已提交", doc_ref: "cd-review/SKILL.md" },
-  "rev-02": { description: "所有发现项已逐条处置", check: "确认 adversarial_findings 中每项 disposition 已填写且不为 'none'", doc_ref: "cd-review/SKILL.md" },
-  "rev-03": { description: "复检覆盖完整 PR diff", check: "确认 file_coverage.coverage_ratio = 1.0", doc_ref: "cd-review/SKILL.md" },
+  "rev-01": { description: "两位审查者均完成独立检视", check: "确认两位审查者都已调用 request_stage_transition 发出共识信号", doc_ref: "cd-review/SKILL.md" },
+  "rev-02": { description: "所有发现项已逐条处置", check: "确认所有 PR 评论中的问题已得到开发者回应", doc_ref: "cd-review/SKILL.md" },
+  "rev-03": { description: "复检覆盖完整 PR diff", check: "确认 PR diff 中的所有文件均已审查", doc_ref: "cd-review/SKILL.md" },
   "rev-04": { description: "特性编号格式正确", check: "确认 issue context 的 feature_number 字段为合法特性编号（F + 8位日期 + 4位随机码）", doc_ref: "cd-shared/references/feature-numbering.md" },
 };
 
@@ -24,7 +24,7 @@ export function buildGateFixGuidance(failedGates: string[]): Record<string, { de
   const guidance: Record<string, { description: string; check: string; doc_ref: string }> = {};
   for (const gate of failedGates) {
     const meta = GATE_METADATA[gate];
-    guidance[gate] = meta ?? { description: `Gate ${gate} 未通过`, check: `确认 gate_evidence["${gate}"] 为非空字符串`, doc_ref: "cd-shared/references/adversarial-artifact-protocol.md" };
+    guidance[gate] = meta ?? { description: `Gate ${gate} 未通过`, check: `确认系统检查条件满足`, doc_ref: "cd-shared/references/stage-gate.md" };
   }
   return guidance;
 }

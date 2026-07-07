@@ -1,9 +1,8 @@
 import type { Stage } from "@domain/issue/model";
 import type { Sop, AutoAdvanceConfig } from "@domain/sop/model";
 import type { StageTransitionSuggestion, EvaluationResult } from "@app/issue-collaboration/port";
-import { resolveContextValue } from "@app/issue-collaboration/resource-cleanup";
 import { buildGateFixGuidance } from "@domain/collaboration/gate-metadata";
-import { checkSystemGate, inferSignalType } from "@app/issue-collaboration/gate-check";
+import { checkSystemGate, inferSignalType, getMissingContextFields, checkBlockingRules } from "@app/issue-collaboration/gate-check";
 import { getLogger } from "@infra/logger";
 
 const log = getLogger({ module: "auto-advance" });
@@ -136,9 +135,8 @@ export class AutoAdvanceEngine {
   }
 
   private getMissingContextFields(stage: Stage, config: AutoAdvanceConfig): string[] {
-    if (config.required_context_fields.length === 0) return [];
     const issue = this.deps.mustGetIssue(stage.issue_id);
-    return config.required_context_fields.filter(field => !resolveContextValue(issue.context, field));
+    return getMissingContextFields(config, issue.context);
   }
 
   private async notifyMissingContext(stageId: string, missingFields: string[]): Promise<void> {
@@ -148,18 +146,10 @@ export class AutoAdvanceEngine {
 
   /** 配置驱动的阻断规则检查 */
   private checkBlockingRules(stage: Stage, config: AutoAdvanceConfig): string | null {
-    if (!config.blocking_rules) return null;
     const issue = this.deps.mustGetIssue(stage.issue_id);
-    for (const rule of config.blocking_rules) {
-      if (rule.type === "incompatible_tag") {
-        const prTitle = resolveContextValue(issue.context, "pr_title") ?? "";
-        if (prTitle.includes("[Incompatible]")) {
-          log.info({ stageId: stage.id }, "[Incompatible] tag blocks auto-advance");
-          return "INCOMPATIBLE_BLOCKED";
-        }
-      }
-    }
-    return null;
+    const rule = checkBlockingRules(config, issue.context);
+    if (rule) log.info({ stageId: stage.id }, "[Incompatible] tag blocks auto-advance");
+    return rule;
   }
 
   private async executeAutoAdvance(stage: Stage, suggestion: StageTransitionSuggestion): Promise<void> {
@@ -185,10 +175,4 @@ export class AutoAdvanceEngine {
     return failed;
   }
 
-  /** 保留 allGatesPassed 供外部调用（如测试） */
-  allGatesPassed(stage: Stage): boolean {
-    const config = this.getAutoAdvanceConfig(stage);
-    if (!config) return false;
-    return this.getFailedGates(stage, config).length === 0;
-  }
 }
