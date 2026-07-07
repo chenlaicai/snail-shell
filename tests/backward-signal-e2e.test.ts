@@ -7,7 +7,6 @@ import type { SnailPort } from "@domain/snail/port";
 import type { LiteAIPort } from "@domain/lite-ai/port";
 import type { Stage, Issue } from "@domain/issue/model";
 import type { StageSuggestionRepository } from "@domain/issue/_internal/repository";
-import type { MessageEvent } from "@domain/message/model";
 import { Scope } from "@domain/workspace/model";
 
 function createMockMessagePort(overrides: Partial<MessagePort> = {}): MessagePort {
@@ -27,7 +26,7 @@ function createMockMcpMessageStore(): McpMessageStore {
 }
 
 function createMockStageSuggestionRepo(): StageSuggestionRepository {
-  return { insert: vi.fn(), listPendingByStage: vi.fn().mockReturnValue([]), countIgnoredByStageAndTargetKey: vi.fn().mockReturnValue(0), markProcessed: vi.fn(), deleteByStage: vi.fn() };
+  return { insert: vi.fn(), listPendingByStage: vi.fn().mockReturnValue([]), listActiveByStage: vi.fn().mockReturnValue([]), countIgnoredByStageAndTargetKey: vi.fn().mockReturnValue(0), markSeen: vi.fn(), markProcessed: vi.fn(), deleteByStage: vi.fn() };
 }
 
 function createMockIssuePort(overrides: Partial<IssuePort> = {}): IssuePort {
@@ -77,9 +76,8 @@ function createOpenIssue(): Issue {
   };
 }
 
-describe("detectStageTransition → backward signal stores suggestion", () => {
+describe("requestTransition → backward signal stores suggestion", () => {
   it("stores backward signal suggestion with correct target_key and reason", async () => {
-    const events: MessageEvent[] = [];
     const reviewStage = createStage();
     const devStage = createDevStage();
     const stageSuggestionRepo = createMockStageSuggestionRepo();
@@ -92,8 +90,8 @@ describe("detectStageTransition → backward signal stores suggestion", () => {
         listStages: vi.fn().mockReturnValue([devStage, reviewStage]),
       }),
       messagePort: createMockMessagePort({
-        getMessageEvents: () => events,
-        findLatestMessage: () => ({ id: 100, stage_id: "review-stage", from_speaker: "reviewer-1", to_speakers: [], status: "completed" as const, created_at: "", ended_at: null }),
+        findLatestMessage: () => ({ id: 100, stage_id: "review-stage", from_speaker: "reviewer-1", to_speakers: [], status: "streaming" as const, created_at: "", ended_at: null }),
+        findLatestMessageBySpeaker: () => ({ id: 100, stage_id: "review-stage", from_speaker: "reviewer-1", to_speakers: [], status: "streaming" as const, created_at: "", ended_at: null }),
       }),
       snailPort: createMockSnailPort(),
       liteAIPort: createMockLiteAIPort(),
@@ -101,22 +99,18 @@ describe("detectStageTransition → backward signal stores suggestion", () => {
       stageSuggestionRepo,
     });
 
-    events.push({
-      id: 1, message_id: 100, seq: 1,
-      payload: { type: "signal", signal: "stage_transition", stage_transition: {
-        target_key: "development", signal_type: "gate_complete",
-        reason: "Critical bugs found in review", gate_evidence: { "rev-01": "found 3 issues" },
-      }},
-      created_at: "",
+    await collab.requestTransition({
+      stageId: "review-stage",
+      fromSpeaker: "reviewer-1",
+      targetKey: "development",
+      signalType: "gate_complete",
+      reason: "Critical bugs found in review",
     });
-
-    await collab["detectStageTransition"](reviewStage, "reviewer-1", 100);
 
     const suggestions = collab["suggestions"].get("review-stage");
     expect(suggestions).toHaveLength(1);
     expect(suggestions![0].target_key).toBe("development");
     expect(suggestions![0].reason).toBe("Critical bugs found in review");
-    expect(suggestions![0].gate_evidence).toEqual({ "rev-01": "found 3 issues" });
   });
 });
 
@@ -212,7 +206,6 @@ describe("autoInvokeBackwardStage preserves reason and evidence", () => {
       stage_id: "review-stage", message_id: 100, from_speaker: "reviewer-1", target_key: "development",
       reason: "Critical security vulnerability found in auth module", guard: null, artifacts: {},
       created_at: new Date().toISOString(), signal_type: "gate_complete",
-      gate_evidence: { "rev-01": "SQL injection in login endpoint", "rev-02": "XSS in user profile" },
     }]);
 
     await collab.advanceStage("review-stage", "development");
@@ -225,8 +218,6 @@ describe("autoInvokeBackwardStage preserves reason and evidence", () => {
     expect(contextCall).toBeDefined();
     const kickoffText = contextCall![2] as string;
     expect(kickoffText).toContain("Critical security vulnerability found in auth module");
-    expect(kickoffText).toContain("SQL injection in login endpoint");
-    expect(kickoffText).toContain("XSS in user profile");
     expect(kickoffText).not.toContain("未指定原因");
   });
 
@@ -310,7 +301,6 @@ describe("autoInvokeBackwardStage preserves reason and evidence", () => {
       stage_id: "review-stage", message_id: 100, from_speaker: "reviewer-1", target_key: "development",
       reason: "Critical security vulnerability found", guard: null, artifacts: {},
       created_at: new Date().toISOString(), signal_type: "gate_complete",
-      gate_evidence: { "rev-01": "SQL injection" },
     }]);
 
     await collab.advanceStage("review-stage", "development", "我已修复 SQL 注入，请继续开发");

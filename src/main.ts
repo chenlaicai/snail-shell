@@ -27,6 +27,7 @@ import { init as initIssueCollaboration } from "@app/issue-collaboration/initor"
 import { init as initIMHub } from "@app/im-hub/initor";
 import { createMcpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-message-store";
 import type { EvolutionPort } from "@domain/evolution/port";
+import type { StageTransitionPort } from "@domain/snail-mcp-server/port";
 import { createMcpHandler } from "@adapter/mcp-server/handler";
 import { createUnifiedWebSocketBridge } from "@adapter/http/unified-websocket";
 
@@ -67,6 +68,14 @@ async function initModules(repoRoot: string, serverSettings: ServerSettings) {
     },
   });
   const mcpMessageStore = createMcpMessageStore();
+  /** lazy proxy for StageTransitionPort — collaboration 在 MCP server 之后初始化 */
+  const collaborationRef: { current?: { requestTransition: StageTransitionPort["requestTransition"] } } = {};
+  const lazyStageTransition: StageTransitionPort = {
+    requestTransition: async (input) => {
+      if (!collaborationRef.current) throw new Error("Collaboration module is not initialized");
+      return collaborationRef.current.requestTransition(input);
+    },
+  };
   const snailMCPServer = initMCPServer({
     evolution: lazyEvolution,
     knowledge: knowledge.adapter,
@@ -75,12 +84,14 @@ async function initModules(repoRoot: string, serverSettings: ServerSettings) {
     stage: issue.stageAdapter,
     featureChain: featureChain.adapter,
     mcpMessageStore,
+    stageTransition: lazyStageTransition,
   });
   const mcp = initMCP({ dataStore, workspaces, snailMCPServer: snailMCPServer.adapter, serverSettings });
   const guardProfile = initGuardProfile(dataStore);
   const liteAI = initLiteAI(dataStore);
   const snail = initSnail(dataStore, db, { registry, tenetPrompt: tenetPrompt.adapter, skill: skill.adapter, mcp: mcp.adapter, guardProfile: guardProfile.adapter }, serverSettings.maxConcurrentAgents);
   const collaboration = initIssueCollaboration({ issuePort: issue.issueAdapter, createIssue: (input) => issue.issueAdapter.createIssue(input), stagePort: issue.stageAdapter, messagePort: message.adapter, snailPort: snail.adapter, liteAIPort: liteAI.adapter, mcpMessageStore, stageSuggestionRepo: issue.stageSuggestionRepo });
+  collaborationRef.current = collaboration.adapter;
   const evolution = initEvolution(db);
   const evolutionApp = initEvolutionApp({
     evolutionPort: evolution.adapter,

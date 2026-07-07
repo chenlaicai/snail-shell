@@ -54,7 +54,6 @@ stage_definitions:
       accepted_signal_types: [adversarial_consensus]
       blocking_rules:
         - type: incompatible_tag
-        - type: unresolved_findings
     roles:
       - key: developer
         name: 开发者

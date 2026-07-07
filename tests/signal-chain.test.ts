@@ -1,5 +1,4 @@
 import { describe, it, expect, vi } from "vitest";
-import { createFinalResponseServer } from "@domain/snail-mcp-server/_internal/servers/snail-final-response";
 import { IssueCollaboration } from "@app/issue-collaboration/collaboration";
 import type { MessagePort } from "@domain/message/port";
 import type { McpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-message-store";
@@ -9,6 +8,8 @@ import type { IssuePort, StagePort } from "@domain/issue/port";
 import type { SnailPort } from "@domain/snail/port";
 import type { LiteAIPort } from "@domain/lite-ai/port";
 import type { Stage } from "@domain/issue/model";
+import { createStageTransitionServer } from "@domain/snail-mcp-server/_internal/servers/snail-stage-transition";
+import type { StageTransitionPort } from "@domain/snail-mcp-server/port";
 
 function createMockMessagePort(overrides: Partial<MessagePort> = {}): MessagePort {
   return {
@@ -47,7 +48,9 @@ function createMockStageSuggestionRepo(): StageSuggestionRepository {
   return {
     insert: vi.fn(),
     listPendingByStage: vi.fn().mockReturnValue([]),
+    listActiveByStage: vi.fn().mockReturnValue([]),
     countIgnoredByStageAndTargetKey: vi.fn().mockReturnValue(0),
+    markSeen: vi.fn(),
     markProcessed: vi.fn(),
     deleteByStage: vi.fn(),
   };
@@ -125,292 +128,33 @@ function createStage(overrides: Partial<Stage> = {}): Stage {
   };
 }
 
-describe("Signal chain: set_final_body → detectStageTransition → autoAdvanceEngine.evaluate", () => {
-  it("should extract stage_transition from set_final_body and trigger auto-advance", async () => {
-    // Arrange
+describe("request_stage_transition MCP tool", () => {
+  it("should register signal when validation passes", async () => {
     const messages = new Map<number, Message>();
-    const message: Message = {
-      id: 100,
-      stage_id: "s1",
-      from_speaker: "reviewer-1",
-      to_speakers: [],
-      status: "streaming",
-      created_at: "",
-      ended_at: null,
-    };
-    messages.set(100, message);
+    messages.set(100, { id: 100, stage_id: "s1", from_speaker: "reviewer-1", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
 
-    const events: MessageEvent[] = [];
     const messagePort = createMockMessagePort({
-      getMessage: (id) => messages.get(id),
       findLatestMessageBySpeaker: () => messages.get(100),
-      appendEvent: (_messageId, payload) => {
-        const event: MessageEvent = {
-          id: events.length + 1,
-          message_id: 100,
-          seq: events.length + 1,
-          payload,
-          created_at: "",
-        };
-        events.push(event);
-        return event;
-      },
-      getMessageEvents: () => events,
     });
 
-    const stagePort = createMockStagePort();
-
-    const autoAdvanceSpy = vi.fn().mockResolvedValue(undefined);
-
-    const collaboration = new IssueCollaboration({
-      issuePort: createMockIssuePort(),
-      createIssue: vi.fn(),
-      stagePort,
-      messagePort,
-      snailPort: createMockSnailPort(),
-      liteAIPort: createMockLiteAIPort(),
-      mcpMessageStore: createMockMcpMessageStore(),
-      stageSuggestionRepo: createMockStageSuggestionRepo(),
-    });
-
-    // Mock the autoAdvanceEngine.evaluate method
-    const originalEvaluate = collaboration["autoAdvanceEngine"].evaluate.bind(collaboration["autoAdvanceEngine"]);
-    collaboration["autoAdvanceEngine"].evaluate = vi.fn().mockImplementation(async (stage, suggestions) => {
-      autoAdvanceSpy(stage, suggestions);
-      return originalEvaluate(stage, suggestions);
-    });
-
-    // Act
-    const server = createFinalResponseServer(messagePort, createMockMcpMessageStore(), createMockStagePort());
-    const handler = server.tools[0].handler;
-
-    const signalJson = JSON.stringify({
-      stage_transition: {
-        target_key: "merge",
-        consensus: true,
-        reason: "Review complete",
-        gate_evidence: { "rev-01": "done", "rev-02": "verified" },
-      },
-    });
-
-    await handler({ text: signalJson, message_id: "100", stage_id: "s1", from_speaker: "reviewer-1" });
-
-    // Assert
-    // 1. Verify signal event was appended
-    expect(events).toHaveLength(1);
-    expect(events[0].payload).toMatchObject({
-      type: "signal",
-      signal: "stage_transition",
-      stage_transition: {
-        target_key: "merge",
-        consensus: true,
-        reason: "Review complete",
-        gate_evidence: { "rev-01": "done", "rev-02": "verified" },
-      },
-    });
-
-    // 2. Verify the signal can be extracted by detectStageTransition
-    // Note: detectStageTransition is private, so we test indirectly through the public API
-    // The signal event should be extractable by extractStageTransitionSuggestion
-    const suggestion = collaboration["signalParser"].extract(createStage(), "reviewer-1", 100);
-    expect(suggestion).toMatchObject({
-      stage_id: "s1",
-      message_id: 100,
-      from_speaker: "reviewer-1",
-      target_key: "merge",
-      reason: "Review complete",
-      consensus: true,
-      gate_evidence: { "rev-01": "done", "rev-02": "verified" },
-    });
-  });
-
-  it("should handle Markdown-embedded stage_transition JSON", async () => {
-    // Arrange
-    const messages = new Map<number, Message>();
-    const message: Message = {
-      id: 200,
-      stage_id: "s1",
-      from_speaker: "reviewer-1",
-      to_speakers: [],
-      status: "streaming",
-      created_at: "",
-      ended_at: null,
-    };
-    messages.set(200, message);
-
-    const events: MessageEvent[] = [];
-
-    const messagePort = createMockMessagePort({
-      getMessage: (id) => messages.get(id),
-      findLatestMessageBySpeaker: () => messages.get(200),
-      appendEvent: (_messageId, payload) => {
-        const event: MessageEvent = {
-          id: events.length + 1,
-          message_id: 200,
-          seq: events.length + 1,
-          payload,
-          created_at: "",
-        };
-        events.push(event);
-        return event;
-      },
-      getMessageEvents: () => events,
-    });
-
-    const collaboration = new IssueCollaboration({
-      issuePort: createMockIssuePort(),
-      createIssue: vi.fn(),
-      stagePort: createMockStagePort(),
-      messagePort,
-      snailPort: createMockSnailPort(),
-      liteAIPort: createMockLiteAIPort(),
-      mcpMessageStore: createMockMcpMessageStore(),
-      stageSuggestionRepo: createMockStageSuggestionRepo(),
-    });
-
-    // Act
-    const server = createFinalResponseServer(messagePort, createMockMcpMessageStore(), createMockStagePort());
-    const handler = server.tools[0].handler;
-
-    const markdownText = `## Review Summary
-
-All checks passed.
-
-\`\`\`json
-{
-  "stage_transition": {
-    "target_key": "merge",
-    "consensus": true,
-    "reason": "All gates passed",
-    "gate_evidence": { "rev-01": "approved", "rev-02": "verified" }
-  }
-}
-\`\`\``;
-
-    await handler({ text: markdownText, message_id: "200", stage_id: "s1", from_speaker: "reviewer-1" });
-
-    // Assert
-    // 1. Verify signal event was appended
-    expect(events).toHaveLength(1);
-    expect(events[0].payload).toMatchObject({
-      type: "signal",
-      signal: "stage_transition",
-      stage_transition: {
-        target_key: "merge",
-        consensus: true,
-        reason: "All gates passed",
-        gate_evidence: { "rev-01": "approved", "rev-02": "verified" },
-      },
-    });
-
-    // 2. Verify the signal can be extracted
-    const suggestion = collaboration["signalParser"].extract(createStage(), "reviewer-1", 200);
-    expect(suggestion).toMatchObject({
-      stage_id: "s1",
-      message_id: 200,
-      from_speaker: "reviewer-1",
-      target_key: "merge",
-      reason: "All gates passed",
-      consensus: true,
-      gate_evidence: { "rev-01": "approved", "rev-02": "verified" },
-    });
-  });
-
-  it("should not trigger auto-advance when no stage_transition in text", async () => {
-    // Arrange
-    const messages = new Map<number, Message>();
-    const message: Message = {
-      id: 300,
-      stage_id: "s1",
-      from_speaker: "reviewer-1",
-      to_speakers: [],
-      status: "streaming",
-      created_at: "",
-      ended_at: null,
-    };
-    messages.set(300, message);
-
-    const events: MessageEvent[] = [];
-
-    const messagePort = createMockMessagePort({
-      getMessage: (id) => messages.get(id),
-      findLatestMessageBySpeaker: () => messages.get(300),
-      appendEvent: (_messageId, payload) => {
-        const event: MessageEvent = {
-          id: events.length + 1,
-          message_id: 300,
-          seq: events.length + 1,
-          payload,
-          created_at: "",
-        };
-        events.push(event);
-        return event;
-      },
-      getMessageEvents: () => events,
-    });
-
-    const collaboration = new IssueCollaboration({
-      issuePort: createMockIssuePort(),
-      createIssue: vi.fn(),
-      stagePort: createMockStagePort(),
-      messagePort,
-      snailPort: createMockSnailPort(),
-      liteAIPort: createMockLiteAIPort(),
-      mcpMessageStore: createMockMcpMessageStore(),
-      stageSuggestionRepo: createMockStageSuggestionRepo(),
-    });
-
-    // Act
-    const server = createFinalResponseServer(messagePort, createMockMcpMessageStore(), createMockStagePort());
-    const handler = server.tools[0].handler;
-
-    await handler({ text: "Just a regular message without signal", message_id: "300", stage_id: "s1", from_speaker: "reviewer-1" });
-
-    // Assert
-    // 1. Verify no signal event was appended
-    expect(events).toHaveLength(0);
-
-    // 2. Verify no suggestion can be extracted
-    const suggestion = collaboration["signalParser"].extract(createStage(), "reviewer-1", 300);
-    expect(suggestion).toBeNull();
-  });
-});
-
-describe("L1: Signal interception for unresolved adversarial findings", () => {
-  function createL1Collaboration(events: MessageEvent[]) {
-    const messages = new Map<number, Message>();
-    const messagePort = createMockMessagePort({
-      getMessage: (id) => messages.get(id),
-      findLatestMessageBySpeaker: () => messages.get(100),
-      appendEvent: (_messageId, payload) => {
-        const event: MessageEvent = {
-          id: events.length + 1,
-          message_id: 100,
-          seq: events.length + 1,
-          payload,
-          created_at: "",
-        };
-        events.push(event);
-        return event;
-      },
-      getMessageEvents: () => events,
-    });
     const stageSuggestionRepo = createMockStageSuggestionRepo();
     const stagePort = createMockStagePort();
     (stagePort.findStage as ReturnType<typeof vi.fn>).mockReturnValue(createStage());
+
     const issuePort = createMockIssuePort();
     (issuePort.findIssue as ReturnType<typeof vi.fn>).mockReturnValue({
       id: "issue-1", workspace_path: "/workspace", title: "Test", summary: null,
-      context: { pr_url: "https://github.com/pr/1" },
+      context: { pr_url: "https://github.com/pr/1", feature_number: "F20260701tj92" },
       sop_snapshot: { stage_definitions: [
         { key: "review", title: "Review", description: "", roles: [], auto_advance: {
           required_context_fields: ["pr_url"],
-          gate_ids: ["rev-01", "rev-02", "rev-03", "rev-04"],
+          gate_ids: ["rev-04"],
           accepted_signal_types: ["adversarial_consensus"],
-          blocking_rules: [{ type: "unresolved_findings" }],
+          blocking_rules: [],
         }},
       ]},
     });
+
     const collaboration = new IssueCollaboration({
       issuePort,
       createIssue: vi.fn(),
@@ -421,134 +165,159 @@ describe("L1: Signal interception for unresolved adversarial findings", () => {
       mcpMessageStore: createMockMcpMessageStore(),
       stageSuggestionRepo,
     });
-    messages.set(100, {
-      id: 100, stage_id: "s1", from_speaker: "reviewer-1", to_speakers: [],
-      status: "streaming", created_at: "", ended_at: null,
-    });
-    return { collaboration, stageSuggestionRepo, messagePort };
-  }
 
-  it("blocks adversarial_consensus signal with unresolved findings (disposition=none)", async () => {
-    const events: MessageEvent[] = [];
-    const { collaboration, stageSuggestionRepo } = createL1Collaboration(events);
+    const server = createStageTransitionServer(collaboration as unknown as StageTransitionPort);
+    const handler = server.tools[0].handler;
 
-    const artifact = {
-      independent_verification: [{ command: "tsc", actual_output: "compiled with zero errors", executed_at: new Date().toISOString() }],
-      adversarial_findings: [{ dimension: "completeness", finding: "found bug", disposition: "none" }],
-      audit_trail: { events: [{ timestamp: new Date().toISOString(), event_type: "review_started" as const, detail: "started" }] },
-    };
-
-    // Simulate the signal event being appended
-    events.push({
-      id: 1, message_id: 100, seq: 1,
-      payload: { type: "signal", signal: "stage_transition", stage_transition: {
-        target_key: "merge", consensus: true, signal_type: "adversarial_consensus",
-        reason: "Review complete", adversarial_artifact: artifact,
-      }},
-      created_at: "",
+    const result = await handler({
+      stage_id: "s1",
+      target_key: "merge",
+      reason: "Review complete",
+      from_speaker: "reviewer-1",
     });
 
-    const stage = createStage();
-    await collaboration["detectStageTransition"](stage, "reviewer-1", 100);
+    expect(result).toEqual({ valid: true, registered: true });
+    expect(stageSuggestionRepo.insert).toHaveBeenCalled();
+  });
 
-    // L1: suggestion should NOT be persisted
+  it("should return valid=false when context field is missing", async () => {
+    const messages = new Map<number, Message>();
+    messages.set(100, { id: 100, stage_id: "s1", from_speaker: "reviewer-1", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
+
+    const messagePort = createMockMessagePort({
+      findLatestMessageBySpeaker: () => messages.get(100),
+    });
+
+    const stageSuggestionRepo = createMockStageSuggestionRepo();
+    const stagePort = createMockStagePort();
+    (stagePort.findStage as ReturnType<typeof vi.fn>).mockReturnValue(createStage());
+
+    const issuePort = createMockIssuePort();
+    (issuePort.findIssue as ReturnType<typeof vi.fn>).mockReturnValue({
+      id: "issue-1", workspace_path: "/workspace", title: "Test", summary: null,
+      context: {},
+      sop_snapshot: { stage_definitions: [
+        { key: "review", title: "Review", description: "", roles: [], auto_advance: {
+          required_context_fields: ["pr_url"],
+          gate_ids: ["rev-04"],
+          accepted_signal_types: ["adversarial_consensus"],
+          blocking_rules: [],
+        }},
+      ]},
+    });
+
+    const collaboration = new IssueCollaboration({
+      issuePort,
+      createIssue: vi.fn(),
+      stagePort,
+      messagePort,
+      snailPort: createMockSnailPort(),
+      liteAIPort: createMockLiteAIPort(),
+      mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo,
+    });
+
+    const server = createStageTransitionServer(collaboration as unknown as StageTransitionPort);
+    const handler = server.tools[0].handler;
+
+    const result = await handler({
+      stage_id: "s1",
+      target_key: "merge",
+      reason: "Review complete",
+      from_speaker: "reviewer-1",
+    }) as { valid: false; reasons: { code: string }[] };
+
+    expect(result.valid).toBe(false);
+    expect(result.reasons[0].code).toBe("CONTEXT_MISSING");
     expect(stageSuggestionRepo.insert).not.toHaveBeenCalled();
   });
 
-  it("blocks adversarial_consensus signal with empty string disposition", async () => {
-    const events: MessageEvent[] = [];
-    const { collaboration, stageSuggestionRepo } = createL1Collaboration(events);
+  it("should return valid=false when rev-04 feature_number is missing", async () => {
+    const messages = new Map<number, Message>();
+    messages.set(100, { id: 100, stage_id: "s1", from_speaker: "reviewer-1", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
 
-    const artifact = {
-      independent_verification: [{ command: "tsc", actual_output: "compiled with zero errors", executed_at: new Date().toISOString() }],
-      adversarial_findings: [{ dimension: "completeness", finding: "found bug", disposition: "" }],
-      audit_trail: { events: [{ timestamp: new Date().toISOString(), event_type: "review_started" as const, detail: "started" }] },
-    };
-
-    events.push({
-      id: 1, message_id: 100, seq: 1,
-      payload: { type: "signal", signal: "stage_transition", stage_transition: {
-        target_key: "merge", consensus: true, signal_type: "adversarial_consensus",
-        reason: "Review complete", adversarial_artifact: artifact,
-      }},
-      created_at: "",
+    const messagePort = createMockMessagePort({
+      findLatestMessageBySpeaker: () => messages.get(100),
     });
 
-    const stage = createStage();
-    await collaboration["detectStageTransition"](stage, "reviewer-1", 100);
+    const stageSuggestionRepo = createMockStageSuggestionRepo();
+    const stagePort = createMockStagePort();
+    (stagePort.findStage as ReturnType<typeof vi.fn>).mockReturnValue(createStage());
 
+    const issuePort = createMockIssuePort();
+    (issuePort.findIssue as ReturnType<typeof vi.fn>).mockReturnValue({
+      id: "issue-1", workspace_path: "/workspace", title: "Test", summary: null,
+      context: { pr_url: "https://github.com/pr/1" },
+      sop_snapshot: { stage_definitions: [
+        { key: "review", title: "Review", description: "", roles: [], auto_advance: {
+          required_context_fields: ["pr_url"],
+          gate_ids: ["rev-04"],
+          accepted_signal_types: ["adversarial_consensus"],
+          blocking_rules: [],
+        }},
+      ]},
+    });
+
+    const collaboration = new IssueCollaboration({
+      issuePort,
+      createIssue: vi.fn(),
+      stagePort,
+      messagePort,
+      snailPort: createMockSnailPort(),
+      liteAIPort: createMockLiteAIPort(),
+      mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo,
+    });
+
+    const server = createStageTransitionServer(collaboration as unknown as StageTransitionPort);
+    const handler = server.tools[0].handler;
+
+    const result = await handler({
+      stage_id: "s1",
+      target_key: "merge",
+      reason: "Review complete",
+      from_speaker: "reviewer-1",
+    }) as { valid: false; reasons: { code: string }[] };
+
+    expect(result.valid).toBe(false);
+    expect(result.reasons[0].code).toBe("GATE_FAILED");
     expect(stageSuggestionRepo.insert).not.toHaveBeenCalled();
   });
+});
 
-  it("allows adversarial_consensus signal when all findings are resolved", async () => {
+describe("B5: set_final_body without request_stage_transition (no signal)", () => {
+  it("should not trigger auto-advance when agent only calls set_final_body", async () => {
+    const messages = new Map<number, Message>();
+    messages.set(300, { id: 300, stage_id: "s1", from_speaker: "reviewer-1", to_speakers: [], status: "streaming", created_at: "", ended_at: null });
+
     const events: MessageEvent[] = [];
-    const { collaboration, stageSuggestionRepo } = createL1Collaboration(events);
-
-    const artifact = {
-      independent_verification: [{ command: "tsc", actual_output: "compiled with zero errors", executed_at: new Date().toISOString() }],
-      adversarial_findings: [{ dimension: "completeness", finding: "found bug", disposition: "fixed" }],
-      audit_trail: { events: [{ timestamp: new Date().toISOString(), event_type: "review_started" as const, detail: "started" }] },
-    };
-
-    events.push({
-      id: 1, message_id: 100, seq: 1,
-      payload: { type: "signal", signal: "stage_transition", stage_transition: {
-        target_key: "merge", consensus: true, signal_type: "adversarial_consensus",
-        reason: "Review complete", adversarial_artifact: artifact,
-      }},
-      created_at: "",
+    const messagePort = createMockMessagePort({
+      getMessage: (id) => messages.get(id),
+      findLatestMessageBySpeaker: () => messages.get(300),
+      appendEvent: (_messageId, payload) => {
+        const event: MessageEvent = { id: events.length + 1, message_id: 300, seq: events.length + 1, payload, created_at: "" };
+        events.push(event);
+        return event;
+      },
+      getMessageEvents: () => events,
     });
 
-    const stage = createStage();
-    await collaboration["detectStageTransition"](stage, "reviewer-1", 100);
-
-    // Should be persisted (L1 passes, engine evaluation happens next)
-    expect(stageSuggestionRepo.insert).toHaveBeenCalled();
-  });
-
-  it("allows adversarial_consensus signal when findings are 'no issues' with disposition=none", async () => {
-    const events: MessageEvent[] = [];
-    const { collaboration, stageSuggestionRepo } = createL1Collaboration(events);
-
-    const artifact = {
-      independent_verification: [{ command: "tsc", actual_output: "compiled with zero errors", executed_at: new Date().toISOString() }],
-      adversarial_findings: [{ dimension: "completeness", finding: "no issues", disposition: "none" }],
-      audit_trail: { events: [{ timestamp: new Date().toISOString(), event_type: "review_started" as const, detail: "started" }] },
-    };
-
-    events.push({
-      id: 1, message_id: 100, seq: 1,
-      payload: { type: "signal", signal: "stage_transition", stage_transition: {
-        target_key: "merge", consensus: true, signal_type: "adversarial_consensus",
-        reason: "Review complete", adversarial_artifact: artifact,
-      }},
-      created_at: "",
+    const stageSuggestionRepo = createMockStageSuggestionRepo();
+    const collaboration = new IssueCollaboration({
+      issuePort: createMockIssuePort(),
+      createIssue: vi.fn(),
+      stagePort: createMockStagePort(),
+      messagePort,
+      snailPort: createMockSnailPort(),
+      liteAIPort: createMockLiteAIPort(),
+      mcpMessageStore: createMockMcpMessageStore(),
+      stageSuggestionRepo,
     });
 
-    const stage = createStage();
-    await collaboration["detectStageTransition"](stage, "reviewer-1", 100);
-
-    // "no issues" findings are exempt from L1
-    expect(stageSuggestionRepo.insert).toHaveBeenCalled();
-  });
-
-  it("does not apply L1 to gate_complete signals", async () => {
-    const events: MessageEvent[] = [];
-    const { collaboration, stageSuggestionRepo } = createL1Collaboration(events);
-
-    events.push({
-      id: 1, message_id: 100, seq: 1,
-      payload: { type: "signal", signal: "stage_transition", stage_transition: {
-        target_key: "review", signal_type: "gate_complete",
-        reason: "All gates passed", gate_evidence: { "dev-01": "done" },
-      }},
-      created_at: "",
-    });
-
-    const stage = createStage({ key: "development", available_transitions: [{ to: "review", guard: null }] });
-    await collaboration["detectStageTransition"](stage, "dev", 100);
-
-    // gate_complete signals should NOT be blocked by L1
-    expect(stageSuggestionRepo.insert).toHaveBeenCalled();
+    // Agent only calls set_final_body without request_stage_transition
+    // No signal should be registered
+    expect(stageSuggestionRepo.insert).not.toHaveBeenCalled();
+    // No suggestions in memory
+    expect(collaboration.listStageTransitionSuggestions("s1")).toHaveLength(0);
   });
 });

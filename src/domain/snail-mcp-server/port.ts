@@ -14,3 +14,27 @@ export interface SnailMCPServerPort {
   /** 处理 JSON-RPC 请求 */
   handleRequest(serverName: string, request: JsonRpcRequest): Promise<JsonRpcResponse>;
 }
+
+/** 阶段推进校验原因 */
+export interface TransitionValidationReason {
+  code: string;
+  severity: "info" | "warning" | "error";
+  message: string;
+  details?: Record<string, unknown>;
+}
+
+/** 阶段推进请求结果 */
+export type TransitionRequestResult =
+  | { valid: true; registered: true }
+  | { valid: false; reasons: TransitionValidationReason[] };
+
+/** 阶段推进端口：MCP 工具通过此端口请求阶段推进 */
+export interface StageTransitionPort {
+  requestTransition(input: {
+    stageId: string;
+    fromSpeaker: string;
+    targetKey: string;
+    signalType?: string;
+    reason: string;
+  }): Promise<TransitionRequestResult>;
+}

@@ -12,80 +12,6 @@ export interface CreateIssueResult {
 /** 信号类型：显式声明信号语义，引擎按类型路由 */
 export type SignalType = "gate_complete" | "adversarial_consensus" | "disagreement";
 
-/** 决策模式：autonomous（自主决策）、suggestive（建议层）、requires_human（必须人类决策） */
-export type DecisionMode = "autonomous" | "suggestive" | "requires_human";
-
-export interface Position {
-  speaker: string;
-  stance: "for" | "against" | "neutral";
-  argument: string;
-  evidence?: string;
-}
-
-export interface AdversarialArtifact {
-  independent_verification: {
-    command: string;
-    actual_output: string;
-    executed_at: string;
-  }[];
-  adversarial_findings: {
-    dimension: string;
-    finding: string;
-    disposition: string;
-  }[];
-  audit_trail: {
-    events: {
-      timestamp: string;
-      event_type: 'review_started' | 'cross_review_read' | 'disagreement_found' | 'consensus_reached';
-      detail: string;
-    }[];
-  };
-}
-
-export interface DesignAdversarialArtifact extends AdversarialArtifact {
-  critique_obligation: {
-    items: { type: 'risk' | 'gap' | 'alternative'; content: string }[];
-  };
-  independent_analysis: {
-    my_conclusion: string;
-    comparison_with_peer: string;
-    points_of_agreement: string[];
-    points_of_disagreement: string[];
-  };
-  scenario_coverage: {
-    scenarios_reviewed: number;
-    scenarios_identified: number;
-    coverage_ratio: number;
-    constructed_scenarios: {
-      scenario: string;
-      question: string;
-    }[];
-  };
-}
-
-export interface ReviewAdversarialArtifact extends AdversarialArtifact {
-  file_dispositions: {
-    path: string;
-    status: 'reviewed' | 'not_applicable';
-    issues_found: number;
-  }[];
-  cross_review: {
-    peer_conclusion_summary: string;
-    my_independent_check: string;
-    alignment_or_conflict: string;
-  };
-  ci_independence: {
-    source: 'github_api' | 'checks_page';
-    status: string;
-    confirmed_at: string;
-  };
-  file_coverage: {
-    files_reviewed: number;
-    files_in_diff: number;
-    coverage_ratio: number;
-  };
-}
-
 export interface StageTransitionSuggestion {
   stage_id: string;
   message_id: number;
@@ -95,19 +21,9 @@ export interface StageTransitionSuggestion {
   guard: string | null;
   artifacts: Record<string, string>;
   created_at: string;
-  /** 显式信号类型。缺失时引擎按字段推断（向后兼容） */
+  /** 显式信号类型。缺失时引擎按 stage config 的 accepted_signal_types 推断 */
   signal_type?: SignalType;
-  /** 决策模式。缺失时默认 autonomous（向后兼容） */
-  decision_mode?: DecisionMode;
-  consensus?: boolean;
-  positions?: Position[];
   review_round?: number;
-  gate_evidence?: Record<string, unknown>;
-  adversarial_artifact?: AdversarialArtifact;
-  /** suggest 模式必填字段 */
-  recommendation?: string;
-  /** suggest 模式必填字段 */
-  alternatives?: string[];
   /** 建议被忽略的次数（用于 B5：重复建议提示） */
   dismiss_count?: number;
 }
@@ -140,6 +56,8 @@ export interface CollaborationInput {
   unregisterWorkspaceConsumer(workspaceId: string, consumer: WorkspaceConsumer): void;
   listStageTransitionSuggestions(stageId: string): StageTransitionSuggestion[];
   dismissSuggestion(stageId: string, targetKey: string, createdAt: string): boolean;
+  /** 将 suggestion 标记为 seen（已阅），从内存移除但 DB 保留 */
+  acknowledgeSuggestion(stageId: string, targetKey: string, createdAt: string): boolean;
   advanceStage(stageId: string, targetKey: string, userHint?: string): Promise<Stage>;
   /** 用户强制推进：跳过引擎评估，直接执行推进并记录审计日志 */
   forceAdvance(stageId: string, targetKey: string, userHint?: string): Promise<{ stage: Stage; evaluation: EvaluationResult }>;

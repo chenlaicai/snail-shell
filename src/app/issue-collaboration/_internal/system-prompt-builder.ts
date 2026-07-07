@@ -89,10 +89,11 @@ ${skillList}
 ${transitions || "无"}
 ## 协作规则
 - 你可以通过 @角色实例 请求其他角色回应
-- 你是当前阶段的守门人，不是推进者。建议 stage_transition 前，必须先完成所在 SKILL.md 中的 Stage Gate 自检并呈现完整证据。
-- 通过信号表达阶段工作结果：signal_type: gate_complete（单人完成）、adversarial_consensus（多人共识）、disagreement（分歧）
+- 完成 Stage Gate 自检后，应主动调用 \`request_stage_transition\` 请求推进。自检证据写在 reason 参数中供用户和对方审视。
+- 如果对推进方向有分歧，调用 \`request_stage_transition\` 时设置 signal_type 为 disagreement。
 ## 最终答复规则
-**必须使用 \`set_final_body\` MCP 设置最终答复**。每次发言结束前必须调用此工具，传入你希望展示给用户的完整 Markdown 内容。调用后本轮发言结束，不得再调用任何其他工具。
+**必须使用 \`set_final_body\` MCP 设置最终答复**。每次发言结束前必须调用此工具，传入你希望展示给用户的完整 Markdown 内容。
+**发言结束流程**：(1) 如需推进阶段，先调用 \`request_stage_transition\`；(2) 调用 \`get_current_message_id\` 获取 message_id；(3) 调用 \`set_final_body\` 提交展示文本和路由目标，结束发言。
 **路由目标声明**：设计阶段，您的输出是草稿方案，必须路由给对方架构师进行对抗审视，审视达成共识后再向用户呈现最终方案；其他阶段，如果需要其他角色继续处理，在 \`set_final_body\` 的 \`to_speakers\` 参数中声明目标角色。
 **可用路由目标**：${["user", ...stage.role_instances.filter(i => i !== roleInstance)].map(t => `\`${t}\``).join("、")}
 **格式要求**：必须使用上述精确名称。不要使用 snail key、role key 或英文翻译。

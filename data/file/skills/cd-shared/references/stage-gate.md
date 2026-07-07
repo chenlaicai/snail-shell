@@ -11,7 +11,7 @@
 
 ## 信号投递方式
 
-Agent 通过 `set_final_body` MCP 工具提交最终答复时，如果 text 中包含 `stage_transition` JSON，系统会自动提取并注入为 signal 事件。Agent 无需额外调用其他工具——按现有协议在消息末尾输出 `stage_transition` JSON 即可。
+Agent 通过 `request_stage_transition` MCP 工具请求推进。工具校验通过后信号被持久化，进入自动推进评估流程。校验失败时返回 reasons，agent 根据原因自纠后重试。
 
 ## 注意事项
 
@@ -37,10 +37,10 @@ Agent 通过 `set_final_body` MCP 工具提交最终答复时，如果 text 中�
 
 | 阶段转换 | 自动推进条件 | 升级条件 |
 |----------|-------------|---------|
-| design → development | 收到 `signal_type: "adversarial_consensus"` 信号（两个架构师）+ design-01/02 通过 + 对抗产物 R1-R5 通过 | `signal_type: "disagreement"` 信号 或 R1-R5 校验失败 |
-| development → review | 收到 `signal_type: "gate_complete"` + dev-01~06 通过 | gate_evidence 缺失 |
-| development → design | 收到 `signal_type: "gate_complete"` + target_key 指向 design（intake 审视或工作过程中发现设计缺陷） | 方向与已有信号冲突 |
-| review → merge 前置 | 收到 `signal_type: "adversarial_consensus"` 信号（两个 reviewer）+ rev-01~03 通过 + 对抗产物 R1-R5 通过 | `signal_type: "disagreement"` 信号 或 R1-R5 校验失败 |
+| design → development | 收到 2 个 `adversarial_consensus` 信号（两个架构师）+ 系统自动检查通过（design-01: feature_doc_path 存在） | `signal_type: "disagreement"` 信号 |
+| development → review | 收到 `gate_complete` 信号 + 系统自动检查通过（dev-04: pr_url 存在） | 系统校验失败 |
+| development → design | 收到 `gate_complete` 信号 + target_key 指向 design（intake 审视或工作过程中发现设计缺陷） | 方向与已有信号冲突 |
+| review → merge 前置 | 收到 2 个 `adversarial_consensus` 信号（两个 reviewer）+ 系统自动检查通过（rev-04: feature_number 正则校验） | `signal_type: "disagreement"` 信号 |
 | review → design | 收到信号 + target_key 指向 design（intake 审视或检视中发现设计问题） | 方向与已有信号冲突 |
 | merge → review | 收到信号 + target_key 指向 review（合入检查失败） | — |
 | merge 前置 → merge | **不自动推进**。呈现"合入就绪"状态，等待用户显式执行 | — |
@@ -50,12 +50,10 @@ Agent 通过 `set_final_body` MCP 工具提交最终答复时，如果 text 中�
 - **[Incompatible] 标签**：如果 PR 标题包含 `[Incompatible]`，review → merge 前置的自动推进被阻断，必须等待用户确认
 - **手动 advance**：用户手动调用 `advanceStage()` 时，直接绕过自动推进条件
 - **回滚**：用户可以回退到上一个 stage，回滚时会清理所有信号防止重新触发
-- **R6 雷同检测**：两位 agent 的 `independent_verification` 输出相似度 > 80% 时发出 warning，不阻断自动推进
-- **R7 全空告警**：`adversarial_findings` 全部为"无问题"时发出 warning，不阻断自动推进
 - **方向互斥**：同一阶段内，已有正向信号时不得发出反向信号（反之亦然），方向冲突自动触发 disagreement
 - **target_key 一致性**：双 agent 阶段（design、review），所有 speaker 的 target_key 必须一致，不一致时升级到人工
-- **反向转移后 kickoff**：反向转移后，reactivated stage 的 kickoff 消息包含打回原因和下游发现的问题
-- **Intake 审视**：agent 进入阶段后首先评估上游产物质量，不足时立即发出早期 sendback 信号。详见 `intake-protocol.md`
+- **反向转移后 kickoff**：反向转移后，reactivated stage 的 kickoff 消息包含打回原因
+- **Intake 审视**：agent 进入阶段后首先评估上游产物质量，不足时立即调用 `request_stage_transition` 请求退回。详见 `intake-protocol.md`
 
 ## 失败反馈
 
@@ -65,11 +63,10 @@ Agent 通过 `set_final_body` MCP 工具提交最终答复时，如果 text 中�
 
 | code | 含义 |
 |------|------|
-| `CONTEXT_MISSING` | Issue 上下文缺少必要字段（worktree_path / branch_name / pr_url） |
+| `CONTEXT_MISSING` | Issue 上下文缺少必要字段（worktree_path / branch_name / pr_url / feature_number） |
 | `SPEAKERS_INSUFFICIENT` | 共识信号的 speaker 不足 2 个 |
-| `GATE_FAILED` | gate_evidence 中 required 项缺失或为空 |
+| `GATE_FAILED` | 系统自动检查未通过（如 feature_doc_path 不存在、feature_number 格式错误） |
 | `INCOMPATIBLE_BLOCKED` | PR 标题含 [Incompatible] |
-| `ADVERSARIAL_VALIDATION_FAILED` | 对抗产物校验失败（附具体规则 R1-R7） |
-| `R6_SIMILARITY_DETECTED` | 跨 speaker 输出雷同（warning，不阻断） |
+| `DISAGREEMENT` | 存在分歧，需人工决策 |
 
 当自动推进被阻断时，系统会通过 `onEvaluationResult` 通知消费者，前端可展示阻断原因。

@@ -46,7 +46,7 @@ function createMockMcpMessageStore(): McpMessageStore {
 }
 
 function createMockStageSuggestionRepo(): StageSuggestionRepository {
-  return { insert: vi.fn(), listPendingByStage: vi.fn().mockReturnValue([]), countIgnoredByStageAndTargetKey: vi.fn().mockReturnValue(0), markProcessed: vi.fn(), deleteByStage: vi.fn() };
+  return { insert: vi.fn(), listPendingByStage: vi.fn().mockReturnValue([]), listActiveByStage: vi.fn().mockReturnValue([]), countIgnoredByStageAndTargetKey: vi.fn().mockReturnValue(0), markSeen: vi.fn(), markProcessed: vi.fn(), deleteByStage: vi.fn() };
 }
 
 function createMockIssuePort(overrides: Partial<IssuePort> = {}): IssuePort {
@@ -251,7 +251,7 @@ describe("forceAdvance", () => {
     expect(result.evaluation.reasons[0].code).toBe("EVALUATE_FAILED");
   });
 
-  it("backward 场景保留打回原因和 gate_evidence", async () => {
+  it("backward 场景保留打回原因", async () => {
     /** [design-time] 标注：此测试使用 left_at: null 的已离开 stage，
      * 在 append-only 模型下不可能出现（已离开的 stage 必有 left_at）。
      * 时序修正后 isBackwardTarget 对所有转移返回 false，autoInvokeBackwardStage 为死代码。
@@ -293,9 +293,8 @@ describe("forceAdvance", () => {
       stageSuggestionRepo: createMockStageSuggestionRepo(),
     });
 
-    /** 注入一个 suggestion，包含打回原因和 gate_evidence */
+    /** 注入一个 suggestion，包含打回原因 */
     const backwardReason = "Gate 自检未通过：dev-02";
-    const backwardEvidence = { "dev-02": "npm run check 失败" };
     const suggestions = collaboration["suggestions"];
     suggestions.set("stage-1", [{
       stage_id: "stage-1",
@@ -307,16 +306,14 @@ describe("forceAdvance", () => {
       artifacts: {},
       created_at: new Date().toISOString(),
       signal_type: "disagreement",
-      gate_evidence: backwardEvidence,
     }]);
 
     await collaboration.forceAdvance("stage-1", "design");
 
-    /** kickoff 消息应包含原始打回原因和 gate_evidence */
+    /** kickoff 消息应包含原始打回原因 */
     const kickoff = finalTexts.find(t => t.includes("打回原因"));
     expect(kickoff).toBeDefined();
     expect(kickoff!).toContain(backwardReason);
-    expect(kickoff!).toContain("dev-02");
   });
 
   it("forceAdvance with userHint: 用户说明优先于打回原因 kickoff", async () => {
@@ -358,7 +355,6 @@ describe("forceAdvance", () => {
       stage_id: "stage-1", message_id: 1, from_speaker: "reviewer", target_key: "design",
       reason: "Gate 自检未通过", guard: null, artifacts: {},
       created_at: new Date().toISOString(), signal_type: "disagreement",
-      gate_evidence: { "dev-02": "npm run check 失败" },
     }]);
 
     await collaboration.forceAdvance("stage-1", "design", "我已经修复了问题，请继续");

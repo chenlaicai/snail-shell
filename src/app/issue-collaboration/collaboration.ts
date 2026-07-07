@@ -7,16 +7,17 @@ import type { SnailFirstCallRequest, SnailResumeRequest } from "@domain/snail/mo
 import type { LiteAIPort } from "@domain/lite-ai/port";
 import type { AgentEvent, InvokeOptions } from "@infra/acs/model";
 import type { McpMessageStore } from "@domain/snail-mcp-server/_internal/mcp-message-store";
-import type { CollaborationConsumer, CollaborationInput, CreateIssueResult, DecisionMode, EvaluationResult, SignalType, StageTransitionSuggestion, WorkspaceConsumer } from "@app/issue-collaboration/port";
+import type { StageTransitionPort, TransitionRequestResult, TransitionValidationReason } from "@domain/snail-mcp-server/port";
+import type { CollaborationConsumer, CollaborationInput, CreateIssueResult, EvaluationResult, SignalType, StageTransitionSuggestion, WorkspaceConsumer } from "@app/issue-collaboration/port";
 import type { StageSuggestionRepository, StageSuggestionRecord } from "@domain/issue/_internal/repository";
 import { AutoAdvanceEngine } from "@app/issue-collaboration/auto-advance";
 import { validateSingleSignal } from "@app/issue-collaboration/signal-validation";
+import { inferSignalType } from "@app/issue-collaboration/gate-check";
 import { ConsumerNotifier } from "@app/issue-collaboration/consumer-notifier";
 import { MessageHandler } from "@app/issue-collaboration/message-handler";
 import { CollaborationHelpers } from "@app/issue-collaboration/helpers";
 import { cleanupResources, type CleanupResult } from "@app/issue-collaboration/resource-cleanup";
 import { isStageReEntry } from "@domain/issue/_internal/stage-chain";
-import { StageTransitionSignalParser } from "@app/issue-collaboration/_internal/signal-parser";
 import { SystemPromptBuilder } from "@app/issue-collaboration/_internal/system-prompt-builder";
 import { CONTEXT_KEYS } from "@infra/acs/context-keys";
 import { getLogger } from "@infra/logger";
@@ -36,7 +37,7 @@ interface CollaborationDeps {
 }
 type SpeakerTarget = { speaker: string; source: "mention" | "reply" | "default" };
 type DispatchState = { status: "idle" | "invoking"; pending: boolean };
-export class IssueCollaboration implements CollaborationInput {
+export class IssueCollaboration implements CollaborationInput, StageTransitionPort {
   private readonly issueConsumers = new Map<string, Set<CollaborationConsumer>>();
   private readonly workspaceConsumers = new Map<string, Set<WorkspaceConsumer>>();
   private readonly lastActivityStatus = new Map<string, "ai_running" | "needs_human" | "completed">();
@@ -47,7 +48,6 @@ export class IssueCollaboration implements CollaborationInput {
   private readonly consumerNotifier: ConsumerNotifier;
   private readonly messageHandler: MessageHandler;
   private readonly helpers: CollaborationHelpers;
-  private readonly signalParser: StageTransitionSignalParser;
   private readonly systemPromptBuilder: SystemPromptBuilder;
   private readonly dispatchStates = new Map<string, DispatchState>();
   private readonly lastUserCallAt = new Map<string, number>();
@@ -66,9 +66,6 @@ export class IssueCollaboration implements CollaborationInput {
       notifyConsumers: (stageId, method, ...args) => this.notifyConsumers(stageId, method as keyof CollaborationConsumer, ...args),
       generateDisagreementCard: (stageId, suggestion) => this.generateDisagreementCard(stageId, suggestion),
       mustGetIssue: (issueId) => this.helpers.mustGetIssue(issueId)
-    });
-    this.signalParser = new StageTransitionSignalParser({
-      messagePort: this.deps.messagePort,
     });
     this.systemPromptBuilder = new SystemPromptBuilder({
       messagePort: this.deps.messagePort,
@@ -149,10 +146,30 @@ export class IssueCollaboration implements CollaborationInput {
       .map(s => { const c = this.deps.stageSuggestionRepo.countIgnoredByStageAndTargetKey(stageId, s.target_key); return c > 0 ? { ...s, dismiss_count: c } : s; });
   }
   dismissSuggestion(stageId: string, targetKey: string, createdAt: string): boolean {
-    const suggestions = this.suggestions.get(stageId); if (!suggestions) return false;
+    const suggestions = this.suggestions.get(stageId);
+    if (suggestions) {
+      const remaining = suggestions.filter(s => !(s.target_key === targetKey && s.created_at === createdAt));
+      if (remaining.length < suggestions.length) {
+        for (const s of suggestions) { if (s.target_key === targetKey && s.created_at === createdAt) this.deps.stageSuggestionRepo.markProcessed(s.message_id.toString(), "ignored"); }
+        if (remaining.length === 0) this.suggestions.delete(stageId); else this.suggestions.set(stageId, remaining);
+        return true;
+      }
+    }
+    /** DB 回退：acknowledge 已从内存移除时，从 DB 查找 active 记录并标记 ignored */
+    const activeRecords = this.deps.stageSuggestionRepo.listActiveByStage(stageId);
+    const match = activeRecords.find(r => r.target_key === targetKey && new Date(r.created_at).toISOString() === createdAt);
+    if (match) {
+      this.deps.stageSuggestionRepo.markProcessed(match.id, "ignored");
+      return true;
+    }
+    return false;
+  }
+  acknowledgeSuggestion(stageId: string, targetKey: string, createdAt: string): boolean {
+    const suggestions = this.suggestions.get(stageId);
+    if (!suggestions) return false;
     const remaining = suggestions.filter(s => !(s.target_key === targetKey && s.created_at === createdAt));
     if (remaining.length === suggestions.length) return false;
-    for (const s of suggestions) { if (s.target_key === targetKey && s.created_at === createdAt) this.deps.stageSuggestionRepo.markProcessed(s.message_id.toString(), "ignored"); }
+    for (const s of suggestions) { if (s.target_key === targetKey && s.created_at === createdAt) this.deps.stageSuggestionRepo.markSeen(s.message_id.toString()); }
     if (remaining.length === 0) this.suggestions.delete(stageId); else this.suggestions.set(stageId, remaining);
     return true;
   }
@@ -167,7 +184,9 @@ export class IssueCollaboration implements CollaborationInput {
     const isBackward = oldStage && this.isBackwardTarget(oldStage.issue_id, targetKey);
     const stage = this.deps.stagePort.advanceStage(stageId, targetKey);
     this.cleanupDispatchStates(stageId);
+    /** 标记内存中的 suggestion 为 confirmed，并 DB 回退处理已被 acknowledge 的 seen 记录 */
     for (const s of (this.suggestions.get(stageId) ?? [])) this.deps.stageSuggestionRepo.markProcessed(s.message_id.toString(), "confirmed");
+    for (const r of this.deps.stageSuggestionRepo.listActiveByStage(stageId)) this.deps.stageSuggestionRepo.markProcessed(r.id, "confirmed");
     this.suggestions.delete(stageId);
     this.helpers.initStageCursors(stage);
     if (isBackward) this.autoInvokeBackwardStage(stage, oldStage, backwardContext, userHint);
@@ -192,7 +211,9 @@ export class IssueCollaboration implements CollaborationInput {
     const isBackward = oldStage && this.isBackwardTarget(oldStage.issue_id, targetKey);
     const newStage = this.deps.stagePort.advanceStage(stageId, targetKey);
     this.cleanupDispatchStates(stageId);
+    /** 标记内存中的 suggestion 为 confirmed，并 DB 回退处理已被 acknowledge 的 seen 记录 */
     for (const s of (this.suggestions.get(stageId) ?? [])) this.deps.stageSuggestionRepo.markProcessed(s.message_id.toString(), "confirmed");
+    for (const r of this.deps.stageSuggestionRepo.listActiveByStage(stageId)) this.deps.stageSuggestionRepo.markProcessed(r.id, "confirmed");
     this.suggestions.delete(stageId);
     this.helpers.initStageCursors(newStage);
     /** 审计日志：标记为 forced，让后续审查者知道这是用户手动强制推进 */
@@ -208,17 +229,17 @@ export class IssueCollaboration implements CollaborationInput {
       from: stageId, to: newStage.id, from_key: oldStage?.key ?? "", to_key: newStage.key, reason: `[forced] 用户强制推进`,
     });
     if (isBackward) {
-      this.autoInvokeBackwardStage(newStage, oldStage, backwardContext ?? { reason: `[forced] 用户强制推进`, gate_evidence: {} }, userHint);
+      this.autoInvokeBackwardStage(newStage, oldStage, backwardContext ?? { reason: `[forced] 用户强制推进` }, userHint);
     } else {
       this.autoInvokeNewStage(newStage, userHint);
     }
     return { stage: newStage, evaluation };
   }
-  /** 在 suggestions 被清除前提取打回原因和证据 */
-  private extractBackwardContext(fromStageId: string, targetKey: string): { reason: string; gate_evidence?: Record<string, unknown> } | null {
+  /** 在 suggestions 被清除前提取打回原因 */
+  private extractBackwardContext(fromStageId: string, targetKey: string): { reason: string } | null {
     const s = (this.suggestions.get(fromStageId) ?? []).find(s => s.target_key === targetKey);
     if (!s) return null;
-    return { reason: s.reason, gate_evidence: s.gate_evidence };
+    return { reason: s.reason };
   }
   /** 判断 targetKey 是否为反向目标（在 stage 历史中存在未离开的实例） */
   private isBackwardTarget(issueId: string, targetKey: string): boolean {
@@ -359,7 +380,6 @@ export class IssueCollaboration implements CollaborationInput {
       this.deps.messagePort.completeMessage(agentMessage.id, "completed");
       const completedMessage = this.helpers.mustGetMessage(agentMessage.id);
       log.info({ stageId, roleInstance, messageId: agentMessage.id, contextKind: context.kind, targets }, "invokeAgent completed");
-      await this.detectStageTransition(stage, roleInstance, completedMessage.id);
       await this.notifyConsumers(stageId, "onMessageCompleted", completedMessage, this.deps.messagePort.getContext(completedMessage.id));
       try {
         await this.route(stageId, completedMessage);
@@ -429,50 +449,68 @@ export class IssueCollaboration implements CollaborationInput {
   private isValidReplyMention(stage: Stage, roleInstance: string, mention: string): boolean {
     return mention === "user" || (mention !== roleInstance && stage.role_instances.includes(mention));
   }
-  private async detectStageTransition(stage: Stage, roleInstance: string, messageId: number): Promise<void> {
-    const suggestion = this.signalParser.extract(stage, roleInstance, messageId);
-    if (!suggestion) return;
-    /** L1 信号拦截：单条信号校验（decision_mode、context、gate、artifact、blocking_rules），不持久化阻断信号 */
-    const typedSuggestion = {
-      ...suggestion,
-      signal_type: suggestion.signal_type ?? this.autoAdvanceEngine.inferSignalType(suggestion, stage.key),
-      decision_mode: suggestion.decision_mode ?? "autonomous",
-    };
+  /** StageTransitionPort 实现：agent 通过 request_stage_transition MCP 工具调用 */
+  async requestTransition(input: { stageId: string; fromSpeaker: string; targetKey: string; signalType?: string; reason: string }): Promise<TransitionRequestResult> {
+    const stage = this.deps.stagePort.findStage(input.stageId);
+    if (!stage) throw new Error(`stage not found: ${input.stageId}`);
     const issue = this.deps.issuePort.findIssue(stage.issue_id);
-    const config = issue?.sop_snapshot?.stage_definitions?.find(d => d.key === stage.key)?.auto_advance;
-    const l1Result = validateSingleSignal(stage, typedSuggestion, config, issue?.context ?? {});
+    if (!issue) throw new Error(`issue not found: ${stage.issue_id}`);
+    const config = issue.sop_snapshot.stage_definitions.find(d => d.key === stage.key)?.auto_advance;
+
+    /** 推断 signal_type：显式指定优先，否则从 stage config 的 accepted_signal_types 推断 */
+    const signalType = (input.signalType as SignalType | undefined) ?? inferSignalType(config);
+
+    /** 查找当前 streaming 消息以关联 suggestion */
+    const streamingMessage = this.deps.messagePort.findLatestMessageBySpeaker(input.stageId, input.fromSpeaker);
+    const messageId = streamingMessage?.id ?? 0;
+    const transition = stage.available_transitions.find(t => t.to === input.targetKey);
+
+    const suggestion: StageTransitionSuggestion = {
+      stage_id: input.stageId,
+      message_id: messageId,
+      from_speaker: input.fromSpeaker,
+      target_key: input.targetKey,
+      reason: input.reason,
+      guard: transition?.guard ?? null,
+      artifacts: { ...stage.output_artifacts },
+      created_at: new Date().toISOString(),
+      signal_type: signalType,
+    };
+
+    /** L1 信号校验：context fields、blocking rules、系统自动 gate 检查 */
+    const l1Result = validateSingleSignal(stage, suggestion, config, issue.context);
     if (l1Result && l1Result.action === "blocked") {
-      log.warn({ stageId: stage.id, roleInstance, messageId, codes: l1Result.reasons.map(r => r.code) }, "L1: signal blocked by validation");
-      await this.notifyConsumers(stage.id, "onEvaluationResult", l1Result);
-      return;
+      log.warn({ stageId: input.stageId, fromSpeaker: input.fromSpeaker, codes: l1Result.reasons.map(r => r.code) }, "requestTransition: signal blocked by L1 validation");
+      return { valid: false, reasons: l1Result.reasons as TransitionValidationReason[] };
     }
+
+    /** 持久化 + 通知 + L2 评估 */
     this.persistSuggestion(suggestion);
-    const suggestions = this.suggestions.get(stage.id) ?? [];
+    const suggestions = this.suggestions.get(input.stageId) ?? [];
     suggestions.push(suggestion);
-    this.suggestions.set(stage.id, suggestions);
-    await this.notifyConsumers(stage.id, "onStageTransitionSuggested", suggestion);
+    this.suggestions.set(input.stageId, suggestions);
+    await this.notifyConsumers(input.stageId, "onStageTransitionSuggested", suggestion);
     const result = await this.autoAdvanceEngine.evaluate(stage, suggestions);
-    await this.notifyConsumers(stage.id, "onEvaluationResult", result);
+    await this.notifyConsumers(input.stageId, "onEvaluationResult", result);
+
+    return { valid: true, registered: true };
   }
+
   private async recordAuditTrail(fromStage: Stage, toStage: Stage, suggestion: StageTransitionSuggestion): Promise<void> {
     this.deps.stagePort.recordAudit({ stage_id: fromStage.id, from_key: fromStage.key, to_key: toStage.key, trigger: "auto", trigger_reason: suggestion.reason, consensus_content: suggestion.guard ?? "", timestamp: Date.now() });
   }
   private async generateDisagreementCard(stageId: string, suggestion: StageTransitionSuggestion): Promise<void> {
-    const options = (suggestion.positions ?? []).map(p => ({ label: `${p.speaker}: ${p.stance}`, description: p.argument }));
-    await this.notifyConsumers(stageId, "onDisagreement", { ...suggestion, question: { text: suggestion.reason, options } });
+    await this.notifyConsumers(stageId, "onDisagreement", { ...suggestion, question: { text: suggestion.reason, options: [] } });
   }
   private persistSuggestion(s: StageTransitionSuggestion): void {
     this.deps.stageSuggestionRepo.insert({ id: s.message_id.toString(), stage_id: s.stage_id, target_key: s.target_key, signal_type: s.signal_type ?? null,
-      gate_evidence: s.gate_evidence ? JSON.stringify(s.gate_evidence) : null, adversarial_artifact: s.adversarial_artifact ? JSON.stringify(s.adversarial_artifact) : null,
-      decision_mode: s.decision_mode ?? null, recommendation: s.recommendation ?? null, alternatives: s.alternatives ? JSON.stringify(s.alternatives) : null, status: "pending", created_at: Date.now(), processed_at: null });
+      gate_evidence: null, adversarial_artifact: null,
+      decision_mode: null, recommendation: null, alternatives: null, status: "pending", created_at: new Date(s.created_at).getTime(), processed_at: null });
   }
   restoreSuggestions(stageId: string, records: StageSuggestionRecord[]): void {
     if (records.length === 0) return;
     this.suggestions.set(stageId, records.map(r => ({ stage_id: r.stage_id, message_id: parseInt(r.id, 10), from_speaker: "recovered", target_key: r.target_key,
-      reason: "", guard: null, artifacts: {}, created_at: new Date(r.created_at).toISOString(), signal_type: r.signal_type as SignalType | undefined,
-      gate_evidence: r.gate_evidence ? JSON.parse(r.gate_evidence) : undefined, adversarial_artifact: r.adversarial_artifact ? JSON.parse(r.adversarial_artifact) : undefined,
-      decision_mode: r.decision_mode as DecisionMode | undefined, recommendation: r.recommendation ?? undefined,
-      alternatives: r.alternatives ? JSON.parse(r.alternatives) as string[] : undefined })));
+      reason: "", guard: null, artifacts: {}, created_at: new Date(r.created_at).toISOString(), signal_type: r.signal_type as SignalType | undefined })));
   }
   async rollbackStage(stageId: string, targetKey: string, userHint?: string): Promise<Stage> {
     return this.advanceStage(stageId, targetKey, userHint);
@@ -497,7 +535,7 @@ export class IssueCollaboration implements CollaborationInput {
     });
   }
   /** 反向转移后，向 reactivated stage 发送包含打回原因的 kickoff 消息 */
-  private autoInvokeBackwardStage(stage: Stage, fromStage: Stage, backwardContext: { reason: string; gate_evidence?: Record<string, unknown> } | null, userHint?: string): void {
+  private autoInvokeBackwardStage(stage: Stage, fromStage: Stage, backwardContext: { reason: string } | null, userHint?: string): void {
     if (!stage.default_role_instance) return;
     /** 用户提供了 hint，作为用户消息发送（优先于打回原因 kickoff） */
     const hint = userHint?.trim();
@@ -506,8 +544,7 @@ export class IssueCollaboration implements CollaborationInput {
       return;
     }
     const reason = backwardContext?.reason ?? "未指定原因";
-    const evidence = backwardContext?.gate_evidence ? JSON.stringify(backwardContext.gate_evidence, null, 2) : "无";
-    const kickoff = `阶段 ${stage.key} 被重新激活。\n\n打回来源：${fromStage.key} 阶段\n打回原因：${reason}\n下游发现的问题：\n${evidence}\n\n请针对以上问题修复后重新推进。`;
+    const kickoff = `阶段 ${stage.key} 被重新激活。\n\n打回来源：${fromStage.key} 阶段\n打回原因：${reason}\n\n请针对以上问题修复后重新推进。`;
     this.sendMessage(stage.id, kickoff, "").catch((err) => { log.error({ stageId: stage.id, err }, "autoInvokeBackwardStage failed"); });
   }
   /** createIssue 后自动向第一个阶段发送 kickoff 消息，使用 summary 作为用户指令 */

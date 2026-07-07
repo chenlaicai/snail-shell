@@ -411,7 +411,7 @@ describe("set_final_body to_speakers validation", () => {
   });
 });
 
-describe("set_final_body stage_transition signal extraction", () => {
+describe("set_final_body does not extract stage_transition signals", () => {
   function createPortWithEventCapture(overrides: Partial<MessagePort> = {}): { port: MessagePort; events: Array<{ messageId: number; payload: MessageEventPayload }> } {
     const events: Array<{ messageId: number; payload: MessageEventPayload }> = [];
     const messages = new Map<number, Message>();
@@ -428,7 +428,7 @@ describe("set_final_body stage_transition signal extraction", () => {
     return { port, events };
   }
 
-  it("appends signal event when text contains valid stage_transition JSON", async () => {
+  it("does not append signal event when text contains stage_transition JSON", async () => {
     const { port, events } = createPortWithEventCapture();
     const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
@@ -436,60 +436,15 @@ describe("set_final_body stage_transition signal extraction", () => {
     const signalJson = JSON.stringify({
       stage_transition: {
         target_key: "review",
-        consensus: true,
         reason: "All gates passed",
-        gate_evidence: { "dev-01": "done", "dev-02": "passed" },
       },
     });
     await handler({ text: signalJson, message_id: "100", stage_id: "s1", from_speaker: "dev" });
 
-    expect(events).toHaveLength(1);
-    expect(events[0].messageId).toBe(100);
-    expect(events[0].payload).toMatchObject({
-      type: "signal",
-      signal: "stage_transition",
-      stage_transition: {
-        target_key: "review",
-        consensus: true,
-        reason: "All gates passed",
-        gate_evidence: { "dev-01": "done", "dev-02": "passed" },
-      },
-    });
+    expect(events).toHaveLength(0);
   });
 
-  it("extracts stage_transition from Markdown with embedded JSON block", async () => {
-    const { port, events } = createPortWithEventCapture();
-    const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
-    const handler = server.tools[0].handler;
-
-    const text = `## Summary
-
-Implementation complete.
-
-\`\`\`json
-{
-  "stage_transition": {
-    "target_key": "review",
-    "consensus": true,
-    "gate_evidence": { "dev-01": "done" }
-  }
-}
-\`\`\``;
-    await handler({ text, message_id: "100", stage_id: "s1", from_speaker: "dev" });
-
-    expect(events).toHaveLength(1);
-    expect(events[0].payload).toMatchObject({
-      type: "signal",
-      signal: "stage_transition",
-      stage_transition: {
-        target_key: "review",
-        consensus: true,
-        gate_evidence: { "dev-01": "done" },
-      },
-    });
-  });
-
-  it("does not append signal event when text has no stage_transition", async () => {
+  it("does not append signal event for plain text", async () => {
     const { port, events } = createPortWithEventCapture();
     const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
@@ -499,56 +454,17 @@ Implementation complete.
     expect(events).toHaveLength(0);
   });
 
-  it("silently skips when stage_transition JSON is malformed", async () => {
-    const { port, events } = createPortWithEventCapture();
-    const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
-    const handler = server.tools[0].handler;
-
-    await handler({ text: '{"stage_transition": {broken json', message_id: "100", stage_id: "s1", from_speaker: "dev" });
-
-    expect(events).toHaveLength(0);
-  });
-
-  it("still writes mcp_final_body when signal is extracted", async () => {
+  it("still writes mcp_final_body for text content", async () => {
     let writtenKind: string | undefined;
-    const { port, events } = createPortWithEventCapture({
+    const { port } = createPortWithEventCapture({
       setContext: (_id, kind) => { writtenKind = kind; },
     });
     const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
     const handler = server.tools[0].handler;
 
-    const signalJson = JSON.stringify({ stage_transition: { target_key: "review", consensus: true } });
-    await handler({ text: signalJson, message_id: "100", stage_id: "s1", from_speaker: "dev" });
+    await handler({ text: "Regular content", message_id: "100", stage_id: "s1", from_speaker: "dev" });
 
     expect(writtenKind).toBe("mcp_final_body");
-    expect(events).toHaveLength(1);
-  });
-
-  it("handles disagreement signal (consensus: false)", async () => {
-    const { port, events } = createPortWithEventCapture();
-    const server = createFinalResponseServer(port, createMockMcpMessageStore(), createMockStagePort());
-    const handler = server.tools[0].handler;
-
-    const signalJson = JSON.stringify({
-      stage_transition: {
-        target_key: "review",
-        consensus: false,
-        reason: "Disagreement on approach",
-        positions: [{ speaker: "architect-1", stance: "against", argument: "Too risky" }],
-      },
-    });
-    await handler({ text: signalJson, message_id: "100", stage_id: "s1", from_speaker: "dev" });
-
-    expect(events).toHaveLength(1);
-    expect(events[0].payload).toMatchObject({
-      type: "signal",
-      signal: "stage_transition",
-      stage_transition: {
-        target_key: "review",
-        consensus: false,
-        positions: [{ speaker: "architect-1", stance: "against", argument: "Too risky" }],
-      },
-    });
   });
 });
 
@@ -673,21 +589,19 @@ describe("set_final_body idempotent guard (B2)", () => {
     });
   });
 
-  it("does not append signal event on duplicate call even with stage_transition", async () => {
+  it("does not write final body on duplicate call", async () => {
     const { port, mcpStore, events } = createPortWithCapture();
     const server = createFinalResponseServer(port, mcpStore, createMockStagePort());
     const handler = server.tools[0].handler;
 
-    const signalJson = JSON.stringify({ stage_transition: { target_key: "review", consensus: true } });
-    /** 首次调用带 signal */
-    await handler({ text: signalJson, message_id: "100", stage_id: "s1", from_speaker: "dev" });
-    expect(events).toHaveLength(1);
+    /** 首次调用 */
+    await handler({ text: "First message", message_id: "100", stage_id: "s1", from_speaker: "dev" });
+    expect(events).toHaveLength(0);
 
-    /** 重复调用带不同 signal */
-    const signalJson2 = JSON.stringify({ stage_transition: { target_key: "merge", consensus: true } });
-    await handler({ text: signalJson2, message_id: "100", stage_id: "s1", from_speaker: "dev" });
+    /** 重复调用 */
+    await handler({ text: "Second message", message_id: "100", stage_id: "s1", from_speaker: "dev" });
     /** 事件数不变 */
-    expect(events).toHaveLength(1);
+    expect(events).toHaveLength(0);
   });
 
   it("different message IDs are tracked independently", async () => {

@@ -21,7 +21,7 @@ export interface Sop {
 }
 
 /** 阻断规则类型 */
-export type BlockingRuleType = "incompatible_tag" | "unresolved_findings";
+export type BlockingRuleType = "incompatible_tag";
 
 /** 阻断规则 */
 export interface BlockingRule {
