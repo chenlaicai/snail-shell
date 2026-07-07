@@ -163,3 +163,28 @@ const updated_at = latestMessage ? (latestMessage.ended_at ?? latestMessage.crea
 ### 共识
 
 双方达成共识，方案正确完整，推进到 development。
+
+## [development-time] 实现记录
+
+### 实现清单
+
+| 文件 | 改动 |
+|------|------|
+| `src/domain/message/port.ts` | `MessagePort` 新增 `findLatestMessageByIssueId(issueId)` 接口方法 |
+| `src/domain/message/_internal/repository.ts` | `MessageRepository` 接口 + `SQLiteMessageRepository` 实现：`SELECT m.* FROM message m JOIN stage s ON s.id = m.stage_id WHERE s.issue_id = ? ORDER BY m.id DESC LIMIT 1` |
+| `src/domain/message/_internal/adapter.ts` | `MessageAdapter` 委托 `findLatestMessageByIssueId` 到 repo |
+| `src/api-contracts/dto.ts` | `IssueDetailDto` 新增 `updated_at: string` 字段 |
+| `src/adapter/http/routes/issue.route.ts` | `toIssueDetail` deps 扩展 `messagePort`，计算 `updated_at = latestMessage.ended_at ?? latestMessage.created_at`，无消息回退 `issue.created_at` |
+| `src/web/components/IssueCard.tsx` | `formatRelativeTime(issue.created_at)` → `formatRelativeTime(issue.updated_at)` |
+| `src/web/components/IssueRow.tsx` | 同上 |
+| `src/web/hooks/useWorkspaceRealtime.ts` | `activity_status_changed` 后 `invalidateQueries` issue 列表，触发后台 refetch 刷新 `updated_at` |
+| 11 个测试文件 | mock `MessagePort` 补充 `findLatestMessageByIssueId` 默认实现 |
+
+### WebSocket 实时刷新
+
+`activity_status_changed` 事件与 `updated_at` 变化高度相关（消息完成时两者同时变化）。在 `applyActivityStatusChange` 中，先乐观更新 `activity_status`（`setQueryData`），再 `invalidateQueries` issue 列表，触发后台 refetch 从服务端获取最新 `updated_at`。React Query 自动去重避免频繁 refetch。
+
+### 验证结果
+
+- `npm run check`（lint + tsc + vite build）：通过
+- `npx vitest run`：20 files, 227 tests 全部通过
