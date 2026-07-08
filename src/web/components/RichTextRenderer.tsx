@@ -180,6 +180,8 @@ function sanitizeNode(node: Node) {
       node.remove();
       return;
     }
+    /** B-12: 强制 disabled，确保 checkbox 不可交互 */
+    node.setAttribute("disabled", "");
   }
 
   const allowed = ALLOWED_ATTRIBUTES[tag];

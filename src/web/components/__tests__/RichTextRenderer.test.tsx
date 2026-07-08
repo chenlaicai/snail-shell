@@ -44,6 +44,15 @@ describe("RichTextRenderer — sanitizer", () => {
     expect(checkbox?.hasAttribute("name")).toBe(false);
     expect(checkbox?.hasAttribute("onclick")).toBe(false);
   });
+
+  it("forces disabled on checkbox input without disabled attribute", () => {
+    const { container } = render(
+      <RichTextRenderer content={'<input type="checkbox">after'} />,
+    );
+    const checkbox = container.querySelector("input");
+    expect(checkbox).not.toBeNull();
+    expect(checkbox?.hasAttribute("disabled")).toBe(true);
+  });
 });
 
 describe("RichTextRenderer — markdown rendering", () => {
