@@ -33,8 +33,12 @@ export function checkSystemGate(gate: string, ctx: Record<string, string>): bool
       if (!featureNumber) return false;
       return /^F\d{8}[a-kmnp-z][2-9a-kmnp-z]{3}$/.test(featureNumber);
     }
+    case "rev-03": {
+      /** 检查 issue context 中是否有 review_comment_url（每轮检视必须写入新评论 URL） */
+      return !!resolveContextValue(ctx, "review_comment_url");
+    }
     default:
-      /** prompt 级 gate：dev-01, dev-02, dev-03, dev-06, rev-01, rev-02, rev-03 — agent 在 reason 中自证 */
+      /** prompt 级 gate：dev-01, dev-02, dev-03, dev-06, rev-01, rev-02 — agent 在 reason 中自证 */
       return true;
   }
 }

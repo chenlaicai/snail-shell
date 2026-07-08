@@ -20,6 +20,7 @@ description: |
 - **复检必须覆盖完整 PR diff**：不能只确认单条评论是否已处理，需覆盖完整 PR diff 和可能的回归风险。
 - **一方说没问题，另一方必须更仔细**：交叉审视的核心是对抗性——如果一方表示"完全没问题"而对方发现了问题，必须重新审视自己的检视范围。
 - **开发者修复后必须基于最终状态重新判断**：复检是检视闭环的一部分，不是可选帮助。
+- **[HARD] 复检必须发布新评论**：重新进入 review 阶段时，必须在 PR 上发布新的评论（不得复用上一轮评论链接），并通过 set_context 更新 review_comment_url。rev-03 gate 每轮都需满足，不是一次性检查。
 
 ## 情境感知
 
@@ -82,7 +83,7 @@ request_stage_transition({
 - 检视结论必须逐条列出处置状态：已修复 / 开发者回应（审查者认可）/ 待处理
 - 存在任何"待处理"项时，结论必须是"需要开发者继续处理"
 - 变更完整性验证命令必须独立执行，输出写入 rev-02 的自检证据
-- PR 评论按签名规则收尾（规则见 cd-shared 的 `references/pr-signature.md`）
+- 每轮检视（含复检）均必须在 PR 上发布新的签名评论（规则见 cd-shared 的 `references/pr-signature.md`）
 - 审查报告中每个问题必须有"处置方式"字段，只允许填"在当前 PR 修复"，禁用"不堵塞""可遗留""建议合入""后续优化""不影响功能""不影响，建议合入"等变体话术
 - 检视后必须通过 `set_final_body` 的 `to_speakers` 声明路由目标
 - **视觉/空间类 PR 必须比对截图与意图锚**：当行为条目有 `← UA-n` 追溯且意图锚含视觉/空间修饰语时，审查者必须比对 PR 中的截图/录屏与意图锚描述。不一致 = 审查不通过，标记为 bug
@@ -97,7 +98,7 @@ request_stage_transition({
 |---|--------|------|
 | rev-01 | 所有检视意见已逐条处理 | ✅ |
 | rev-02 | 根据变更类型独立执行验证命令，实际输出作为检视证据 | ✅ |
-| rev-03 | PR 评论已按签名模板收尾 | ✅ |
+| rev-03 | 每轮检视（含复检）均已在 PR 上发布新的签名评论，且评论 URL 已通过 set_context 写入 issue context 的 review_comment_url 字段 | ✅ |
 | rev-04 | 特性编号已通过 set_context 写入 issue context 的 feature_number 字段（格式：FYYYYMMDDxxxx） | ✅ |
 | rev-ctx | pr_url 已通过 set_context 写入 Issue.context（reviewer 需据此定位 PR） | ✅ |
 
@@ -112,7 +113,7 @@ request_stage_transition({
 
 - rev-01 ✅ [证据：所有评论处置状态]
 - rev-02 ✅ [证据：验证命令+实际输出]
-- rev-03 ✅ [证据：签名评论链接]
+- rev-03 ✅ [证据：本轮新发布的签名评论链接 + set_context review_comment_url 调用记录]
 - rev-ctx ✅ [证据：set_context 调用记录]
 
 所有 required 项通过，可以提议推进。
@@ -131,7 +132,7 @@ request_stage_transition({
 request_stage_transition({
   stage_id: "<从环境变量获取>",
   target_key: "merge",
-  reason: "所有检视意见已处理，验证通过。\n\nrev-01: 所有评论处置状态: 已修复\nrev-02: npm run check 通过\nrev-03: PR #123 评论已签名\nrev-04: feature_number=F20260701tj92\nrev-ctx: pr_url=https://github.com/...",
+  reason: "所有检视意见已处理，验证通过。\n\nrev-01: 所有评论处置状态: 已修复\nrev-02: npm run check 通过\nrev-03: PR #123 本轮新评论已签名，review_comment_url 已写入\nrev-04: feature_number=F20260701tj92\nrev-ctx: pr_url=https://github.com/...",
   from_speaker: "审查者-1"
 })
 ```
