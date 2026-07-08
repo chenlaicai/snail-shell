@@ -141,7 +141,11 @@ export function IssueConversation() {
                   {stage && <StatusBadge status={stage.status} />}
                 </div>
                 <h1 className="text-xl font-semibold leading-tight mb-2">{issue.title}</h1>
-                {issue.summary && <p className="text-[14px] text-text-secondary leading-relaxed">{issue.summary}</p>}
+                {issue.summary && (
+                  <p className="text-[14px] text-text-secondary leading-relaxed line-clamp-1 hover:line-clamp-none">
+                    {issue.summary}
+                  </p>
+                )}
               </div>
 
               {issue.stages.length > 0 && (
