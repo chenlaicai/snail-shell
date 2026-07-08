@@ -6,12 +6,13 @@ const MARKED_OPTIONS = { gfm: true, breaks: true } as const;
 const ALLOWED_TAGS = new Set([
   "a", "blockquote", "br", "code", "del", "em",
   "h1", "h2", "h3", "h4", "h5", "h6", "hr",
-  "li", "ol", "p", "pre", "strong", "table", "tbody", "td", "th", "thead", "tr", "ul",
+  "input", "li", "ol", "p", "pre", "strong", "table", "tbody", "td", "th", "thead", "tr", "ul",
 ]);
 
 const ALLOWED_ATTRIBUTES: Record<string, Set<string>> = {
   a: new Set(["href", "title", "target", "rel"]),
   code: new Set(["class"]),
+  input: new Set(["type", "disabled", "checked"]),
   td: new Set(["align"]),
   th: new Set(["align"]),
 };
@@ -55,7 +56,7 @@ function MarkdownBlock({ content }: { content: string }) {
   const safeHtml = useMemo(() => sanitizeHtml(html), [html]);
   return (
     <div
-      className="max-w-none text-[13px] leading-6 text-text-primary [&_a]:text-shell-400 [&_a]:no-underline hover:[&_a]:underline [&_code]:text-shell-300 [&_li]:my-1 [&_ol]:my-2 [&_p]:my-2 [&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:border-white/6 [&_pre]:bg-surface-0 [&_pre]:p-3 [&_ul]:my-2"
+      className="max-w-none text-[13px] leading-6 text-text-primary overflow-x-auto [&_a]:text-shell-400 [&_a]:no-underline hover:[&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-shell-400/40 [&_blockquote]:pl-3 [&_blockquote]:text-text-secondary [&_code]:bg-white/5 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-shell-300 [&_h1]:text-xl [&_h1]:font-semibold [&_h1]:mt-4 [&_h1]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:mt-4 [&_h2]:mb-2 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2 [&_h4]:text-sm [&_h4]:font-semibold [&_h4]:mt-3 [&_h4]:mb-1.5 [&_h5]:text-sm [&_h5]:font-medium [&_h5]:mt-3 [&_h5]:mb-1.5 [&_h6]:text-xs [&_h6]:font-medium [&_h6]:mt-3 [&_h6]:mb-1.5 [&_hr]:border-white/10 [&_hr]:my-4 [&_input]:mr-1.5 [&_li]:my-1 [&_li:has(input)]:list-none [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:my-2 [&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:border-white/6 [&_pre]:bg-surface-0 [&_pre]:p-3 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:rounded-none [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-white/10 [&_td]:px-3 [&_td]:py-1.5 [&_th]:border [&_th]:border-white/10 [&_th]:px-3 [&_th]:py-1.5 [&_th]:bg-surface-3 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-6"
       dangerouslySetInnerHTML={{ __html: safeHtml }}
     />
   );
@@ -170,6 +171,17 @@ function sanitizeNode(node: Node) {
     const text = document.createTextNode(node.textContent || "");
     node.replaceWith(text);
     return;
+  }
+
+  /** input 标签仅允许 type=checkbox，其余 type 值或缺失 type 时移除整个节点 */
+  if (tag === "input") {
+    const typeAttr = node.getAttribute("type");
+    if (!typeAttr || typeAttr.toLowerCase() !== "checkbox") {
+      node.remove();
+      return;
+    }
+    /** B-12: 强制 disabled，确保 checkbox 不可交互 */
+    node.setAttribute("disabled", "");
   }
 
   const allowed = ALLOWED_ATTRIBUTES[tag];
