@@ -6,6 +6,7 @@ import type { Issue, Stage } from "@domain/issue/model";
 import type { RoleDefinition } from "@domain/sop/model";
 import { buildIdentityBlock } from "@app/issue-collaboration/_internal/identity-block";
 import { buildStageHistoryBlock } from "@app/issue-collaboration/_internal/stage-history-block";
+import { isStageReEntry } from "@domain/issue/_internal/stage-chain";
 import { resolveContextValue } from "@app/issue-collaboration/resource-cleanup";
 
 export interface SystemPromptBuilderDeps {
@@ -71,6 +72,15 @@ export class SystemPromptBuilder {
     const issueContext = missingInfra.length > 0 ? `${ctxLines}\n> ⚠️ 以下基础设施字段未记录：${missingInfra.join(", ")}` : ctxLines;
     /** 阶段历史：通过 from_stage_id 回溯构建链路，展示前序阶段的最近消息 */
     const stageHistory = buildStageHistoryBlock(this.deps.stagePort, this.deps.messagePort, stage);
+    /** 复检提示：重新进入 review 阶段时注入，展示上一轮 review_comment_url */
+    const allStages = this.deps.stagePort.listStages(issue.id) ?? [];
+    const reviewReEntryHint = isStageReEntry(allStages, stage.id) && stage.key === "review"
+      ? (() => {
+          const prevUrl = resolveContextValue(issue.context, "review_comment_url");
+          if (!prevUrl) return "";
+          return "\n## 复检提示\n检测到重新进入 review 阶段。\n上一轮 review_comment_url: " + prevUrl + "\n复检时必须：\n1. 发布新的 PR 评论（不得复用上一轮的评论链接）\n2. 通过 set_context 更新 issue context 中的 review_comment_url 字段\n3. 完整重新检视 PR diff（不能只确认单条评论是否已处理）\n";
+        })()
+      : "";
     return `<context>
 ## 项目上下文
 **Issue**：${issue.title}
@@ -79,7 +89,7 @@ export class SystemPromptBuilder {
 ## Issue 上下文（只读视图）
 ${issueContext}
 > **注意**：这是只读视图。Agent 应使用 MCP 工具 \`set_context\` 和 \`get_context\` 读写 Issue 上下文。Issue 上下文也会通过环境变量 \`SNAIL_CTX_*\` 注入，可通过 \`process.env\` 读取。
-${stageHistory}
+${stageHistory}${reviewReEntryHint}
 ## 当前阶段
 **阶段**：${stage.title} (${stage.key}) — ${stage.description}
 ## 可用 Skills
