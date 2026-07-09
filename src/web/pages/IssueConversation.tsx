@@ -194,7 +194,7 @@ export function IssueConversation() {
                     const msg = sorted[virtualRow.index];
                     return (
                       <div
-                        key={msg.id}
+                        key={msg.client_id ?? msg.id}
                         ref={virtualizer.measureElement}
                         data-index={virtualRow.index}
                         style={{
@@ -203,6 +203,7 @@ export function IssueConversation() {
                           left: 0,
                           width: "100%",
                           transform: `translateY(${virtualRow.start}px)`,
+                          contain: "layout",
                         }}
                         className="px-0 py-1"
                       >

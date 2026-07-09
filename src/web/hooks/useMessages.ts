@@ -35,6 +35,7 @@ export function useMessages({ stageId }: UseMessagesOptions) {
             role: "user",
             status: p.status, // "sending" or "failed"
             content: p.content,
+            client_id: p.clientId,
             createdAt: p.createdAt,
           }),
         )

@@ -137,6 +137,8 @@ export type MessageDto = {
   id: number;
   stage_id: string;
   conversation_id: string;
+  /** 前端生成的稳定标识，用于虚拟列表 key（乐观消息和服务端消息保持一致） */
+  client_id?: string | null;
   from_speaker: string | null;
   from_role: string | null;
   to_speakers: string[];
