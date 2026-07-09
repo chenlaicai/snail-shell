@@ -317,14 +317,14 @@ export class EventBatcher {
     );
     if (optimisticIndex === -1) return null;
 
-    /** 替换乐观消息为服务端消息 */
+    /** 替换乐观消息为服务端消息，保留原 client_id 以稳定虚拟列表 key */
     const result = messages.map((m, i) =>
       i === optimisticIndex
         ? createPlaceholderMessage(stageId, {
             id: event.message_id,
             role: event.role,
             from_role: event.role_name,
-            client_id: event.client_id,
+            client_id: messages[optimisticIndex].client_id,
             status: event.status,
             content: event.content,
           })

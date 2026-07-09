@@ -16,6 +16,8 @@ export interface PendingMessage {
   toSpeakers?: string[];
   createdAt: string; // ISO timestamp
   status: "sending" | "failed";
+  /** 前端生成的稳定标识，用于虚拟列表 key（乐观消息和服务端消息保持一致） */
+  clientId?: string;
 }
 
 function readAll(): Record<string, PendingMessage> {
