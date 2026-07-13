@@ -156,6 +156,7 @@ doc_kind: spec
 cd /Users/orca/ai/snail-shell
 
 # 导出目标 commit 的文件树到临时目录
+mkdir -p /tmp/public-snapshot
 git archive --format=tar 37152fb6 | tar -x -C /tmp/public-snapshot
 
 cd /tmp/public-snapshot
@@ -210,7 +211,7 @@ ls src/ tests/ package.json tsconfig.json README.md LICENSE
 git init
 git add .
 # commit 信息包含源 commit 编号，便于下次更新时明确本次公开使用的版本
-git commit -m "v1.0.0 stable release (snapshot from commit 37152fb6, 2026-06-09)"
+git commit -m "v1.0.0 stable release (snapshot from commit 37152fb6f479b30dbbb036100a840f17ddb2266c, 2026-06-09)"
 
 # 添加公开仓库 remote 并推送
 git remote add origin https://github.com/chenlaicai/snail-shell-public.git
@@ -242,6 +243,7 @@ cd /tmp/public-update
 
 # 2. 从私有仓库导出目标 commit 的文件树
 # 替换 <COMMIT_HASH> 为想发布的稳定 commit
+mkdir -p /tmp/public-snapshot-new
 git --git-dir=/Users/orca/ai/snail-shell/.git archive --format=tar <COMMIT_HASH> | tar -x -C /tmp/public-snapshot-new
 
 # 3. 清理内部文件（同初始发布）
@@ -294,8 +296,8 @@ git push origin main
 ### B-1: 发布流程执行 ← UA-3, UA-5, UA-6
 
 **当** 用户执行发布流程时
-**应该** 从私有仓库的指定 commit 导出完全代码快照，仅删除内部状态文件（`.snail/`、`config.json`），推送到公开仓库
-**约束**：排除列表仅含 `.snail/` 和 `config.json`；项目必须可正常启动
+**应该** 从私有仓库的指定 commit 导出完全代码快照，仅删除内部状态文件（`.snail/`、`config.json`、`docs/features/`），推送到公开仓库
+**约束**：排除列表仅含 `.snail/`、`config.json` 和 `docs/features/`；项目必须可正常启动
 
 ### B-2: 私有仓库不受影响 ← UA-4
 
@@ -325,7 +327,7 @@ git push origin main
 
 1. **隔离原则**：公开仓库与私有仓库完全分离，不共享 git 历史
 2. **只读导出**：发布流程对私有仓库只读，不修改任何内容
-3. **完全代码**：公开仓库包含目标 commit 的完整代码，排除列表最小化（仅 `.snail/` 和 `config.json`）
+3. **完全代码**：公开仓库包含目标 commit 的完整代码，排除列表最小化（仅 `.snail/`、`config.json` 和 `docs/features/`）
 4. **可启动性**：公开仓库的代码必须能 `npm install && npm run build && npm start` 正常运行
 5. **操作可执行性**：操作步骤必须详细到 AI 可逐步执行
 
@@ -370,7 +372,7 @@ git push origin main
 ### D-7: Commit 信息包含源 commit 编号
 - **决策**：公开仓库的 commit message 必须包含源 commit 的完整 hash
 - **依据**：用户确认（msg#3）"commit信息要包含最新具体的commit编号（便于下一次明确本次的公开是用的哪个commit）"
-- **格式**：`v1.0.0 stable release (snapshot from commit 37152fb6, 2026-06-09)`
+- **格式**：`v1.0.0 stable release (snapshot from commit 37152fb6f479b30dbbb036100a840f17ddb2266c, 2026-06-09)`
 
 ## 不兼容更新
 
