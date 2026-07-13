@@ -228,6 +228,53 @@ npm run build
 npm start
 ```
 
+### 后续更新流程
+
+初始发布后，如需更新公开仓库到更新的稳定版本，按以下步骤操作。
+
+**核心思路**：两个仓库不共享 git 历史，无法 merge/rebase。每次更新是在公开仓库中创建一个新 commit，内容为私有仓库某个 commit 的清理后快照。
+
+#### 更新步骤
+
+```bash
+# 1. Clone 公开仓库（或使用已有本地副本）
+git clone https://github.com/chenlaicai/snail-shell-public.git /tmp/public-update
+cd /tmp/public-update
+
+# 2. 从私有仓库导出目标 commit 的文件树
+# 替换 <COMMIT_HASH> 为想发布的稳定 commit
+git --git-dir=/Users/orca/ai/snail-shell/.git archive --format=tar <COMMIT_HASH> | tar -x -C /tmp/public-snapshot-new
+
+# 3. 清理内部状态文件（同初始发布）
+cd /tmp/public-snapshot-new
+rm -rf .snail/
+rm -f config.json
+# 适配 README 和 .gitignore（同初始发布的步骤 3-4）
+
+# 4. 将清理后的文件覆盖到公开仓库目录
+# 保留公开仓库的 .git/ 目录
+rsync -av --delete --exclude='.git' /tmp/public-snapshot-new/ /tmp/public-update/
+
+# 5. 提交并推送
+cd /tmp/public-update
+git add -A
+git commit -m "v1.1.0 stable release (snapshot from YYYY-MM-DD)"
+git push origin main
+```
+
+#### 两条 branch 差异处理
+
+| 差异类型 | 初始发布 | 后续更新 |
+|----------|----------|----------|
+| 文件差异 | 步骤 2-4 处理 | 同样步骤处理，再 rsync 覆盖 |
+| 历史差异 | 公开仓库 1 个 commit | 公开仓库累积多个 release commit，每个对应一个快照 |
+| remote 差异 | 独立 remote | 不变，仍推送到同一 public remote |
+
+**关键约束**：
+- 公开仓库的 commit history 只包含发布快照（如 "v1.0.0 release"、"v1.1.0 release"），不含开发历史
+- 每次更新是一个新 commit，不做 merge/rebase（两仓库无共同祖先）
+- 使用 `rsync --delete` 确保旧版本中存在但新版本中已删除的文件被清理
+
 ### 公开仓库 .gitignore
 
 基于旧版本的 .gitignore，移除内部工具链引用后保留：
@@ -288,15 +335,15 @@ data/*.db
 
 ### B-3: 公开仓库历史隔离 ← UA-3
 
-**当** 发布流程执行后
-**应该** 公开仓库只有单个 commit，不含开发历史
-**约束**：公开仓库的 commit history 只包含发布记录
+**当** 执行发布或后续更新流程时
+**应该** 公开仓库只有发布快照 commit，不含开发历史
+**约束**：公开仓库的 commit history 只包含发布记录（如 "v1.0.0 release"、"v1.1.0 release"）；两仓库不共享 git 历史，不做 merge/rebase
 
 ### B-4: 操作步骤可执行 ← UA-7
 
 **当** AI 按照操作步骤执行时
-**应该** 能够完成从导出快照到推送公开仓库的全流程
-**约束**：步骤必须包含具体命令和验证点
+**应该** 能够完成初始发布和后续更新的全流程
+**约束**：步骤必须包含具体命令和验证点；后续更新步骤需处理两条 branch 的文件差异（rsync 覆盖）和历史差异（新 commit，不 merge）
 
 ### B-5: .gitignore 精简 ← UA-5
 
