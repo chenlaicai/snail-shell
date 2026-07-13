@@ -134,7 +134,7 @@ doc_kind: spec
 
 目标 commit `37152fb6` 的 README 与当时的代码结构自洽，无需大幅修改。仅需：
 
-1. **添加发布说明**：在 README 顶部添加"这是稳定发布版本，基于 2026-06-09 的代码快照"
+1. **添加发布说明**：在 README 顶部添加"这是稳定发布版本（snapshot from commit 37152fb6）"，不显示日期，避免外部看到旧日期产生疑虑
 2. **移除内部工具引用**：如果 .gitignore 中排除了 `config.json`，README 中不应引用该文件
 
 无需修正工作区结构 - 旧 README 中的 `src/agent/`、`src/api/` 等路径在当时是准确的。
@@ -177,7 +177,7 @@ rm -rf docs/features/
 在 README.md 顶部（标题下方）添加发布说明：
 
 ```markdown
-> **这是稳定发布版本，基于 2026-06-09 的代码快照（commit 37152fb6）。**
+> **这是稳定发布版本（snapshot from commit 37152fb6）。**
 ```
 
 检查 README 中是否有对 `config.json` 或 `docs/features/` 的引用，如有则移除。
@@ -211,7 +211,7 @@ ls src/ tests/ package.json tsconfig.json README.md LICENSE
 git init
 git add .
 # commit 信息包含源 commit 编号，便于下次更新时明确本次公开使用的版本
-git commit -m "v1.0.0 stable release (snapshot from commit 37152fb6f479b30dbbb036100a840f17ddb2266c, 2026-06-09)"
+git commit -m "v1.0.0 stable release (snapshot from commit 37152fb6f479b30dbbb036100a840f17ddb2266c)"
 
 # 添加公开仓库 remote 并推送
 git remote add origin https://github.com/chenlaicai/snail-shell-public.git
@@ -261,7 +261,7 @@ rsync -av --delete --exclude='.git' /tmp/public-snapshot-new/ /tmp/public-update
 # commit 信息包含源 commit 编号，便于下次更新时明确本次公开使用的版本
 cd /tmp/public-update
 git add -A
-git commit -m "v1.1.0 stable release (snapshot from commit <COMMIT_HASH>, YYYY-MM-DD)"
+git commit -m "v1.1.0 stable release (snapshot from commit <COMMIT_HASH>)"
 git push origin main
 ```
 
@@ -372,7 +372,7 @@ git push origin main
 ### D-7: Commit 信息包含源 commit 编号
 - **决策**：公开仓库的 commit message 必须包含源 commit 的完整 hash
 - **依据**：用户确认（msg#3）"commit信息要包含最新具体的commit编号（便于下一次明确本次的公开是用的哪个commit）"
-- **格式**：`v1.0.0 stable release (snapshot from commit 37152fb6f479b30dbbb036100a840f17ddb2266c, 2026-06-09)`
+- **格式**：`v1.0.0 stable release (snapshot from commit 37152fb6f479b30dbbb036100a840f17ddb2266c)`
 
 ## 不兼容更新
 

@@ -58,7 +58,7 @@ rm -rf docs/features/
 在 README.md 顶部（标题下方）添加发布说明：
 
 ```markdown
-> **这是稳定发布版本，基于 YYYY-MM-DD 的代码快照（commit <COMMIT_HASH>）。**
+> **这是稳定发布版本（snapshot from commit <COMMIT_HASH>）。**
 ```
 
 检查 README 中是否有对 `config.json` 或 `docs/features/` 的引用，如有则移除。
@@ -80,7 +80,7 @@ ls src/ tests/ package.json tsconfig.json README.md LICENSE
 ```bash
 git init
 git add .
-git commit -m "v1.0.0 stable release (snapshot from commit <COMMIT_HASH>, YYYY-MM-DD)"
+git commit -m "v1.0.0 stable release (snapshot from commit <COMMIT_HASH>)"
 
 git remote add origin https://github.com/chenlaicai/snail-shell-public.git
 git branch -M main
@@ -140,7 +140,7 @@ rsync -av --delete --exclude='.git' /tmp/public-snapshot-new/ /tmp/public-update
 ```bash
 cd /tmp/public-update
 git add -A
-git commit -m "v1.X.0 stable release (snapshot from commit <COMMIT_HASH>, YYYY-MM-DD)"
+git commit -m "v1.X.0 stable release (snapshot from commit <COMMIT_HASH>)"
 git push origin main
 ```
 
