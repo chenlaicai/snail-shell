@@ -32,6 +32,12 @@ export function StageSuggestionCard({
 
   const suggestion = (suggestions as StageSuggestion[])[0] ?? null;
 
+  /** suggestion 变更时重置 hint 状态，防止 stale hint 被发送到新 suggestion */
+  useEffect(() => {
+    setUserHint("");
+    setShowHintInput(false);
+  }, [suggestion?.target_key, suggestion?.created_at]);
+
   /** B1: 组件挂载并显示 suggestion 时，自动标记为已阅。不在当前会话清除显示——用户仍可 Confirm/Ignore */
   useEffect(() => {
     if (!stageId || !suggestion) return;
@@ -79,6 +85,8 @@ export function StageSuggestionCard({
         query: { created_at: suggestion.created_at },
       });
       refetch();
+      setUserHint("");
+      setShowHintInput(false);
     } catch (err: unknown) {
       showToast(`忽略失败：${err instanceof Error ? err.message : String(err)}`, true);
     } finally {
