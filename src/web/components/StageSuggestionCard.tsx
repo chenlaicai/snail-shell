@@ -22,6 +22,8 @@ export function StageSuggestionCard({
   const [submitting, setSubmitting] = useState(false);
   const [dismissing, setDismissing] = useState(false);
   const [blockedReasons, setBlockedReasons] = useState<Array<{ code: string; severity: string; message: string; details?: Record<string, unknown> }> | null>(null);
+  const [userHint, setUserHint] = useState("");
+  const [showHintInput, setShowHintInput] = useState(false);
   const { data: suggestions = [], refetch } = useQuery({
     queryKey: ["stages", stageId, "transition-suggestions"],
     queryFn: () => api("GET /api/stages/:stageId/transition-suggestions", { params: { stageId: stageId! } }),
@@ -49,11 +51,13 @@ export function StageSuggestionCard({
     try {
       const stage = await api("POST /api/stages/:stageId/advance", {
         params: { stageId },
-        body: { target_key: suggestion.target_key },
+        body: { target_key: suggestion.target_key, user_hint: userHint.trim() || undefined },
       });
       showToast("阶段已推进");
       onAccepted(stage);
       refetch();
+      setUserHint("");
+      setShowHintInput(false);
     } catch (err: unknown) {
       if (err instanceof BlockedError && err.evaluation.reasons.length > 0) {
         /** 409 阻断：弹出确认对话框而非 toast，让用户可以强制推进 */
@@ -119,17 +123,35 @@ export function StageSuggestionCard({
               {dismissing ? "Ignoring..." : "Ignore"}
             </button>
           </div>
+          <button
+            onClick={() => setShowHintInput(!showHintInput)}
+            className="text-[11px] text-text-muted hover:text-text-secondary transition-colors"
+          >
+            {showHintInput ? "收起" : "添加推进说明..."}
+          </button>
         </div>
       </div>
+
+      {showHintInput && (
+        <textarea
+          value={userHint}
+          onChange={(e) => setUserHint(e.target.value)}
+          placeholder="可选：填写推进原因或对新阶段的指示..."
+          rows={3}
+          maxLength={2000}
+          className="w-full rounded-md border border-white/6 bg-surface-0 px-2.5 py-1.5 text-xs text-text-primary focus:border-shell-600/40 focus:outline-none resize-none"
+        />
+      )}
     </div>
     {blockedReasons && (
       <ForceAdvanceDialog
         open={!!blockedReasons}
         onClose={() => setBlockedReasons(null)}
-        onConfirmed={(stage) => { onAccepted(stage); refetch(); setBlockedReasons(null); }}
+        onConfirmed={(stage) => { onAccepted(stage); refetch(); setBlockedReasons(null); setUserHint(""); setShowHintInput(false); }}
         stageId={stageId}
         targetKey={suggestion.target_key}
         reasons={blockedReasons}
+        userHint={userHint.trim() || undefined}
       />
     )}
     </>
