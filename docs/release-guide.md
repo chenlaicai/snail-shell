@@ -77,23 +77,20 @@ ls docs/features/ 2>/dev/null && echo "ERROR: docs/features/ still exists" || ec
 ls src/ tests/ package.json tsconfig.json README.md LICENSE
 ```
 
-### 步骤 5：初始化并推送到公开仓库
+### 步骤 5：初始化公开仓库（空 commit）
 
 ```bash
-git init
-git add .
-git commit -m "v1.0.0 stable release (snapshot from commit <COMMIT_HASH>)"
+cd /tmp/public-snapshot
 
+# 初始化新仓库，先推送一个空 commit 到 main
+git init
+git commit --allow-empty -m "initial empty commit"
 git remote add origin https://github.com/chenlaicai/snail-shell-public.git
 git branch -M main
 git push -u origin main
 ```
 
-> commit message 必须包含源 commit 的完整 hash，便于下次更新时明确本次公开使用的版本。
-
 ### 步骤 6：配置分支保护
-
-初始推送完成后，配置 main 分支保护规则：
 
 ```bash
 # 仅允许 squash merge
@@ -120,7 +117,34 @@ gh api repos/chenlaicai/snail-shell-public/branches/main/protection -X PUT \
 EOF
 ```
 
-### 步骤 7：验证项目可启动
+### 步骤 7：创建 release 分支并提交快照
+
+```bash
+# 回到快照目录，创建 release 分支
+cd /tmp/public-snapshot
+git checkout -b release/v1.0.0
+
+# 将快照内容（步骤 1-4 已处理的）添加并提交
+# 注意：此时需要把快照文件复制到 git 仓库目录中
+# 如果快照目录就是 git 仓库目录，直接 add 即可
+git add .
+git commit -m "v1.0.0 stable release (snapshot from commit <COMMIT_HASH>)"
+git push -u origin release/v1.0.0
+```
+
+> commit message 必须包含源 commit 的完整 hash（不含日期），便于下次更新时明确本次公开使用的版本。
+
+### 步骤 8：通过 PR squash merge 合入 main
+
+```bash
+gh pr create --repo chenlaicai/snail-shell-public \
+  --head release/v1.0.0 --base main \
+  --title "v1.0.0 stable release" \
+  --body "snapshot from commit <COMMIT_HASH>"
+gh pr merge --repo chenlaicai/snail-shell-public --squash --admin
+```
+
+### 步骤 9：验证项目可启动
 
 ```bash
 npm install

@@ -204,22 +204,61 @@ ls docs/features/ 2>/dev/null && echo "ERROR: docs/features/ still exists" || ec
 ls src/ tests/ package.json tsconfig.json README.md LICENSE
 ```
 
-#### 步骤 6：初始化并推送到公开仓库
+#### 步骤 6：初始化公开仓库并配置分支保护
 
 ```bash
-# 初始化新的 git 仓库
+# 初始化新仓库，先推送空 commit 到 main
+cd /tmp/public-snapshot
 git init
-git add .
-# commit 信息包含源 commit 编号，便于下次更新时明确本次公开使用的版本
-git commit -m "v1.0.0 stable release (snapshot from commit 37152fb6f479b30dbbb036100a840f17ddb2266c)"
-
-# 添加公开仓库 remote 并推送
+git commit --allow-empty -m "initial empty commit"
 git remote add origin https://github.com/chenlaicai/snail-shell-public.git
 git branch -M main
 git push -u origin main
+
+# 配置 squash merge only
+gh api repos/chenlaicai/snail-shell-public -X PATCH \
+  -f allow_squash_merge=true -f allow_merge_commit=false -f allow_rebase_merge=false
+
+# 保护 main 分支（enforce_admins=true，任何人不可 force push）
+gh api repos/chenlaicai/snail-shell-public/branches/main/protection -X PUT \
+  -H "Accept: application/vnd.github+json" \
+  --input - <<'EOF'
+{
+  "required_status_checks": null,
+  "enforce_admins": true,
+  "required_pull_request_reviews": {
+    "required_approving_review_count": 0,
+    "dismiss_stale_reviews": false,
+    "require_code_owner_reviews": false
+  },
+  "restrictions": null,
+  "required_linear_history": true,
+  "allow_force_pushes": false,
+  "allow_deletions": false
+}
+EOF
 ```
 
-#### 步骤 7：验证
+#### 步骤 7：通过 PR 发布快照
+
+```bash
+# 创建 release 分支，提交快照内容
+cd /tmp/public-snapshot
+git checkout -b release/v1.0.0
+git add .
+# commit 信息包含源 commit 编号（不含日期），便于下次更新时明确本次公开使用的版本
+git commit -m "v1.0.0 stable release (snapshot from commit 37152fb6f479b30dbbb036100a840f17ddb2266c)"
+git push -u origin release/v1.0.0
+
+# 创建 PR 并 squash merge 合入 main
+gh pr create --repo chenlaicai/snail-shell-public \
+  --head release/v1.0.0 --base main \
+  --title "v1.0.0 stable release" \
+  --body "snapshot from commit 37152fb6f479b30dbbb036100a840f17ddb2266c"
+gh pr merge --repo chenlaicai/snail-shell-public --squash --admin
+```
+
+#### 步骤 8：验证
 
 ```bash
 # 在公开仓库目录中验证项目可启动
