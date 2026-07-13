@@ -120,13 +120,11 @@ EOF
 ### 步骤 7：创建 release 分支并提交快照
 
 ```bash
-# 回到快照目录，创建 release 分支
+# 回到快照目录（即步骤 5 中 git init 的目录），创建 release 分支
 cd /tmp/public-snapshot
 git checkout -b release/v1.0.0
 
 # 将快照内容（步骤 1-4 已处理的）添加并提交
-# 注意：此时需要把快照文件复制到 git 仓库目录中
-# 如果快照目录就是 git 仓库目录，直接 add 即可
 git add .
 git commit -m "v1.0.0 stable release (snapshot from commit <COMMIT_HASH>)"
 git push -u origin release/v1.0.0
@@ -217,6 +215,14 @@ npm install
 npm run build
 npm start
 ```
+
+## Dependabot PR 处理
+
+公开仓库包含 `.github/dependabot.yml`，GitHub 会自动创建依赖更新 PR。处理策略：
+
+- **发布更新时**：忽略 dependabot PR，直接按"后续更新"流程创建 release 分支。新快照的 `package.json` / `package-lock.json` 来自私有仓库，已包含最新依赖版本，dependabot PR 会在下次 rsync 覆盖后自动失效。
+- **日常维护**：如需单独更新依赖，可 review 后 squash merge 对应的 dependabot PR。
+- **批量清理**：过期的 dependabot PR 可直接 close，不影响发布流程。
 
 ## 验证清单
 
