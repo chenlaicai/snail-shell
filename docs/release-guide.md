@@ -11,6 +11,8 @@
 
 **核心原则**：两个仓库不共享 git 历史，不做 merge/rebase。每次发布/更新是在公开仓库中创建一个新 commit，内容为私有仓库某个 commit 的清理后快照。
 
+**分支保护**：公开仓库 `main` 分支已启用保护规则，不允许直接 push 或 force push。所有变更必须通过 PR squash merge 合入。
+
 ## 排除列表
 
 以下文件/目录在导出快照后必须删除：
@@ -89,7 +91,36 @@ git push -u origin main
 
 > commit message 必须包含源 commit 的完整 hash，便于下次更新时明确本次公开使用的版本。
 
-### 步骤 6：验证项目可启动
+### 步骤 6：配置分支保护
+
+初始推送完成后，配置 main 分支保护规则：
+
+```bash
+# 仅允许 squash merge
+gh api repos/chenlaicai/snail-shell-public -X PATCH \
+  -f allow_squash_merge=true -f allow_merge_commit=false -f allow_rebase_merge=false
+
+# 保护 main 分支
+gh api repos/chenlaicai/snail-shell-public/branches/main/protection -X PUT \
+  -H "Accept: application/vnd.github+json" \
+  --input - <<'EOF'
+{
+  "required_status_checks": null,
+  "enforce_admins": true,
+  "required_pull_request_reviews": {
+    "required_approving_review_count": 0,
+    "dismiss_stale_reviews": false,
+    "require_code_owner_reviews": false
+  },
+  "restrictions": null,
+  "required_linear_history": true,
+  "allow_force_pushes": false,
+  "allow_deletions": false
+}
+EOF
+```
+
+### 步骤 7：验证项目可启动
 
 ```bash
 npm install
@@ -135,16 +166,27 @@ rsync -av --delete --exclude='.git' /tmp/public-snapshot-new/ /tmp/public-update
 
 > `rsync --delete` 确保旧版本中存在但新版本中已删除的文件被清理。
 
-### 步骤 5：提交并推送
+### 步骤 5：创建分支并提交
 
 ```bash
 cd /tmp/public-update
+git checkout -b release/v1.X.0
 git add -A
 git commit -m "v1.X.0 stable release (snapshot from commit <COMMIT_HASH>)"
-git push origin main
+git push -u origin release/v1.X.0
 ```
 
-### 步骤 6：验证项目可启动
+### 步骤 6：通过 PR 合入
+
+```bash
+gh pr create --repo chenlaicai/snail-shell-public \
+  --head release/v1.X.0 --base main \
+  --title "v1.X.0 stable release" \
+  --body "snapshot from commit <COMMIT_HASH>"
+gh pr merge --repo chenlaicai/snail-shell-public --squash --admin
+```
+
+### 步骤 7：验证项目可启动
 
 ```bash
 npm install
@@ -163,5 +205,7 @@ npm start
 - [ ] `npm install` 成功
 - [ ] `npm run build` 成功
 - [ ] `npm start` 成功
-- [ ] commit message 包含源 commit 完整 hash
+- [ ] commit message 包含源 commit 完整 hash（不含日期）
+- [ ] README 发布说明不含日期
 - [ ] 公开仓库只有发布快照 commit，不含开发历史
+- [ ] 后续更新通过 PR squash merge 合入（不直接 push main）
