@@ -257,12 +257,20 @@ rm -rf docs/features/
 # 保留公开仓库的 .git/ 目录
 rsync -av --delete --exclude='.git' /tmp/public-snapshot-new/ /tmp/public-update/
 
-# 5. 提交并推送
+# 5. 创建分支并提交
 # commit 信息包含源 commit 编号，便于下次更新时明确本次公开使用的版本
 cd /tmp/public-update
+git checkout -b release/v1.X.0
 git add -A
-git commit -m "v1.1.0 stable release (snapshot from commit <COMMIT_HASH>)"
-git push origin main
+git commit -m "v1.X.0 stable release (snapshot from commit <COMMIT_HASH>)"
+git push -u origin release/v1.X.0
+
+# 6. 通过 PR squash merge 合入 main（分支保护已启用，不可直接 push）
+gh pr create --repo chenlaicai/snail-shell-public \
+  --head release/v1.X.0 --base main \
+  --title "v1.X.0 stable release" \
+  --body "snapshot from commit <COMMIT_HASH>"
+gh pr merge --repo chenlaicai/snail-shell-public --squash --admin
 ```
 
 #### 两条 branch 差异处理
