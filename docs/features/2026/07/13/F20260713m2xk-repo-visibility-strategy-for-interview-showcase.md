@@ -107,16 +107,19 @@ doc_kind: spec
 
 公开仓库包含目标 commit `37152fb6`（2026-06-09）的**完全代码**，仅排除极少量内部状态文件。项目必须可正常启动。← UA-6
 
-#### 排除列表（最小化）
+#### 排除列表
 
 | 目录/文件 | 理由 |
 |-----------|------|
 | `.snail/` | 内部状态（仅 `init.json`），不属于项目代码 |
 | `config.json` | OpenCode 工具链配置，不属于项目代码 |
+| `docs/features/` | 历史提交记录，不属于项目代码（用户确认 msg#3） |
+
+**本地配置排除**：`git archive` 仅导出 git tracked 文件，已 gitignore 的本地配置（`.env`、`.claude/`、`CLAUDE.md`、`config/*.json`、`config/*.yaml` 等）不会出现在快照中。公开仓库沿用主仓的 .gitignore 规则。← UA-5, msg#3
 
 #### 保留说明
 
-以下文件虽然包含内部流程信息，但属于项目完整性的组成部分，保留有助于面试展示项目成熟度：
+以下文件属于项目完整性的组成部分，保留有助于面试展示项目成熟度：
 
 | 目录/文件 | 保留理由 |
 |-----------|----------|
@@ -125,10 +128,7 @@ doc_kind: spec
 | `scripts/` | 展示工程工具链 |
 | `bin/` | 服务启动脚本，项目运行必需 |
 | `CONTRIBUTING.md` / `SECURITY.md` | 展示项目治理成熟度 |
-| `docs/features/` | 展示开发流程和设计思考过程 |
 | `package-lock.json` | 确保依赖可复现 |
-
-> **待用户确认**：以上排除列表是否匹配意图？是否有其他需要排除的内容？
 
 ### README 适配策略
 
@@ -161,12 +161,14 @@ git archive --format=tar 37152fb6 | tar -x -C /tmp/public-snapshot
 cd /tmp/public-snapshot
 ```
 
-#### 步骤 2：删除内部状态文件
+#### 步骤 2：删除内部文件
 
 ```bash
-# 仅删除内部状态文件，保留所有项目代码
+# 删除内部状态文件
 rm -rf .snail/
 rm -f config.json
+# 删除历史提交记录
+rm -rf docs/features/
 ```
 
 #### 步骤 3：适配 README
@@ -174,19 +176,14 @@ rm -f config.json
 在 README.md 顶部（标题下方）添加发布说明：
 
 ```markdown
-> **这是稳定发布版本，基于 2026-06-09 的代码快照。**
+> **这是稳定发布版本，基于 2026-06-09 的代码快照（commit 37152fb6）。**
 ```
 
-检查 README 中是否有对 `config.json` 的引用，如有则移除。
+检查 README 中是否有对 `config.json` 或 `docs/features/` 的引用，如有则移除。
 
-#### 步骤 4：适配 .gitignore
+#### 步骤 4：.gitignore
 
-从 .gitignore 中移除以下内部工具链引用（如果存在）：
-- `.claude/` 相关条目
-- `CLAUDE.md`、`AGENTS.md` 等本地 agent 配置
-- `.cat-cafe/`、`.codex/`、`.gemini/`、`.kimi/` 等
-
-保留标准项目条目（`node_modules/`、`dist/`、`.env`、`config/*.json`、`config/*.yaml` 等）。
+沿用 `git archive` 导出的 .gitignore（即主仓的 .gitignore）。该文件已经排除了本地配置文件（`.env`、`.claude/`、`CLAUDE.md` 等），无需额外修改。
 
 #### 步骤 5：处理两条 branch 的差异
 
@@ -197,9 +194,10 @@ rm -f config.json
 3. **remote 差异**：公开仓库使用独立的 remote，与私有仓库完全分离
 
 ```bash
-# 验证快照中不包含内部状态文件
+# 验证快照中不包含内部文件
 ls .snail/ 2>/dev/null && echo "ERROR: .snail/ still exists" || echo "OK: .snail/ removed"
 ls config.json 2>/dev/null && echo "ERROR: config.json still exists" || echo "OK: config.json removed"
+ls docs/features/ 2>/dev/null && echo "ERROR: docs/features/ still exists" || echo "OK: docs/features/ removed"
 
 # 验证项目结构完整性
 ls src/ tests/ package.json tsconfig.json README.md LICENSE
@@ -211,7 +209,8 @@ ls src/ tests/ package.json tsconfig.json README.md LICENSE
 # 初始化新的 git 仓库
 git init
 git add .
-git commit -m "v1.0.0 stable release (snapshot from 2026-06-09)"
+# commit 信息包含源 commit 编号，便于下次更新时明确本次公开使用的版本
+git commit -m "v1.0.0 stable release (snapshot from commit 37152fb6, 2026-06-09)"
 
 # 添加公开仓库 remote 并推送
 git remote add origin https://github.com/chenlaicai/snail-shell-public.git
@@ -245,20 +244,22 @@ cd /tmp/public-update
 # 替换 <COMMIT_HASH> 为想发布的稳定 commit
 git --git-dir=/Users/orca/ai/snail-shell/.git archive --format=tar <COMMIT_HASH> | tar -x -C /tmp/public-snapshot-new
 
-# 3. 清理内部状态文件（同初始发布）
+# 3. 清理内部文件（同初始发布）
 cd /tmp/public-snapshot-new
 rm -rf .snail/
 rm -f config.json
-# 适配 README 和 .gitignore（同初始发布的步骤 3-4）
+rm -rf docs/features/
+# 适配 README（同初始发布步骤 3）
 
 # 4. 将清理后的文件覆盖到公开仓库目录
 # 保留公开仓库的 .git/ 目录
 rsync -av --delete --exclude='.git' /tmp/public-snapshot-new/ /tmp/public-update/
 
 # 5. 提交并推送
+# commit 信息包含源 commit 编号，便于下次更新时明确本次公开使用的版本
 cd /tmp/public-update
 git add -A
-git commit -m "v1.1.0 stable release (snapshot from YYYY-MM-DD)"
+git commit -m "v1.1.0 stable release (snapshot from commit <COMMIT_HASH>, YYYY-MM-DD)"
 git push origin main
 ```
 
@@ -277,38 +278,7 @@ git push origin main
 
 ### 公开仓库 .gitignore
 
-基于旧版本的 .gitignore，移除内部工具链引用后保留：
-
-```gitignore
-# Dependencies
-node_modules/
-
-# Build output
-dist/
-
-# Environment variables
-.env
-.env.local
-
-# Local config (keep *.example tracked)
-config/*.json
-config/sop/*.yaml
-
-# IDE
-.vscode/
-.idea/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-npm-debug.log*
-
-# Database
-data/*.db
-```
+沿用 `git archive` 导出的主仓 .gitignore，不额外修改。主仓 .gitignore 已排除本地配置文件（`.env`、`.claude/`、`CLAUDE.md`、`config/*.json` 等），公开仓库继承相同规则。
 
 ### 仓库命名与操作
 
@@ -345,11 +315,11 @@ data/*.db
 **应该** 能够完成初始发布和后续更新的全流程
 **约束**：步骤必须包含具体命令和验证点；后续更新步骤需处理两条 branch 的文件差异（rsync 覆盖）和历史差异（新 commit，不 merge）
 
-### B-5: .gitignore 精简 ← UA-5
+### B-5: .gitignore 沿用主仓规则 ← UA-5
 
 **当** 生成公开仓库快照时
-**应该** 使用精简版 .gitignore，移除内部工具链引用
-**约束**：公开仓库的 .gitignore 不得暴露内部工具链信息
+**应该** 沿用主仓的 .gitignore（由 git archive 导出），不额外修改
+**约束**：本地配置文件（`.env`、`.claude/`、`CLAUDE.md` 等）已由主仓 .gitignore 排除，不会出现在快照中
 
 ## 设计约束摘要
 
@@ -371,14 +341,15 @@ data/*.db
 - **依据**：不暴露开发历史；操作最简单；用户已确认
 - **用户确认**：msg#2 "3.单commit"
 
-### D-3: 排除列表最小化（修正原 D-3/D-4）
-- **决策**：仅排除 `.snail/`（内部状态）和 `config.json`（OpenCode 工具配置），保留其余所有文件
+### D-3: 排除列表（最终）
+- **决策**：排除 `.snail/`（内部状态）、`config.json`（OpenCode 工具配置）、`docs/features/`（历史提交记录）
 - **依据**：
   - 用户澄清（msg#2）："藏一点"主要指不暴露最新代码，通过发布旧版本实现
   - 用户约束（msg#2）："暴露1个月前的完全代码" + "项目也根本无法启动啊"
+  - 用户确认（msg#3）："忽略掉docs/features，因为这是历史提交记录"
+  - 用户确认（msg#3）："按照现在主仓的git规则来提交代码，不能包括我本地的一些配置" - 本地配置已由 .gitignore 排除
   - 目标 commit `37152fb6` 的 `data/file/` 目录为空，不存在 prompts/sops/skills/knowledge 排除问题
   - 旧 README 与旧代码结构自洽，无需排除文档
-- **撤销原 D-3**（docs/features/scripts/.github 全部排除）和原 D-4（data/file/*.example 排除）：用户反馈表明这些排除导致项目无法启动
 - **纠正通道**：用户可标记 `[纠正]` 并说明原因
 
 ### D-4: 发布频率 - 一次性发布，无需脚本
@@ -396,11 +367,21 @@ data/*.db
 - **依据**：用户说"1个月前"，该 commit 是 2026-06-09 的最新 commit，距今约 34 天
 - **纠正通道**：用户可指定其他 commit
 
+### D-7: Commit 信息包含源 commit 编号
+- **决策**：公开仓库的 commit message 必须包含源 commit 的完整 hash
+- **依据**：用户确认（msg#3）"commit信息要包含最新具体的commit编号（便于下一次明确本次的公开是用的哪个commit）"
+- **格式**：`v1.0.0 stable release (snapshot from commit 37152fb6, 2026-06-09)`
+
 ## 不兼容更新
 
 无。本方案不影响现有系统的任何功能，仅涉及仓库管理策略。
 
 ## 待确认事项
 
-1. **排除列表确认**：仅排除 `.snail/` 和 `config.json` 是否匹配意图？是否有其他需要排除的内容？
-2. **目标 commit 确认**：`37152fb6`（2026-06-09）是否符合"1个月前"的预期？
+全部已确认：
+1. **排除列表** ✅：`.snail/`、`config.json`、`docs/features/`（用户确认 msg#3）
+2. **目标 commit** ✅：`37152fb6`（2026-06-09）（用户确认 msg#3）
+3. **仓库命名** ✅：`snail-shell-public`（用户确认 msg#2）
+4. **Commit 策略** ✅：单 commit，信息包含源 commit hash（用户确认 msg#3）
+5. **发布频率** ✅：一次性发布 + 后续手动更新（用户确认 msg#2）
+6. **.gitignore** ✅：沿用主仓规则（用户确认 msg#3）
