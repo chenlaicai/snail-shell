@@ -26,6 +26,7 @@ function groupBySeverity(reasons: ForceAdvanceDialogProps["reasons"]): { errors:
 /** 用户强制推进确认对话框：按 severity 分组展示阻断原因，用户确认后调用 /force 端点 */
 export function ForceAdvanceDialog({ open, onClose, onConfirmed, stageId, targetKey, reasons, userHint }: ForceAdvanceDialogProps) {
   const [forcing, setForcing] = useState(false);
+  const [hintInput, setHintInput] = useState(userHint ?? "");
   const { errors, warnings } = groupBySeverity(reasons);
 
   function handleClose() {
@@ -37,7 +38,7 @@ export function ForceAdvanceDialog({ open, onClose, onConfirmed, stageId, target
     try {
       const stage = await api("POST /api/stages/:stageId/advance/force", {
         params: { stageId },
-        body: { target_key: targetKey, user_hint: userHint },
+        body: { target_key: targetKey, user_hint: hintInput.trim() || undefined },
       });
       showToast("已强制推进（绕过质量门禁）");
       onConfirmed(stage);
@@ -82,6 +83,15 @@ export function ForceAdvanceDialog({ open, onClose, onConfirmed, stageId, target
           </div>
         )}
       </div>
+
+      <textarea
+        value={hintInput}
+        onChange={(e) => setHintInput(e.target.value)}
+        placeholder="可选：填写强制推进的原因或对新阶段的指示..."
+        rows={3}
+        maxLength={2000}
+        className="w-full rounded-md border border-white/6 bg-surface-0 px-2.5 py-1.5 text-xs text-text-primary focus:border-shell-600/40 focus:outline-none resize-none mb-4"
+      />
 
       <div className="flex justify-end gap-2">
         <button
